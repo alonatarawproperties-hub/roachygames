@@ -1,11 +1,11 @@
 {
-  "id": "cbda7049-634b-4256-a3ba-8bdf1178d4e1",
-  "createdAt": "2025-12-05T14:51:56.092Z",
+  "id": "7b388647-6a3e-4656-a86c-2fe08729750a",
+  "createdAt": "2025-12-05T15:12:56.918Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1764946316092-465",
+    "key": "bundle-1764947576918-2357",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1764946316092-465/_expo/static/js/android/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000/1764947576918-2357/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -103,10 +103,10 @@
         "backgroundColor": "#1A1A2E"
       },
       "iconUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png",
-      "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/android"
+      "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000/android"
     },
     "expoGo": {
-      "debuggerHost": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/android",
+      "debuggerHost": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000/android",
       "developer": {
         "tool": "expo-cli",
         "projectRoot": "/home/runner/workspace"

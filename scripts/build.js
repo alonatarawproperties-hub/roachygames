@@ -29,15 +29,17 @@ function setupSignalHandlers() {
 }
 
 function getDeploymentUrl() {
+  // Must use port 5000 (Express server) to serve static manifests and bundles
+  // Port 80 goes to Metro bundler which serves development manifests
   if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
-    const url = `https://${process.env.REPLIT_INTERNAL_APP_DOMAIN}`;
-    console.log("Using REPLIT_INTERNAL_APP_DOMAIN:", url);
+    const url = `https://${process.env.REPLIT_INTERNAL_APP_DOMAIN}:5000`;
+    console.log("Using REPLIT_INTERNAL_APP_DOMAIN with port 5000:", url);
     return url;
   }
 
   if (process.env.REPLIT_DEV_DOMAIN) {
-    const url = `https://${process.env.REPLIT_DEV_DOMAIN}`;
-    console.log("Using REPLIT_DEV_DOMAIN:", url);
+    const url = `https://${process.env.REPLIT_DEV_DOMAIN}:5000`;
+    console.log("Using REPLIT_DEV_DOMAIN with port 5000:", url);
     return url;
   }
 

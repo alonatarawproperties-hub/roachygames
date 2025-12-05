@@ -141,7 +141,11 @@ function serveLandingPage({
   const forwardedHost = req.header("x-forwarded-host");
   const host = forwardedHost || req.get("host");
   const baseUrl = `${protocol}://${host}`;
-  const expsUrl = `${host}`;
+  
+  // For Expo Go deep link, must use port 5000 (Express) not port 80 (Metro)
+  // to get the static manifest instead of Metro's development manifest
+  const hostWithoutPort = host?.replace(/:\d+$/, "") || "";
+  const expsUrl = `${hostWithoutPort}:5000`;
 
   log(`baseUrl`, baseUrl);
   log(`expsUrl`, expsUrl);
