@@ -142,10 +142,9 @@ function serveLandingPage({
   const host = forwardedHost || req.get("host");
   const baseUrl = `${protocol}://${host}`;
   
-  // For Expo Go deep link, must use port 5000 (Express) not port 80 (Metro)
-  // to get the static manifest instead of Metro's development manifest
+  // For Expo Go deep link, use host without port (Express on 8081 maps to external 80)
   const hostWithoutPort = host?.replace(/:\d+$/, "") || "";
-  const expsUrl = `${hostWithoutPort}:5000`;
+  const expsUrl = hostWithoutPort;
 
   log(`baseUrl`, baseUrl);
   log(`expsUrl`, expsUrl);
@@ -231,7 +230,10 @@ function setupErrorHandler(app: express.Application) {
 
   setupErrorHandler(app);
 
-  const port = parseInt(process.env.PORT || "5000", 10);
+  // Use port 8081 for static serving (maps to external port 80 in Replit)
+  // This makes static bundles accessible via HTTPS on the default port
+  const staticMode = process.env.EXPO_STATIC_SERVE === "true";
+  const port = staticMode ? 8081 : parseInt(process.env.PORT || "5000", 10);
   server.listen(
     {
       port,
@@ -239,7 +241,7 @@ function setupErrorHandler(app: express.Application) {
       reusePort: true,
     },
     () => {
-      log(`express server serving on port ${port}`);
+      log(`express server serving on port ${port}${staticMode ? " (static mode)" : ""}`);
     },
   );
 })();

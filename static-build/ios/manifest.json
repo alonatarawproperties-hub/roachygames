@@ -1,11 +1,11 @@
 {
-  "id": "986b48d9-1adf-4a70-923e-6be067b03b33",
-  "createdAt": "2025-12-05T15:12:56.918Z",
+  "id": "70e0e8c0-6e97-4fd9-9e2e-4fb9fe714369",
+  "createdAt": "2025-12-05T15:38:11.400Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1764947576918-2357",
+    "key": "bundle-1764949091400-3221",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000/1764947576918-2357/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1764949091400-3221/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -103,10 +103,10 @@
         "backgroundColor": "#1A1A2E"
       },
       "iconUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png",
-      "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000/ios"
+      "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/ios"
     },
     "expoGo": {
-      "debuggerHost": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000/ios",
+      "debuggerHost": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/ios",
       "developer": {
         "tool": "expo-cli",
         "projectRoot": "/home/runner/workspace"
