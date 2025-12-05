@@ -12,7 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Fonts } from "@/constants/theme";
+import { Spacing, BorderRadius, Fonts, GameColors } from "@/constants/theme";
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -48,22 +48,26 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           style={({ pressed }) => [
             styles.topButton,
             {
-              backgroundColor: theme.backgroundDefault,
+              backgroundColor: GameColors.surface,
               opacity: pressed ? 0.8 : 1,
             },
           ]}
         >
-          <Feather name="alert-circle" size={20} color={theme.text} />
+          <Feather name="alert-circle" size={20} color={GameColors.textPrimary} />
         </Pressable>
       ) : null}
 
       <View style={styles.content}>
-        <ThemedText type="h1" style={styles.title}>
-          Something went wrong
+        <View style={styles.iconContainer}>
+          <Feather name="alert-triangle" size={48} color={GameColors.primary} />
+        </View>
+        
+        <ThemedText type="h2" style={styles.title}>
+          CryptoCreatures Crashed
         </ThemedText>
 
         <ThemedText type="body" style={styles.message}>
-          Please reload the app to continue.
+          The hunt got interrupted! Let's get you back on track.
         </ThemedText>
 
         <Pressable
@@ -71,7 +75,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           style={({ pressed }) => [
             styles.button,
             {
-              backgroundColor: theme.link,
+              backgroundColor: GameColors.primary,
               opacity: pressed ? 0.9 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
@@ -79,9 +83,9 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         >
           <ThemedText
             type="body"
-            style={[styles.buttonText, { color: theme.buttonText }]}
+            style={[styles.buttonText, { color: "#fff" }]}
           >
-            Try Again
+            Resume Hunting
           </ThemedText>
         </Pressable>
       </View>
@@ -94,9 +98,9 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           onRequestClose={() => setIsModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <ThemedView style={styles.modalContainer}>
+            <View style={[styles.modalContainer, { backgroundColor: GameColors.background }]}>
               <View style={styles.modalHeader}>
-                <ThemedText type="h2" style={styles.modalTitle}>
+                <ThemedText type="h3" style={styles.modalTitle}>
                   Error Details
                 </ThemedText>
                 <Pressable
@@ -106,7 +110,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
-                  <Feather name="x" size={24} color={theme.text} />
+                  <Feather name="x" size={24} color={GameColors.textPrimary} />
                 </Pressable>
               </View>
 
@@ -118,14 +122,14 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                 <View
                   style={[
                     styles.errorContainer,
-                    { backgroundColor: theme.backgroundDefault },
+                    { backgroundColor: GameColors.surface },
                   ]}
                 >
                   <Text
                     style={[
                       styles.errorText,
                       {
-                        color: theme.text,
+                        color: GameColors.textPrimary,
                         fontFamily: Fonts?.mono || "monospace",
                       },
                     ]}
@@ -135,7 +139,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                   </Text>
                 </View>
               </ScrollView>
-            </ThemedView>
+            </View>
           </View>
         </Modal>
       ) : null}
@@ -151,6 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing["2xl"],
+    backgroundColor: GameColors.background,
   },
   content: {
     alignItems: "center",
@@ -159,13 +164,22 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 600,
   },
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: GameColors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
   title: {
     textAlign: "center",
-    lineHeight: 40,
+    color: GameColors.textPrimary,
   },
   message: {
     textAlign: "center",
-    opacity: 0.7,
+    color: GameColors.textSecondary,
     lineHeight: 24,
   },
   topButton: {
@@ -182,17 +196,10 @@ const styles = StyleSheet.create({
   },
   button: {
     paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing["2xl"],
     minWidth: 200,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginTop: Spacing.md,
   },
   buttonText: {
     fontWeight: "600",
@@ -201,7 +208,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "flex-end",
   },
   modalContainer: {
@@ -218,10 +225,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(128, 128, 128, 0.2)",
+    borderBottomColor: GameColors.surfaceLight,
   },
   modalTitle: {
     fontWeight: "600",
+    color: GameColors.textPrimary,
   },
   closeButton: {
     padding: Spacing.xs,

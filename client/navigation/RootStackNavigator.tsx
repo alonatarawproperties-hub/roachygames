@@ -1,12 +1,13 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import CatchScreen from "@/screens/CatchScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { WildCreature } from "@/constants/gameState";
 
 export type RootStackParamList = {
   Main: undefined;
-  Modal: undefined;
+  Catch: { creature: WildCreature };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -22,11 +23,12 @@ export default function RootStackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="Catch"
+        component={CatchScreen}
         options={{
-          presentation: "modal",
-          headerTitle: "Modal",
+          presentation: "fullScreenModal",
+          headerShown: false,
+          animation: "fade",
         }}
       />
     </Stack.Navigator>
