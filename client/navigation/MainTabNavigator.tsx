@@ -4,14 +4,14 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MapStackNavigator from "@/navigation/MapStackNavigator";
+import HuntStackNavigator from "@/navigation/HuntStackNavigator";
 import InventoryStackNavigator from "@/navigation/InventoryStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
 import { GameColors, Spacing } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
 
 export type MainTabParamList = {
-  MapTab: undefined;
+  HuntTab: undefined;
   InventoryTab: undefined;
   ProfileTab: undefined;
 };
@@ -28,7 +28,7 @@ export default function MainTabNavigator() {
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
-        initialRouteName="MapTab"
+        initialRouteName="HuntTab"
         screenOptions={{
           tabBarActiveTintColor: GameColors.primary,
           tabBarInactiveTintColor: GameColors.textSecondary,
@@ -55,8 +55,8 @@ export default function MainTabNavigator() {
         }}
       >
         <Tab.Screen
-          name="MapTab"
-          component={MapStackNavigator}
+          name="HuntTab"
+          component={HuntStackNavigator}
           options={{
             title: "Hunt",
             tabBarIcon: ({ color, size }) => (

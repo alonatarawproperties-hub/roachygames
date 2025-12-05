@@ -1,0 +1,756 @@
+import type { Express, Request, Response } from "express";
+import { db } from "./db";
+import {
+  huntPlayerLocations,
+  wildCreatureSpawns,
+  huntCaughtCreatures,
+  huntLeaderboard,
+  huntActivityLog,
+  huntEconomyStats,
+  huntEggs,
+  huntIncubators,
+  huntRaids,
+  huntRaidParticipants,
+} from "@shared/schema";
+import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
+
+const RARITY_RATES = {
+  common: 0.60,
+  uncommon: 0.25,
+  rare: 0.10,
+  epic: 0.04,
+  legendary: 0.01,
+};
+
+const CREATURE_TEMPLATES = [
+  { id: 'emberwing', name: 'Emberwing', class: 'fire', baseHp: 65, baseAtk: 70, baseDef: 45, baseSpd: 75 },
+  { id: 'aquafin', name: 'Aquafin', class: 'water', baseHp: 70, baseAtk: 55, baseDef: 65, baseSpd: 60 },
+  { id: 'leafox', name: 'Leafox', class: 'grass', baseHp: 60, baseAtk: 60, baseDef: 55, baseSpd: 70 },
+  { id: 'voltcat', name: 'Voltcat', class: 'electric', baseHp: 55, baseAtk: 80, baseDef: 40, baseSpd: 90 },
+  { id: 'frostfang', name: 'Frostfang', class: 'ice', baseHp: 75, baseAtk: 70, baseDef: 70, baseSpd: 55 },
+  { id: 'shadowisp', name: 'Shadowisp', class: 'shadow', baseHp: 50, baseAtk: 85, baseDef: 50, baseSpd: 85 },
+  { id: 'phoenixia', name: 'Phoenixia', class: 'fire', baseHp: 90, baseAtk: 95, baseDef: 80, baseSpd: 100 },
+];
+
+const EGG_DISTANCES: Record<string, number> = {
+  common: 2000,
+  uncommon: 5000,
+  rare: 7000,
+  epic: 10000,
+  legendary: 12000,
+};
+
+function selectRarity(pityCounters: { sinceRare: number; sinceEpic: number }): string {
+  if (pityCounters.sinceEpic >= 60) return 'epic';
+  if (pityCounters.sinceRare >= 20) return 'rare';
+  
+  const roll = Math.random();
+  let cumulative = 0;
+  for (const [rarity, rate] of Object.entries(RARITY_RATES)) {
+    cumulative += rate;
+    if (roll <= cumulative) return rarity;
+  }
+  return 'common';
+}
+
+function generateIVs(): { ivHp: number; ivAtk: number; ivDef: number; ivSpd: number; isPerfect: boolean } {
+  const isPerfect = Math.random() < 0.01;
+  const range = isPerfect ? 7 : 5;
+  return {
+    ivHp: Math.floor(Math.random() * (range * 2 + 1)) - (isPerfect ? 0 : 5),
+    ivAtk: Math.floor(Math.random() * (range * 2 + 1)) - (isPerfect ? 0 : 5),
+    ivDef: Math.floor(Math.random() * (range * 2 + 1)) - (isPerfect ? 0 : 5),
+    ivSpd: Math.floor(Math.random() * (range * 2 + 1)) - (isPerfect ? 0 : 5),
+    isPerfect,
+  };
+}
+
+function getRandomOffset(radiusMeters: number): { lat: number; lng: number } {
+  const angle = Math.random() * 2 * Math.PI;
+  const distance = Math.random() * radiusMeters;
+  const latOffset = (distance / 111320) * Math.cos(angle);
+  const lngOffset = (distance / (111320 * Math.cos(0))) * Math.sin(angle);
+  return { lat: latOffset, lng: lngOffset };
+}
+
+export function registerHuntRoutes(app: Express) {
+  app.post("/api/hunt/location", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, latitude, longitude, displayName } = req.body;
+      
+      if (!walletAddress || latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const existing = await db.select().from(huntPlayerLocations)
+        .where(eq(huntPlayerLocations.walletAddress, walletAddress))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db.update(huntPlayerLocations)
+          .set({
+            latitude: latitude.toString(),
+            longitude: longitude.toString(),
+            lastSeen: new Date(),
+            updatedAt: new Date(),
+            displayName: displayName || existing[0].displayName,
+            isOnline: true,
+          })
+          .where(eq(huntPlayerLocations.walletAddress, walletAddress));
+      } else {
+        await db.insert(huntPlayerLocations).values({
+          walletAddress,
+          latitude: latitude.toString(),
+          longitude: longitude.toString(),
+          displayName,
+          isOnline: true,
+        });
+
+        await db.insert(huntEconomyStats).values({
+          walletAddress,
+          energy: 30,
+          maxEnergy: 30,
+        });
+
+        await db.insert(huntLeaderboard).values({
+          walletAddress,
+          displayName,
+        });
+
+        await db.insert(huntIncubators).values({
+          walletAddress,
+          incubatorType: 'basic',
+          slotNumber: 1,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Location update error:", error);
+      res.status(500).json({ error: "Failed to update location" });
+    }
+  });
+
+  app.get("/api/hunt/spawns", async (req: Request, res: Response) => {
+    try {
+      const { latitude, longitude, radius = 500 } = req.query;
+      
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: "Missing coordinates" });
+      }
+
+      const lat = parseFloat(latitude as string);
+      const lng = parseFloat(longitude as string);
+      const radiusKm = parseFloat(radius as string) / 1000;
+      const latDelta = radiusKm / 111.32;
+      const lngDelta = radiusKm / (111.32 * Math.cos(lat * Math.PI / 180));
+      const now = new Date();
+
+      await db.update(wildCreatureSpawns)
+        .set({ isActive: false })
+        .where(and(
+          eq(wildCreatureSpawns.isActive, true),
+          lte(wildCreatureSpawns.expiresAt, now)
+        ));
+
+      const spawns = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.latitude, (lat - latDelta).toString()),
+          lte(wildCreatureSpawns.latitude, (lat + latDelta).toString()),
+          gte(wildCreatureSpawns.longitude, (lng - lngDelta).toString()),
+          lte(wildCreatureSpawns.longitude, (lng + lngDelta).toString()),
+          gte(wildCreatureSpawns.expiresAt, now),
+        ))
+        .limit(20);
+
+      res.json({ spawns });
+    } catch (error) {
+      console.error("Spawns fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch spawns" });
+    }
+  });
+
+  app.post("/api/hunt/spawn", async (req: Request, res: Response) => {
+    try {
+      const { latitude, longitude, count = 5 } = req.body;
+      
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: "Missing coordinates" });
+      }
+
+      const spawns = [];
+      for (let i = 0; i < count; i++) {
+        const offset = getRandomOffset(300);
+        const rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
+        
+        let templates = CREATURE_TEMPLATES;
+        if (rarity === 'legendary') {
+          templates = templates.filter(t => t.id === 'phoenixia');
+        } else if (rarity === 'epic') {
+          templates = templates.filter(t => t.id === 'shadowisp');
+        } else if (rarity === 'rare') {
+          templates = templates.filter(t => ['voltcat', 'frostfang'].includes(t.id));
+        }
+        
+        const template = templates[Math.floor(Math.random() * templates.length)];
+        const expiresAt = new Date(Date.now() + (15 + Math.random() * 15) * 60 * 1000);
+
+        const [spawn] = await db.insert(wildCreatureSpawns).values({
+          latitude: (latitude + offset.lat).toString(),
+          longitude: (longitude + offset.lng).toString(),
+          templateId: template.id,
+          name: template.name,
+          creatureClass: template.class,
+          rarity,
+          baseHp: template.baseHp,
+          baseAtk: template.baseAtk,
+          baseDef: template.baseDef,
+          baseSpd: template.baseSpd,
+          expiresAt,
+        }).returning();
+
+        spawns.push(spawn);
+      }
+
+      res.json({ success: true, spawns });
+    } catch (error) {
+      console.error("Spawn error:", error);
+      res.status(500).json({ error: "Failed to spawn creatures" });
+    }
+  });
+
+  app.post("/api/hunt/catch", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, spawnId, catchQuality, latitude, longitude } = req.body;
+      
+      if (!walletAddress || !spawnId) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const [spawn] = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.id, spawnId),
+          eq(wildCreatureSpawns.isActive, true),
+        ))
+        .limit(1);
+
+      if (!spawn) {
+        return res.status(404).json({ error: "Spawn not found or already caught" });
+      }
+
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        return res.status(404).json({ error: "Player economy not found" });
+      }
+
+      if (economy.energy <= 0) {
+        return res.status(400).json({ error: "Not enough energy" });
+      }
+
+      if (economy.catchesToday >= economy.maxCatchesPerDay) {
+        return res.status(400).json({ error: "Daily catch limit reached" });
+      }
+
+      await db.update(wildCreatureSpawns)
+        .set({
+          isActive: false,
+          caughtByWallet: walletAddress,
+          caughtAt: new Date(),
+        })
+        .where(eq(wildCreatureSpawns.id, spawnId));
+
+      const ivs = generateIVs();
+      const xpGain = catchQuality === 'perfect' ? 150 : catchQuality === 'great' ? 75 : 30;
+
+      const [caughtCreature] = await db.insert(huntCaughtCreatures).values({
+        walletAddress,
+        templateId: spawn.templateId,
+        name: spawn.name,
+        creatureClass: spawn.creatureClass,
+        rarity: spawn.rarity,
+        baseHp: spawn.baseHp,
+        baseAtk: spawn.baseAtk,
+        baseDef: spawn.baseDef,
+        baseSpd: spawn.baseSpd,
+        xp: xpGain,
+        ivHp: ivs.ivHp,
+        ivAtk: ivs.ivAtk,
+        ivDef: ivs.ivDef,
+        ivSpd: ivs.ivSpd,
+        isPerfect: ivs.isPerfect,
+        catchQuality,
+        catchLatitude: (latitude || spawn.latitude).toString(),
+        catchLongitude: (longitude || spawn.longitude).toString(),
+      }).returning();
+
+      const today = new Date().toISOString().split('T')[0];
+      const isNewDay = economy.lastCatchDate !== today;
+      let newStreak = economy.currentStreak;
+
+      if (isNewDay) {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+      }
+
+      let newCatchesSinceRare = spawn.rarity === 'rare' || spawn.rarity === 'epic' || spawn.rarity === 'legendary' 
+        ? 0 : economy.catchesSinceRare + 1;
+      let newCatchesSinceEpic = spawn.rarity === 'epic' || spawn.rarity === 'legendary' 
+        ? 0 : economy.catchesSinceEpic + 1;
+
+      await db.update(huntEconomyStats)
+        .set({
+          energy: economy.energy - 1,
+          catchesToday: isNewDay ? 1 : economy.catchesToday + 1,
+          catchesThisWeek: economy.catchesThisWeek + 1,
+          catchesSinceRare: newCatchesSinceRare,
+          catchesSinceEpic: newCatchesSinceEpic,
+          currentStreak: newStreak,
+          longestStreak: Math.max(newStreak, economy.longestStreak),
+          lastCatchDate: today,
+          lastDailyReset: isNewDay ? new Date() : economy.lastDailyReset,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      const rarityField = `${spawn.rarity}Caught` as keyof typeof huntLeaderboard;
+      await db.update(huntLeaderboard)
+        .set({
+          totalCaught: sql`${huntLeaderboard.totalCaught} + 1`,
+          [rarityField]: sql`${huntLeaderboard[rarityField]} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntLeaderboard.walletAddress, walletAddress));
+
+      await db.insert(huntActivityLog).values({
+        walletAddress,
+        activityType: 'catch',
+        details: JSON.stringify({
+          creatureId: caughtCreature.id,
+          name: spawn.name,
+          rarity: spawn.rarity,
+          catchQuality,
+          xpGain,
+          isPerfect: ivs.isPerfect,
+        }),
+      });
+
+      const shouldDropEgg = Math.random() < 0.15;
+      let droppedEgg = null;
+
+      if (shouldDropEgg) {
+        const eggRarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
+        const [egg] = await db.insert(huntEggs).values({
+          walletAddress,
+          rarity: eggRarity,
+          requiredDistance: EGG_DISTANCES[eggRarity] || 2000,
+          foundLatitude: latitude?.toString() || spawn.latitude.toString(),
+          foundLongitude: longitude?.toString() || spawn.longitude.toString(),
+        }).returning();
+        droppedEgg = egg;
+      }
+
+      res.json({
+        success: true,
+        creature: caughtCreature,
+        xpGain,
+        streak: newStreak,
+        droppedEgg,
+        economy: {
+          energy: economy.energy - 1,
+          catchesToday: isNewDay ? 1 : economy.catchesToday + 1,
+        },
+      });
+    } catch (error) {
+      console.error("Catch error:", error);
+      res.status(500).json({ error: "Failed to catch creature" });
+    }
+  });
+
+  app.get("/api/hunt/economy/:walletAddress", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.params;
+
+      let [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        [economy] = await db.insert(huntEconomyStats).values({
+          walletAddress,
+          energy: 30,
+          maxEnergy: 30,
+          maxCatchesPerDay: 25,
+          maxCatchesPerWeek: 120,
+        }).returning();
+      }
+
+      const now = new Date();
+      const lastRefresh = new Date(economy.lastEnergyRefresh);
+      const hoursSinceRefresh = (now.getTime() - lastRefresh.getTime()) / (1000 * 60 * 60);
+      
+      if (hoursSinceRefresh >= 24 && economy.energy < economy.maxEnergy) {
+        await db.update(huntEconomyStats)
+          .set({
+            energy: economy.maxEnergy,
+            lastEnergyRefresh: now,
+            updatedAt: now,
+          })
+          .where(eq(huntEconomyStats.walletAddress, walletAddress));
+        economy.energy = economy.maxEnergy;
+      }
+
+      res.json({ economy });
+    } catch (error) {
+      console.error("Economy fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch economy stats" });
+    }
+  });
+
+  app.get("/api/hunt/collection/:walletAddress", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.params;
+
+      const creatures = await db.select().from(huntCaughtCreatures)
+        .where(eq(huntCaughtCreatures.walletAddress, walletAddress))
+        .orderBy(desc(huntCaughtCreatures.caughtAt));
+
+      res.json({ creatures });
+    } catch (error) {
+      console.error("Collection fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch collection" });
+    }
+  });
+
+  app.get("/api/hunt/leaderboard", async (req: Request, res: Response) => {
+    try {
+      const leaderboard = await db.select().from(huntLeaderboard)
+        .orderBy(desc(huntLeaderboard.totalCaught))
+        .limit(50);
+
+      res.json({ leaderboard });
+    } catch (error) {
+      console.error("Leaderboard fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch leaderboard" });
+    }
+  });
+
+  app.get("/api/hunt/eggs/:walletAddress", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.params;
+
+      const eggs = await db.select().from(huntEggs)
+        .where(and(
+          eq(huntEggs.walletAddress, walletAddress),
+          sql`${huntEggs.hatchedAt} IS NULL`,
+        ))
+        .orderBy(desc(huntEggs.foundAt));
+
+      const incubators = await db.select().from(huntIncubators)
+        .where(eq(huntIncubators.walletAddress, walletAddress));
+
+      res.json({ eggs, incubators });
+    } catch (error) {
+      console.error("Eggs fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch eggs" });
+    }
+  });
+
+  app.post("/api/hunt/eggs/:eggId/incubate", async (req: Request, res: Response) => {
+    try {
+      const { eggId } = req.params;
+      const { incubatorId } = req.body;
+
+      await db.update(huntEggs)
+        .set({
+          isIncubating: true,
+          startedIncubatingAt: new Date(),
+        })
+        .where(eq(huntEggs.id, eggId));
+
+      await db.update(huntIncubators)
+        .set({ currentEggId: eggId })
+        .where(eq(huntIncubators.id, incubatorId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Incubate error:", error);
+      res.status(500).json({ error: "Failed to start incubation" });
+    }
+  });
+
+  app.post("/api/hunt/eggs/:eggId/walk", async (req: Request, res: Response) => {
+    try {
+      const { eggId } = req.params;
+      const { distance, walletAddress } = req.body;
+
+      const [egg] = await db.select().from(huntEggs)
+        .where(and(
+          eq(huntEggs.id, eggId),
+          eq(huntEggs.isIncubating, true),
+        ))
+        .limit(1);
+
+      if (!egg) {
+        return res.status(404).json({ error: "Egg not found or not incubating" });
+      }
+
+      const newDistance = egg.walkedDistance + distance;
+      
+      if (newDistance >= egg.requiredDistance) {
+        const rarity = egg.rarity;
+        let templates = CREATURE_TEMPLATES;
+        if (rarity === 'legendary') {
+          templates = templates.filter(t => t.id === 'phoenixia');
+        } else if (rarity === 'epic') {
+          templates = templates.filter(t => t.id === 'shadowisp');
+        } else if (rarity === 'rare') {
+          templates = templates.filter(t => ['voltcat', 'frostfang'].includes(t.id));
+        }
+        
+        const template = templates[Math.floor(Math.random() * templates.length)];
+        const ivs = generateIVs();
+
+        const [hatchedCreature] = await db.insert(huntCaughtCreatures).values({
+          walletAddress,
+          templateId: template.id,
+          name: template.name,
+          creatureClass: template.class,
+          rarity,
+          baseHp: template.baseHp,
+          baseAtk: template.baseAtk,
+          baseDef: template.baseDef,
+          baseSpd: template.baseSpd,
+          xp: 50,
+          ivHp: ivs.ivHp,
+          ivAtk: ivs.ivAtk,
+          ivDef: ivs.ivDef,
+          ivSpd: ivs.ivSpd,
+          isPerfect: ivs.isPerfect,
+          catchQuality: 'good',
+          catchLatitude: egg.foundLatitude || "0",
+          catchLongitude: egg.foundLongitude || "0",
+          origin: 'egg',
+        }).returning();
+
+        await db.update(huntEggs)
+          .set({
+            walkedDistance: newDistance,
+            hatchedAt: new Date(),
+            hatchedCreatureId: hatchedCreature.id,
+          })
+          .where(eq(huntEggs.id, eggId));
+
+        await db.update(huntIncubators)
+          .set({ currentEggId: null })
+          .where(eq(huntIncubators.currentEggId, eggId));
+
+        res.json({ 
+          success: true, 
+          hatched: true, 
+          creature: hatchedCreature 
+        });
+      } else {
+        await db.update(huntEggs)
+          .set({ walkedDistance: newDistance })
+          .where(eq(huntEggs.id, eggId));
+
+        res.json({ 
+          success: true, 
+          hatched: false, 
+          walkedDistance: newDistance,
+          requiredDistance: egg.requiredDistance,
+        });
+      }
+    } catch (error) {
+      console.error("Walk error:", error);
+      res.status(500).json({ error: "Failed to update egg distance" });
+    }
+  });
+
+  app.get("/api/hunt/raids", async (req: Request, res: Response) => {
+    try {
+      const { latitude, longitude, radius = 1000 } = req.query;
+      
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: "Missing coordinates" });
+      }
+
+      const lat = parseFloat(latitude as string);
+      const lng = parseFloat(longitude as string);
+      const radiusKm = parseFloat(radius as string) / 1000;
+      const latDelta = radiusKm / 111.32;
+      const lngDelta = radiusKm / (111.32 * Math.cos(lat * Math.PI / 180));
+
+      const raids = await db.select().from(huntRaids)
+        .where(and(
+          eq(huntRaids.isActive, true),
+          gte(huntRaids.latitude, (lat - latDelta).toString()),
+          lte(huntRaids.latitude, (lat + latDelta).toString()),
+          gte(huntRaids.longitude, (lng - lngDelta).toString()),
+          lte(huntRaids.longitude, (lng + lngDelta).toString()),
+          gte(huntRaids.expiresAt, new Date()),
+        ));
+
+      res.json({ raids });
+    } catch (error) {
+      console.error("Raids fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch raids" });
+    }
+  });
+
+  app.post("/api/hunt/raids/:raidId/join", async (req: Request, res: Response) => {
+    try {
+      const { raidId } = req.params;
+      const { walletAddress } = req.body;
+
+      const existing = await db.select().from(huntRaidParticipants)
+        .where(and(
+          eq(huntRaidParticipants.raidId, raidId),
+          eq(huntRaidParticipants.walletAddress, walletAddress),
+        ))
+        .limit(1);
+
+      if (existing.length === 0) {
+        await db.insert(huntRaidParticipants).values({
+          raidId,
+          walletAddress,
+        });
+
+        await db.update(huntRaids)
+          .set({
+            participantCount: sql`${huntRaids.participantCount} + 1`,
+          })
+          .where(eq(huntRaids.id, raidId));
+      }
+
+      const [raid] = await db.select().from(huntRaids)
+        .where(eq(huntRaids.id, raidId))
+        .limit(1);
+
+      res.json({ success: true, raid });
+    } catch (error) {
+      console.error("Join raid error:", error);
+      res.status(500).json({ error: "Failed to join raid" });
+    }
+  });
+
+  app.post("/api/hunt/raids/:raidId/attack", async (req: Request, res: Response) => {
+    try {
+      const { raidId } = req.params;
+      const { walletAddress, attackPower } = req.body;
+
+      const [raid] = await db.select().from(huntRaids)
+        .where(and(
+          eq(huntRaids.id, raidId),
+          eq(huntRaids.isActive, true),
+        ))
+        .limit(1);
+
+      if (!raid) {
+        return res.status(404).json({ error: "Raid not found or already defeated" });
+      }
+
+      const damage = Math.floor(attackPower * (0.8 + Math.random() * 0.4));
+      const newHp = Math.max(0, raid.currentHp - damage);
+      const isDefeated = newHp <= 0;
+
+      await db.update(huntRaids)
+        .set({
+          currentHp: newHp,
+          isActive: !isDefeated,
+          defeatedAt: isDefeated ? new Date() : null,
+        })
+        .where(eq(huntRaids.id, raidId));
+
+      await db.update(huntRaidParticipants)
+        .set({
+          totalDamage: sql`${huntRaidParticipants.totalDamage} + ${damage}`,
+          attackCount: sql`${huntRaidParticipants.attackCount} + 1`,
+        })
+        .where(and(
+          eq(huntRaidParticipants.raidId, raidId),
+          eq(huntRaidParticipants.walletAddress, walletAddress),
+        ));
+
+      const [participant] = await db.select().from(huntRaidParticipants)
+        .where(and(
+          eq(huntRaidParticipants.raidId, raidId),
+          eq(huntRaidParticipants.walletAddress, walletAddress),
+        ))
+        .limit(1);
+
+      let rewards = null;
+      if (isDefeated) {
+        const contribution = Math.round((participant.totalDamage / raid.maxHp) * 100);
+        rewards = {
+          chyCoins: Math.floor(contribution * 10),
+          xp: Math.floor(contribution * 5),
+          contribution,
+          guaranteedEgg: contribution >= 20,
+        };
+
+        if (rewards.guaranteedEgg) {
+          await db.insert(huntEggs).values({
+            walletAddress,
+            rarity: raid.rarity,
+            requiredDistance: EGG_DISTANCES[raid.rarity] || 5000,
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        damage,
+        bossHP: newHp,
+        yourTotalDamage: participant.totalDamage,
+        isDefeated,
+        rewards,
+      });
+    } catch (error) {
+      console.error("Attack error:", error);
+      res.status(500).json({ error: "Failed to attack" });
+    }
+  });
+
+  app.post("/api/hunt/raids/spawn", async (req: Request, res: Response) => {
+    try {
+      const { latitude, longitude } = req.body;
+      
+      const rarityRoll = Math.random();
+      const rarity = rarityRoll < 0.6 ? 'rare' : rarityRoll < 0.9 ? 'epic' : 'legendary';
+      
+      const hpMultipliers: Record<string, number> = {
+        rare: 5000,
+        epic: 15000,
+        legendary: 50000,
+      };
+
+      const bossNames = ['Ancient Guardian', 'Shadow Beast', 'Storm Titan', 'Flame Wyrm'];
+      const bossName = bossNames[Math.floor(Math.random() * bossNames.length)];
+
+      const offset = getRandomOffset(500);
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+      const [raid] = await db.insert(huntRaids).values({
+        latitude: (latitude + offset.lat).toString(),
+        longitude: (longitude + offset.lng).toString(),
+        bossName,
+        bossClass: 'shadow',
+        rarity,
+        currentHp: hpMultipliers[rarity],
+        maxHp: hpMultipliers[rarity],
+        expiresAt,
+      }).returning();
+
+      res.json({ success: true, raid });
+    } catch (error) {
+      console.error("Spawn raid error:", error);
+      res.status(500).json({ error: "Failed to spawn raid" });
+    }
+  });
+}

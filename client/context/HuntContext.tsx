@@ -1,0 +1,347 @@
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
+
+export interface Spawn {
+  id: string;
+  latitude: string;
+  longitude: string;
+  templateId: string;
+  name: string;
+  creatureClass: string;
+  rarity: string;
+  baseHp: number;
+  baseAtk: number;
+  baseDef: number;
+  baseSpd: number;
+  distance?: number;
+}
+
+export interface CaughtCreature {
+  id: string;
+  templateId: string;
+  name: string;
+  creatureClass: string;
+  rarity: string;
+  baseHp: number;
+  baseAtk: number;
+  baseDef: number;
+  baseSpd: number;
+  level: number;
+  xp: number;
+  ivHp: number;
+  ivAtk: number;
+  ivDef: number;
+  ivSpd: number;
+  isPerfect: boolean;
+  catchQuality: string;
+}
+
+export interface EconomyStats {
+  energy: number;
+  maxEnergy: number;
+  catchesToday: number;
+  maxCatchesPerDay: number;
+  catchesSinceRare: number;
+  catchesSinceEpic: number;
+  currentStreak: number;
+  longestStreak: number;
+}
+
+export interface Egg {
+  id: string;
+  rarity: string;
+  requiredDistance: number;
+  walkedDistance: number;
+  isIncubating: boolean;
+}
+
+export interface Raid {
+  id: string;
+  latitude: string;
+  longitude: string;
+  bossName: string;
+  bossClass: string;
+  rarity: string;
+  currentHp: number;
+  maxHp: number;
+  participantCount: number;
+  expiresAt: string;
+}
+
+interface HuntContextType {
+  walletAddress: string;
+  playerLocation: { latitude: number; longitude: number } | null;
+  spawns: Spawn[];
+  economy: EconomyStats | null;
+  collection: CaughtCreature[];
+  eggs: Egg[];
+  raids: Raid[];
+  isLoading: boolean;
+  updateLocation: (latitude: number, longitude: number) => Promise<void>;
+  spawnCreatures: () => Promise<void>;
+  catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
+  startIncubation: (eggId: string, incubatorId: string) => Promise<void>;
+  walkEgg: (eggId: string, distance: number) => Promise<any>;
+  joinRaid: (raidId: string) => Promise<void>;
+  attackRaid: (raidId: string, attackPower: number) => Promise<any>;
+  refreshSpawns: () => void;
+  refreshEconomy: () => void;
+}
+
+const HuntContext = createContext<HuntContextType | null>(null);
+
+export function useHunt() {
+  const context = useContext(HuntContext);
+  if (!context) {
+    throw new Error("useHunt must be used within a HuntProvider");
+  }
+  return context;
+}
+
+interface HuntProviderProps {
+  children: ReactNode;
+}
+
+export function HuntProvider({ children }: HuntProviderProps) {
+  const queryClient = useQueryClient();
+  const [walletAddress] = useState(() => `player_${Math.random().toString(36).substring(2, 15)}`);
+  const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const { data: economyData, refetch: refreshEconomy } = useQuery({
+    queryKey: ["/api/hunt/economy", walletAddress],
+    queryFn: async () => {
+      const url = new URL(`/api/hunt/economy/${walletAddress}`, getApiUrl());
+      const response = await fetch(url.toString());
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.economy as EconomyStats;
+    },
+    enabled: !!walletAddress,
+  });
+
+  const { data: spawnsData, refetch: refreshSpawns, isLoading: spawnsLoading } = useQuery({
+    queryKey: ["/api/hunt/spawns", playerLocation?.latitude, playerLocation?.longitude],
+    queryFn: async () => {
+      if (!playerLocation) {
+        console.log("No player location, returning empty spawns");
+        return [];
+      }
+      const url = new URL("/api/hunt/spawns", getApiUrl());
+      url.searchParams.set("latitude", playerLocation.latitude.toString());
+      url.searchParams.set("longitude", playerLocation.longitude.toString());
+      url.searchParams.set("radius", "500");
+      console.log("Fetching spawns from:", url.toString());
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        console.log("Spawns fetch failed:", response.status);
+        return [];
+      }
+      const data = await response.json();
+      console.log("Spawns response:", data?.spawns?.length || 0, "spawns");
+      const mappedSpawns = (data.spawns || []).map((spawn: Spawn) => ({
+        ...spawn,
+        distance: calculateDistance(
+          playerLocation.latitude,
+          playerLocation.longitude,
+          parseFloat(spawn.latitude),
+          parseFloat(spawn.longitude)
+        ),
+      }));
+      console.log("Mapped spawns:", mappedSpawns.length);
+      return mappedSpawns;
+    },
+    enabled: !!playerLocation,
+    refetchInterval: 30000,
+  });
+
+  const { data: collectionData } = useQuery({
+    queryKey: ["/api/hunt/collection", walletAddress],
+    queryFn: async () => {
+      const url = new URL(`/api/hunt/collection/${walletAddress}`, getApiUrl());
+      const response = await fetch(url.toString());
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.creatures || [];
+    },
+    enabled: !!walletAddress,
+  });
+
+  const { data: eggsData } = useQuery({
+    queryKey: ["/api/hunt/eggs", walletAddress],
+    queryFn: async () => {
+      const url = new URL(`/api/hunt/eggs/${walletAddress}`, getApiUrl());
+      const response = await fetch(url.toString());
+      if (!response.ok) return { eggs: [], incubators: [] };
+      return await response.json();
+    },
+    enabled: !!walletAddress,
+  });
+
+  const { data: raidsData } = useQuery({
+    queryKey: ["/api/hunt/raids", playerLocation?.latitude, playerLocation?.longitude],
+    queryFn: async () => {
+      if (!playerLocation) return [];
+      const url = new URL("/api/hunt/raids", getApiUrl());
+      url.searchParams.set("latitude", playerLocation.latitude.toString());
+      url.searchParams.set("longitude", playerLocation.longitude.toString());
+      url.searchParams.set("radius", "1000");
+      const response = await fetch(url.toString());
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.raids || [];
+    },
+    enabled: !!playerLocation,
+    refetchInterval: 60000,
+  });
+
+  const updateLocation = useCallback(async (latitude: number, longitude: number) => {
+    setPlayerLocation({ latitude, longitude });
+    try {
+      await apiRequest("POST", "/api/hunt/location", {
+        walletAddress,
+        latitude,
+        longitude,
+      });
+    } catch (error) {
+      console.error("Failed to update location:", error);
+    }
+  }, [walletAddress]);
+
+  const spawnCreatures = useCallback(async () => {
+    if (!playerLocation) {
+      console.log("spawnCreatures: No player location, aborting");
+      return;
+    }
+    try {
+      console.log("spawnCreatures: Calling spawn API at", playerLocation);
+      const response = await apiRequest("POST", "/api/hunt/spawn", {
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+        count: 5,
+      });
+      const data = await response.json();
+      console.log("spawnCreatures: Response", data);
+      refreshSpawns();
+    } catch (error) {
+      console.error("Failed to spawn creatures:", error);
+    }
+  }, [playerLocation, refreshSpawns]);
+
+  const catchCreature = useCallback(async (spawnId: string, catchQuality: string): Promise<CaughtCreature | null> => {
+    if (!playerLocation) return null;
+    try {
+      const response = await apiRequest("POST", "/api/hunt/catch", {
+        walletAddress,
+        spawnId,
+        catchQuality,
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+        return data.creature;
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to catch creature:", error);
+      return null;
+    }
+  }, [walletAddress, playerLocation, queryClient]);
+
+  const startIncubation = useCallback(async (eggId: string, incubatorId: string) => {
+    try {
+      await apiRequest("POST", `/api/hunt/eggs/${eggId}/incubate`, { incubatorId });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+    } catch (error) {
+      console.error("Failed to start incubation:", error);
+    }
+  }, [queryClient]);
+
+  const walkEgg = useCallback(async (eggId: string, distance: number) => {
+    try {
+      const response = await apiRequest("POST", `/api/hunt/eggs/${eggId}/walk`, {
+        distance,
+        walletAddress,
+      });
+      const data = await response.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+      if (data.hatched) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+      }
+      return data;
+    } catch (error) {
+      console.error("Failed to walk egg:", error);
+      return null;
+    }
+  }, [walletAddress, queryClient]);
+
+  const joinRaid = useCallback(async (raidId: string) => {
+    try {
+      await apiRequest("POST", `/api/hunt/raids/${raidId}/join`, { walletAddress });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/raids"] });
+    } catch (error) {
+      console.error("Failed to join raid:", error);
+    }
+  }, [walletAddress, queryClient]);
+
+  const attackRaid = useCallback(async (raidId: string, attackPower: number) => {
+    try {
+      const response = await apiRequest("POST", `/api/hunt/raids/${raidId}/attack`, {
+        walletAddress,
+        attackPower,
+      });
+      const data = await response.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/raids"] });
+      return data;
+    } catch (error) {
+      console.error("Failed to attack raid:", error);
+      return null;
+    }
+  }, [walletAddress, queryClient]);
+
+  return (
+    <HuntContext.Provider
+      value={{
+        walletAddress,
+        playerLocation,
+        spawns: spawnsData || [],
+        economy: economyData || null,
+        collection: collectionData || [],
+        eggs: eggsData?.eggs || [],
+        raids: raidsData || [],
+        isLoading: spawnsLoading,
+        updateLocation,
+        spawnCreatures,
+        catchCreature,
+        startIncubation,
+        walkEgg,
+        joinRaid,
+        attackRaid,
+        refreshSpawns,
+        refreshEconomy,
+      }}
+    >
+      {children}
+    </HuntContext.Provider>
+  );
+}
+
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
+}
