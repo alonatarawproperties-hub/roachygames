@@ -4,15 +4,24 @@
 CryptoCreatures is a Pokémon GO-style mobile game with blockchain integration. Players hunt and catch fantasy creatures in their real-world location, then mint them as NFTs to prove ownership on the blockchain.
 
 ## Current State
-**Phase:** Frontend Prototype Complete
+**Phase:** Hunt System Complete with Database Integration
 
 The app includes:
-- **Map Screen:** Real-time location tracking with nearby creature spawns
-- **Catch Screen:** Swipe-to-throw pokeball catching mechanic with haptic feedback
+- **Hunt Screen:** GPS-based creature hunting with placeholder map, auto-spawning creatures
+- **Catch Mini-Game:** Timing-based ring mechanic with haptic feedback and multiple attempts
+- **Egg System:** Walking distance tracking for egg incubation and hatching
+- **Raid Battles:** Multi-player boss battles with timing attacks
 - **Collection Screen:** Grid view of all caught creatures with rarity indicators
-- **Creature Details:** Full stats view with blockchain minting capability
+- **Economy System:** Energy, daily/weekly catch limits, pity mechanics for rare spawns
 - **Profile Screen:** Player stats, wallet connection, and resource management
 - **Mock Blockchain:** Simulated wallet connection and NFT minting flow
+
+## Recent Changes (December 2025)
+- Implemented complete hunt system with PostgreSQL database
+- Added spawn cleanup to prevent database bloat (deactivates expired spawns, limits to 20 active)
+- Fixed location handling with immediate default location for web testing
+- Added close button to catch mini-game for improved UX
+- Economy auto-creation for new players
 
 ## Project Architecture
 
