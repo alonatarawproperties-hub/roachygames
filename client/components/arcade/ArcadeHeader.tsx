@@ -7,6 +7,7 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface ArcadeHeaderProps {
   showSearch?: boolean;
+  searchValue?: string;
   onSearchChange?: (text: string) => void;
   onWalletPress?: () => void;
   onNotificationPress?: () => void;
@@ -14,6 +15,7 @@ interface ArcadeHeaderProps {
 
 export function ArcadeHeader({
   showSearch = true,
+  searchValue = "",
   onSearchChange,
   onWalletPress,
   onNotificationPress,
@@ -59,7 +61,10 @@ export function ArcadeHeader({
             style={styles.searchInput}
             placeholder="Game Search..."
             placeholderTextColor={GameColors.textTertiary}
+            value={searchValue}
             onChangeText={onSearchChange}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
         </View>
       )}

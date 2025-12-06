@@ -50,6 +50,7 @@ export function ArcadeHomeScreen() {
       />
 
       <ArcadeHeader
+        searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         onWalletPress={handleWalletPress}
         onNotificationPress={handleNotificationPress}
