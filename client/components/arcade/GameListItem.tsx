@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,11 +19,11 @@ interface GameListItemProps {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  hunt: { bg: "#22C55E30", text: "#22C55E" },
-  battle: { bg: "#EF444430", text: "#EF4444" },
-  puzzle: { bg: "#8B5CF630", text: "#8B5CF6" },
-  adventure: { bg: "#06B6D430", text: "#06B6D4" },
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  hunt: { bg: "#00FF8820", text: "#00FF88", border: "#00FF8840" },
+  battle: { bg: "#FF336620", text: "#FF3366", border: "#FF336640" },
+  puzzle: { bg: "#9D4EDD20", text: "#9D4EDD", border: "#9D4EDD40" },
+  adventure: { bg: "#00D9FF20", text: "#00D9FF", border: "#00D9FF40" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -65,11 +65,11 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
       onPressOut={handlePressOut}
       onPress={handlePress}
     >
-      <View style={styles.thumbnail}>
+      <View style={[styles.thumbnail, { borderColor: categoryStyle.border }]}>
         <Feather
           name={game.iconName as any}
           size={24}
-          color={game.isLocked ? GameColors.textTertiary : GameColors.primary}
+          color={game.isLocked ? GameColors.textTertiary : categoryStyle.text}
         />
         {game.isLocked && (
           <View style={styles.lockBadge}>
@@ -91,7 +91,13 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
         </View>
       </View>
 
-      <View style={[styles.categoryBadge, { backgroundColor: categoryStyle.bg }]}>
+      <View style={[
+        styles.categoryBadge, 
+        { 
+          backgroundColor: categoryStyle.bg,
+          borderColor: categoryStyle.border,
+        }
+      ]}>
         <ThemedText style={[styles.categoryText, { color: categoryStyle.text }]}>
           {CATEGORY_LABELS[game.category] || "Game"}
         </ThemedText>
@@ -104,22 +110,25 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GameColors.surface,
+    backgroundColor: GameColors.surfaceElevated,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceGlow,
   },
   locked: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   thumbnail: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: GameColors.surfaceLight,
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: GameColors.surfaceGlow,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1.5,
   },
   lockBadge: {
     position: "absolute",
@@ -132,19 +141,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: GameColors.surface,
+    borderColor: GameColors.surfaceElevated,
   },
   content: {
     flex: 1,
   },
   title: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
     color: GameColors.textPrimary,
     marginBottom: 4,
   },
   titleLocked: {
-    color: GameColors.textSecondary,
+    color: GameColors.textTertiary,
   },
   metaRow: {
     flexDirection: "row",
@@ -156,12 +165,14 @@ const styles = StyleSheet.create({
     color: GameColors.textTertiary,
   },
   categoryBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1,
   },
   categoryText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
 });

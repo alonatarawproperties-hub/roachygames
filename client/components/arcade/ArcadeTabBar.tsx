@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -40,8 +40,8 @@ export function ArcadeTabBar({ activeTab, onTabPress }: ArcadeTabBarProps) {
             <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
               <Feather
                 name={tab.icon as any}
-                size={20}
-                color={isActive ? GameColors.primary : GameColors.textTertiary}
+                size={22}
+                color={isActive ? GameColors.gold : GameColors.textTertiary}
               />
             </View>
             {isActive && (
@@ -59,10 +59,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    backgroundColor: GameColors.surface,
+    backgroundColor: GameColors.surfaceElevated,
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: GameColors.surfaceLight,
+    borderTopColor: GameColors.gold + "20",
   },
   tab: {
     alignItems: "center",
@@ -71,19 +71,30 @@ const styles = StyleSheet.create({
     minWidth: 56,
   },
   iconContainer: {
-    width: 40,
-    height: 32,
+    width: 44,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 8,
+    borderRadius: 10,
   },
   iconContainerActive: {
-    backgroundColor: GameColors.primary + "20",
+    backgroundColor: GameColors.gold + "20",
+    ...Platform.select({
+      ios: {
+        shadowColor: GameColors.gold,
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      web: {
+        boxShadow: `0 0 12px rgba(255, 215, 0, 0.3)`,
+      },
+    }),
   },
   label: {
     fontSize: 10,
-    fontWeight: "600",
-    color: GameColors.primary,
+    fontWeight: "700",
+    color: GameColors.gold,
     marginTop: 2,
   },
 });

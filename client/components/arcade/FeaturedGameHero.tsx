@@ -1,15 +1,17 @@
 import React from "react";
-import { View, StyleSheet, Pressable, ImageBackground } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withRepeat,
+  withTiming,
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
-import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { GameColors, Spacing, BorderRadius, GlowStyles } from "@/constants/theme";
 import { GameEntry } from "@/constants/gamesCatalog";
 
 interface FeaturedGameHeroProps {
@@ -26,9 +28,22 @@ export function FeaturedGameHero({
   viewerCount = "27.5k",
 }: FeaturedGameHeroProps) {
   const scale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0.4);
+
+  React.useEffect(() => {
+    glowOpacity.value = withRepeat(
+      withTiming(0.8, { duration: 2000 }),
+      -1,
+      true
+    );
+  }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
   }));
 
   const handlePressIn = () => {
@@ -51,9 +66,11 @@ export function FeaturedGameHero({
       onPressOut={handlePressOut}
       onPress={handlePress}
     >
+      <Animated.View style={[styles.glowBorder, glowStyle]} />
+      
       <View style={styles.heroBackground}>
         <LinearGradient
-          colors={["#2a1810", "#1a0f08", "#120a05"]}
+          colors={["#3D2418", "#2D1810", "#1A0F08"]}
           style={StyleSheet.absoluteFill}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -61,13 +78,18 @@ export function FeaturedGameHero({
         
         <View style={styles.heroIconContainer}>
           <View style={styles.heroIcon}>
-            <Feather name={game.iconName as any} size={48} color={GameColors.primary} />
+            <Feather name={game.iconName as any} size={48} color={GameColors.gold} />
           </View>
         </View>
 
         <View style={styles.viewerBadge}>
-          <Feather name="eye" size={12} color={GameColors.textPrimary} />
+          <Feather name="eye" size={12} color={GameColors.gold} />
           <ThemedText style={styles.viewerText}>{viewerCount}</ThemedText>
+        </View>
+
+        <View style={styles.liveBadge}>
+          <View style={styles.liveIndicator} />
+          <ThemedText style={styles.liveText}>LIVE</ThemedText>
         </View>
       </View>
 
@@ -97,9 +119,19 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
     marginBottom: Spacing.lg,
+    position: "relative",
+    borderWidth: 2,
+    borderColor: GameColors.primary + "60",
+  },
+  glowBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: GameColors.gold,
+    ...(Platform.OS === "ios" ? GlowStyles.standard : {}),
   },
   heroBackground: {
-    height: 160,
+    height: 180,
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
@@ -109,14 +141,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   heroIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: GameColors.surface,
+    width: 90,
+    height: 90,
+    borderRadius: 22,
+    backgroundColor: GameColors.surfaceElevated,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: GameColors.primary + "40",
+    borderColor: GameColors.gold + "60",
+    ...(Platform.OS === "ios" ? GlowStyles.subtle : {}),
   },
   viewerBadge: {
     position: "absolute",
@@ -124,24 +157,53 @@ const styles = StyleSheet.create({
     right: Spacing.sm,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GameColors.background + "CC",
+    backgroundColor: GameColors.background + "E6",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
     gap: 4,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "40",
   },
   viewerText: {
     fontSize: 11,
-    fontWeight: "600",
-    color: GameColors.textPrimary,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  liveBadge: {
+    position: "absolute",
+    top: Spacing.sm,
+    left: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.error + "20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: GameColors.error + "60",
+  },
+  liveIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: GameColors.error,
+  },
+  liveText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GameColors.error,
   },
   controlsBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: GameColors.surface,
+    backgroundColor: GameColors.surfaceElevated,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: GameColors.gold + "20",
   },
   mediaControls: {
     flexDirection: "row",
@@ -149,31 +211,47 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   controlButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: GameColors.surfaceLight,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  playButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    backgroundColor: GameColors.surfaceGlow,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: GameColors.textTertiary + "40",
+  },
+  playButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: GameColors.primary,
     justifyContent: "center",
     alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: GameColors.primary,
+        shadowOpacity: 0.6,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      android: { elevation: 8 },
+      web: {
+        boxShadow: `0 0 16px rgba(255, 149, 0, 0.6)`,
+      },
+    }),
   },
   timeContainer: {
-    backgroundColor: GameColors.surfaceLight,
+    backgroundColor: GameColors.surfaceGlow,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
   },
   timeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: GameColors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700",
+    color: GameColors.gold,
     fontVariant: ["tabular-nums"],
   },
 });

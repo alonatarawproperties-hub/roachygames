@@ -1,58 +1,103 @@
 import { Platform } from "react-native";
 
 export const GameColors = {
-  primary: "#F59E0B",
-  secondary: "#22C55E",
-  accent: "#f0c850",
-  background: "#120a05",
-  surface: "#1e1109",
-  surfaceLight: "#3b2418",
-  textPrimary: "#f0c850",
-  textSecondary: "#c4955e",
-  textTertiary: "#8b7355",
-  success: "#22C55E",
-  warning: "#F59E0B",
-  error: "#EF4444",
+  primary: "#FF9500",
+  primaryBright: "#FFB340",
+  gold: "#FFD700",
+  goldGlow: "rgba(255, 165, 0, 0.6)",
+  secondary: "#00FF88",
+  accent: "#FFD700",
+  background: "#0A0604",
+  surface: "#1A0F08",
+  surfaceElevated: "#2D1810",
+  surfaceGlow: "#3D2418",
+  surfaceLight: "#3D2418",
+  textPrimary: "#FFFFFF",
+  textGold: "#FFD700",
+  textSecondary: "#D4A574",
+  textTertiary: "#8B7355",
+  success: "#00FF88",
+  warning: "#FFCC00",
+  error: "#FF3366",
+  info: "#00D9FF",
   rarity: {
-    common: "#9CA3AF",
-    uncommon: "#22C55E",
-    rare: "#3B82F6",
-    epic: "#A855F7",
-    legendary: "#F59E0B",
+    common: "#A0A0A0",
+    uncommon: "#00FF88",
+    rare: "#3A86FF",
+    epic: "#9D4EDD",
+    legendary: "#FFD700",
   },
   classes: {
-    tank: "#22C55E",
-    assassin: "#EF4444",
-    mage: "#8B5CF6",
-    support: "#06B6D4",
+    tank: "#00FF88",
+    assassin: "#FF3366",
+    mage: "#9D4EDD",
+    support: "#00D9FF",
+  },
+  categories: {
+    action: "#FF3366",
+    adventure: "#9D4EDD",
+    strategy: "#3A86FF",
+    casual: "#00FF88",
+    premium: "#FFD700",
+    hunt: "#00FF88",
+    battle: "#FF3366",
+    puzzle: "#9D4EDD",
+    fantasy: "#00D9FF",
   },
 };
 
-const tintColorLight = GameColors.primary;
-const tintColorDark = GameColors.primary;
+const tintColorLight = GameColors.gold;
+const tintColorDark = GameColors.gold;
 
 export const Colors = {
   light: {
     text: GameColors.textPrimary,
-    buttonText: "#120a05",
+    buttonText: "#0A0604",
     tabIconDefault: GameColors.textSecondary,
     tabIconSelected: tintColorLight,
     link: GameColors.primary,
     backgroundRoot: GameColors.background,
     backgroundDefault: GameColors.surface,
-    backgroundSecondary: GameColors.surfaceLight,
-    backgroundTertiary: "#4a3020",
+    backgroundSecondary: GameColors.surfaceElevated,
+    backgroundTertiary: GameColors.surfaceGlow,
   },
   dark: {
     text: GameColors.textPrimary,
-    buttonText: "#120a05",
+    buttonText: "#0A0604",
     tabIconDefault: GameColors.textSecondary,
     tabIconSelected: tintColorDark,
     link: GameColors.primary,
     backgroundRoot: GameColors.background,
     backgroundDefault: GameColors.surface,
-    backgroundSecondary: GameColors.surfaceLight,
-    backgroundTertiary: "#4a3020",
+    backgroundSecondary: GameColors.surfaceElevated,
+    backgroundTertiary: GameColors.surfaceGlow,
+  },
+};
+
+export const GlowStyles = {
+  standard: {
+    shadowColor: "#FFA500",
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  intense: {
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  subtle: {
+    shadowColor: "#FFA500",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  floating: {
+    shadowColor: "#000000",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
 };
 

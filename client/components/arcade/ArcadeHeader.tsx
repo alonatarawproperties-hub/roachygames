@@ -1,8 +1,7 @@
 import React from "react";
-import { View, StyleSheet, Pressable, TextInput } from "react-native";
+import { View, StyleSheet, Pressable, TextInput, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface ArcadeHeaderProps {
@@ -27,7 +26,7 @@ export function ArcadeHeader({
       <View style={styles.topRow}>
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
-            <Feather name="disc" size={20} color={GameColors.primary} />
+            <Feather name="disc" size={22} color={GameColors.gold} />
           </View>
         </View>
 
@@ -39,7 +38,7 @@ export function ArcadeHeader({
             ]}
             onPress={onWalletPress}
           >
-            <Feather name="credit-card" size={18} color={GameColors.textSecondary} />
+            <Feather name="credit-card" size={18} color={GameColors.gold} />
           </Pressable>
 
           <Pressable
@@ -49,6 +48,7 @@ export function ArcadeHeader({
             ]}
             onPress={onNotificationPress}
           >
+            <View style={styles.notificationDot} />
             <Feather name="bell" size={18} color={GameColors.textSecondary} />
           </Pressable>
         </View>
@@ -56,7 +56,7 @@ export function ArcadeHeader({
 
       {showSearch && (
         <View style={styles.searchContainer}>
-          <Feather name="search" size={18} color={GameColors.textSecondary} />
+          <Feather name="search" size={18} color={GameColors.gold} />
           <TextInput
             style={styles.searchInput}
             placeholder="Game Search..."
@@ -89,44 +89,70 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   logoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: GameColors.surface,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: GameColors.surfaceElevated,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: GameColors.primary + "40",
+    borderWidth: 1.5,
+    borderColor: GameColors.gold + "40",
+    ...Platform.select({
+      ios: {
+        shadowColor: GameColors.gold,
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
+      },
+      web: {
+        boxShadow: `0 0 12px rgba(255, 215, 0, 0.3)`,
+      },
+    }),
   },
   actions: {
     flexDirection: "row",
     gap: Spacing.sm,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: GameColors.surface,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: GameColors.surfaceElevated,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: GameColors.surfaceGlow,
   },
   actionButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
   },
+  notificationDot: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: GameColors.error,
+    zIndex: 1,
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GameColors.surface,
+    backgroundColor: GameColors.surfaceElevated,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "20",
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     color: GameColors.textPrimary,
-    paddingVertical: 4,
+    paddingVertical: 6,
+    fontWeight: "500",
   },
 });
