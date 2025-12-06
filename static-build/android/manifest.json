@@ -1,11 +1,11 @@
 {
-  "id": "adb6c7fc-f2b3-48e3-95f5-7ee06757916b",
-  "createdAt": "2025-12-06T15:06:21.548Z",
+  "id": "6c749ff7-03ad-4754-8f5b-cbad7bdb833a",
+  "createdAt": "2025-12-06T15:21:25.966Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1765033581548-7489",
+    "key": "bundle-1765034485966-9564",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765033581548-7489/_expo/static/js/android/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765034485966-9564/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -41,7 +41,9 @@
           "ACCESS_COARSE_LOCATION",
           "ACCESS_FINE_LOCATION",
           "android.permission.ACCESS_COARSE_LOCATION",
-          "android.permission.ACCESS_FINE_LOCATION"
+          "android.permission.ACCESS_FINE_LOCATION",
+          "android.permission.CAMERA",
+          "android.permission.RECORD_AUDIO"
         ]
       },
       "web": {
@@ -67,6 +69,12 @@
           {
             "locationAlwaysAndWhenInUsePermission": "Allow Roachy Hunt to use your location to find Roachies near you."
           }
+        ],
+        [
+          "expo-camera",
+          {
+            "cameraPermission": "Allow Roachy Hunt to use your camera to catch Roachies in AR mode."
+          }
         ]
       ],
       "experiments": {
@@ -90,6 +98,10 @@
           "expo-location": {
             "name": "expo-location",
             "version": "19.0.8"
+          },
+          "expo-camera": {
+            "name": "expo-camera",
+            "version": "17.0.10"
           }
         }
       },

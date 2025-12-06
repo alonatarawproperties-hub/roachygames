@@ -10,6 +10,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { ThemedText } from "./ThemedText";
+import { LeafletMapView, LeafletMapViewRef } from "./LeafletMapView";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import type { Spawn, Raid } from "@/context/HuntContext";
 
@@ -157,31 +158,50 @@ function FallbackMapView({
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
   ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh }, ref) => {
-    const mapRef = useRef<any>(null);
+    const nativeMapRef = useRef<any>(null);
+    const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
 
     useImperativeHandle(ref, () => ({
       centerOnPlayer: () => {
-        if (mapRef.current && playerLocation) {
-          mapRef.current.animateToRegion({
+        if (nativeMapRef.current && playerLocation && mapsAvailable && !nativeMapFailed) {
+          nativeMapRef.current.animateToRegion({
             latitude: playerLocation.latitude,
             longitude: playerLocation.longitude,
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           }, 500);
+        } else if (leafletMapRef.current) {
+          leafletMapRef.current.centerOnPlayer();
         }
       },
     }));
 
     const hasLocation = playerLocation && playerLocation.latitude && playerLocation.longitude;
     
-    if (Platform.OS === "web" || !mapsAvailable || nativeMapFailed) {
+    // Web: use simple fallback (grid)
+    if (Platform.OS === "web") {
       return (
         <FallbackMapView 
           spawns={spawns} 
           onSpawnTap={onSpawnTap} 
           onRefresh={onRefresh}
           playerLocation={playerLocation}
+        />
+      );
+    }
+    
+    // Mobile without native maps: use Leaflet WebView map
+    if (!mapsAvailable || nativeMapFailed) {
+      return (
+        <LeafletMapView
+          ref={leafletMapRef}
+          playerLocation={playerLocation}
+          spawns={spawns}
+          raids={raids}
+          onSpawnTap={onSpawnTap}
+          onRaidTap={onRaidTap}
+          onRefresh={onRefresh}
         />
       );
     }
@@ -193,7 +213,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     return (
       <View style={styles.mapContainer}>
         <MapViewComponent
-          ref={mapRef}
+          ref={nativeMapRef}
           style={styles.map}
           provider={PROVIDER_DEFAULT_VALUE}
           showsUserLocation={true}
@@ -285,8 +305,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
 
         <View style={styles.mapControls}>
           <Pressable style={styles.mapControlButton} onPress={() => {
-            if (mapRef.current && playerLocation) {
-              mapRef.current.animateToRegion({
+            if (nativeMapRef.current && playerLocation) {
+              nativeMapRef.current.animateToRegion({
                 latitude: playerLocation.latitude,
                 longitude: playerLocation.longitude,
                 latitudeDelta: 0.005,

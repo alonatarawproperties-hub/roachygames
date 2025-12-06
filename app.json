@@ -52,6 +52,12 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Roachy Hunt to use your location to find Roachies near you."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Roachy Hunt to use your camera to catch Roachies in AR mode."
+        }
       ]
     ],
     "experiments": {

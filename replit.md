@@ -19,13 +19,16 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
-- **Added Real-Time GPS Map with react-native-maps**
-  - Full Apple Maps/Google Maps integration showing actual location
+- **Implemented Leaflet WebView Map (Expo Go Compatible)**
+  - Interactive dark-themed map with OpenStreetMap tiles
+  - Works immediately in Expo Go without native builds
   - 100m catch radius circle around player
-  - Custom spawn markers with rarity colors on real map
-  - Navigation button to center on player, refresh spawns button
-  - Live GPS coordinates display
-  - Web fallback shows grid view (real map only on mobile)
+  - Custom spawn markers with rarity colors
+  - Navigation and refresh controls
+  - Bidirectional messaging between React Native and WebView
+- **EAS Build Configuration Added**
+  - eas.json configured for future native maps upgrade
+  - When ready, can build development client with full Apple/Google Maps
 - **Added AR-like Camera Encounter for Roachy Hunt**
   - Pokemon Go-style camera view with animated creature overlays
   - Proper camera permission handling with Settings fallback
@@ -123,3 +126,32 @@ server/
 - NFT minting via marketplace dApp
 - Additional P2E games
 - Cross-platform sync (mobile + web)
+
+## Upgrading to Native Maps (EAS Build)
+
+To get full Apple Maps / Google Maps instead of the Leaflet WebView:
+
+1. **Create Expo Account**: Sign up at expo.dev
+2. **Get Google Maps API Key**: 
+   - Go to Google Cloud Console
+   - Enable "Maps SDK for iOS" and "Maps SDK for Android"
+   - Create an API key
+3. **Add API Key to app.json**:
+   ```json
+   "android": {
+     "config": {
+       "googleMaps": {
+         "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+       }
+     }
+   }
+   ```
+4. **Build Development Client**:
+   ```bash
+   npx expo login
+   npx eas build --profile development --platform android
+   # For iOS, need Apple Developer account ($99/year)
+   npx eas build --profile development --platform ios
+   ```
+5. **Install on Device**: Download and install the generated APK/IPA
+6. The app will automatically use native react-native-maps when available
