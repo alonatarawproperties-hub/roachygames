@@ -2,11 +2,13 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CatchScreen from "@/screens/CatchScreen";
+import { ArcadeHomeScreen } from "@/screens/Arcade";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { WildCreature } from "@/constants/gameState";
 
 export type RootStackParamList = {
-  Main: undefined;
+  ArcadeHome: undefined;
+  RoachyHuntStack: undefined;
   Catch: { creature: WildCreature };
 };
 
@@ -18,7 +20,12 @@ export default function RootStackNavigator() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="Main"
+        name="ArcadeHome"
+        component={ArcadeHomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="RoachyHuntStack"
         component={MainTabNavigator}
         options={{ headerShown: false }}
       />

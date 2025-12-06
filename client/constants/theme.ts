@@ -9,6 +9,10 @@ export const GameColors = {
   surfaceLight: "#3b2418",
   textPrimary: "#f0c850",
   textSecondary: "#c4955e",
+  textTertiary: "#8b7355",
+  success: "#22C55E",
+  warning: "#F59E0B",
+  error: "#EF4444",
   rarity: {
     common: "#9CA3AF",
     uncommon: "#22C55E",
