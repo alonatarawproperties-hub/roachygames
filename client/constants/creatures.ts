@@ -1,5 +1,5 @@
 export type CreatureRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-export type CreatureType = 'fire' | 'water' | 'grass' | 'electric' | 'ice' | 'shadow';
+export type RoachyClass = 'tank' | 'assassin' | 'mage' | 'support';
 
 export interface CreatureStats {
   hp: number;
@@ -8,115 +8,179 @@ export interface CreatureStats {
   speed: number;
 }
 
-export interface CreatureDefinition {
+export interface RoachyDefinition {
   id: string;
   name: string;
-  type: CreatureType;
+  roachyClass: RoachyClass;
   rarity: CreatureRarity;
   baseStats: CreatureStats;
   description: string;
   catchRate: number;
 }
 
-export const CREATURE_DEFINITIONS: CreatureDefinition[] = [
+export const ROACHY_DEFINITIONS: RoachyDefinition[] = [
   {
-    id: 'emberwing',
-    name: 'Emberwing',
-    type: 'fire',
+    id: 'ironshell',
+    name: 'Ironshell',
+    roachyClass: 'tank',
     rarity: 'common',
-    baseStats: { hp: 65, attack: 70, defense: 45, speed: 75 },
-    description: 'A fiery dragon with flames that never extinguish. Its wings leave trails of embers.',
+    baseStats: { hp: 120, attack: 40, defense: 80, speed: 30 },
+    description: 'A heavily armored roach with a metallic exoskeleton. Nearly impervious to damage.',
     catchRate: 0.7,
   },
   {
-    id: 'aquafin',
-    name: 'Aquafin',
-    type: 'water',
+    id: 'scuttler',
+    name: 'Scuttler',
+    roachyClass: 'assassin',
     rarity: 'common',
-    baseStats: { hp: 70, attack: 55, defense: 65, speed: 60 },
-    description: 'A graceful sea serpent that glides through water with pearl-like scales.',
+    baseStats: { hp: 60, attack: 75, defense: 35, speed: 90 },
+    description: 'A swift roach that strikes from the shadows. Incredibly fast and deadly.',
     catchRate: 0.7,
   },
   {
-    id: 'leafox',
-    name: 'Leafox',
-    type: 'grass',
+    id: 'sparkroach',
+    name: 'Sparkroach',
+    roachyClass: 'mage',
     rarity: 'common',
-    baseStats: { hp: 60, attack: 60, defense: 55, speed: 70 },
-    description: 'A curious plant fox with leaf ears and a flower-tipped tail.',
+    baseStats: { hp: 55, attack: 80, defense: 40, speed: 65 },
+    description: 'A mystical roach that channels arcane energies through its antennae.',
     catchRate: 0.7,
   },
   {
-    id: 'voltcat',
-    name: 'Voltcat',
-    type: 'electric',
+    id: 'leafwing',
+    name: 'Leafwing',
+    roachyClass: 'support',
+    rarity: 'common',
+    baseStats: { hp: 75, attack: 35, defense: 60, speed: 55 },
+    description: 'A gentle roach with leaf-like wings that heals its allies with natural energy.',
+    catchRate: 0.7,
+  },
+  {
+    id: 'vikingbug',
+    name: 'Viking Bug',
+    roachyClass: 'tank',
+    rarity: 'uncommon',
+    baseStats: { hp: 140, attack: 55, defense: 90, speed: 35 },
+    description: 'A warrior roach wearing a tiny horned helmet. Charges into battle fearlessly.',
+    catchRate: 0.55,
+  },
+  {
+    id: 'shadowblade',
+    name: 'Shadowblade',
+    roachyClass: 'assassin',
+    rarity: 'uncommon',
+    baseStats: { hp: 65, attack: 85, defense: 40, speed: 95 },
+    description: 'A master of stealth that phases through darkness. Its strikes are lethal.',
+    catchRate: 0.55,
+  },
+  {
+    id: 'frostmage',
+    name: 'Frost Mage',
+    roachyClass: 'mage',
     rarity: 'rare',
-    baseStats: { hp: 55, attack: 80, defense: 40, speed: 90 },
-    description: 'An electric feline that crackles with lightning energy. Incredibly fast.',
+    baseStats: { hp: 60, attack: 95, defense: 45, speed: 70 },
+    description: 'An ice-wielding roach that freezes enemies solid with blizzard magic.',
     catchRate: 0.45,
   },
   {
-    id: 'frostfang',
-    name: 'Frostfang',
-    type: 'ice',
+    id: 'aviator',
+    name: 'Aviator',
+    roachyClass: 'support',
     rarity: 'rare',
-    baseStats: { hp: 75, attack: 70, defense: 70, speed: 55 },
-    description: 'An arctic wolf with crystalline ice fur and frost breath.',
+    baseStats: { hp: 80, attack: 50, defense: 65, speed: 75 },
+    description: 'A dashing roach pilot with goggles and scarf. Provides aerial reconnaissance.',
     catchRate: 0.45,
   },
   {
-    id: 'shadowisp',
-    name: 'Shadowisp',
-    type: 'shadow',
+    id: 'royalmage',
+    name: 'Royal Mage',
+    roachyClass: 'mage',
     rarity: 'epic',
-    baseStats: { hp: 50, attack: 85, defense: 50, speed: 85 },
-    description: 'A mysterious dark wisp that phases through shadows. Rarely seen.',
+    baseStats: { hp: 70, attack: 110, defense: 55, speed: 80 },
+    description: 'An ancient roach sorcerer wearing a crown. Commands devastating spells.',
     catchRate: 0.25,
   },
   {
-    id: 'phoenixia',
-    name: 'Phoenixia',
-    type: 'fire',
+    id: 'warlord',
+    name: 'Warlord',
+    roachyClass: 'tank',
+    rarity: 'epic',
+    baseStats: { hp: 160, attack: 70, defense: 100, speed: 40 },
+    description: 'A battle-hardened commander with countless victories. Leads armies of roaches.',
+    catchRate: 0.25,
+  },
+  {
+    id: 'nightstalker',
+    name: 'Nightstalker',
+    roachyClass: 'assassin',
+    rarity: 'epic',
+    baseStats: { hp: 70, attack: 105, defense: 45, speed: 100 },
+    description: 'A legendary assassin that moves unseen. None have survived its ambush.',
+    catchRate: 0.25,
+  },
+  {
+    id: 'cosmicking',
+    name: 'Cosmic King',
+    roachyClass: 'tank',
     rarity: 'legendary',
-    baseStats: { hp: 90, attack: 95, defense: 80, speed: 100 },
-    description: 'A legendary phoenix of pure golden flames. Said to grant immortality.',
+    baseStats: { hp: 200, attack: 90, defense: 120, speed: 60 },
+    description: 'The ultimate roach emperor from beyond the stars. Possesses godlike power.',
     catchRate: 0.1,
   },
 ];
 
-export const CREATURE_IMAGES: Record<string, any> = {
-  emberwing: require('../../assets/images/creatures/emberwing.png'),
-  aquafin: require('../../assets/images/creatures/aquafin.png'),
-  leafox: require('../../assets/images/creatures/leafox.png'),
-  voltcat: require('../../assets/images/creatures/voltcat.png'),
-  frostfang: require('../../assets/images/creatures/frostfang.png'),
-  shadowisp: require('../../assets/images/creatures/shadowisp.png'),
-  phoenixia: require('../../assets/images/creatures/phoenixia.png'),
+export const ROACHY_IMAGES: Record<string, any> = {
+  ironshell: require('../../assets/images/roachies/ironshell.png'),
+  scuttler: require('../../assets/images/roachies/scuttler.png'),
+  sparkroach: require('../../assets/images/roachies/sparkroach.png'),
+  leafwing: require('../../assets/images/roachies/leafwing.png'),
+  vikingbug: require('../../assets/images/roachies/vikingbug.png'),
+  shadowblade: require('../../assets/images/roachies/shadowblade.png'),
+  frostmage: require('../../assets/images/roachies/frostmage.png'),
+  aviator: require('../../assets/images/roachies/aviator.png'),
+  royalmage: require('../../assets/images/roachies/royalmage.png'),
+  warlord: require('../../assets/images/roachies/warlord.png'),
+  nightstalker: require('../../assets/images/roachies/nightstalker.png'),
+  cosmicking: require('../../assets/images/roachies/cosmicking.png'),
 };
 
-export function getCreatureDefinition(id: string): CreatureDefinition | undefined {
-  return CREATURE_DEFINITIONS.find(c => c.id === id);
+export function getRoachyDefinition(id: string): RoachyDefinition | undefined {
+  return ROACHY_DEFINITIONS.find(r => r.id === id);
 }
 
 export function getRarityColor(rarity: CreatureRarity): string {
   const colors: Record<CreatureRarity, string> = {
-    common: '#E8E8E8',
-    uncommon: '#6BCF7F',
-    rare: '#4A90E2',
-    epic: '#9B59B6',
-    legendary: '#F39C12',
+    common: '#9CA3AF',
+    uncommon: '#22C55E',
+    rare: '#3B82F6',
+    epic: '#A855F7',
+    legendary: '#F59E0B',
   };
   return colors[rarity];
 }
 
-export function getTypeColor(type: CreatureType): string {
-  const colors: Record<CreatureType, string> = {
-    fire: '#FF6B6B',
-    water: '#4ECDC4',
-    grass: '#6BCF7F',
-    electric: '#FFD93D',
-    ice: '#87CEEB',
-    shadow: '#9B59B6',
+export function getClassColor(roachyClass: RoachyClass): string {
+  const colors: Record<RoachyClass, string> = {
+    tank: '#22C55E',
+    assassin: '#EF4444',
+    mage: '#8B5CF6',
+    support: '#06B6D4',
   };
-  return colors[type];
+  return colors[roachyClass];
 }
+
+export function getClassIcon(roachyClass: RoachyClass): string {
+  const icons: Record<RoachyClass, string> = {
+    tank: 'shield',
+    assassin: 'zap',
+    mage: 'star',
+    support: 'heart',
+  };
+  return icons[roachyClass];
+}
+
+export const CREATURE_DEFINITIONS = ROACHY_DEFINITIONS;
+export const CREATURE_IMAGES = ROACHY_IMAGES;
+export const getCreatureDefinition = getRoachyDefinition;
+export type CreatureType = RoachyClass;
+export type CreatureDefinition = RoachyDefinition;

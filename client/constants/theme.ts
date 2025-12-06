@@ -1,28 +1,26 @@
 import { Platform } from "react-native";
 
 export const GameColors = {
-  primary: "#FF6B6B",
-  secondary: "#4ECDC4",
-  accent: "#FFD93D",
-  background: "#1A1A2E",
-  surface: "#16213E",
-  surfaceLight: "#1E2A4A",
-  textPrimary: "#FFFFFF",
-  textSecondary: "#A8A8B8",
+  primary: "#F59E0B",
+  secondary: "#22C55E",
+  accent: "#f0c850",
+  background: "#120a05",
+  surface: "#1e1109",
+  surfaceLight: "#3b2418",
+  textPrimary: "#f0c850",
+  textSecondary: "#c4955e",
   rarity: {
-    common: "#E8E8E8",
-    uncommon: "#6BCF7F",
-    rare: "#4A90E2",
-    epic: "#9B59B6",
-    legendary: "#F39C12",
+    common: "#9CA3AF",
+    uncommon: "#22C55E",
+    rare: "#3B82F6",
+    epic: "#A855F7",
+    legendary: "#F59E0B",
   },
-  types: {
-    fire: "#FF6B6B",
-    water: "#4ECDC4",
-    grass: "#6BCF7F",
-    electric: "#FFD93D",
-    ice: "#87CEEB",
-    shadow: "#9B59B6",
+  classes: {
+    tank: "#22C55E",
+    assassin: "#EF4444",
+    mage: "#8B5CF6",
+    support: "#06B6D4",
   },
 };
 
@@ -32,25 +30,25 @@ const tintColorDark = GameColors.primary;
 export const Colors = {
   light: {
     text: GameColors.textPrimary,
-    buttonText: "#FFFFFF",
+    buttonText: "#120a05",
     tabIconDefault: GameColors.textSecondary,
     tabIconSelected: tintColorLight,
     link: GameColors.primary,
     backgroundRoot: GameColors.background,
     backgroundDefault: GameColors.surface,
     backgroundSecondary: GameColors.surfaceLight,
-    backgroundTertiary: "#2A3A5A",
+    backgroundTertiary: "#4a3020",
   },
   dark: {
     text: GameColors.textPrimary,
-    buttonText: "#FFFFFF",
+    buttonText: "#120a05",
     tabIconDefault: GameColors.textSecondary,
     tabIconSelected: tintColorDark,
     link: GameColors.primary,
     backgroundRoot: GameColors.background,
     backgroundDefault: GameColors.surface,
     backgroundSecondary: GameColors.surfaceLight,
-    backgroundTertiary: "#2A3A5A",
+    backgroundTertiary: "#4a3020",
   },
 };
 
