@@ -22,8 +22,8 @@ export type User = typeof users.$inferSelect;
 export const RARITY_TYPES = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const;
 export type Rarity = typeof RARITY_TYPES[number];
 
-export const CREATURE_CLASS_TYPES = ['fire', 'water', 'grass', 'electric', 'ice', 'shadow'] as const;
-export type CreatureClass = typeof CREATURE_CLASS_TYPES[number];
+export const ROACHY_CLASS_TYPES = ['tank', 'assassin', 'mage', 'support'] as const;
+export type RoachyClass = typeof ROACHY_CLASS_TYPES[number];
 
 export const huntPlayerLocations = pgTable("hunt_player_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

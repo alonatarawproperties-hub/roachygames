@@ -20,7 +20,7 @@ import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { CREATURE_IMAGES, getRarityColor } from "@/constants/creatures";
+import { ROACHY_IMAGES, getRarityColor } from "@/constants/creatures";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const RING_SIZE = SCREEN_WIDTH * 0.7;
@@ -189,7 +189,7 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
     opacity: flashOpacity.value,
   }));
 
-  const creatureImage = CREATURE_IMAGES[creature.templateId || creature.id];
+  const creatureImage = ROACHY_IMAGES[creature.templateId || creature.id];
 
   return (
     <View style={styles.container}>

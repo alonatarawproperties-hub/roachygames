@@ -130,18 +130,6 @@ export const ROACHY_DEFINITIONS: RoachyDefinition[] = [
 ];
 
 export const ROACHY_IMAGES: Record<string, any> = {
-  ironshell: require('../../assets/images/roachies/ironshell.png'),
-  scuttler: require('../../assets/images/roachies/scuttler.png'),
-  sparkroach: require('../../assets/images/roachies/sparkroach.png'),
-  leafwing: require('../../assets/images/roachies/leafwing.png'),
-  vikingbug: require('../../assets/images/roachies/vikingbug.png'),
-  shadowblade: require('../../assets/images/roachies/shadowblade.png'),
-  frostmage: require('../../assets/images/roachies/frostmage.png'),
-  aviator: require('../../assets/images/roachies/aviator.png'),
-  royalmage: require('../../assets/images/roachies/royalmage.png'),
-  warlord: require('../../assets/images/roachies/warlord.png'),
-  nightstalker: require('../../assets/images/roachies/nightstalker.png'),
-  cosmicking: require('../../assets/images/roachies/cosmicking.png'),
 };
 
 export function getRoachyDefinition(id: string): RoachyDefinition | undefined {

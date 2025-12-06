@@ -63,11 +63,11 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         </View>
         
         <ThemedText type="h2" style={styles.title}>
-          CryptoCreatures Crashed
+          Roachy Hunt Crashed
         </ThemedText>
 
         <ThemedText type="body" style={styles.message}>
-          The hunt got interrupted! Let's get you back on track.
+          The roach hunt got interrupted! Let's get you back on track.
         </ThemedText>
 
         <Pressable

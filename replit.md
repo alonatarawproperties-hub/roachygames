@@ -1,27 +1,29 @@
-# CryptoCreatures - Blockchain Creature Hunting Game
+# Roachy Hunt - GPS Creature Hunting Game
 
 ## Overview
-CryptoCreatures is a Pokémon GO-style mobile game with blockchain integration. Players hunt and catch fantasy creatures in their real-world location, then mint them as NFTs to prove ownership on the blockchain.
+Roachy Hunt is a Pokémon GO-style mobile game where players hunt and catch Roachies (cockroach creatures) in their real-world location. Features a class-based system (Tank, Assassin, Mage, Support), 5-tier rarity system, and comprehensive economy with energy/pity mechanics.
 
 ## Current State
-**Phase:** Hunt System Complete with Database Integration
+**Phase:** Full Roachy Hunt Theme Implemented
 
 The app includes:
-- **Hunt Screen:** GPS-based creature hunting with placeholder map, auto-spawning creatures
+- **Hunt Screen:** GPS-based Roachy hunting with placeholder map, auto-spawning creatures
 - **Catch Mini-Game:** Timing-based ring mechanic with haptic feedback and multiple attempts
+- **12 Unique Roachies:** 4 classes across 5 rarity tiers (Common to Legendary)
 - **Egg System:** Walking distance tracking for egg incubation and hatching
 - **Raid Battles:** Multi-player boss battles with timing attacks
-- **Collection Screen:** Grid view of all caught creatures with rarity indicators
-- **Economy System:** Energy, daily/weekly catch limits, pity mechanics for rare spawns
-- **Profile Screen:** Player stats, wallet connection, and resource management
-- **Mock Blockchain:** Simulated wallet connection and NFT minting flow
+- **Collection Screen:** Grid view of all caught Roachies with rarity/class indicators
+- **Economy System:** Energy (30/day), daily catch limit (25), weekly limit (120), pity mechanics
+- **Mock Blockchain:** Simulated wallet connection for future NFT integration
 
 ## Recent Changes (December 2025)
-- Implemented complete hunt system with PostgreSQL database
-- Added spawn cleanup to prevent database bloat (deactivates expired spawns, limits to 20 active)
-- Fixed location handling with immediate default location for web testing
-- Added close button to catch mini-game for improved UX
-- Economy auto-creation for new players
+- Migrated from CryptoCreatures to Roachy Hunt theme
+- Updated color scheme to gold/brown (primary: #F59E0B, background: #120a05)
+- Changed from element-based creatures to class-based Roachies (Tank, Assassin, Mage, Support)
+- Created 12 Roachy templates with unique stats
+- Updated all UI components with new theme and branding
+- Fixed duplicate key error in location endpoint
+- Added image fallbacks showing class icons (user will provide Roachy images later)
 
 ## Project Architecture
 
@@ -68,11 +70,16 @@ server/
 
 ## Key Features
 
-### Creatures
-- 7 unique fantasy creatures with custom artwork
+### Roachies (Creatures)
+- 12 unique Roachy creatures with placeholder icons (images pending from user)
 - 5 rarity tiers: Common, Uncommon, Rare, Epic, Legendary
-- 6 element types: Fire, Water, Grass, Electric, Ice, Shadow
-- Each creature has unique stats (HP, Attack, Defense, Speed)
+- 4 class types: Tank (shield), Assassin (zap), Mage (star), Support (heart)
+- Each Roachy has unique stats (HP, Attack, Defense, Speed)
+- Common: Ironshell, Scuttler, Sparkroach, Leafwing
+- Uncommon: Viking Bug, Shadowblade
+- Rare: Frost Mage, Aviator
+- Epic: Royal Mage, Warlord, Nightstalker
+- Legendary: Cosmic King
 
 ### Gameplay
 - Location-based creature spawning

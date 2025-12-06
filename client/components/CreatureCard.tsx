@@ -7,11 +7,12 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
+import { Feather } from "@expo/vector-icons";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { CreatureDefinition, getRarityColor, getTypeColor, CREATURE_IMAGES } from "@/constants/creatures";
+import { RoachyDefinition, getRarityColor, getClassColor, getClassIcon, ROACHY_IMAGES } from "@/constants/creatures";
 
 interface CreatureCardProps {
-  creature: CreatureDefinition;
+  creature: RoachyDefinition;
   distance?: number;
   level?: number;
   onPress?: () => void;
@@ -34,7 +35,9 @@ export function CreatureCard({
   }));
 
   const rarityColor = getRarityColor(creature.rarity);
-  const typeColor = getTypeColor(creature.type);
+  const classColor = getClassColor(creature.roachyClass);
+  const classIcon = getClassIcon(creature.roachyClass);
+  const creatureImage = ROACHY_IMAGES[creature.id];
 
   if (compact) {
     return (
@@ -49,13 +52,20 @@ export function CreatureCard({
         }}
       >
         <View style={[styles.compactGlow, { backgroundColor: rarityColor }]} />
-        <Image source={CREATURE_IMAGES[creature.id]} style={styles.compactImage} />
+        {creatureImage ? (
+          <Image source={creatureImage} style={styles.compactImage} />
+        ) : (
+          <View style={[styles.compactImage, styles.compactPlaceholder, { backgroundColor: classColor }]}>
+            <Feather name={classIcon as any} size={24} color="#fff" />
+          </View>
+        )}
         <View style={styles.compactInfo}>
           <ThemedText style={styles.compactName}>{creature.name}</ThemedText>
           <View style={styles.compactBadges}>
-            <View style={[styles.compactBadge, { backgroundColor: typeColor }]}>
+            <View style={[styles.compactBadge, { backgroundColor: classColor }]}>
+              <Feather name={classIcon as any} size={10} color="#fff" style={{ marginRight: 2 }} />
               <ThemedText style={styles.compactBadgeText}>
-                {creature.type}
+                {creature.roachyClass}
               </ThemedText>
             </View>
             <View style={[styles.compactBadge, { backgroundColor: rarityColor }]}>
@@ -87,15 +97,22 @@ export function CreatureCard({
     >
       <View style={[styles.cardGlow, { backgroundColor: rarityColor }]} />
       <View style={styles.cardContent}>
-        <Image source={CREATURE_IMAGES[creature.id]} style={styles.cardImage} />
+        {creatureImage ? (
+          <Image source={creatureImage} style={styles.cardImage} />
+        ) : (
+          <View style={[styles.cardImage, styles.cardPlaceholder, { backgroundColor: classColor }]}>
+            <Feather name={classIcon as any} size={32} color="#fff" />
+          </View>
+        )}
         <View style={styles.cardInfo}>
           <ThemedText style={styles.cardName}>{creature.name}</ThemedText>
           {level !== undefined ? (
             <ThemedText style={styles.levelText}>Level {level}</ThemedText>
           ) : null}
           <View style={styles.cardBadges}>
-            <View style={[styles.badge, { backgroundColor: typeColor }]}>
-              <ThemedText style={styles.badgeText}>{creature.type}</ThemedText>
+            <View style={[styles.badge, { backgroundColor: classColor }]}>
+              <Feather name={classIcon as any} size={12} color="#fff" style={{ marginRight: 4 }} />
+              <ThemedText style={styles.badgeText}>{creature.roachyClass}</ThemedText>
             </View>
             <View style={[styles.badge, { backgroundColor: rarityColor }]}>
               <ThemedText style={styles.badgeText}>{creature.rarity}</ThemedText>
@@ -131,6 +148,10 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 35,
     marginRight: Spacing.md,
+  },
+  cardPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardInfo: {
     flex: 1,
@@ -181,6 +202,10 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: Spacing.sm,
+  },
+  compactPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   compactInfo: {
     flex: 1,

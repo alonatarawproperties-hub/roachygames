@@ -22,14 +22,19 @@ const RARITY_RATES = {
   legendary: 0.01,
 };
 
-const CREATURE_TEMPLATES = [
-  { id: 'emberwing', name: 'Emberwing', class: 'fire', baseHp: 65, baseAtk: 70, baseDef: 45, baseSpd: 75 },
-  { id: 'aquafin', name: 'Aquafin', class: 'water', baseHp: 70, baseAtk: 55, baseDef: 65, baseSpd: 60 },
-  { id: 'leafox', name: 'Leafox', class: 'grass', baseHp: 60, baseAtk: 60, baseDef: 55, baseSpd: 70 },
-  { id: 'voltcat', name: 'Voltcat', class: 'electric', baseHp: 55, baseAtk: 80, baseDef: 40, baseSpd: 90 },
-  { id: 'frostfang', name: 'Frostfang', class: 'ice', baseHp: 75, baseAtk: 70, baseDef: 70, baseSpd: 55 },
-  { id: 'shadowisp', name: 'Shadowisp', class: 'shadow', baseHp: 50, baseAtk: 85, baseDef: 50, baseSpd: 85 },
-  { id: 'phoenixia', name: 'Phoenixia', class: 'fire', baseHp: 90, baseAtk: 95, baseDef: 80, baseSpd: 100 },
+const ROACHY_TEMPLATES = [
+  { id: 'ironshell', name: 'Ironshell', roachyClass: 'tank', rarity: 'common', baseHp: 120, baseAtk: 40, baseDef: 80, baseSpd: 30 },
+  { id: 'scuttler', name: 'Scuttler', roachyClass: 'assassin', rarity: 'common', baseHp: 60, baseAtk: 75, baseDef: 35, baseSpd: 90 },
+  { id: 'sparkroach', name: 'Sparkroach', roachyClass: 'mage', rarity: 'common', baseHp: 55, baseAtk: 80, baseDef: 40, baseSpd: 65 },
+  { id: 'leafwing', name: 'Leafwing', roachyClass: 'support', rarity: 'common', baseHp: 75, baseAtk: 35, baseDef: 60, baseSpd: 55 },
+  { id: 'vikingbug', name: 'Viking Bug', roachyClass: 'tank', rarity: 'uncommon', baseHp: 140, baseAtk: 55, baseDef: 90, baseSpd: 35 },
+  { id: 'shadowblade', name: 'Shadowblade', roachyClass: 'assassin', rarity: 'uncommon', baseHp: 65, baseAtk: 85, baseDef: 40, baseSpd: 95 },
+  { id: 'frostmage', name: 'Frost Mage', roachyClass: 'mage', rarity: 'rare', baseHp: 60, baseAtk: 95, baseDef: 45, baseSpd: 70 },
+  { id: 'aviator', name: 'Aviator', roachyClass: 'support', rarity: 'rare', baseHp: 80, baseAtk: 50, baseDef: 65, baseSpd: 75 },
+  { id: 'royalmage', name: 'Royal Mage', roachyClass: 'mage', rarity: 'epic', baseHp: 70, baseAtk: 110, baseDef: 55, baseSpd: 80 },
+  { id: 'warlord', name: 'Warlord', roachyClass: 'tank', rarity: 'epic', baseHp: 160, baseAtk: 70, baseDef: 100, baseSpd: 40 },
+  { id: 'nightstalker', name: 'Nightstalker', roachyClass: 'assassin', rarity: 'epic', baseHp: 70, baseAtk: 105, baseDef: 45, baseSpd: 100 },
+  { id: 'cosmicking', name: 'Cosmic King', roachyClass: 'tank', rarity: 'legendary', baseHp: 200, baseAtk: 90, baseDef: 120, baseSpd: 60 },
 ];
 
 const EGG_DISTANCES: Record<string, number> = {
@@ -106,22 +111,40 @@ export function registerHuntRoutes(app: Express) {
           isOnline: true,
         });
 
-        await db.insert(huntEconomyStats).values({
-          walletAddress,
-          energy: 30,
-          maxEnergy: 30,
-        });
+        const existingEconomy = await db.select().from(huntEconomyStats)
+          .where(eq(huntEconomyStats.walletAddress, walletAddress))
+          .limit(1);
+        
+        if (existingEconomy.length === 0) {
+          await db.insert(huntEconomyStats).values({
+            walletAddress,
+            energy: 30,
+            maxEnergy: 30,
+          });
+        }
 
-        await db.insert(huntLeaderboard).values({
-          walletAddress,
-          displayName,
-        });
+        const existingLeaderboard = await db.select().from(huntLeaderboard)
+          .where(eq(huntLeaderboard.walletAddress, walletAddress))
+          .limit(1);
+        
+        if (existingLeaderboard.length === 0) {
+          await db.insert(huntLeaderboard).values({
+            walletAddress,
+            displayName,
+          });
+        }
 
-        await db.insert(huntIncubators).values({
-          walletAddress,
-          incubatorType: 'basic',
-          slotNumber: 1,
-        });
+        const existingIncubator = await db.select().from(huntIncubators)
+          .where(eq(huntIncubators.walletAddress, walletAddress))
+          .limit(1);
+        
+        if (existingIncubator.length === 0) {
+          await db.insert(huntIncubators).values({
+            walletAddress,
+            incubatorType: 'basic',
+            slotNumber: 1,
+          });
+        }
       }
 
       res.json({ success: true });
@@ -185,13 +208,9 @@ export function registerHuntRoutes(app: Express) {
         const offset = getRandomOffset(300);
         const rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
         
-        let templates = CREATURE_TEMPLATES;
-        if (rarity === 'legendary') {
-          templates = templates.filter(t => t.id === 'phoenixia');
-        } else if (rarity === 'epic') {
-          templates = templates.filter(t => t.id === 'shadowisp');
-        } else if (rarity === 'rare') {
-          templates = templates.filter(t => ['voltcat', 'frostfang'].includes(t.id));
+        let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
+        if (templates.length === 0) {
+          templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
         }
         
         const template = templates[Math.floor(Math.random() * templates.length)];
@@ -202,7 +221,7 @@ export function registerHuntRoutes(app: Express) {
           longitude: (longitude + offset.lng).toString(),
           templateId: template.id,
           name: template.name,
-          creatureClass: template.class,
+          creatureClass: template.roachyClass,
           rarity,
           baseHp: template.baseHp,
           baseAtk: template.baseAtk,
@@ -503,13 +522,9 @@ export function registerHuntRoutes(app: Express) {
       
       if (newDistance >= egg.requiredDistance) {
         const rarity = egg.rarity;
-        let templates = CREATURE_TEMPLATES;
-        if (rarity === 'legendary') {
-          templates = templates.filter(t => t.id === 'phoenixia');
-        } else if (rarity === 'epic') {
-          templates = templates.filter(t => t.id === 'shadowisp');
-        } else if (rarity === 'rare') {
-          templates = templates.filter(t => ['voltcat', 'frostfang'].includes(t.id));
+        let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
+        if (templates.length === 0) {
+          templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
         }
         
         const template = templates[Math.floor(Math.random() * templates.length)];
@@ -519,7 +534,7 @@ export function registerHuntRoutes(app: Express) {
           walletAddress,
           templateId: template.id,
           name: template.name,
-          creatureClass: template.class,
+          creatureClass: template.roachyClass,
           rarity,
           baseHp: template.baseHp,
           baseAtk: template.baseAtk,

@@ -14,7 +14,7 @@ import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { CREATURE_IMAGES, getRarityColor } from "@/constants/creatures";
+import { ROACHY_IMAGES, getRarityColor, getClassColor, getClassIcon } from "@/constants/creatures";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -70,12 +70,10 @@ const RARITY_COLORS: Record<string, { primary: string; secondary: string; glow: 
 };
 
 const CLASS_ICONS: Record<string, string> = {
-  fire: "sun",
-  water: "droplet",
-  grass: "feather",
-  electric: "zap",
-  ice: "cloud-snow",
-  shadow: "moon",
+  tank: "shield",
+  assassin: "zap",
+  mage: "star",
+  support: "heart",
 };
 
 export function EggReveal({ creature, catchQuality, onComplete }: EggRevealProps) {
@@ -200,7 +198,7 @@ export function EggReveal({ creature, catchQuality, onComplete }: EggRevealProps
     transform: [{ scale: glowPulse.value }],
   }));
 
-  const creatureImage = CREATURE_IMAGES[creature.templateId];
+  const creatureImage = ROACHY_IMAGES[creature.templateId];
   const classIcon = CLASS_ICONS[creature.creatureClass] || "star";
 
   return (

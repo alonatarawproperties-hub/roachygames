@@ -18,7 +18,7 @@ export default function HuntStackNavigator() {
         name="HuntMain"
         component={HuntScreen}
         options={{
-          headerTitle: "CryptoCreatures",
+          headerTitle: "Roachy Hunt",
         }}
       />
     </Stack.Navigator>
