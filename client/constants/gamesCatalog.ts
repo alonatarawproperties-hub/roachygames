@@ -1,5 +1,7 @@
 import { ImageSourcePropType } from "react-native";
 
+const RoachyHuntLogo = require("@/assets/roachy-hunt-logo.png");
+
 export interface GameEntry {
   id: string;
   title: string;
@@ -21,6 +23,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     title: "Roachy Hunt",
     tagline: "Catch, Train, Battle!",
     description: "Hunt wild Roachies in your real-world location using GPS. Catch creatures with timing-based mechanics, hatch eggs by walking, and battle in raids!",
+    coverImage: RoachyHuntLogo,
     iconName: "target",
     routeName: "RoachyHuntStack",
     isLocked: false,

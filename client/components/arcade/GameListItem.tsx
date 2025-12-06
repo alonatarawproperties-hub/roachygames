@@ -6,6 +6,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -66,11 +67,19 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
       onPress={handlePress}
     >
       <View style={[styles.thumbnail, { borderColor: categoryStyle.border }]}>
-        <Feather
-          name={game.iconName as any}
-          size={24}
-          color={game.isLocked ? GameColors.textTertiary : categoryStyle.text}
-        />
+        {game.coverImage ? (
+          <Image
+            source={game.coverImage}
+            style={styles.thumbnailImage}
+            contentFit="cover"
+          />
+        ) : (
+          <Feather
+            name={game.iconName as any}
+            size={24}
+            color={game.isLocked ? GameColors.textTertiary : categoryStyle.text}
+          />
+        )}
         {game.isLocked && (
           <View style={styles.lockBadge}>
             <Feather name="lock" size={10} color={GameColors.textSecondary} />
@@ -129,6 +138,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
+    overflow: "hidden",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
   },
   lockBadge: {
     position: "absolute",

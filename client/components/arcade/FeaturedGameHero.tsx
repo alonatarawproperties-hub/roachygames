@@ -9,6 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius, GlowStyles } from "@/constants/theme";
@@ -78,7 +79,15 @@ export function FeaturedGameHero({
         
         <View style={styles.heroIconContainer}>
           <View style={styles.heroIcon}>
-            <Feather name={game.iconName as any} size={48} color={GameColors.gold} />
+            {game.coverImage ? (
+              <Image
+                source={game.coverImage}
+                style={styles.heroImage}
+                contentFit="cover"
+              />
+            ) : (
+              <Feather name={game.iconName as any} size={48} color={GameColors.gold} />
+            )}
           </View>
         </View>
 
@@ -149,7 +158,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     borderColor: GameColors.gold + "60",
+    overflow: "hidden",
     ...(Platform.OS === "ios" ? GlowStyles.subtle : {}),
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
   viewerBadge: {
     position: "absolute",
