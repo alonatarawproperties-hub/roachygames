@@ -19,6 +19,13 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
+- **Added Real-Time GPS Map with react-native-maps**
+  - Full Apple Maps/Google Maps integration showing actual location
+  - 100m catch radius circle around player
+  - Custom spawn markers with rarity colors on real map
+  - Navigation button to center on player, refresh spawns button
+  - Live GPS coordinates display
+  - Web fallback shows grid view (real map only on mobile)
 - **Added AR-like Camera Encounter for Roachy Hunt**
   - Pokemon Go-style camera view with animated creature overlays
   - Proper camera permission handling with Settings fallback
