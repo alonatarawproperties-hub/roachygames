@@ -24,6 +24,7 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { CameraEncounter } from "@/components/CameraEncounter";
 import { CatchMiniGame } from "@/components/CatchMiniGame";
 import { EggReveal } from "@/components/EggReveal";
 import { RaidBattleMiniGame } from "@/components/RaidBattleMiniGame";
@@ -78,6 +79,7 @@ export default function HuntScreen() {
 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedSpawn, setSelectedSpawn] = useState<Spawn | null>(null);
+  const [showCameraEncounter, setShowCameraEncounter] = useState(false);
   const [showCatchGame, setShowCatchGame] = useState(false);
   const [caughtCreature, setCaughtCreature] = useState<CaughtCreature | null>(null);
   const [catchQuality, setCatchQuality] = useState<"perfect" | "great" | "good" | null>(null);
@@ -139,8 +141,18 @@ export default function HuntScreen() {
       return;
     }
     setSelectedSpawn(spawn);
-    setShowCatchGame(true);
+    setShowCameraEncounter(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handleStartCatch = () => {
+    setShowCameraEncounter(false);
+    setShowCatchGame(true);
+  };
+
+  const handleCancelEncounter = () => {
+    setShowCameraEncounter(false);
+    setSelectedSpawn(null);
   };
 
   const handleCatchResult = async (quality: "perfect" | "great" | "good" | "miss") => {
@@ -523,6 +535,20 @@ export default function HuntScreen() {
       {activeTab === "map" && renderMapView()}
       {activeTab === "collection" && renderCollection()}
       {activeTab === "eggs" && renderEggs()}
+
+      <Modal
+        visible={showCameraEncounter && selectedSpawn !== null}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        {selectedSpawn ? (
+          <CameraEncounter
+            spawn={selectedSpawn}
+            onStartCatch={handleStartCatch}
+            onCancel={handleCancelEncounter}
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         visible={showCatchGame && selectedSpawn !== null}
