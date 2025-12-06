@@ -1,11 +1,11 @@
 {
-  "id": "ba039ea4-e91e-42a3-ad54-2b7393950be0",
-  "createdAt": "2025-12-06T15:21:25.966Z",
+  "id": "4a9c039b-e4a7-41d8-b201-25a9c50ed1ed",
+  "createdAt": "2025-12-06T15:53:39.371Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1765034485966-9564",
+    "key": "bundle-1765036419371-13992",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765034485966-9564/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765036419371-13992/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -55,7 +55,7 @@
           "expo-splash-screen",
           {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 200,
+            "imageWidth": 280,
             "resizeMode": "contain",
             "backgroundColor": "#120a05",
             "dark": {
