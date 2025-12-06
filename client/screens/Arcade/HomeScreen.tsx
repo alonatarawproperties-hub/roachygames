@@ -1,35 +1,43 @@
-import React from "react";
-import { View, StyleSheet, ScrollView, Dimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import React, { useState } from "react";
+import { View, StyleSheet, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { ArcadeHeader, GameTile } from "@/components/arcade";
-import { GAMES_CATALOG, getAvailableGames } from "@/constants/gamesCatalog";
-import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import {
+  ArcadeHeader,
+  FeaturedGameHero,
+  GameListItem,
+  ArcadeTabBar,
+} from "@/components/arcade";
+import { GAMES_CATALOG } from "@/constants/gamesCatalog";
+import { GameColors, Spacing } from "@/constants/theme";
 
 export function ArcadeHomeScreen() {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const [activeTab, setActiveTab] = useState("Games");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const featuredGame = GAMES_CATALOG[0];
-  const otherGames = GAMES_CATALOG.slice(1);
+  const gamesList = GAMES_CATALOG;
+
+  const filteredGames = searchQuery
+    ? gamesList.filter((game) =>
+        game.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : gamesList;
 
   const handleGamePress = (routeName: string) => {
     navigation.navigate(routeName);
   };
 
   const handleWalletPress = () => {
-    console.log("Wallet press - TODO: implement wallet connection");
+    console.log("Wallet press");
   };
 
-  const handleSettingsPress = () => {
-    console.log("Settings press - TODO: implement settings");
+  const handleNotificationPress = () => {
+    console.log("Notification press");
   };
 
   return (
@@ -42,78 +50,52 @@ export function ArcadeHomeScreen() {
       />
 
       <ArcadeHeader
+        onSearchChange={setSearchQuery}
         onWalletPress={handleWalletPress}
-        onSettingsPress={handleSettingsPress}
+        onNotificationPress={handleNotificationPress}
       />
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.welcomeSection}>
-          <ThemedText style={styles.welcomeText}>Welcome, Hunter</ThemedText>
-          <ThemedText style={styles.welcomeSubtext}>
-            Choose your adventure
-          </ThemedText>
+        <FeaturedGameHero
+          game={featuredGame}
+          onPress={() => handleGamePress(featuredGame.routeName)}
+          viewerCount="12.3k"
+        />
+
+        <View style={styles.gamesList}>
+          {filteredGames.map((game, index) => (
+            <GameListItem
+              key={game.id}
+              game={game}
+              onPress={() => handleGamePress(game.routeName)}
+              playTime={index === 0 ? "20:30" : index === 1 ? "00:15" : index === 2 ? "22:00" : "18:00"}
+            />
+          ))}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>Featured Game</ThemedText>
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <ThemedText style={styles.liveText}>PLAYABLE NOW</ThemedText>
-            </View>
+        {filteredGames.length === 0 && (
+          <View style={styles.emptyState}>
+            <ThemedText style={styles.emptyText}>
+              No games found for &quot;{searchQuery}&quot;
+            </ThemedText>
           </View>
+        )}
 
-          <GameTile
-            game={featuredGame}
-            featured
-            onPress={() => handleGamePress(featuredGame.routeName)}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>Coming Soon</ThemedText>
-            <Feather name="clock" size={16} color={GameColors.textSecondary} />
+        <View style={styles.moreSection}>
+          <ThemedText style={styles.moreText}>More</ThemedText>
+          <View style={styles.moreDots}>
+            <View style={styles.dot} />
+            <View style={styles.dot} />
+            <View style={styles.dot} />
           </View>
-
-          <View style={styles.gamesGrid}>
-            {otherGames.map((game) => (
-              <GameTile
-                key={game.id}
-                game={game}
-                onPress={() => handleGamePress(game.routeName)}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.infoCard}>
-            <Feather name="info" size={20} color={GameColors.primary} />
-            <View style={styles.infoContent}>
-              <ThemedText style={styles.infoTitle}>
-                More Games Coming Soon
-              </ThemedText>
-              <ThemedText style={styles.infoText}>
-                We&apos;re building an entire arcade of P2E games. Stay tuned for
-                PvP battles, puzzles, and epic quests!
-              </ThemedText>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.footer}>
-          <ThemedText style={styles.footerText}>Roachy Games</ThemedText>
-          <ThemedText style={styles.footerVersion}>v1.0.0 Beta</ThemedText>
         </View>
       </ScrollView>
+
+      <ArcadeTabBar activeTab={activeTab} onTabPress={setActiveTab} />
     </ThemedView>
   );
 }
@@ -128,97 +110,39 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
   },
-  welcomeSection: {
-    marginBottom: Spacing.lg,
+  gamesList: {
+    marginTop: Spacing.sm,
   },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: GameColors.textPrimary,
-    letterSpacing: -0.5,
-  },
-  welcomeSubtext: {
-    fontSize: 16,
-    color: GameColors.textSecondary,
-    marginTop: 4,
-  },
-  section: {
-    marginBottom: Spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: "row",
+  emptyState: {
+    paddingVertical: Spacing["3xl"],
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: GameColors.textPrimary,
-  },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: GameColors.success + "20",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: GameColors.success,
-    marginRight: 6,
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: GameColors.success,
-    letterSpacing: 0.5,
-  },
-  gamesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-  },
-  infoCard: {
-    backgroundColor: GameColors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderColor: GameColors.primary + "30",
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
+  emptyText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: GameColors.textPrimary,
-    marginBottom: 4,
-  },
-  infoText: {
-    fontSize: 13,
     color: GameColors.textSecondary,
-    lineHeight: 20,
   },
-  footer: {
+  moreSection: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.xl,
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
   },
-  footerText: {
+  moreText: {
     fontSize: 14,
     fontWeight: "600",
     color: GameColors.textSecondary,
   },
-  footerVersion: {
-    fontSize: 12,
-    color: GameColors.textTertiary,
-    marginTop: 2,
+  moreDots: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GameColors.textTertiary,
   },
 });

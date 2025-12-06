@@ -1,72 +1,82 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface ArcadeHeaderProps {
-  walletConnected?: boolean;
+  showSearch?: boolean;
+  onSearchChange?: (text: string) => void;
   onWalletPress?: () => void;
-  onSettingsPress?: () => void;
+  onNotificationPress?: () => void;
 }
 
 export function ArcadeHeader({
-  walletConnected = false,
+  showSearch = true,
+  onSearchChange,
   onWalletPress,
-  onSettingsPress,
+  onNotificationPress,
 }: ArcadeHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.sm }]}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoIcon}>
-          <Feather name="play-circle" size={28} color={GameColors.primary} />
+      <View style={styles.topRow}>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoIcon}>
+            <Feather name="disc" size={20} color={GameColors.primary} />
+          </View>
         </View>
-        <View>
-          <ThemedText style={styles.logoText}>Roachy</ThemedText>
-          <ThemedText style={styles.logoSubtext}>Games</ThemedText>
+
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              pressed && styles.actionButtonPressed,
+            ]}
+            onPress={onWalletPress}
+          >
+            <Feather name="credit-card" size={18} color={GameColors.textSecondary} />
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              pressed && styles.actionButtonPressed,
+            ]}
+            onPress={onNotificationPress}
+          >
+            <Feather name="bell" size={18} color={GameColors.textSecondary} />
+          </Pressable>
         </View>
       </View>
 
-      <View style={styles.actions}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.actionButton,
-            pressed && styles.actionButtonPressed,
-          ]}
-          onPress={onWalletPress}
-        >
-          <Feather
-            name={walletConnected ? "check-circle" : "link"}
-            size={20}
-            color={walletConnected ? GameColors.success : GameColors.textSecondary}
+      {showSearch && (
+        <View style={styles.searchContainer}>
+          <Feather name="search" size={18} color={GameColors.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Game Search..."
+            placeholderTextColor={GameColors.textTertiary}
+            onChangeText={onSearchChange}
           />
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.actionButton,
-            pressed && styles.actionButtonPressed,
-          ]}
-          onPress={onSettingsPress}
-        >
-          <Feather name="settings" size={20} color={GameColors.textSecondary} />
-        </Pressable>
-      </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    marginBottom: Spacing.md,
   },
   logoContainer: {
     flexDirection: "row",
@@ -74,43 +84,44 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   logoIcon: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     backgroundColor: GameColors.surface,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: GameColors.primary,
-  },
-  logoText: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: GameColors.primary,
-    letterSpacing: -0.5,
-  },
-  logoSubtext: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: GameColors.textSecondary,
-    marginTop: -4,
+    borderWidth: 1,
+    borderColor: GameColors.primary + "40",
   },
   actions: {
     flexDirection: "row",
     gap: Spacing.sm,
   },
   actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: GameColors.surface,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: GameColors.surfaceLight,
   },
   actionButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: GameColors.textPrimary,
+    paddingVertical: 4,
   },
 });
