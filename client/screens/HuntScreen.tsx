@@ -13,7 +13,6 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
-import MapView, { Marker, Circle, PROVIDER_DEFAULT } from "react-native-maps";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,6 +29,7 @@ import { CameraEncounter } from "@/components/CameraEncounter";
 import { CatchMiniGame } from "@/components/CatchMiniGame";
 import { EggReveal } from "@/components/EggReveal";
 import { RaidBattleMiniGame } from "@/components/RaidBattleMiniGame";
+import { MapViewWrapper, MapViewWrapperRef } from "@/components/MapViewWrapper";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -87,7 +87,7 @@ export default function HuntScreen() {
   const [catchQuality, setCatchQuality] = useState<"perfect" | "great" | "good" | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<Raid | null>(null);
   const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs">("map");
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapViewWrapperRef>(null);
 
   const pulseAnim = useSharedValue(1);
 
@@ -249,171 +249,25 @@ export default function HuntScreen() {
   };
 
   const centerOnPlayer = () => {
-    if (mapRef.current && playerLocation) {
-      mapRef.current.animateToRegion({
-        latitude: playerLocation.latitude,
-        longitude: playerLocation.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      }, 500);
+    if (mapRef.current) {
+      mapRef.current.centerOnPlayer();
     }
   };
 
   const renderMapView = () => {
-    const hasLocation = playerLocation && playerLocation.latitude && playerLocation.longitude;
-    
-    if (Platform.OS === "web") {
-      return (
-        <View style={styles.mapContainer}>
-          <View style={styles.webMapFallback}>
-            <View style={styles.mapGrid}>
-              {[...Array(16)].map((_, i) => (
-                <View key={i} style={styles.mapCell} />
-              ))}
-            </View>
-            <Animated.View style={[styles.playerMarker, pulseStyle]}>
-              <View style={styles.playerDot} />
-              <View style={styles.playerRange} />
-            </Animated.View>
-            {spawns && spawns.length > 0 ? spawns.map((spawn, index) => {
-              const position = getSpawnPosition(spawn.id, index);
-              return (
-                <Pressable
-                  key={spawn.id}
-                  style={[styles.spawnMarker, { left: position.left, top: position.top }]}
-                  onPress={() => handleSpawnTap(spawn)}
-                >
-                  <View style={[styles.spawnDot, { backgroundColor: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common }]} />
-                  <ThemedText style={styles.spawnName}>{spawn.name}</ThemedText>
-                  <ThemedText style={styles.spawnDistance}>{spawn.distance ? `${spawn.distance}m` : "nearby"}</ThemedText>
-                </Pressable>
-              );
-            }) : null}
-            <ThemedText style={styles.webMapText}>Real map available in Expo Go</ThemedText>
-          </View>
-          <Pressable style={styles.refreshButton} onPress={() => {
-            spawnCreatures();
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}>
-            <Feather name="refresh-cw" size={20} color="#fff" />
-          </Pressable>
-        </View>
-      );
-    }
-
     return (
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_DEFAULT}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
-          followsUserLocation={true}
-          showsCompass={true}
-          rotateEnabled={true}
-          pitchEnabled={false}
-          mapType="standard"
-          userInterfaceStyle="dark"
-          initialRegion={{
-            latitude: hasLocation ? playerLocation.latitude : 37.7749,
-            longitude: hasLocation ? playerLocation.longitude : -122.4194,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          }}
-        >
-          {hasLocation ? (
-            <Circle
-              center={{
-                latitude: playerLocation.latitude,
-                longitude: playerLocation.longitude,
-              }}
-              radius={100}
-              strokeColor="rgba(255, 149, 0, 0.5)"
-              fillColor="rgba(255, 149, 0, 0.1)"
-              strokeWidth={2}
-            />
-          ) : null}
-
-          {spawns && spawns.length > 0 ? spawns.map((spawn) => {
-            const spawnLat = parseFloat(String(spawn.latitude));
-            const spawnLng = parseFloat(String(spawn.longitude));
-            if (isNaN(spawnLat) || isNaN(spawnLng)) return null;
-            
-            return (
-              <Marker
-                key={spawn.id}
-                coordinate={{
-                  latitude: spawnLat,
-                  longitude: spawnLng,
-                }}
-                onPress={() => handleSpawnTap(spawn)}
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <View style={styles.mapMarkerContainer}>
-                  <View style={[styles.mapMarkerOuter, { borderColor: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common }]}>
-                    <View style={[styles.mapMarkerInner, { backgroundColor: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common }]}>
-                      <Feather name="target" size={16} color="#fff" />
-                    </View>
-                  </View>
-                  <View style={styles.mapMarkerLabel}>
-                    <ThemedText style={styles.mapMarkerName}>{spawn.name}</ThemedText>
-                    <ThemedText style={styles.mapMarkerDistance}>
-                      {spawn.distance ? `${spawn.distance}m` : "nearby"}
-                    </ThemedText>
-                  </View>
-                </View>
-              </Marker>
-            );
-          }) : null}
-
-          {raids.map((raid) => {
-            const raidLat = parseFloat(String(raid.latitude));
-            const raidLng = parseFloat(String(raid.longitude));
-            if (isNaN(raidLat) || isNaN(raidLng)) return null;
-            
-            return (
-              <Marker
-                key={raid.id}
-                coordinate={{
-                  latitude: raidLat,
-                  longitude: raidLng,
-                }}
-                onPress={() => setSelectedRaid(raid)}
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <View style={styles.raidMapMarker}>
-                  <View style={[styles.raidMapIcon, { backgroundColor: RARITY_COLORS[raid.rarity] || RARITY_COLORS.rare }]}>
-                    <Feather name="alert-triangle" size={18} color="#fff" />
-                  </View>
-                  <ThemedText style={styles.raidMapName}>{raid.bossName}</ThemedText>
-                </View>
-              </Marker>
-            );
-          })}
-        </MapView>
-
-        <View style={styles.mapControls}>
-          <Pressable style={styles.mapControlButton} onPress={centerOnPlayer}>
-            <Feather name="navigation" size={20} color="#fff" />
-          </Pressable>
-          <Pressable style={styles.mapControlButton} onPress={() => {
-            spawnCreatures();
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}>
-            <Feather name="refresh-cw" size={20} color="#fff" />
-          </Pressable>
-        </View>
-
-        {hasLocation ? (
-          <View style={styles.locationInfo}>
-            <Feather name="map-pin" size={12} color={GameColors.primary} />
-            <ThemedText style={styles.locationText}>
-              {playerLocation.latitude.toFixed(4)}, {playerLocation.longitude.toFixed(4)}
-            </ThemedText>
-          </View>
-        ) : null}
-      </View>
+      <MapViewWrapper
+        ref={mapRef}
+        playerLocation={playerLocation}
+        spawns={spawns}
+        raids={raids}
+        onSpawnTap={handleSpawnTap}
+        onRaidTap={(raid) => setSelectedRaid(raid)}
+        onRefresh={() => {
+          spawnCreatures();
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+      />
     );
   };
 
