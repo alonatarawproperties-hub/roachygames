@@ -1,36 +1,36 @@
 {
-  "id": "70e0e8c0-6e97-4fd9-9e2e-4fb9fe714369",
-  "createdAt": "2025-12-05T15:38:11.400Z",
+  "id": "91d970b7-26df-4311-bf8e-f05f2940d539",
+  "createdAt": "2025-12-06T14:35:53.625Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1764949091400-3221",
+    "key": "bundle-1765031753625-3677",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1764949091400-3221/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765031753625-3677/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
   "extra": {
     "eas": {},
     "expoClient": {
-      "name": "CryptoCreatures",
-      "slug": "crypto-creatures",
+      "name": "Roachy Games",
+      "slug": "roachy-games",
       "version": "1.0.0",
       "orientation": "portrait",
       "icon": "./assets/images/icon.png",
-      "scheme": "cryptocreatures",
+      "scheme": "roachyhunt",
       "userInterfaceStyle": "dark",
       "newArchEnabled": true,
       "ios": {
         "supportsTablet": true,
         "bundleIdentifier": "com.cryptocreatures.app",
         "infoPlist": {
-          "NSLocationWhenInUseUsageDescription": "CryptoCreatures needs your location to find creatures near you.",
-          "NSLocationAlwaysAndWhenInUseUsageDescription": "CryptoCreatures needs your location to spawn creatures around you even when the app is in the background."
+          "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
+          "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background."
         }
       },
       "android": {
         "adaptiveIcon": {
-          "backgroundColor": "#1A1A2E",
+          "backgroundColor": "#120a05",
           "foregroundImage": "./assets/images/icon.png",
           "foregroundImageUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png"
         },
@@ -55,9 +55,9 @@
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 200,
             "resizeMode": "contain",
-            "backgroundColor": "#1A1A2E",
+            "backgroundColor": "#120a05",
             "dark": {
-              "backgroundColor": "#1A1A2E"
+              "backgroundColor": "#120a05"
             }
           }
         ],
@@ -65,7 +65,7 @@
         [
           "expo-location",
           {
-            "locationAlwaysAndWhenInUsePermission": "Allow CryptoCreatures to use your location to find creatures near you."
+            "locationAlwaysAndWhenInUsePermission": "Allow Roachy Hunt to use your location to find Roachies near you."
           }
         ]
       ],
@@ -100,7 +100,7 @@
         "web"
       ],
       "androidStatusBar": {
-        "backgroundColor": "#1A1A2E"
+        "backgroundColor": "#120a05"
       },
       "iconUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png",
       "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/ios"
@@ -116,6 +116,6 @@
       },
       "mainModuleName": "client/index"
     },
-    "scopeKey": "@anonymous/crypto-creatures-765a3ea3-9b22-4592-aa4c-8eedeeb69afa"
+    "scopeKey": "@anonymous/roachy-games-3b3014a2-369b-44f5-8901-cde4cbbf91f7"
   }
 }
