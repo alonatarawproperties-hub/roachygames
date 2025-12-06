@@ -1,11 +1,11 @@
 {
-  "id": "2a92b0f5-45b2-4187-8499-7791f0e52c91",
-  "createdAt": "2025-12-06T15:53:39.371Z",
+  "id": "3c657959-680c-482a-804e-71a940b41b5e",
+  "createdAt": "2025-12-06T16:03:03.232Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1765036419371-13992",
+    "key": "bundle-1765036983232-15455",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765036419371-13992/_expo/static/js/android/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765036983232-15455/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -19,10 +19,12 @@
       "icon": "./assets/images/icon.png",
       "scheme": "roachyhunt",
       "userInterfaceStyle": "dark",
+      "backgroundColor": "#120a05",
       "newArchEnabled": true,
       "ios": {
         "supportsTablet": true,
         "bundleIdentifier": "com.cryptocreatures.app",
+        "backgroundColor": "#120a05",
         "infoPlist": {
           "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
           "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background."
@@ -51,6 +53,7 @@
         "favicon": "./assets/images/favicon.png"
       },
       "plugins": [
+        "expo-system-ui",
         [
           "expo-splash-screen",
           {
@@ -87,6 +90,10 @@
         "staticConfigPath": "/home/runner/workspace/app.json",
         "packageJsonPath": "/home/runner/workspace/package.json",
         "pluginHistory": {
+          "expo-system-ui": {
+            "name": "expo-system-ui",
+            "version": "6.0.8"
+          },
           "expo-splash-screen": {
             "name": "expo-splash-screen",
             "version": "31.0.11"

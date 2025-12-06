@@ -7,10 +7,12 @@
     "icon": "./assets/images/icon.png",
     "scheme": "roachyhunt",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#120a05",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cryptocreatures.app",
+      "backgroundColor": "#120a05",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background."
@@ -34,6 +36,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-system-ui",
       [
         "expo-splash-screen",
         {

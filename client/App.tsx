@@ -6,6 +6,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
+import * as SystemUI from "expo-system-ui";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
@@ -15,7 +16,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
+import { GameColors } from "@/constants/theme";
 
+SystemUI.setBackgroundColorAsync(GameColors.background);
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
