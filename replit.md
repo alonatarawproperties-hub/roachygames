@@ -10,6 +10,7 @@ The app includes:
 - **Arcade Home:** Game launcher with featured game and coming soon tiles
 - **Roachy Hunt:** Full GPS-based creature hunting game
   - Hunt Screen with auto-spawning creatures
+  - **AR-like Camera Encounter** with creature overlays (tap spawn -> camera view -> catch)
   - Catch Mini-Game with timing mechanics
   - 12 unique Roachies across 4 classes
   - Egg incubation and hatching
@@ -18,6 +19,12 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
+- **Added AR-like Camera Encounter for Roachy Hunt**
+  - Pokemon Go-style camera view with animated creature overlays
+  - Proper camera permission handling with Settings fallback
+  - Web fallback for browser testing
+  - Flow: Map spawn tap → Camera encounter → Catch mini-game
+- Improved spawn generation to ensure catchable spawns nearby (first spawn within 50m)
 - **Created "Roachy Games" arcade launcher platform**
 - Added arcade home screen with game selection UI
 - Roachy Hunt integrated as first playable game
