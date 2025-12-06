@@ -136,16 +136,22 @@ function serveLandingPage({
   landingPageTemplate: string;
   appName: string;
 }) {
+  // Use REPLIT_DEV_DOMAIN for the deep link URL (this is the public domain)
+  const replitDevDomain = process.env.REPLIT_DEV_DOMAIN;
+  
+  // Fallback to header-based detection
   const forwardedProto = req.header("x-forwarded-proto");
   const protocol = forwardedProto || req.protocol || "https";
   const forwardedHost = req.header("x-forwarded-host");
   const host = forwardedHost || req.get("host");
-  const baseUrl = `${protocol}://${host}`;
   
-  // For Expo Go deep link, use host without port (Express on 8081 maps to external 80)
-  const hostWithoutPort = host?.replace(/:\d+$/, "") || "";
-  const expsUrl = hostWithoutPort;
+  // For baseUrl (used for assets), try Replit domain first
+  const baseUrl = replitDevDomain ? `https://${replitDevDomain}` : `${protocol}://${host}`;
+  
+  // For Expo Go deep link, use Replit domain without port
+  const expsUrl = replitDevDomain || host?.replace(/:\d+$/, "") || "localhost";
 
+  log(`REPLIT_DEV_DOMAIN`, replitDevDomain);
   log(`baseUrl`, baseUrl);
   log(`expsUrl`, expsUrl);
 
