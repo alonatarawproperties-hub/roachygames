@@ -5,6 +5,7 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  Linking,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import Animated, {
@@ -155,7 +156,18 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
     );
   }
 
+  const handleOpenSettings = async () => {
+    if (Platform.OS !== "web") {
+      try {
+        await Linking.openSettings();
+      } catch (error) {
+      }
+    }
+  };
+
   if (!permission.granted) {
+    const isPermanentlyDenied = permission.status === "denied" && !permission.canAskAgain;
+    
     return (
       <ThemedView style={[styles.permissionContainer, { paddingTop: insets.top }]}>
         <View style={styles.permissionContent}>
@@ -166,11 +178,19 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
             Camera Access Required
           </ThemedText>
           <ThemedText style={styles.permissionText}>
-            Enable camera to see Roachies in the real world and catch them!
+            {isPermanentlyDenied
+              ? "Camera permission was denied. Please enable it in your device settings to catch Roachies!"
+              : "Enable camera to see Roachies in the real world and catch them!"}
           </ThemedText>
-          <Pressable style={styles.permissionButton} onPress={requestPermission}>
-            <ThemedText style={styles.permissionButtonText}>Enable Camera</ThemedText>
-          </Pressable>
+          {isPermanentlyDenied && Platform.OS !== "web" ? (
+            <Pressable style={styles.permissionButton} onPress={handleOpenSettings}>
+              <ThemedText style={styles.permissionButtonText}>Open Settings</ThemedText>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.permissionButton} onPress={requestPermission}>
+              <ThemedText style={styles.permissionButtonText}>Enable Camera</ThemedText>
+            </Pressable>
+          )}
           <Pressable style={styles.cancelButton} onPress={onCancel}>
             <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
           </Pressable>

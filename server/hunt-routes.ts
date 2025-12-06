@@ -205,7 +205,8 @@ export function registerHuntRoutes(app: Express) {
 
       const spawns = [];
       for (let i = 0; i < count; i++) {
-        const offset = getRandomOffset(300);
+        const radius = i === 0 ? 50 : 200;
+        const offset = getRandomOffset(radius);
         const rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
         
         let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
