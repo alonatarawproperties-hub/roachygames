@@ -22,6 +22,24 @@ const RARITY_RATES = {
   legendary: 0.01,
 };
 
+const SPAWN_TYPE_RATES = {
+  egg: 0.60,
+  creature: 0.40,
+};
+
+const EGG_SPAWN_TEMPLATE = {
+  id: 'wild_egg',
+  name: 'Mystery Egg',
+  roachyClass: 'egg',
+  rarity: 'common',
+  baseHp: 0,
+  baseAtk: 0,
+  baseDef: 0,
+  baseSpd: 0,
+};
+
+const EGGS_REQUIRED_FOR_ROACHY = 20;
+
 const ROACHY_TEMPLATES = [
   { id: 'ironshell', name: 'Ironshell', roachyClass: 'tank', rarity: 'common', baseHp: 120, baseAtk: 40, baseDef: 80, baseSpd: 30 },
   { id: 'scuttler', name: 'Scuttler', roachyClass: 'assassin', rarity: 'common', baseHp: 60, baseAtk: 75, baseDef: 35, baseSpd: 90 },
@@ -207,15 +225,24 @@ export function registerHuntRoutes(app: Express) {
       for (let i = 0; i < count; i++) {
         const radius = i === 0 ? 50 : 200;
         const offset = getRandomOffset(radius);
-        const rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
-        
-        let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
-        if (templates.length === 0) {
-          templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
-        }
-        
-        const template = templates[Math.floor(Math.random() * templates.length)];
         const expiresAt = new Date(Date.now() + (15 + Math.random() * 15) * 60 * 1000);
+        
+        const isEgg = Math.random() < SPAWN_TYPE_RATES.egg;
+        
+        let template;
+        let rarity;
+        
+        if (isEgg) {
+          template = EGG_SPAWN_TEMPLATE;
+          rarity = 'common';
+        } else {
+          rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
+          let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
+          if (templates.length === 0) {
+            templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
+          }
+          template = templates[Math.floor(Math.random() * templates.length)];
+        }
 
         const [spawn] = await db.insert(wildCreatureSpawns).values({
           latitude: (latitude + offset.lat).toString(),
@@ -283,6 +310,96 @@ export function registerHuntRoutes(app: Express) {
           caughtAt: new Date(),
         })
         .where(eq(wildCreatureSpawns.id, spawnId));
+
+      const isEggCatch = spawn.templateId === 'wild_egg';
+
+      if (isEggCatch) {
+        const currentEggs = economy.collectedEggs || 0;
+        const newEggCount = currentEggs + 1;
+        let bonusCreature = null;
+
+        if (newEggCount >= EGGS_REQUIRED_FOR_ROACHY) {
+          const rarity = selectRarity({ sinceRare: economy.catchesSinceRare, sinceEpic: economy.catchesSinceEpic });
+          let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
+          if (templates.length === 0) {
+            templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
+          }
+          const template = templates[Math.floor(Math.random() * templates.length)];
+          const ivs = generateIVs();
+
+          const [caughtCreature] = await db.insert(huntCaughtCreatures).values({
+            walletAddress,
+            templateId: template.id,
+            name: template.name,
+            creatureClass: template.roachyClass,
+            rarity,
+            baseHp: template.baseHp,
+            baseAtk: template.baseAtk,
+            baseDef: template.baseDef,
+            baseSpd: template.baseSpd,
+            xp: 50,
+            ivHp: ivs.ivHp,
+            ivAtk: ivs.ivAtk,
+            ivDef: ivs.ivDef,
+            ivSpd: ivs.ivSpd,
+            isPerfect: ivs.isPerfect,
+            catchQuality: 'good',
+            catchLatitude: (latitude || spawn.latitude).toString(),
+            catchLongitude: (longitude || spawn.longitude).toString(),
+            origin: 'egg_redemption',
+          }).returning();
+
+          bonusCreature = caughtCreature;
+
+          await db.update(huntEconomyStats)
+            .set({
+              collectedEggs: 0,
+              energy: economy.energy - 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+          await db.insert(huntActivityLog).values({
+            walletAddress,
+            activityType: 'egg_redemption',
+            details: JSON.stringify({
+              creatureId: caughtCreature.id,
+              name: template.name,
+              rarity,
+              eggsCollected: EGGS_REQUIRED_FOR_ROACHY,
+            }),
+          });
+        } else {
+          await db.update(huntEconomyStats)
+            .set({
+              collectedEggs: newEggCount,
+              energy: economy.energy - 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(huntEconomyStats.walletAddress, walletAddress));
+        }
+
+        await db.insert(huntActivityLog).values({
+          walletAddress,
+          activityType: 'egg_collect',
+          details: JSON.stringify({
+            eggNumber: newEggCount,
+            bonusCreature: bonusCreature ? bonusCreature.name : null,
+          }),
+        });
+
+        return res.json({
+          success: true,
+          isEgg: true,
+          collectedEggs: newEggCount >= EGGS_REQUIRED_FOR_ROACHY ? 0 : newEggCount,
+          eggsRequired: EGGS_REQUIRED_FOR_ROACHY,
+          bonusCreature,
+          economy: {
+            energy: economy.energy - 1,
+            collectedEggs: newEggCount >= EGGS_REQUIRED_FOR_ROACHY ? 0 : newEggCount,
+          },
+        });
+      }
 
       const ivs = generateIVs();
       const xpGain = catchQuality === 'perfect' ? 150 : catchQuality === 'great' ? 75 : 30;
@@ -359,27 +476,12 @@ export function registerHuntRoutes(app: Express) {
         }),
       });
 
-      const shouldDropEgg = Math.random() < 0.15;
-      let droppedEgg = null;
-
-      if (shouldDropEgg) {
-        const eggRarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
-        const [egg] = await db.insert(huntEggs).values({
-          walletAddress,
-          rarity: eggRarity,
-          requiredDistance: EGG_DISTANCES[eggRarity] || 2000,
-          foundLatitude: latitude?.toString() || spawn.latitude.toString(),
-          foundLongitude: longitude?.toString() || spawn.longitude.toString(),
-        }).returning();
-        droppedEgg = egg;
-      }
-
       res.json({
         success: true,
+        isEgg: false,
         creature: caughtCreature,
         xpGain,
         streak: newStreak,
-        droppedEgg,
         economy: {
           energy: economy.energy - 1,
           catchesToday: isNewDay ? 1 : economy.catchesToday + 1,

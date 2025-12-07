@@ -126,6 +126,7 @@ export const huntEconomyStats = pgTable("hunt_economy_stats", {
   longestStreak: integer("longest_streak").notNull().default(0),
   lastCatchDate: text("last_catch_date"),
   streakBonusClaimedToday: boolean("streak_bonus_claimed_today").notNull().default(false),
+  collectedEggs: integer("collected_eggs").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 

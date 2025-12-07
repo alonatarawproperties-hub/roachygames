@@ -121,6 +121,40 @@ const STABLE_MAP_HTML = `
       color: rgba(255,255,255,0.7);
     }
     
+    .mystery-ping-icon {
+      width: 40px;
+      height: 40px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .ping-circle {
+      position: absolute;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid #FF9500;
+      animation: ping-pulse 2s ease-out infinite;
+    }
+    
+    .ping-dot {
+      width: 16px;
+      height: 16px;
+      background: #FF9500;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 12px rgba(255, 149, 0, 0.8), 0 0 24px rgba(255, 149, 0, 0.4);
+      z-index: 2;
+    }
+    
+    @keyframes ping-pulse {
+      0% { transform: scale(0.8); opacity: 1; }
+      70% { transform: scale(1.5); opacity: 0; }
+      100% { transform: scale(0.8); opacity: 0; }
+    }
+    
     .raid-marker .spawn-icon {
       animation: pulse 1.5s infinite;
     }
@@ -375,21 +409,19 @@ const STABLE_MAP_HTML = `
       
       spawns.forEach(spawn => {
         const icon = L.divIcon({
-          className: 'spawn-marker',
+          className: 'spawn-marker mystery-ping',
           html: \`
-            <div class="spawn-icon" style="background: \${spawn.color};">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="none"/>
-                <circle cx="12" cy="12" r="4"/>
-              </svg>
+            <div class="mystery-ping-icon">
+              <div class="ping-circle"></div>
+              <div class="ping-dot"></div>
             </div>
             <div class="spawn-label">
-              <div>\${spawn.name}</div>
+              <div>???</div>
               <div class="spawn-distance">\${spawn.distance}m</div>
             </div>
           \`,
           iconSize: [80, 60],
-          iconAnchor: [40, 20]
+          iconAnchor: [40, 30]
         });
         
         const marker = L.marker([spawn.lat, spawn.lng], { icon }).addTo(map);

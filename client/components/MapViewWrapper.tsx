@@ -122,8 +122,10 @@ function FallbackMapView({
               style={[styles.spawnMarker, { left: position.left, top: position.top }]}
               onPress={() => onSpawnTap(spawn)}
             >
-              <View style={[styles.spawnDot, { backgroundColor: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common }]} />
-              <ThemedText style={styles.spawnName}>{spawn.name}</ThemedText>
+              <View style={styles.mysteryDot}>
+                <View style={styles.mysteryPulse} />
+              </View>
+              <ThemedText style={styles.spawnName}>???</ThemedText>
               <ThemedText style={styles.spawnDistance}>{spawn.distance ? `${spawn.distance}m` : "nearby"}</ThemedText>
             </Pressable>
           );
@@ -262,13 +264,13 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 anchor={{ x: 0.5, y: 0.5 }}
               >
                 <View style={styles.mapMarkerContainer}>
-                  <View style={[styles.mapMarkerOuter, { borderColor: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common }]}>
-                    <View style={[styles.mapMarkerInner, { backgroundColor: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common }]}>
-                      <Feather name="target" size={16} color="#fff" />
+                  <View style={styles.mysteryMarkerOuter}>
+                    <View style={styles.mysteryMarkerInner}>
+                      <Feather name="help-circle" size={16} color="#fff" />
                     </View>
                   </View>
                   <View style={styles.mapMarkerLabel}>
-                    <ThemedText style={styles.mapMarkerName}>{spawn.name}</ThemedText>
+                    <ThemedText style={styles.mapMarkerName}>???</ThemedText>
                     <ThemedText style={styles.mapMarkerDistance}>
                       {spawn.distance ? `${spawn.distance}m` : "nearby"}
                     </ThemedText>
@@ -409,6 +411,31 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
     marginBottom: 2,
   },
+  mysteryDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GameColors.primary,
+    borderWidth: 2,
+    borderColor: "#fff",
+    marginBottom: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: GameColors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  mysteryPulse: {
+    position: "absolute",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: GameColors.primary,
+    opacity: 0.5,
+  },
   spawnName: {
     fontSize: 10,
     fontWeight: "600",
@@ -506,6 +533,29 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mysteryMarkerOuter: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: GameColors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    shadowColor: GameColors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  mysteryMarkerInner: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GameColors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
