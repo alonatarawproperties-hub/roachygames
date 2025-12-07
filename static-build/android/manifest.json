@@ -1,11 +1,11 @@
 {
-  "id": "cc102307-0fb9-482d-92a8-26d4410a3aab",
-  "createdAt": "2025-12-06T16:25:10.763Z",
+  "id": "3caa30c9-c60a-47e1-bcd5-cbe33dc0d748",
+  "createdAt": "2025-12-07T07:37:15.790Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1765038310763-17073",
+    "key": "bundle-1765093035790-875",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765038310763-17073/_expo/static/js/android/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765093035790-875/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -135,6 +135,6 @@
       },
       "mainModuleName": "client/index"
     },
-    "scopeKey": "@anonymous/roachy-games-3b3014a2-369b-44f5-8901-cde4cbbf91f7"
+    "scopeKey": "@anonymous/roachy-games-9475ca93-6706-4794-94fc-d126d43726ba"
   }
 }
