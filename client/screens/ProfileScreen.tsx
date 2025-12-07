@@ -61,7 +61,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const { state, connectWallet, disconnectWallet, addCatchballs } = useGame();
+  const { state, connectWallet, disconnectWallet, addEggs } = useGame();
   const [connecting, setConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -91,9 +91,9 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleAddBalls = () => {
+  const handleAddEggs = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    addCatchballs(5);
+    addEggs(5);
   };
 
   const truncateAddress = (address: string) => {
@@ -147,8 +147,8 @@ export default function ProfileScreen() {
         />
         <StatCard
           icon="disc"
-          label="Catchballs"
-          value={state.catchballCount}
+          label="Eggs"
+          value={state.eggCount}
           color="#FFD93D"
           index={2}
         />
@@ -268,17 +268,17 @@ export default function ProfileScreen() {
         <ThemedText type="h4" style={styles.sectionTitle}>
           Resources
         </ThemedText>
-        <Pressable style={styles.resourceCard} onPress={handleAddBalls}>
+        <Pressable style={styles.resourceCard} onPress={handleAddEggs}>
           <View style={styles.resourceRow}>
             <View style={styles.resourceIcon}>
               <Feather name="plus-circle" size={24} color="#FFD93D" />
             </View>
             <View style={styles.resourceInfo}>
               <ThemedText style={styles.resourceTitle}>
-                Get Catchballs
+                Get Eggs
               </ThemedText>
               <ThemedText style={styles.resourceDescription}>
-                Tap to receive 5 free catchballs
+                Tap to receive 5 free eggs
               </ThemedText>
             </View>
             <Feather

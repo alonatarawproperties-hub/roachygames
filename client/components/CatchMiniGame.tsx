@@ -45,8 +45,8 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
   const ringScale = useSharedValue(2);
   const ringOpacity = useSharedValue(1);
   const creatureScale = useSharedValue(1);
-  const catchBallY = useSharedValue(300);
-  const catchBallOpacity = useSharedValue(0);
+  const catchEggY = useSharedValue(300);
+  const catchEggOpacity = useSharedValue(0);
   const flashOpacity = useSharedValue(0);
 
   const currentRingScale = useRef(2);
@@ -130,8 +130,8 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
         withTiming(1, { duration: 100 }),
         withTiming(0, { duration: 300 })
       );
-      catchBallOpacity.value = 1;
-      catchBallY.value = withTiming(0, { duration: 300 });
+      catchEggOpacity.value = 1;
+      catchEggY.value = withTiming(0, { duration: 300 });
       
       setTimeout(() => {
         onCatch(quality);
@@ -180,9 +180,9 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
     transform: [{ scale: creatureScale.value }],
   }));
 
-  const catchBallAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: catchBallY.value }],
-    opacity: catchBallOpacity.value,
+  const catchEggAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: catchEggY.value }],
+    opacity: catchEggOpacity.value,
   }));
 
   const flashAnimatedStyle = useAnimatedStyle(() => ({
@@ -240,14 +240,14 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
           )}
         </Animated.View>
 
-        <Animated.View style={[styles.catchBall, catchBallAnimatedStyle]}>
-          <View style={styles.pokeball}>
-            <View style={styles.pokeballTop} />
-            <View style={styles.pokeballLine} />
-            <View style={styles.pokeballCenter}>
-              <View style={styles.pokeballButton} />
+        <Animated.View style={[styles.catchEgg, catchEggAnimatedStyle]}>
+          <View style={styles.eggShape}>
+            <View style={styles.eggTop} />
+            <View style={styles.eggLine} />
+            <View style={styles.eggCenter}>
+              <View style={styles.eggButton} />
             </View>
-            <View style={styles.pokeballBottom} />
+            <View style={styles.eggBottom} />
           </View>
         </Animated.View>
       </Pressable>
@@ -426,11 +426,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  catchBall: {
+  catchEgg: {
     position: "absolute",
     bottom: -50,
   },
-  pokeball: {
+  eggShape: {
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -438,15 +438,15 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#333",
   },
-  pokeballTop: {
+  eggTop: {
     flex: 1,
-    backgroundColor: "#FF6B6B",
+    backgroundColor: GameColors.primary,
   },
-  pokeballLine: {
+  eggLine: {
     height: 4,
     backgroundColor: "#333",
   },
-  pokeballCenter: {
+  eggCenter: {
     position: "absolute",
     top: "50%",
     left: "50%",
@@ -459,15 +459,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  pokeballButton: {
+  eggButton: {
     width: 14,
     height: 14,
     borderRadius: 7,
     backgroundColor: "#fff",
   },
-  pokeballBottom: {
+  eggBottom: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F5E6D3",
   },
   resultContainer: {
     position: "absolute",

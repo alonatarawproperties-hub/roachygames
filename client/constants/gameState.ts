@@ -45,7 +45,7 @@ export interface GameState {
     latitude: number;
     longitude: number;
   } | null;
-  catchballCount: number;
+  eggCount: number;
 }
 
 const generateUniqueId = () => Math.random().toString(36).substring(2, 15);
@@ -62,7 +62,7 @@ export const createInitialGameState = (): GameState => ({
     nftBalance: 0,
   },
   playerLocation: null,
-  catchballCount: 10,
+  eggCount: 10,
 });
 
 export function spawnCreaturesNearLocation(

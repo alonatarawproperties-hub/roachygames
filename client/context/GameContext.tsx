@@ -18,8 +18,8 @@ interface GameContextType {
   mintCreatureNFT: (uniqueId: string) => Promise<boolean>;
   connectWallet: () => Promise<boolean>;
   disconnectWallet: () => void;
-  useCatchball: () => boolean;
-  addCatchballs: (count: number) => void;
+  useEgg: () => boolean;
+  addEggs: (count: number) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -153,21 +153,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const useCatchball = useCallback((): boolean => {
-    if (state.catchballCount <= 0) return false;
+  const useEgg = useCallback((): boolean => {
+    if (state.eggCount <= 0) return false;
     
     setState(prev => ({
       ...prev,
-      catchballCount: prev.catchballCount - 1,
+      eggCount: prev.eggCount - 1,
     }));
     
     return true;
-  }, [state.catchballCount]);
+  }, [state.eggCount]);
 
-  const addCatchballs = useCallback((count: number) => {
+  const addEggs = useCallback((count: number) => {
     setState(prev => ({
       ...prev,
-      catchballCount: prev.catchballCount + count,
+      eggCount: prev.eggCount + count,
     }));
   }, []);
 
@@ -181,8 +181,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         mintCreatureNFT,
         connectWallet,
         disconnectWallet,
-        useCatchball,
-        addCatchballs,
+        useEgg,
+        addEggs,
       }}
     >
       {children}

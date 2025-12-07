@@ -184,7 +184,7 @@ export default function MapScreen() {
           <View style={styles.statItem}>
             <Feather name="disc" size={16} color={GameColors.primary} />
             <ThemedText style={styles.statText}>
-              {state.catchballCount} balls
+              {state.eggCount} eggs
             </ThemedText>
           </View>
         </View>
@@ -242,13 +242,13 @@ export default function MapScreen() {
           disabled={!canCatch}
           style={styles.fabInner}
         >
-          <View style={[styles.pokeball, canCatch && styles.pokeballActive]}>
-            <View style={styles.pokeballTop} />
-            <View style={styles.pokeballLine} />
-            <View style={styles.pokeballCenter}>
-              <View style={styles.pokeballButton} />
+          <View style={[styles.catchEgg, canCatch && styles.catchEggActive]}>
+            <View style={styles.eggTop} />
+            <View style={styles.eggLine} />
+            <View style={styles.eggCenter}>
+              <View style={styles.eggButton} />
             </View>
-            <View style={styles.pokeballBottom} />
+            <View style={styles.eggBottom} />
           </View>
         </Pressable>
       </Animated.View>
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  pokeball: {
+  catchEgg: {
     width: 50,
     height: 50,
     borderRadius: 25,
@@ -437,18 +437,18 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#333",
   },
-  pokeballActive: {
+  catchEggActive: {
     borderColor: "#fff",
   },
-  pokeballTop: {
+  eggTop: {
     flex: 1,
-    backgroundColor: "#FF6B6B",
+    backgroundColor: GameColors.primary,
   },
-  pokeballLine: {
+  eggLine: {
     height: 4,
     backgroundColor: "#333",
   },
-  pokeballCenter: {
+  eggCenter: {
     position: "absolute",
     top: "50%",
     left: "50%",
@@ -461,14 +461,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  pokeballButton: {
+  eggButton: {
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: "#fff",
   },
-  pokeballBottom: {
+  eggBottom: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F5E6D3",
   },
 });

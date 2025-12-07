@@ -28,7 +28,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
-import { getCreatureDefinition, getRarityColor, getTypeColor, CREATURE_IMAGES } from "@/constants/creatures";
+import { getCreatureDefinition, getRarityColor, getClassColor, CREATURE_IMAGES } from "@/constants/creatures";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -42,17 +42,17 @@ export default function CatchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
-  const { state, catchCreature, useCatchball } = useGame();
+  const { state, catchCreature, useEgg } = useGame();
   
   const [catchState, setCatchState] = useState<CatchState>("idle");
   
   const creature = route.params.creature;
   const definition = getCreatureDefinition(creature.id);
 
-  const ballY = useSharedValue(0);
-  const ballX = useSharedValue(0);
-  const ballScale = useSharedValue(1);
-  const ballOpacity = useSharedValue(1);
+  const eggY = useSharedValue(0);
+  const eggX = useSharedValue(0);
+  const eggScale = useSharedValue(1);
+  const eggOpacity = useSharedValue(1);
   const creatureShake = useSharedValue(0);
   const creatureOpacity = useSharedValue(1);
   const successScale = useSharedValue(0);
@@ -89,36 +89,36 @@ export default function CatchScreen() {
       
       setTimeout(() => {
         setCatchState("idle");
-        ballY.value = 0;
-        ballScale.value = 1;
-        ballOpacity.value = 1;
+        eggY.value = 0;
+        eggScale.value = 1;
+        eggOpacity.value = 1;
       }, 1000);
     }
   }, [creature, catchCreature]);
 
   const handleThrow = useCallback(() => {
-    if (catchState !== "idle" || state.catchballCount <= 0) return;
+    if (catchState !== "idle" || state.eggCount <= 0) return;
     
-    if (!useCatchball()) return;
+    if (!useEgg()) return;
     
     setCatchState("throwing");
     triggerHaptic();
     
-    ballY.value = withTiming(-SCREEN_HEIGHT * 0.4, { duration: 400 });
-    ballScale.value = withSequence(
+    eggY.value = withTiming(-SCREEN_HEIGHT * 0.4, { duration: 400 });
+    eggScale.value = withSequence(
       withTiming(1.2, { duration: 200 }),
       withTiming(0.5, { duration: 200 })
     );
     
     setTimeout(() => {
       setCatchState("catching");
-      ballOpacity.value = withTiming(0, { duration: 200 });
+      eggOpacity.value = withTiming(0, { duration: 200 });
       
       setTimeout(() => {
         performCatch();
       }, 500);
     }, 400);
-  }, [catchState, state.catchballCount, useCatchball, performCatch]);
+  }, [catchState, state.eggCount, useEgg, performCatch]);
 
   const throwGesture = Gesture.Pan()
     .onEnd((event) => {
@@ -127,13 +127,13 @@ export default function CatchScreen() {
       }
     });
 
-  const ballAnimatedStyle = useAnimatedStyle(() => ({
+  const eggAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateY: ballY.value },
-      { translateX: ballX.value },
-      { scale: ballScale.value },
+      { translateY: eggY.value },
+      { translateX: eggX.value },
+      { scale: eggScale.value },
     ],
-    opacity: ballOpacity.value,
+    opacity: eggOpacity.value,
   }));
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
@@ -154,7 +154,7 @@ export default function CatchScreen() {
   }
 
   const rarityColor = getRarityColor(definition.rarity);
-  const typeColor = getTypeColor(definition.type);
+  const classColor = getClassColor(definition.roachyClass);
 
   const handleClose = () => {
     navigation.goBack();
@@ -176,8 +176,8 @@ export default function CatchScreen() {
             {definition.name}
           </ThemedText>
           <View style={styles.badges}>
-            <View style={[styles.badge, { backgroundColor: typeColor }]}>
-              <ThemedText style={styles.badgeText}>{definition.type}</ThemedText>
+            <View style={[styles.badge, { backgroundColor: classColor }]}>
+              <ThemedText style={styles.badgeText}>{definition.roachyClass}</ThemedText>
             </View>
             <View style={[styles.badge, { backgroundColor: rarityColor }]}>
               <ThemedText style={styles.badgeText}>{definition.rarity}</ThemedText>
@@ -236,22 +236,22 @@ export default function CatchScreen() {
           </Button>
         ) : (
           <>
-            <View style={styles.ballCounter}>
+            <View style={styles.eggCounter}>
               <Feather name="disc" size={18} color={GameColors.primary} />
-              <ThemedText style={styles.ballCountText}>
-                {state.catchballCount} Catchballs
+              <ThemedText style={styles.eggCountText}>
+                {state.eggCount} Eggs
               </ThemedText>
             </View>
 
             <GestureDetector gesture={throwGesture}>
-              <Animated.View style={[styles.throwArea, ballAnimatedStyle]}>
-                <View style={styles.pokeball}>
-                  <View style={styles.pokeballTop} />
-                  <View style={styles.pokeballLine} />
-                  <View style={styles.pokeballCenter}>
-                    <View style={styles.pokeballButton} />
+              <Animated.View style={[styles.throwArea, eggAnimatedStyle]}>
+                <View style={styles.catchEgg}>
+                  <View style={styles.eggTop} />
+                  <View style={styles.eggLine} />
+                  <View style={styles.eggCenter}>
+                    <View style={styles.eggButton} />
                   </View>
-                  <View style={styles.pokeballBottom} />
+                  <View style={styles.eggBottom} />
                 </View>
               </Animated.View>
             </GestureDetector>
@@ -427,19 +427,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
   },
-  ballCounter: {
+  eggCounter: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
-  ballCountText: {
+  eggCountText: {
     color: GameColors.textSecondary,
   },
   throwArea: {
     marginBottom: Spacing.lg,
   },
-  pokeball: {
+  catchEgg: {
     width: 80,
     height: 80,
     borderRadius: 40,
@@ -447,15 +447,15 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: "#333",
   },
-  pokeballTop: {
+  eggTop: {
     flex: 1,
-    backgroundColor: "#FF6B6B",
+    backgroundColor: GameColors.primary,
   },
-  pokeballLine: {
+  eggLine: {
     height: 6,
     backgroundColor: "#333",
   },
-  pokeballCenter: {
+  eggCenter: {
     position: "absolute",
     top: "50%",
     left: "50%",
@@ -468,15 +468,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  pokeballButton: {
+  eggButton: {
     width: 18,
     height: 18,
     borderRadius: 9,
     backgroundColor: "#fff",
   },
-  pokeballBottom: {
+  eggBottom: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F5E6D3",
   },
   swipeHint: {
     color: GameColors.textSecondary,
