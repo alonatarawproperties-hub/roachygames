@@ -103,6 +103,20 @@ function getAppName(): string {
   }
 }
 
+function getBuildId(): string {
+  try {
+    const staticBuildPath = path.resolve(process.cwd(), "static-build");
+    if (!fs.existsSync(staticBuildPath)) {
+      return Date.now().toString();
+    }
+    const entries = fs.readdirSync(staticBuildPath);
+    const buildFolder = entries.find(entry => /^\d+-\d+$/.test(entry));
+    return buildFolder || Date.now().toString();
+  } catch {
+    return Date.now().toString();
+  }
+}
+
 function serveExpoManifest(platform: string, res: Response) {
   const manifestPath = path.resolve(
     process.cwd(),
@@ -130,34 +144,33 @@ function serveLandingPage({
   res,
   landingPageTemplate,
   appName,
+  buildId,
 }: {
   req: Request;
   res: Response;
   landingPageTemplate: string;
   appName: string;
+  buildId: string;
 }) {
-  // Use REPLIT_DEV_DOMAIN for the deep link URL (this is the public domain)
   const replitDevDomain = process.env.REPLIT_DEV_DOMAIN;
   
-  // Fallback to header-based detection
   const forwardedProto = req.header("x-forwarded-proto");
   const protocol = forwardedProto || req.protocol || "https";
   const forwardedHost = req.header("x-forwarded-host");
   const host = forwardedHost || req.get("host");
   
-  // For baseUrl (used for assets), try Replit domain first
   const baseUrl = replitDevDomain ? `https://${replitDevDomain}` : `${protocol}://${host}`;
   
-  // For Expo Go deep link, use Replit domain without port
   const expsUrl = replitDevDomain || host?.replace(/:\d+$/, "") || "localhost";
+  const expsUrlWithCache = `${expsUrl}?build=${buildId}`;
 
   log(`REPLIT_DEV_DOMAIN`, replitDevDomain);
   log(`baseUrl`, baseUrl);
-  log(`expsUrl`, expsUrl);
+  log(`expsUrl with cache bust`, expsUrlWithCache);
 
   const html = landingPageTemplate
     .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
-    .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
+    .replace(/EXPS_URL_PLACEHOLDER/g, expsUrlWithCache)
     .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -173,8 +186,10 @@ function configureExpoAndLanding(app: express.Application) {
   );
   const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
+  const buildId = getBuildId();
 
   log("Serving static Expo files with dynamic manifest routing");
+  log(`Build ID for cache busting: ${buildId}`);
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api")) {
@@ -196,6 +211,7 @@ function configureExpoAndLanding(app: express.Application) {
         res,
         landingPageTemplate,
         appName,
+        buildId,
       });
     }
 
