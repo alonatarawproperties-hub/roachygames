@@ -19,6 +19,13 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
+- **Upgraded GPS to Waze/Google Maps-level accuracy**
+  - Uses `Location.Accuracy.BestForNavigation` (navigation-grade GPS)
+  - Continuous tracking with `watchPositionAsync` (real-time updates)
+  - Enables Android Network Provider for improved accuracy
+  - Multiple sampling technique for initial fix (up to 5 attempts)
+  - Accuracy filtering: Only accepts readings with < 20m accuracy
+  - Updates every 2-3 seconds or 3-5 meters of movement
 - **Implemented Leaflet WebView Map (Expo Go Compatible)**
   - Interactive dark-themed map with OpenStreetMap tiles
   - Works immediately in Expo Go without native builds

@@ -104,7 +104,9 @@ export default function HuntScreen() {
   useEffect(() => {
     updateLocation(37.7749, -122.4194);
     
-    const getLocation = async () => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+    
+    const startHighAccuracyTracking = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
@@ -112,18 +114,72 @@ export default function HuntScreen() {
           return;
         }
 
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        updateLocation(location.coords.latitude, location.coords.longitude);
+        if (Platform.OS === "android") {
+          try {
+            await Location.enableNetworkProviderAsync();
+          } catch {
+          }
+        }
+
+        const getAccurateInitialLocation = async () => {
+          let bestLocation: Location.LocationObject | null = null;
+          
+          for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+              const location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.BestForNavigation,
+              });
+              
+              const locAccuracy = location.coords.accuracy ?? 100;
+              const bestAccuracy = bestLocation?.coords.accuracy ?? 100;
+              
+              if (!bestLocation || locAccuracy < bestAccuracy) {
+                bestLocation = location;
+              }
+              
+              if (locAccuracy <= 10) {
+                break;
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch {
+              break;
+            }
+          }
+          
+          if (bestLocation) {
+            updateLocation(bestLocation.coords.latitude, bestLocation.coords.longitude);
+            console.log(`Initial location accuracy: ${bestLocation.coords.accuracy}m`);
+          }
+        };
+        
+        await getAccurateInitialLocation();
+
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 2000,
+            distanceInterval: 3,
+          },
+          (newLocation) => {
+            const accuracy = newLocation.coords.accuracy ?? 100;
+            if (accuracy <= 20) {
+              updateLocation(newLocation.coords.latitude, newLocation.coords.longitude);
+            }
+          }
+        );
       } catch (error) {
         setLocationError("Could not get location. Using default.");
       }
     };
 
-    getLocation();
-    const interval = setInterval(getLocation, 30000);
-    return () => clearInterval(interval);
+    startHighAccuracyTracking();
+    
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
   }, [updateLocation]);
 
   useEffect(() => {

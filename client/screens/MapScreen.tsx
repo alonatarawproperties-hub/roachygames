@@ -60,16 +60,51 @@ export default function MapScreen() {
   }));
 
   useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+    
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       setLocationPermission(status === "granted");
 
       if (status === "granted") {
         try {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          updateLocation(location.coords.latitude, location.coords.longitude);
+          if (Platform.OS === "android") {
+            try {
+              await Location.enableNetworkProviderAsync();
+            } catch {}
+          }
+
+          let bestLocation: Location.LocationObject | null = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.BestForNavigation,
+            });
+            const locAccuracy = location.coords.accuracy ?? 100;
+            const bestAccuracy = bestLocation?.coords.accuracy ?? 100;
+            if (!bestLocation || locAccuracy < bestAccuracy) {
+              bestLocation = location;
+            }
+            if (locAccuracy <= 10) break;
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+          
+          if (bestLocation) {
+            updateLocation(bestLocation.coords.latitude, bestLocation.coords.longitude);
+          }
+
+          locationSubscription = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.BestForNavigation,
+              timeInterval: 3000,
+              distanceInterval: 5,
+            },
+            (newLocation) => {
+              const accuracy = newLocation.coords.accuracy ?? 100;
+              if (accuracy <= 20) {
+                updateLocation(newLocation.coords.latitude, newLocation.coords.longitude);
+              }
+            }
+          );
         } catch {
           updateLocation(37.7749, -122.4194);
         }
@@ -78,6 +113,12 @@ export default function MapScreen() {
       }
       setLoading(false);
     })();
+    
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
   }, []);
 
   useEffect(() => {
