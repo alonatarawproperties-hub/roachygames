@@ -15,6 +15,7 @@ const RARITY_COLORS: Record<string, string> = {
 export interface PlayerLocation {
   latitude: number;
   longitude: number;
+  heading?: number;
 }
 
 interface LeafletMapViewProps {
@@ -42,6 +43,15 @@ const STABLE_MAP_HTML = `
     html, body { height: 100%; width: 100%; overflow: hidden; }
     #map { height: 100%; width: 100%; background: #1A0F08; }
     
+    .player-marker-wrapper {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
     .player-marker {
       width: 20px;
       height: 20px;
@@ -49,6 +59,30 @@ const STABLE_MAP_HTML = `
       border: 3px solid white;
       border-radius: 50%;
       box-shadow: 0 0 10px rgba(255, 149, 0, 0.8), 0 2px 4px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 2;
+    }
+    
+    .direction-arrow {
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      transition: transform 0.3s ease-out;
+      z-index: 1;
+    }
+    
+    .direction-arrow svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    }
+    
+    .direction-arrow.hidden {
+      opacity: 0;
+    }
+    
+    .direction-arrow.visible {
+      opacity: 1;
     }
     
     .spawn-marker {
@@ -170,6 +204,9 @@ const STABLE_MAP_HTML = `
     // State
     let playerLat = 37.7749;
     let playerLng = -122.4194;
+    let playerHeading = null;
+    let prevLat = null;
+    let prevLng = null;
     let spawns = [];
     let raids = [];
     let spawnMarkers = [];
@@ -178,6 +215,45 @@ const STABLE_MAP_HTML = `
     let catchRadius = null;
     let mapInitialized = false;
     let map = null;
+    
+    // Calculate bearing between two points
+    function calculateBearing(lat1, lng1, lat2, lng2) {
+      const toRad = (deg) => deg * Math.PI / 180;
+      const toDeg = (rad) => rad * 180 / Math.PI;
+      
+      const dLng = toRad(lng2 - lng1);
+      const lat1Rad = toRad(lat1);
+      const lat2Rad = toRad(lat2);
+      
+      const y = Math.sin(dLng) * Math.cos(lat2Rad);
+      const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+                Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
+      
+      let bearing = toDeg(Math.atan2(y, x));
+      return (bearing + 360) % 360;
+    }
+    
+    // Calculate distance between two points (meters)
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+      const R = 6371000;
+      const toRad = (deg) => deg * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+    
+    // Update direction arrow rotation
+    function updateDirectionArrow(heading) {
+      const arrow = document.getElementById('direction-arrow');
+      if (arrow && heading !== null) {
+        arrow.classList.remove('hidden');
+        arrow.classList.add('visible');
+        arrow.style.transform = 'rotate(' + heading + 'deg)';
+      }
+    }
 
     // Initialize map
     function initMap() {
@@ -194,12 +270,21 @@ const STABLE_MAP_HTML = `
         maxZoom: 19
       }).addTo(map);
       
-      // Player marker
+      // Player marker with direction arrow
       const playerIcon = L.divIcon({
         className: 'player-marker-container',
-        html: '<div class="player-marker"></div>',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
+        html: \`
+          <div class="player-marker-wrapper">
+            <div id="direction-arrow" class="direction-arrow hidden">
+              <svg viewBox="0 0 48 48" fill="none">
+                <path d="M24 4L32 20H16L24 4Z" fill="#FF9500" stroke="white" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="player-marker"></div>
+          </div>
+        \`,
+        iconSize: [48, 48],
+        iconAnchor: [24, 24]
       });
       
       playerMarker = L.marker([playerLat, playerLng], { icon: playerIcon }).addTo(map);
@@ -224,15 +309,42 @@ const STABLE_MAP_HTML = `
         playerLat.toFixed(4) + ', ' + playerLng.toFixed(4);
     }
 
-    function updatePlayerLocation(lat, lng) {
+    function updatePlayerLocation(lat, lng, heading) {
+      // Calculate heading from movement if not provided
+      if (heading === undefined || heading === null) {
+        if (prevLat !== null && prevLng !== null) {
+          const distance = calculateDistance(prevLat, prevLng, lat, lng);
+          // Only update heading if moved more than 3 meters (filter GPS jitter)
+          if (distance > 3) {
+            playerHeading = calculateBearing(prevLat, prevLng, lat, lng);
+            prevLat = lat;
+            prevLng = lng;
+          }
+        } else {
+          prevLat = lat;
+          prevLng = lng;
+        }
+      } else {
+        playerHeading = heading;
+        prevLat = lat;
+        prevLng = lng;
+      }
+      
       playerLat = lat;
       playerLng = lng;
+      
       if (playerMarker) {
         playerMarker.setLatLng([lat, lng]);
       }
       if (catchRadius) {
         catchRadius.setLatLng([lat, lng]);
       }
+      
+      // Update the direction arrow
+      if (playerHeading !== null) {
+        updateDirectionArrow(playerHeading);
+      }
+      
       updateLocationDisplay();
     }
 
@@ -336,7 +448,7 @@ const STABLE_MAP_HTML = `
             if (data.raids) updateRaids(data.raids);
             break;
           case 'updateLocation':
-            updatePlayerLocation(data.lat, data.lng);
+            updatePlayerLocation(data.lat, data.lng, data.heading);
             break;
           case 'updateSpawns':
             updateSpawns(data.spawns || []);
@@ -461,6 +573,7 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
           type: "updateLocation",
           lat: playerLocation.latitude,
           lng: playerLocation.longitude,
+          heading: playerLocation.heading,
         });
         lastLocationRef.current = { ...playerLocation };
       }

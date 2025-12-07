@@ -19,6 +19,11 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
+- **Added Directional Arrow on Map**
+  - Shows player movement direction when walking/hunting
+  - Arrow rotates smoothly based on heading from GPS or calculated from movement
+  - Only updates when player moves 3+ meters (filters GPS jitter)
+  - Orange arrow above player marker, matches game theme
 - **Upgraded GPS to Waze/Google Maps-level accuracy**
   - Uses `Location.Accuracy.BestForNavigation` (navigation-grade GPS)
   - Continuous tracking with `watchPositionAsync` (real-time updates)
@@ -26,6 +31,7 @@ The app includes:
   - Multiple sampling technique for initial fix (up to 5 attempts)
   - Accuracy filtering: Only accepts readings with < 20m accuracy
   - Updates every 2-3 seconds or 3-5 meters of movement
+  - Now also captures heading from GPS when available
 - **Implemented Leaflet WebView Map (Expo Go Compatible)**
   - Interactive dark-themed map with OpenStreetMap tiles
   - Works immediately in Expo Go without native builds

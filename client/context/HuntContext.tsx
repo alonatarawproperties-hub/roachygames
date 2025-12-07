@@ -71,14 +71,14 @@ export interface Raid {
 
 interface HuntContextType {
   walletAddress: string;
-  playerLocation: { latitude: number; longitude: number } | null;
+  playerLocation: { latitude: number; longitude: number; heading?: number } | null;
   spawns: Spawn[];
   economy: EconomyStats | null;
   collection: CaughtCreature[];
   eggs: Egg[];
   raids: Raid[];
   isLoading: boolean;
-  updateLocation: (latitude: number, longitude: number) => Promise<void>;
+  updateLocation: (latitude: number, longitude: number, heading?: number) => Promise<void>;
   spawnCreatures: () => Promise<void>;
   catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
   startIncubation: (eggId: string, incubatorId: string) => Promise<void>;
@@ -106,7 +106,7 @@ interface HuntProviderProps {
 export function HuntProvider({ children }: HuntProviderProps) {
   const queryClient = useQueryClient();
   const [walletAddress] = useState(() => `player_${Math.random().toString(36).substring(2, 15)}`);
-  const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
 
   const { data: economyData, refetch: refreshEconomy } = useQuery({
     queryKey: ["/api/hunt/economy", walletAddress],
@@ -195,8 +195,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
     refetchInterval: 60000,
   });
 
-  const updateLocation = useCallback(async (latitude: number, longitude: number) => {
-    setPlayerLocation({ latitude, longitude });
+  const updateLocation = useCallback(async (latitude: number, longitude: number, heading?: number) => {
+    setPlayerLocation({ latitude, longitude, heading });
     try {
       await apiRequest("POST", "/api/hunt/location", {
         walletAddress,

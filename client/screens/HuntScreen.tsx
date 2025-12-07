@@ -164,7 +164,12 @@ export default function HuntScreen() {
           (newLocation) => {
             const accuracy = newLocation.coords.accuracy ?? 100;
             if (accuracy <= 20) {
-              updateLocation(newLocation.coords.latitude, newLocation.coords.longitude);
+              const heading = newLocation.coords.heading;
+              updateLocation(
+                newLocation.coords.latitude, 
+                newLocation.coords.longitude,
+                heading !== null && heading >= 0 ? heading : undefined
+              );
             }
           }
         );

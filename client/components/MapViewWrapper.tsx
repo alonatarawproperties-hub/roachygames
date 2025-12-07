@@ -25,6 +25,7 @@ const RARITY_COLORS: Record<string, string> = {
 export interface PlayerLocation {
   latitude: number;
   longitude: number;
+  heading?: number;
 }
 
 interface MapViewWrapperProps {
