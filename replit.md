@@ -19,6 +19,17 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
+- **Mystery Ping System**
+  - All map markers now display as uniform gold "???" markers
+  - No names or rarity colors revealed until caught
+  - Creates suspense and excitement during hunting
+  - Applies to both Leaflet WebView map and native map markers
+- **Dual Egg Collection System**
+  - Eggs spawn on map as collectibles (60% spawn rate)
+  - Creatures spawn at 40% rate
+  - Collect 20 eggs = 1 random rarity Roachy
+  - Eggs also used as catch items in the mini-game
+  - Database tracks `collectedEggs` in economy stats
 - **Added Directional Arrow on Map**
   - Shows player movement direction when walking/hunting
   - Arrow rotates smoothly based on heading from GPS or calculated from movement
