@@ -43,7 +43,7 @@ The app includes:
   - eas.json configured for future native maps upgrade
   - When ready, can build development client with full Apple/Google Maps
 - **Added AR-like Camera Encounter for Roachy Hunt**
-  - Pokemon Go-style camera view with animated creature overlays
+  - AR-style camera view with animated creature overlays
   - Proper camera permission handling with Settings fallback
   - Web fallback for browser testing
   - Flow: Map spawn tap → Camera encounter → Catch mini-game
