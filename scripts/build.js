@@ -450,9 +450,15 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
     ).toISOString();
     manifest.extra.expoClient.hostUri =
       baseUrl.replace("https://", "") + "/" + platform;
-    manifest.extra.expoGo.debuggerHost =
-      baseUrl.replace("https://", "") + "/" + platform;
-    manifest.extra.expoGo.packagerOpts.dev = false;
+    
+    // Remove debugger metadata to prevent Expo Go from trying to connect to Metro
+    // This forces Expo Go to use the static launchAsset bundle instead
+    if (manifest.extra.expoGo) {
+      delete manifest.extra.expoGo.debuggerHost;
+      delete manifest.extra.expoGo.developer;
+      delete manifest.extra.expoGo.mainModuleName;
+      delete manifest.extra.expoGo.packagerOpts;
+    }
 
     if (manifest.assets && manifest.assets.length > 0) {
       manifest.assets.forEach((asset) => {

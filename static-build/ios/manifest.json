@@ -1,11 +1,11 @@
 {
-  "id": "83a0e4df-f4ed-44ea-a97a-160e0d10ccc5",
-  "createdAt": "2025-12-07T07:37:15.790Z",
+  "id": "da38314b-df9e-4cd6-8190-4724d1761770",
+  "createdAt": "2025-12-07T08:22:46.664Z",
   "runtimeVersion": "exposdk:54.0.0",
   "launchAsset": {
-    "key": "bundle-1765093035790-875",
+    "key": "bundle-1765095766664-6626",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765093035790-875/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1765095766664-6626/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -124,17 +124,7 @@
       "iconUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png",
       "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/ios"
     },
-    "expoGo": {
-      "debuggerHost": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/ios",
-      "developer": {
-        "tool": "expo-cli",
-        "projectRoot": "/home/runner/workspace"
-      },
-      "packagerOpts": {
-        "dev": false
-      },
-      "mainModuleName": "client/index"
-    },
+    "expoGo": {},
     "scopeKey": "@anonymous/roachy-games-9475ca93-6706-4794-94fc-d126d43726ba"
   }
 }
