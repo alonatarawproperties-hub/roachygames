@@ -1,6 +1,7 @@
 import { ImageSourcePropType } from "react-native";
 
 const RoachyHuntLogo = require("@/assets/roachy-hunt-logo.png");
+const FlappyRoachLogo = require("@/assets/flappy-roach-logo.png");
 
 export interface GameEntry {
   id: string;
@@ -50,6 +51,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     title: "Flappy Roach",
     tagline: "Tap to Survive!",
     description: "Guide your Roach through endless obstacles in this addictive tap-to-fly game. How far can you go?",
+    coverImage: FlappyRoachLogo,
     iconName: "wind",
     routeName: "FlappyRoachStack",
     isLocked: true,
