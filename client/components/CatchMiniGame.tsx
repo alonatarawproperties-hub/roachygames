@@ -32,6 +32,8 @@ interface CatchMiniGameProps {
     name: string;
     rarity: string;
     templateId?: string;
+    creatureClass?: string;
+    containedTemplateId?: string | null;
   };
   onCatch: (quality: "perfect" | "great" | "good" | "miss") => void;
   onEggCollected?: () => void;
@@ -39,9 +41,10 @@ interface CatchMiniGameProps {
 }
 
 export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: CatchMiniGameProps) {
-  const [phase, setPhase] = useState<"ready" | "shrinking" | "caught" | "escaped">("ready");
+  const [phase, setPhase] = useState<"ready" | "shrinking" | "caught" | "cracking" | "revealing" | "escaped">("ready");
   const [attempts, setAttempts] = useState(3);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [catchQuality, setCatchQuality] = useState<"perfect" | "great" | "good" | "miss" | null>(null);
 
   const ringScale = useSharedValue(2);
   const ringOpacity = useSharedValue(1);
@@ -50,11 +53,16 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
   const catchEggOpacity = useSharedValue(0);
   const flashOpacity = useSharedValue(0);
   const eggCollectScale = useSharedValue(1);
+  const eggCrackScale = useSharedValue(1);
+  const eggCrackRotate = useSharedValue(0);
+  const revealScale = useSharedValue(0);
 
   const currentRingScale = useRef(2);
   const isAnimating = useRef(false);
 
-  const isEgg = creature.templateId?.startsWith('egg_') || creature.id?.startsWith('egg_');
+  const isMysteryEgg = creature.creatureClass === 'egg';
+  const isRoachyEgg = creature.creatureClass !== 'egg' && creature.containedTemplateId !== null;
+  const isAnyEgg = isMysteryEgg || isRoachyEgg;
   const rarityColor = getRarityColor(creature.rarity as any) || GameColors.primary;
 
   const startShrinking = useCallback(() => {
@@ -87,7 +95,7 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     requestAnimationFrame(updateRef);
   }, [phase, creature.rarity]);
 
-  const handleEggCollect = useCallback(() => {
+  const handleMysteryEggCollect = useCallback(() => {
     if (phase !== "ready") return;
     
     setPhase("caught");
@@ -108,9 +116,44 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     }, 600);
   }, [phase, onCatch, onEggCollected]);
 
+  const startEggCrackAnimation = useCallback((quality: "perfect" | "great" | "good") => {
+    setPhase("cracking");
+    setCatchQuality(quality);
+    
+    eggCrackRotate.value = withSequence(
+      withTiming(-0.1, { duration: 100 }),
+      withTiming(0.1, { duration: 100 }),
+      withTiming(-0.15, { duration: 100 }),
+      withTiming(0.15, { duration: 100 }),
+      withTiming(0, { duration: 100 })
+    );
+    
+    eggCrackScale.value = withSequence(
+      withTiming(1.1, { duration: 200 }),
+      withTiming(0.9, { duration: 200 }),
+      withTiming(1.2, { duration: 300 }),
+      withTiming(0, { duration: 200 })
+    );
+    
+    setTimeout(() => {
+      setPhase("revealing");
+      setLastResult("HATCHED!");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      revealScale.value = withSequence(
+        withTiming(1.3, { duration: 300 }),
+        withTiming(1, { duration: 200 })
+      );
+      
+      setTimeout(() => {
+        onCatch(quality);
+      }, 800);
+    }, 800);
+  }, [onCatch]);
+
   const handleTap = useCallback(() => {
-    if (isEgg) {
-      handleEggCollect();
+    if (isMysteryEgg) {
+      handleMysteryEggCollect();
       return;
     }
 
@@ -126,27 +169,22 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
 
     const scale = ringScale.value;
     let quality: "perfect" | "great" | "good" | "miss";
-    let xpGain: number;
     let message: string;
 
     if (scale >= 0.9 && scale <= 1.1) {
       quality = "perfect";
-      xpGain = 150;
       message = "PERFECT!";
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else if (scale >= 0.7 && scale < 0.9) {
       quality = "great";
-      xpGain = 75;
       message = "GREAT!";
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } else if (scale >= 0.5 && scale < 0.7) {
       quality = "good";
-      xpGain = 30;
       message = "GOOD!";
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } else {
       quality = "miss";
-      xpGain = 0;
       message = "MISS!";
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -154,21 +192,31 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     setLastResult(message);
 
     if (quality !== "miss") {
-      setPhase("caught");
-      flashOpacity.value = withSequence(
-        withTiming(1, { duration: 100 }),
-        withTiming(0, { duration: 300 })
-      );
-      catchEggOpacity.value = 1;
-      catchEggY.value = withTiming(0, { duration: 300 });
-      
-      setTimeout(() => {
-        onCatch(quality);
-      }, 800);
+      if (isRoachyEgg) {
+        flashOpacity.value = withSequence(
+          withTiming(1, { duration: 100 }),
+          withTiming(0, { duration: 300 })
+        );
+        setTimeout(() => {
+          startEggCrackAnimation(quality);
+        }, 400);
+      } else {
+        setPhase("caught");
+        flashOpacity.value = withSequence(
+          withTiming(1, { duration: 100 }),
+          withTiming(0, { duration: 300 })
+        );
+        catchEggOpacity.value = 1;
+        catchEggY.value = withTiming(0, { duration: 300 });
+        
+        setTimeout(() => {
+          onCatch(quality);
+        }, 800);
+      }
     } else {
       handleMiss();
     }
-  }, [phase, startShrinking, onCatch, isEgg, handleEggCollect]);
+  }, [phase, startShrinking, onCatch, isMysteryEgg, isRoachyEgg, handleMysteryEggCollect, startEggCrackAnimation]);
 
   const handleMiss = useCallback(() => {
     isAnimating.current = false;
@@ -222,11 +270,22 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     transform: [{ scale: eggCollectScale.value }],
   }));
 
-  const creatureImage = ROACHY_IMAGES[creature.templateId || creature.id];
+  const eggCrackAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: eggCrackScale.value },
+      { rotate: `${eggCrackRotate.value}rad` },
+    ],
+  }));
+
+  const revealAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: revealScale.value }],
+  }));
+
+  const creatureImage = ROACHY_IMAGES[creature.containedTemplateId || creature.templateId || creature.id];
 
   return (
     <View style={styles.container}>
-      {!isEgg ? (
+      {!isMysteryEgg ? (
         <Animated.View style={[styles.flash, flashAnimatedStyle]} pointerEvents="none" />
       ) : null}
 
@@ -247,9 +306,19 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
           ))}
         </View>
         <ThemedText style={styles.creatureName}>
-          {isEgg ? "Mystery Egg" : creature.name}
+          {phase === "revealing" && isRoachyEgg 
+            ? creature.name 
+            : isAnyEgg 
+              ? "Mystery Egg" 
+              : creature.name}
         </ThemedText>
-        {isEgg ? (
+        {phase === "revealing" && isRoachyEgg ? (
+          <View style={[styles.rarityBadge, { backgroundColor: rarityColor + "30" }]}>
+            <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
+              {creature.rarity.toUpperCase()}
+            </ThemedText>
+          </View>
+        ) : isAnyEgg ? (
           <View style={[styles.rarityBadge, { backgroundColor: GameColors.primary + "30" }]}>
             <ThemedText style={[styles.rarityText, { color: GameColors.primary }]}>
               EGG
@@ -265,7 +334,7 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
       </View>
 
       <Pressable style={styles.gameArea} onPress={handleTap}>
-        {!isEgg ? (
+        {(isRoachyEgg && phase !== "cracking" && phase !== "revealing") ? (
           <>
             <View style={styles.targetRing}>
               <View style={[styles.perfectZone, { borderColor: "#22C55E" }]} />
@@ -279,24 +348,56 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
           </>
         ) : null}
 
-        <Animated.View style={[styles.creatureContainer, isEgg ? eggCollectAnimatedStyle : creatureAnimatedStyle]}>
-          {isEgg ? (
+        {phase === "cracking" && isRoachyEgg ? (
+          <Animated.View style={[styles.creatureContainer, eggCrackAnimatedStyle]}>
+            <View style={styles.eggDisplay}>
+              <View style={[styles.eggShape, styles.crackingEgg]}>
+                <Feather name="gift" size={50} color={GameColors.primary} />
+              </View>
+              <ThemedText style={styles.eggLabel}>!</ThemedText>
+            </View>
+          </Animated.View>
+        ) : phase === "revealing" && isRoachyEgg ? (
+          <Animated.View style={[styles.creatureContainer, revealAnimatedStyle]}>
+            {creatureImage ? (
+              <Image source={creatureImage} style={styles.creatureImage} />
+            ) : (
+              <View style={[styles.creaturePlaceholder, { backgroundColor: rarityColor }]}>
+                <Feather name="target" size={40} color="#fff" />
+              </View>
+            )}
+          </Animated.View>
+        ) : isMysteryEgg ? (
+          <Animated.View style={[styles.creatureContainer, eggCollectAnimatedStyle]}>
             <View style={styles.eggDisplay}>
               <View style={styles.eggShape}>
                 <Feather name="gift" size={50} color={GameColors.primary} />
               </View>
               <ThemedText style={styles.eggLabel}>?</ThemedText>
             </View>
-          ) : creatureImage ? (
+          </Animated.View>
+        ) : isRoachyEgg ? (
+          <Animated.View style={[styles.creatureContainer, creatureAnimatedStyle]}>
+            <View style={styles.eggDisplay}>
+              <View style={styles.eggShape}>
+                <Feather name="gift" size={50} color={GameColors.primary} />
+              </View>
+              <ThemedText style={styles.eggLabel}>?</ThemedText>
+            </View>
+          </Animated.View>
+        ) : creatureImage ? (
+          <Animated.View style={[styles.creatureContainer, creatureAnimatedStyle]}>
             <Image source={creatureImage} style={styles.creatureImage} />
-          ) : (
+          </Animated.View>
+        ) : (
+          <Animated.View style={[styles.creatureContainer, creatureAnimatedStyle]}>
             <View style={[styles.creaturePlaceholder, { backgroundColor: rarityColor }]}>
               <Feather name="target" size={40} color="#fff" />
             </View>
-          )}
-        </Animated.View>
+          </Animated.View>
+        )}
 
-        {!isEgg ? (
+        {isRoachyEgg && phase !== "cracking" && phase !== "revealing" ? (
           <Animated.View style={[styles.catchEgg, catchEggAnimatedStyle]}>
             <View style={styles.netShape}>
               <View style={styles.netOuter}>
@@ -319,6 +420,7 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
               lastResult === "GOOD!" && styles.goodText,
               lastResult === "MISS!" && styles.missText,
               lastResult === "COLLECTED!" && styles.collectedText,
+              lastResult === "HATCHED!" && styles.hatchedText,
             ]}
           >
             {lastResult}
@@ -329,22 +431,28 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
       <View style={styles.instructions}>
         <ThemedText style={styles.instructionText}>
           {phase === "ready" 
-            ? isEgg 
-              ? "Tap to start! Collect the egg!"
-              : "Tap to start! Time your throw when the ring is in the green zone"
+            ? isMysteryEgg 
+              ? "Tap to collect the egg!"
+              : isRoachyEgg
+                ? "Tap to start! Time your catch when the ring is in the green zone"
+                : "Tap to start! Time your throw when the ring is in the green zone"
             : phase === "shrinking"
             ? "TAP NOW!"
+            : phase === "cracking"
+            ? "The egg is hatching!"
+            : phase === "revealing"
+            ? "A Roachy appeared!"
             : phase === "caught"
-            ? isEgg 
+            ? isMysteryEgg 
               ? "Egg Collected!"
               : "Caught!"
-            : isEgg 
+            : isAnyEgg 
               ? "The egg rolled away!"
               : "The creature escaped!"}
         </ThemedText>
       </View>
 
-      {!isEgg ? (
+      {isRoachyEgg && phase !== "cracking" && phase !== "revealing" ? (
         <View style={styles.legend}>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: "#22C55E" }]} />
@@ -566,6 +674,14 @@ const styles = StyleSheet.create({
   },
   collectedText: {
     color: GameColors.primary,
+  },
+  hatchedText: {
+    color: "#22C55E",
+  },
+  crackingEgg: {
+    borderColor: GameColors.primary,
+    borderWidth: 3,
+    borderStyle: "dashed",
   },
   instructions: {
     marginTop: Spacing.xl,

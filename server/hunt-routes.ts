@@ -234,34 +234,65 @@ export function registerHuntRoutes(app: Express) {
         const offset = getRandomOffset(radius);
         const expiresAt = new Date(Date.now() + (15 + Math.random() * 15) * 60 * 1000);
         
-        const isEgg = Math.random() < SPAWN_TYPE_RATES.egg;
+        const isMysteryEgg = Math.random() < SPAWN_TYPE_RATES.egg;
         
-        let template;
-        let rarity: string;
+        let spawnData: {
+          templateId: string;
+          name: string;
+          creatureClass: string;
+          rarity: string;
+          baseHp: number;
+          baseAtk: number;
+          baseDef: number;
+          baseSpd: number;
+          containedTemplateId: string | null;
+        };
         
-        if (isEgg) {
-          template = selectEggByRarity();
-          rarity = template.rarity;
+        if (isMysteryEgg) {
+          const eggTemplate = selectEggByRarity();
+          spawnData = {
+            templateId: 'wild_egg',
+            name: 'Mystery Egg',
+            creatureClass: 'egg',
+            rarity: eggTemplate.rarity,
+            baseHp: 0,
+            baseAtk: 0,
+            baseDef: 0,
+            baseSpd: 0,
+            containedTemplateId: null,
+          };
         } else {
-          rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
+          const rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
           let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
           if (templates.length === 0) {
             templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
           }
-          template = templates[Math.floor(Math.random() * templates.length)];
+          const creature = templates[Math.floor(Math.random() * templates.length)];
+          spawnData = {
+            templateId: 'wild_egg',
+            name: 'Mystery Egg',
+            creatureClass: creature.roachyClass,
+            rarity: creature.rarity,
+            baseHp: creature.baseHp,
+            baseAtk: creature.baseAtk,
+            baseDef: creature.baseDef,
+            baseSpd: creature.baseSpd,
+            containedTemplateId: creature.id,
+          };
         }
 
         const [spawn] = await db.insert(wildCreatureSpawns).values({
           latitude: (latitude + offset.lat).toString(),
           longitude: (longitude + offset.lng).toString(),
-          templateId: template.id,
-          name: template.name,
-          creatureClass: template.roachyClass,
-          rarity,
-          baseHp: template.baseHp,
-          baseAtk: template.baseAtk,
-          baseDef: template.baseDef,
-          baseSpd: template.baseSpd,
+          templateId: spawnData.templateId,
+          name: spawnData.name,
+          creatureClass: spawnData.creatureClass,
+          rarity: spawnData.rarity,
+          baseHp: spawnData.baseHp,
+          baseAtk: spawnData.baseAtk,
+          baseDef: spawnData.baseDef,
+          baseSpd: spawnData.baseSpd,
+          containedTemplateId: spawnData.containedTemplateId,
           expiresAt,
         }).returning();
 
@@ -318,9 +349,10 @@ export function registerHuntRoutes(app: Express) {
         })
         .where(eq(wildCreatureSpawns.id, spawnId));
 
-      const isEggCatch = spawn.templateId.startsWith('egg_');
+      const isMysteryEgg = spawn.creatureClass === 'egg';
+      const isRoachyEgg = spawn.containedTemplateId !== null && spawn.creatureClass !== 'egg';
 
-      if (isEggCatch) {
+      if (isMysteryEgg) {
         const currentEggs = economy.collectedEggs || 0;
         const newEggCount = currentEggs + 1;
         const canHatch = newEggCount >= EGGS_REQUIRED_FOR_HATCH;
@@ -344,7 +376,8 @@ export function registerHuntRoutes(app: Express) {
 
         return res.json({
           success: true,
-          isEgg: true,
+          isMysteryEgg: true,
+          isRoachyEgg: false,
           eggRarity: spawn.rarity,
           collectedEggs: newEggCount,
           eggsRequired: EGGS_REQUIRED_FOR_HATCH,
@@ -356,13 +389,17 @@ export function registerHuntRoutes(app: Express) {
         });
       }
 
+      const containedTemplate = ROACHY_TEMPLATES.find(t => t.id === spawn.containedTemplateId);
+      const creatureName = containedTemplate ? containedTemplate.name : spawn.name;
+      const creatureTemplateId = spawn.containedTemplateId || spawn.templateId;
+
       const ivs = generateIVs();
       const xpGain = catchQuality === 'perfect' ? 150 : catchQuality === 'great' ? 75 : 30;
 
       const [caughtCreature] = await db.insert(huntCaughtCreatures).values({
         walletAddress,
-        templateId: spawn.templateId,
-        name: spawn.name,
+        templateId: creatureTemplateId,
+        name: creatureName,
         creatureClass: spawn.creatureClass,
         rarity: spawn.rarity,
         baseHp: spawn.baseHp,
@@ -423,17 +460,19 @@ export function registerHuntRoutes(app: Express) {
         activityType: 'catch',
         details: JSON.stringify({
           creatureId: caughtCreature.id,
-          name: spawn.name,
+          name: creatureName,
           rarity: spawn.rarity,
           catchQuality,
           xpGain,
           isPerfect: ivs.isPerfect,
+          fromRoachyEgg: isRoachyEgg,
         }),
       });
 
       res.json({
         success: true,
-        isEgg: false,
+        isMysteryEgg: false,
+        isRoachyEgg: isRoachyEgg,
         creature: caughtCreature,
         xpGain,
         streak: newStreak,

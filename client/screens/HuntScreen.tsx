@@ -584,6 +584,8 @@ export default function HuntScreen() {
               name: selectedSpawn.name,
               rarity: selectedSpawn.rarity,
               templateId: selectedSpawn.templateId,
+              creatureClass: selectedSpawn.creatureClass,
+              containedTemplateId: selectedSpawn.containedTemplateId,
             }}
             onCatch={handleCatchResult}
             onEggCollected={handleEggCollected}

@@ -14,6 +14,7 @@ export interface Spawn {
   baseAtk: number;
   baseDef: number;
   baseSpd: number;
+  containedTemplateId?: string | null;
   distance?: number;
 }
 
@@ -69,14 +70,17 @@ export interface Raid {
   expiresAt: string;
 }
 
-interface CatchResult {
+export interface CatchResult {
   success: boolean;
-  isEgg: boolean;
+  isMysteryEgg?: boolean;
+  isRoachyEgg?: boolean;
   creature?: CaughtCreature;
   eggRarity?: string;
   collectedEggs?: number;
   eggsRequired?: number;
   canHatch?: boolean;
+  xpGain?: number;
+  streak?: number;
 }
 
 interface HuntContextType {
@@ -281,7 +285,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
         return {
           success: true,
-          isEgg: true,
+          isMysteryEgg: data.isMysteryEgg,
+          isRoachyEgg: data.isRoachyEgg,
           eggRarity: data.eggRarity,
           collectedEggs: data.collectedEggs,
           eggsRequired: data.eggsRequired,

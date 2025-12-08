@@ -19,14 +19,20 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
-- **Egg Collection & Hatching System (Updated)**
-  - 60% of spawns are eggs, 40% are Roachies (direct catches)
+- **Unified Egg System (Latest)**
+  - ALL spawns now appear as eggs on the map (templateId: 'wild_egg')
+  - Two egg types differentiated by `creatureClass` field:
+    - Mystery Eggs (60%): `creatureClass='egg'`, simple tap-to-collect, accumulate 10 to hatch
+    - Roachy Eggs (40%): `creatureClass` matches creature type (tank/mage/etc), timing minigame required
+  - Roachy egg catch flow: tap → timing minigame → egg crack animation → Roachy reveal
+  - `containedTemplateId` field stores the creature inside Roachy eggs
+  - Map shows all spawns as mystery golden "???" markers
+  - Backend tracks `isMysteryEgg` and `isRoachyEgg` for proper handling
+- **Egg Collection & Hatching System**
   - Eggs have 5 rarity tiers: Common (60%), Uncommon (25%), Rare (10%), Epic (4%), Legendary (1%)
-  - Eggs use simplified collect animation (no timing minigame, just tap to collect)
+  - Mystery eggs use simplified collect animation (no timing minigame)
   - Collect 10 eggs to unlock HATCH button in Inventory
   - Hatching consumes 10 eggs and gives 1 random rarity Roachy
-  - Roachies use full timing-based catch minigame
-  - All spawns appear as "Mystery" markers on map until caught
 - **Mystery Ping System**
   - All map markers now display as uniform gold "???" markers
   - No names or rarity colors revealed until caught

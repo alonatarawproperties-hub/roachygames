@@ -49,6 +49,7 @@ export const wildCreatureSpawns = pgTable("wild_creature_spawns", {
   baseAtk: integer("base_atk").notNull().default(20),
   baseDef: integer("base_def").notNull().default(15),
   baseSpd: integer("base_spd").notNull().default(10),
+  containedTemplateId: text("contained_template_id"),
   isActive: boolean("is_active").notNull().default(true),
   caughtByWallet: text("caught_by_wallet"),
   caughtAt: timestamp("caught_at"),
