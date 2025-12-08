@@ -69,6 +69,16 @@ export interface Raid {
   expiresAt: string;
 }
 
+interface CatchResult {
+  success: boolean;
+  isEgg: boolean;
+  creature?: CaughtCreature;
+  eggRarity?: string;
+  collectedEggs?: number;
+  eggsRequired?: number;
+  canHatch?: boolean;
+}
+
 interface HuntContextType {
   walletAddress: string;
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
@@ -81,6 +91,7 @@ interface HuntContextType {
   updateLocation: (latitude: number, longitude: number, heading?: number) => Promise<void>;
   spawnCreatures: () => Promise<void>;
   catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
+  collectEgg: (spawnId: string) => Promise<CatchResult | null>;
   startIncubation: (eggId: string, incubatorId: string) => Promise<void>;
   walkEgg: (eggId: string, distance: number) => Promise<any>;
   joinRaid: (raidId: string) => Promise<void>;
@@ -253,6 +264,37 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [walletAddress, playerLocation, queryClient]);
 
+  const collectEgg = useCallback(async (spawnId: string): Promise<CatchResult | null> => {
+    if (!playerLocation) return null;
+    try {
+      const response = await apiRequest("POST", "/api/hunt/catch", {
+        walletAddress,
+        spawnId,
+        catchQuality: "perfect",
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+        return {
+          success: true,
+          isEgg: true,
+          eggRarity: data.eggRarity,
+          collectedEggs: data.collectedEggs,
+          eggsRequired: data.eggsRequired,
+          canHatch: data.canHatch,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to collect egg:", error);
+      return null;
+    }
+  }, [walletAddress, playerLocation, queryClient]);
+
   const startIncubation = useCallback(async (eggId: string, incubatorId: string) => {
     try {
       await apiRequest("POST", `/api/hunt/eggs/${eggId}/incubate`, { incubatorId });
@@ -318,6 +360,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         updateLocation,
         spawnCreatures,
         catchCreature,
+        collectEgg,
         startIncubation,
         walkEgg,
         joinRaid,

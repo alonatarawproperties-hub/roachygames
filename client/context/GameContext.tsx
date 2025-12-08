@@ -10,6 +10,12 @@ import {
 } from '@/constants/gameState';
 import { getCreatureDefinition, CreatureRarity } from '@/constants/creatures';
 
+interface HatchResult {
+  success: boolean;
+  creature?: CaughtCreature;
+  error?: string;
+}
+
 interface GameContextType {
   state: GameState;
   updateLocation: (latitude: number, longitude: number) => void;
@@ -20,6 +26,8 @@ interface GameContextType {
   disconnectWallet: () => void;
   useEgg: () => boolean;
   addEggs: (count: number) => void;
+  setEggCount: (count: number) => void;
+  hatchEggs: () => Promise<HatchResult>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -171,6 +179,57 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setEggCount = useCallback((count: number) => {
+    setState(prev => ({
+      ...prev,
+      eggCount: count,
+    }));
+  }, []);
+
+  const hatchEggs = useCallback(async (): Promise<HatchResult> => {
+    if (state.eggCount < 10) {
+      return { success: false, error: 'Need 10 eggs to hatch' };
+    }
+
+    try {
+      const { apiRequest } = await import('@/lib/query-client');
+      const response = await apiRequest('POST', '/api/hunt/hatch', {
+        walletAddress: state.wallet.address || 'guest_player',
+        latitude: state.playerLocation?.latitude || 0,
+        longitude: state.playerLocation?.longitude || 0,
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.creature) {
+        const newCreature: CaughtCreature = {
+          id: data.creature.templateId,
+          uniqueId: data.creature.id,
+          caughtAt: new Date(),
+          catchLocation: {
+            latitude: parseFloat(data.creature.catchLatitude) || 0,
+            longitude: parseFloat(data.creature.catchLongitude) || 0,
+          },
+          level: data.creature.level || 1,
+          blockchainMinted: false,
+        };
+
+        setState(prev => ({
+          ...prev,
+          inventory: [...prev.inventory, newCreature],
+          eggCount: data.collectedEggs,
+        }));
+
+        return { success: true, creature: newCreature };
+      }
+
+      return { success: false, error: data.error || 'Hatch failed' };
+    } catch (error) {
+      console.error('Hatch error:', error);
+      return { success: false, error: 'Failed to hatch eggs' };
+    }
+  }, [state.eggCount, state.wallet.address, state.playerLocation]);
+
   return (
     <GameContext.Provider
       value={{
@@ -183,6 +242,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         disconnectWallet,
         useEgg,
         addEggs,
+        setEggCount,
+        hatchEggs,
       }}
     >
       {children}

@@ -1,5 +1,5 @@
-import React from "react";
-import { View, StyleSheet, FlatList, Image, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, FlatList, Image, Pressable, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -11,6 +11,8 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withSequence,
+  withTiming,
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -83,18 +85,113 @@ function CreatureGridItem({ creature, index, onPress }: CreatureGridItemProps) {
   );
 }
 
+const EGGS_REQUIRED = 10;
+
+function EggSection({ eggCount, onHatch, isHatching }: { eggCount: number; onHatch: () => void; isHatching: boolean }) {
+  const canHatch = eggCount >= EGGS_REQUIRED;
+  const progress = Math.min(eggCount / EGGS_REQUIRED, 1);
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = () => {
+    if (canHatch && !isHatching) {
+      scale.value = withSequence(
+        withTiming(0.95, { duration: 100 }),
+        withSpring(1)
+      );
+      onHatch();
+    }
+  };
+
+  return (
+    <Animated.View entering={FadeInDown.springify()} style={styles.eggSection}>
+      <View style={styles.eggHeader}>
+        <View style={styles.eggIconContainer}>
+          <Feather name="gift" size={24} color={GameColors.primary} />
+        </View>
+        <View style={styles.eggInfo}>
+          <ThemedText style={styles.eggTitle}>Collected Eggs</ThemedText>
+          <ThemedText style={styles.eggCount}>
+            {eggCount} / {EGGS_REQUIRED}
+          </ThemedText>
+        </View>
+      </View>
+
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        </View>
+      </View>
+
+      <AnimatedPressable
+        style={[
+          styles.hatchButton,
+          animatedStyle,
+          !canHatch && styles.hatchButtonDisabled,
+        ]}
+        onPress={handlePress}
+        disabled={!canHatch || isHatching}
+      >
+        {isHatching ? (
+          <ThemedText style={styles.hatchButtonText}>Hatching...</ThemedText>
+        ) : (
+          <>
+            <Feather name="zap" size={18} color={canHatch ? GameColors.background : GameColors.textSecondary} />
+            <ThemedText style={[styles.hatchButtonText, !canHatch && styles.hatchButtonTextDisabled]}>
+              {canHatch ? "HATCH NOW" : `Need ${EGGS_REQUIRED - eggCount} more`}
+            </ThemedText>
+          </>
+        )}
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
+
 export default function InventoryScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { state } = useGame();
+  const { state, hatchEggs } = useGame();
+  const [isHatching, setIsHatching] = useState(false);
+
+  const handleHatch = async () => {
+    setIsHatching(true);
+    try {
+      const result = await hatchEggs();
+      if (result.success && result.creature) {
+        const def = getCreatureDefinition(result.creature.id);
+        Alert.alert(
+          "Egg Hatched!",
+          `You got a ${def?.rarity || 'common'} ${def?.name || 'Roachy'}!`,
+          [{ text: "Awesome!" }]
+        );
+      } else {
+        Alert.alert("Hatch Failed", result.error || "Something went wrong");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to hatch eggs");
+    } finally {
+      setIsHatching(false);
+    }
+  };
 
   const renderItem = ({ item, index }: { item: CaughtCreature; index: number }) => (
     <CreatureGridItem
       creature={item}
       index={index}
       onPress={() => navigation.navigate("CreatureDetail", { uniqueId: item.uniqueId })}
+    />
+  );
+
+  const renderHeader = () => (
+    <EggSection 
+      eggCount={state.eggCount} 
+      onHatch={handleHatch}
+      isHatching={isHatching}
     />
   );
 
@@ -127,6 +224,7 @@ export default function InventoryScreen() {
         }}
         columnWrapperStyle={styles.row}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
+        ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
       />
@@ -232,5 +330,75 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     textAlign: "center",
     lineHeight: 22,
+  },
+  eggSection: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: GameColors.primary + "40",
+  },
+  eggHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  eggIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: GameColors.primary + "20",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  eggInfo: {
+    flex: 1,
+  },
+  eggTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+  },
+  eggCount: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: GameColors.primary,
+  },
+  progressContainer: {
+    marginBottom: Spacing.md,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: GameColors.surfaceLight,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: GameColors.primary,
+    borderRadius: 4,
+  },
+  hatchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: GameColors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  hatchButtonDisabled: {
+    backgroundColor: GameColors.surfaceLight,
+  },
+  hatchButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GameColors.background,
+  },
+  hatchButtonTextDisabled: {
+    color: GameColors.textSecondary,
   },
 });

@@ -34,10 +34,11 @@ interface CatchMiniGameProps {
     templateId?: string;
   };
   onCatch: (quality: "perfect" | "great" | "good" | "miss") => void;
+  onEggCollected?: () => void;
   onEscape: () => void;
 }
 
-export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProps) {
+export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: CatchMiniGameProps) {
   const [phase, setPhase] = useState<"ready" | "shrinking" | "caught" | "escaped">("ready");
   const [attempts, setAttempts] = useState(3);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -48,10 +49,12 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
   const catchEggY = useSharedValue(300);
   const catchEggOpacity = useSharedValue(0);
   const flashOpacity = useSharedValue(0);
+  const eggCollectScale = useSharedValue(1);
 
   const currentRingScale = useRef(2);
   const isAnimating = useRef(false);
 
+  const isEgg = creature.templateId?.startsWith('egg_') || creature.id?.startsWith('egg_');
   const rarityColor = getRarityColor(creature.rarity as any) || GameColors.primary;
 
   const startShrinking = useCallback(() => {
@@ -84,7 +87,33 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
     requestAnimationFrame(updateRef);
   }, [phase, creature.rarity]);
 
+  const handleEggCollect = useCallback(() => {
+    if (phase !== "ready") return;
+    
+    setPhase("caught");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setLastResult("COLLECTED!");
+    
+    eggCollectScale.value = withSequence(
+      withTiming(1.3, { duration: 200 }),
+      withTiming(0, { duration: 400 })
+    );
+    
+    setTimeout(() => {
+      if (onEggCollected) {
+        onEggCollected();
+      } else {
+        onCatch("good");
+      }
+    }, 600);
+  }, [phase, onCatch, onEggCollected]);
+
   const handleTap = useCallback(() => {
+    if (isEgg) {
+      handleEggCollect();
+      return;
+    }
+
     if (phase === "ready") {
       startShrinking();
       return;
@@ -139,7 +168,7 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
     } else {
       handleMiss();
     }
-  }, [phase, startShrinking, onCatch]);
+  }, [phase, startShrinking, onCatch, isEgg, handleEggCollect]);
 
   const handleMiss = useCallback(() => {
     isAnimating.current = false;
@@ -189,11 +218,17 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
     opacity: flashOpacity.value,
   }));
 
+  const eggCollectAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: eggCollectScale.value }],
+  }));
+
   const creatureImage = ROACHY_IMAGES[creature.templateId || creature.id];
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.flash, flashAnimatedStyle]} pointerEvents="none" />
+      {!isEgg ? (
+        <Animated.View style={[styles.flash, flashAnimatedStyle]} pointerEvents="none" />
+      ) : null}
 
       <Pressable style={styles.closeButton} onPress={onEscape} accessibilityLabel="Close">
         <Feather name="x" size={28} color={GameColors.textSecondary} />
@@ -211,27 +246,48 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
             />
           ))}
         </View>
-        <ThemedText style={styles.creatureName}>{creature.name}</ThemedText>
-        <View style={[styles.rarityBadge, { backgroundColor: rarityColor + "30" }]}>
-          <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
-            {creature.rarity.toUpperCase()}
-          </ThemedText>
-        </View>
+        <ThemedText style={styles.creatureName}>
+          {isEgg ? "Mystery Egg" : creature.name}
+        </ThemedText>
+        {isEgg ? (
+          <View style={[styles.rarityBadge, { backgroundColor: GameColors.primary + "30" }]}>
+            <ThemedText style={[styles.rarityText, { color: GameColors.primary }]}>
+              EGG
+            </ThemedText>
+          </View>
+        ) : (
+          <View style={[styles.rarityBadge, { backgroundColor: rarityColor + "30" }]}>
+            <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
+              {creature.rarity.toUpperCase()}
+            </ThemedText>
+          </View>
+        )}
       </View>
 
       <Pressable style={styles.gameArea} onPress={handleTap}>
-        <View style={styles.targetRing}>
-          <View style={[styles.perfectZone, { borderColor: "#22C55E" }]} />
-          <View style={[styles.greatZone, { borderColor: "#3B82F6" }]} />
-          <View style={[styles.goodZone, { borderColor: "#F59E0B" }]} />
-        </View>
+        {!isEgg ? (
+          <>
+            <View style={styles.targetRing}>
+              <View style={[styles.perfectZone, { borderColor: "#22C55E" }]} />
+              <View style={[styles.greatZone, { borderColor: "#3B82F6" }]} />
+              <View style={[styles.goodZone, { borderColor: "#F59E0B" }]} />
+            </View>
 
-        <Animated.View style={[styles.shrinkingRing, ringAnimatedStyle]}>
-          <View style={[styles.ringInner, { borderColor: rarityColor }]} />
-        </Animated.View>
+            <Animated.View style={[styles.shrinkingRing, ringAnimatedStyle]}>
+              <View style={[styles.ringInner, { borderColor: rarityColor }]} />
+            </Animated.View>
+          </>
+        ) : null}
 
-        <Animated.View style={[styles.creatureContainer, creatureAnimatedStyle]}>
-          {creatureImage ? (
+        <Animated.View style={[styles.creatureContainer, isEgg ? eggCollectAnimatedStyle : creatureAnimatedStyle]}>
+          {isEgg ? (
+            <View style={styles.eggDisplay}>
+              <View style={styles.eggShape}>
+                <Feather name="gift" size={50} color={GameColors.primary} />
+              </View>
+              <ThemedText style={styles.eggLabel}>?</ThemedText>
+            </View>
+          ) : creatureImage ? (
             <Image source={creatureImage} style={styles.creatureImage} />
           ) : (
             <View style={[styles.creaturePlaceholder, { backgroundColor: rarityColor }]}>
@@ -240,15 +296,17 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
           )}
         </Animated.View>
 
-        <Animated.View style={[styles.catchEgg, catchEggAnimatedStyle]}>
-          <View style={styles.netShape}>
-            <View style={styles.netOuter}>
-              <View style={styles.netInner}>
-                <Feather name="crosshair" size={24} color={GameColors.background} />
+        {!isEgg ? (
+          <Animated.View style={[styles.catchEgg, catchEggAnimatedStyle]}>
+            <View style={styles.netShape}>
+              <View style={styles.netOuter}>
+                <View style={styles.netInner}>
+                  <Feather name="crosshair" size={24} color={GameColors.background} />
+                </View>
               </View>
             </View>
-          </View>
-        </Animated.View>
+          </Animated.View>
+        ) : null}
       </Pressable>
 
       {lastResult && (
@@ -260,6 +318,7 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
               lastResult === "GREAT!" && styles.greatText,
               lastResult === "GOOD!" && styles.goodText,
               lastResult === "MISS!" && styles.missText,
+              lastResult === "COLLECTED!" && styles.collectedText,
             ]}
           >
             {lastResult}
@@ -270,29 +329,37 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
       <View style={styles.instructions}>
         <ThemedText style={styles.instructionText}>
           {phase === "ready" 
-            ? "Tap to start! Time your throw when the ring is in the green zone"
+            ? isEgg 
+              ? "Tap to start! Collect the egg!"
+              : "Tap to start! Time your throw when the ring is in the green zone"
             : phase === "shrinking"
             ? "TAP NOW!"
             : phase === "caught"
-            ? "Caught!"
-            : "The creature escaped!"}
+            ? isEgg 
+              ? "Egg Collected!"
+              : "Caught!"
+            : isEgg 
+              ? "The egg rolled away!"
+              : "The creature escaped!"}
         </ThemedText>
       </View>
 
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#22C55E" }]} />
-          <ThemedText style={styles.legendText}>Perfect (150 XP)</ThemedText>
+      {!isEgg ? (
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#22C55E" }]} />
+            <ThemedText style={styles.legendText}>Perfect (150 XP)</ThemedText>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#3B82F6" }]} />
+            <ThemedText style={styles.legendText}>Great (75 XP)</ThemedText>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#F59E0B" }]} />
+            <ThemedText style={styles.legendText}>Good (30 XP)</ThemedText>
+          </View>
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#3B82F6" }]} />
-          <ThemedText style={styles.legendText}>Great (75 XP)</ThemedText>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#F59E0B" }]} />
-          <ThemedText style={styles.legendText}>Good (30 XP)</ThemedText>
-        </View>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -425,6 +492,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  eggDisplay: {
+    width: INNER_SIZE,
+    height: INNER_SIZE,
+    borderRadius: INNER_SIZE / 2,
+    backgroundColor: GameColors.primary + "30",
+    borderWidth: 3,
+    borderColor: GameColors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  eggShape: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  eggLabel: {
+    position: "absolute",
+    fontSize: 24,
+    fontWeight: "bold",
+    color: GameColors.primary,
+    bottom: 10,
+  },
   catchEgg: {
     position: "absolute",
     bottom: -50,
@@ -475,6 +563,9 @@ const styles = StyleSheet.create({
   },
   missText: {
     color: "#EF4444",
+  },
+  collectedText: {
+    color: GameColors.primary,
   },
   instructions: {
     marginTop: Spacing.xl,

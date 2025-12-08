@@ -45,7 +45,7 @@ function selectEggByRarity(): typeof EGG_TEMPLATES[0] {
   return EGG_TEMPLATES[0];
 }
 
-const EGGS_REQUIRED_FOR_ROACHY = 20;
+const EGGS_REQUIRED_FOR_HATCH = 10;
 
 const ROACHY_TEMPLATES = [
   { id: 'ironshell', name: 'Ironshell', roachyClass: 'tank', rarity: 'common', baseHp: 120, baseAtk: 40, baseDef: 80, baseSpd: 30 },
@@ -318,92 +318,40 @@ export function registerHuntRoutes(app: Express) {
         })
         .where(eq(wildCreatureSpawns.id, spawnId));
 
-      const isEggCatch = spawn.templateId === 'wild_egg';
+      const isEggCatch = spawn.templateId.startsWith('egg_');
 
       if (isEggCatch) {
         const currentEggs = economy.collectedEggs || 0;
         const newEggCount = currentEggs + 1;
-        let bonusCreature = null;
+        const canHatch = newEggCount >= EGGS_REQUIRED_FOR_HATCH;
 
-        if (newEggCount >= EGGS_REQUIRED_FOR_ROACHY) {
-          const rarity = selectRarity({ sinceRare: economy.catchesSinceRare, sinceEpic: economy.catchesSinceEpic });
-          let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
-          if (templates.length === 0) {
-            templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
-          }
-          const template = templates[Math.floor(Math.random() * templates.length)];
-          const ivs = generateIVs();
-
-          const [caughtCreature] = await db.insert(huntCaughtCreatures).values({
-            walletAddress,
-            templateId: template.id,
-            name: template.name,
-            creatureClass: template.roachyClass,
-            rarity,
-            baseHp: template.baseHp,
-            baseAtk: template.baseAtk,
-            baseDef: template.baseDef,
-            baseSpd: template.baseSpd,
-            xp: 50,
-            ivHp: ivs.ivHp,
-            ivAtk: ivs.ivAtk,
-            ivDef: ivs.ivDef,
-            ivSpd: ivs.ivSpd,
-            isPerfect: ivs.isPerfect,
-            catchQuality: 'good',
-            catchLatitude: (latitude || spawn.latitude).toString(),
-            catchLongitude: (longitude || spawn.longitude).toString(),
-            origin: 'egg_redemption',
-          }).returning();
-
-          bonusCreature = caughtCreature;
-
-          await db.update(huntEconomyStats)
-            .set({
-              collectedEggs: 0,
-              energy: economy.energy - 1,
-              updatedAt: new Date(),
-            })
-            .where(eq(huntEconomyStats.walletAddress, walletAddress));
-
-          await db.insert(huntActivityLog).values({
-            walletAddress,
-            activityType: 'egg_redemption',
-            details: JSON.stringify({
-              creatureId: caughtCreature.id,
-              name: template.name,
-              rarity,
-              eggsCollected: EGGS_REQUIRED_FOR_ROACHY,
-            }),
-          });
-        } else {
-          await db.update(huntEconomyStats)
-            .set({
-              collectedEggs: newEggCount,
-              energy: economy.energy - 1,
-              updatedAt: new Date(),
-            })
-            .where(eq(huntEconomyStats.walletAddress, walletAddress));
-        }
+        await db.update(huntEconomyStats)
+          .set({
+            collectedEggs: newEggCount,
+            energy: economy.energy - 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(huntEconomyStats.walletAddress, walletAddress));
 
         await db.insert(huntActivityLog).values({
           walletAddress,
           activityType: 'egg_collect',
           details: JSON.stringify({
             eggNumber: newEggCount,
-            bonusCreature: bonusCreature ? bonusCreature.name : null,
+            eggRarity: spawn.rarity,
           }),
         });
 
         return res.json({
           success: true,
           isEgg: true,
-          collectedEggs: newEggCount >= EGGS_REQUIRED_FOR_ROACHY ? 0 : newEggCount,
-          eggsRequired: EGGS_REQUIRED_FOR_ROACHY,
-          bonusCreature,
+          eggRarity: spawn.rarity,
+          collectedEggs: newEggCount,
+          eggsRequired: EGGS_REQUIRED_FOR_HATCH,
+          canHatch,
           economy: {
             energy: economy.energy - 1,
-            collectedEggs: newEggCount >= EGGS_REQUIRED_FOR_ROACHY ? 0 : newEggCount,
+            collectedEggs: newEggCount,
           },
         });
       }
@@ -497,6 +445,100 @@ export function registerHuntRoutes(app: Express) {
     } catch (error) {
       console.error("Catch error:", error);
       res.status(500).json({ error: "Failed to catch creature" });
+    }
+  });
+
+  app.post("/api/hunt/hatch", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, latitude, longitude } = req.body;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: "Missing wallet address" });
+      }
+
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        return res.status(404).json({ error: "Player economy not found" });
+      }
+
+      const currentEggs = economy.collectedEggs || 0;
+      if (currentEggs < EGGS_REQUIRED_FOR_HATCH) {
+        return res.status(400).json({ 
+          error: `Need ${EGGS_REQUIRED_FOR_HATCH} eggs to hatch, you have ${currentEggs}`,
+          collectedEggs: currentEggs,
+          eggsRequired: EGGS_REQUIRED_FOR_HATCH,
+        });
+      }
+
+      const rarity = selectRarity({ sinceRare: economy.catchesSinceRare, sinceEpic: economy.catchesSinceEpic });
+      let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
+      if (templates.length === 0) {
+        templates = ROACHY_TEMPLATES.filter(t => t.rarity === 'common');
+      }
+      const template = templates[Math.floor(Math.random() * templates.length)];
+      const ivs = generateIVs();
+
+      const [hatchedCreature] = await db.insert(huntCaughtCreatures).values({
+        walletAddress,
+        templateId: template.id,
+        name: template.name,
+        creatureClass: template.roachyClass,
+        rarity,
+        baseHp: template.baseHp,
+        baseAtk: template.baseAtk,
+        baseDef: template.baseDef,
+        baseSpd: template.baseSpd,
+        xp: 50,
+        ivHp: ivs.ivHp,
+        ivAtk: ivs.ivAtk,
+        ivDef: ivs.ivDef,
+        ivSpd: ivs.ivSpd,
+        isPerfect: ivs.isPerfect,
+        catchQuality: 'hatched',
+        catchLatitude: (latitude || '0').toString(),
+        catchLongitude: (longitude || '0').toString(),
+        origin: 'egg_hatch',
+      }).returning();
+
+      const newEggCount = currentEggs - EGGS_REQUIRED_FOR_HATCH;
+
+      let newCatchesSinceRare = rarity === 'rare' || rarity === 'epic' || rarity === 'legendary' 
+        ? 0 : economy.catchesSinceRare + 1;
+      let newCatchesSinceEpic = rarity === 'epic' || rarity === 'legendary' 
+        ? 0 : economy.catchesSinceEpic + 1;
+
+      await db.update(huntEconomyStats)
+        .set({
+          collectedEggs: newEggCount,
+          catchesSinceRare: newCatchesSinceRare,
+          catchesSinceEpic: newCatchesSinceEpic,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await db.insert(huntActivityLog).values({
+        walletAddress,
+        activityType: 'egg_hatch',
+        details: JSON.stringify({
+          creatureId: hatchedCreature.id,
+          name: template.name,
+          rarity,
+          eggsUsed: EGGS_REQUIRED_FOR_HATCH,
+        }),
+      });
+
+      res.json({
+        success: true,
+        creature: hatchedCreature,
+        collectedEggs: newEggCount,
+        eggsRequired: EGGS_REQUIRED_FOR_HATCH,
+      });
+    } catch (error) {
+      console.error("Hatch error:", error);
+      res.status(500).json({ error: "Failed to hatch egg" });
     }
   });
 

@@ -19,17 +19,19 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
+- **Egg Collection & Hatching System (Updated)**
+  - 60% of spawns are eggs, 40% are Roachies (direct catches)
+  - Eggs have 5 rarity tiers: Common (60%), Uncommon (25%), Rare (10%), Epic (4%), Legendary (1%)
+  - Eggs use simplified collect animation (no timing minigame, just tap to collect)
+  - Collect 10 eggs to unlock HATCH button in Inventory
+  - Hatching consumes 10 eggs and gives 1 random rarity Roachy
+  - Roachies use full timing-based catch minigame
+  - All spawns appear as "Mystery" markers on map until caught
 - **Mystery Ping System**
   - All map markers now display as uniform gold "???" markers
   - No names or rarity colors revealed until caught
   - Creates suspense and excitement during hunting
   - Applies to both Leaflet WebView map and native map markers
-- **Dual Egg Collection System**
-  - Eggs spawn on map as collectibles (60% spawn rate)
-  - Creatures spawn at 40% rate
-  - Collect 20 eggs = 1 random rarity Roachy
-  - Eggs also used as catch items in the mini-game
-  - Database tracks `collectedEggs` in economy stats
 - **Added Directional Arrow on Map**
   - Shows player movement direction when walking/hunting
   - Arrow rotates smoothly based on heading from GPS or calculated from movement

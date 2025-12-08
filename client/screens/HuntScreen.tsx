@@ -73,6 +73,7 @@ export default function HuntScreen() {
     updateLocation,
     spawnCreatures,
     catchCreature,
+    collectEgg,
     walkEgg,
     joinRaid,
     attackRaid,
@@ -85,6 +86,7 @@ export default function HuntScreen() {
   const [showCatchGame, setShowCatchGame] = useState(false);
   const [caughtCreature, setCaughtCreature] = useState<CaughtCreature | null>(null);
   const [catchQuality, setCatchQuality] = useState<"perfect" | "great" | "good" | null>(null);
+  const [collectedEggInfo, setCollectedEggInfo] = useState<{rarity: string; count: number} | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<Raid | null>(null);
   const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs">("map");
   const mapRef = useRef<MapViewWrapperRef>(null);
@@ -236,6 +238,21 @@ export default function HuntScreen() {
   };
 
   const handleEscape = () => {
+    setShowCatchGame(false);
+    setSelectedSpawn(null);
+  };
+
+  const handleEggCollected = async () => {
+    if (!selectedSpawn) return;
+    
+    const result = await collectEgg(selectedSpawn.id);
+    if (result && result.success) {
+      setCollectedEggInfo({
+        rarity: result.eggRarity || "common",
+        count: result.collectedEggs || 1,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
     setShowCatchGame(false);
     setSelectedSpawn(null);
   };
@@ -569,6 +586,7 @@ export default function HuntScreen() {
               templateId: selectedSpawn.templateId,
             }}
             onCatch={handleCatchResult}
+            onEggCollected={handleEggCollected}
             onEscape={handleEscape}
           />
         ) : null}
@@ -601,6 +619,41 @@ export default function HuntScreen() {
             onCancel={() => setSelectedRaid(null)}
           />
         ) : null}
+      </Modal>
+
+      <Modal
+        visible={collectedEggInfo !== null}
+        animationType="fade"
+        transparent
+      >
+        <View style={styles.eggModalOverlay}>
+          <View style={styles.eggModalContent}>
+            <View style={[styles.eggIconContainer, { backgroundColor: RARITY_COLORS[collectedEggInfo?.rarity || "common"] + "30" }]}>
+              <Feather name="package" size={48} color={RARITY_COLORS[collectedEggInfo?.rarity || "common"]} />
+            </View>
+            <ThemedText type="h2" style={styles.eggModalTitle}>Egg Collected!</ThemedText>
+            <ThemedText style={[styles.eggModalRarity, { color: RARITY_COLORS[collectedEggInfo?.rarity || "common"] }]}>
+              {collectedEggInfo?.rarity?.toUpperCase()} EGG
+            </ThemedText>
+            <ThemedText style={styles.eggModalCount}>
+              Total Eggs: {collectedEggInfo?.count || 0} / 10
+            </ThemedText>
+            {(collectedEggInfo?.count || 0) >= 10 ? (
+              <ThemedText style={styles.eggModalHint}>You can hatch an egg in your Inventory!</ThemedText>
+            ) : (
+              <ThemedText style={styles.eggModalHint}>Collect {10 - (collectedEggInfo?.count || 0)} more to hatch!</ThemedText>
+            )}
+            <Button
+              onPress={() => {
+                setCollectedEggInfo(null);
+                refreshSpawns();
+              }}
+              style={{ marginTop: Spacing.lg, width: "100%" }}
+            >
+              Continue Hunting
+            </Button>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -1057,5 +1110,47 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
     marginTop: 4,
+  },
+  eggModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  eggModalContent: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+  },
+  eggIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  eggModalTitle: {
+    color: GameColors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  eggModalRarity: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: Spacing.md,
+  },
+  eggModalCount: {
+    fontSize: 16,
+    color: GameColors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  eggModalHint: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    textAlign: "center",
   },
 });
