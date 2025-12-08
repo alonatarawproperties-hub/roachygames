@@ -241,13 +241,12 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
         </Animated.View>
 
         <Animated.View style={[styles.catchEgg, catchEggAnimatedStyle]}>
-          <View style={styles.eggShape}>
-            <View style={styles.eggTop} />
-            <View style={styles.eggLine} />
-            <View style={styles.eggCenter}>
-              <View style={styles.eggButton} />
+          <View style={styles.netShape}>
+            <View style={styles.netOuter}>
+              <View style={styles.netInner}>
+                <Feather name="crosshair" size={24} color={GameColors.background} />
+              </View>
             </View>
-            <View style={styles.eggBottom} />
           </View>
         </Animated.View>
       </Pressable>
@@ -275,7 +274,7 @@ export function CatchMiniGame({ creature, onCatch, onEscape }: CatchMiniGameProp
             : phase === "shrinking"
             ? "TAP NOW!"
             : phase === "caught"
-            ? "Gotcha!"
+            ? "Caught!"
             : "The creature escaped!"}
         </ThemedText>
       </View>
@@ -430,44 +429,31 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -50,
   },
-  eggShape: {
+  netShape: {
     width: 60,
     height: 60,
-    borderRadius: 30,
-    overflow: "hidden",
-    borderWidth: 3,
-    borderColor: "#333",
-  },
-  eggTop: {
-    flex: 1,
-    backgroundColor: GameColors.primary,
-  },
-  eggLine: {
-    height: 4,
-    backgroundColor: "#333",
-  },
-  eggCenter: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginTop: -12,
-    marginLeft: -12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#333",
     justifyContent: "center",
     alignItems: "center",
   },
-  eggButton: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#fff",
+  netOuter: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: GameColors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#c4955e",
   },
-  eggBottom: {
-    flex: 1,
-    backgroundColor: "#F5E6D3",
+  netInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f0c850",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#c4955e",
   },
   resultContainer: {
     position: "absolute",

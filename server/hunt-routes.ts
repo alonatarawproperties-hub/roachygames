@@ -230,7 +230,7 @@ export function registerHuntRoutes(app: Express) {
         const isEgg = Math.random() < SPAWN_TYPE_RATES.egg;
         
         let template;
-        let rarity;
+        let rarity: string;
         
         if (isEgg) {
           template = EGG_SPAWN_TEMPLATE;
