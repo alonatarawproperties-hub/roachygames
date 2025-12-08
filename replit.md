@@ -115,9 +115,9 @@ server/
 - Catch, collect, battle gameplay
 
 ### Coming Soon
-- **Roachy Battle:** PvP arena combat
-- **Roachy Match:** Match-3 puzzle game
-- **Roachy Quest:** Epic story adventure
+- **Roachy Battles:** PvP arena combat
+- **Flappy Roach:** Tap-to-fly endless runner
+- **Roachy Mate:** Breeding and evolution game
 
 ## Design System
 
