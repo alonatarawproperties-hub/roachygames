@@ -27,16 +27,23 @@ const SPAWN_TYPE_RATES = {
   creature: 0.40,
 };
 
-const EGG_SPAWN_TEMPLATE = {
-  id: 'wild_egg',
-  name: 'Mystery Egg',
-  roachyClass: 'egg',
-  rarity: 'common',
-  baseHp: 0,
-  baseAtk: 0,
-  baseDef: 0,
-  baseSpd: 0,
-};
+const EGG_TEMPLATES = [
+  { id: 'egg_common', name: 'Common Egg', roachyClass: 'egg', rarity: 'common', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
+  { id: 'egg_uncommon', name: 'Uncommon Egg', roachyClass: 'egg', rarity: 'uncommon', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
+  { id: 'egg_rare', name: 'Rare Egg', roachyClass: 'egg', rarity: 'rare', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
+  { id: 'egg_epic', name: 'Epic Egg', roachyClass: 'egg', rarity: 'epic', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
+  { id: 'egg_legendary', name: 'Legendary Egg', roachyClass: 'egg', rarity: 'legendary', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
+];
+
+function selectEggByRarity(): typeof EGG_TEMPLATES[0] {
+  const roll = Math.random();
+  let cumulative = 0;
+  for (const egg of EGG_TEMPLATES) {
+    cumulative += RARITY_RATES[egg.rarity as keyof typeof RARITY_RATES] || 0;
+    if (roll <= cumulative) return egg;
+  }
+  return EGG_TEMPLATES[0];
+}
 
 const EGGS_REQUIRED_FOR_ROACHY = 20;
 
@@ -233,8 +240,8 @@ export function registerHuntRoutes(app: Express) {
         let rarity: string;
         
         if (isEgg) {
-          template = EGG_SPAWN_TEMPLATE;
-          rarity = 'common';
+          template = selectEggByRarity();
+          rarity = template.rarity;
         } else {
           rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
           let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
