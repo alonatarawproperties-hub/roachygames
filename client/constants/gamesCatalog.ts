@@ -2,6 +2,7 @@ import { ImageSourcePropType } from "react-native";
 
 const RoachyHuntLogo = require("@/assets/roachy-hunt-logo.png");
 const FlappyRoachLogo = require("@/assets/flappy-roach-logo.png");
+const RoachyBattlesLogo = require("@/assets/roachy-battles-logo.png");
 
 export interface GameEntry {
   id: string;
@@ -38,6 +39,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     title: "Roachy Battles",
     tagline: "PvP Arena Combat",
     description: "Battle your Roachies against other players in real-time PvP combat. Climb the leaderboards and earn exclusive rewards!",
+    coverImage: RoachyBattlesLogo,
     iconName: "zap",
     routeName: "RoachyBattlesStack",
     isLocked: true,
