@@ -78,7 +78,12 @@ const isExpoGo = (): boolean => {
   if (Platform.OS === 'web') return true;
   try {
     const executionEnvironment = Constants.executionEnvironment;
-    return executionEnvironment !== 'standalone' && executionEnvironment !== 'bare';
+    // EAS builds use 'storeClient', classic builds use 'standalone', bare workflow uses 'bare'
+    // Only 'storeClient' when distributed via TestFlight/App Store
+    const validEnvironments = ['standalone', 'bare', 'storeClient'];
+    const result = !validEnvironments.includes(executionEnvironment as string);
+    console.log('Execution environment:', executionEnvironment, 'isExpoGo:', result);
+    return result;
   } catch {
     return false;
   }
