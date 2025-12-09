@@ -32,7 +32,7 @@ import {
 } from "@/components/arcade";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { useWallet, WALLET_PROVIDERS } from "@/context/WalletContext";
+import { useWallet } from "../../context/WalletContext";
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
 
@@ -77,8 +77,7 @@ export function ArcadeHomeScreen() {
 
   const getProviderName = () => {
     if (!wallet.provider) return '';
-    const provider = WALLET_PROVIDERS.find(p => p.id === wallet.provider);
-    return provider?.name || '';
+    return 'WalletConnect';
   };
 
   const handleCopyAddress = async () => {

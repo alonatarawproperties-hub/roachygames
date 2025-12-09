@@ -1,7 +1,7 @@
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: ["babel-preset-expo"],
+    presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
     plugins: [
       [
         "module-resolver",
@@ -12,7 +12,7 @@ module.exports = function (api) {
             "@shared": "./shared",
             "@assets": "./attached_assets",
           },
-          extensions: [".ios.js", ".android.js", ".js", ".ts", ".tsx", ".json"],
+          extensions: [".web.tsx", ".web.ts", ".native.tsx", ".native.ts", ".ios.js", ".android.js", ".js", ".ts", ".tsx", ".json"],
         },
       ],
       "react-native-reanimated/plugin",

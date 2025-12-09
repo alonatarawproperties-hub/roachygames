@@ -15,8 +15,9 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
-import { WalletProvider } from "@/context/WalletContext";
+import { WalletProvider } from "./context/WalletContext";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
+import { AppKitWrapper } from "./components/AppKitWrapper";
 import { GameColors } from "@/constants/theme";
 
 SystemUI.setBackgroundColorAsync(GameColors.background);
@@ -25,13 +26,19 @@ SplashScreen.preventAutoHideAsync();
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
 
+  console.log('[App] Rendering, appIsReady:', appIsReady);
+
   useEffect(() => {
+    console.log('[App] useEffect starting...');
     async function prepare() {
       try {
+        console.log('[App] Preparing app...');
         await new Promise(resolve => setTimeout(resolve, 1500));
+        console.log('[App] Preparation complete');
       } catch (e) {
-        console.warn(e);
+        console.warn('[App] Error during preparation:', e);
       } finally {
+        console.log('[App] Setting appIsReady to true');
         setAppIsReady(true);
       }
     }
@@ -60,15 +67,17 @@ export default function App() {
         <SafeAreaProvider onLayout={onLayoutRootView}>
           <GestureHandlerRootView style={styles.root}>
             <KeyboardProvider>
-              <WalletProvider>
-                <GameProvider>
-                  <HuntProvider>
-                    <NavigationContainer>
-                      <RootStackNavigator />
-                    </NavigationContainer>
-                  </HuntProvider>
-                </GameProvider>
-              </WalletProvider>
+              <AppKitWrapper>
+                <WalletProvider>
+                  <GameProvider>
+                    <HuntProvider>
+                      <NavigationContainer>
+                        <RootStackNavigator />
+                      </NavigationContainer>
+                    </HuntProvider>
+                  </GameProvider>
+                </WalletProvider>
+              </AppKitWrapper>
               <StatusBar style="light" />
             </KeyboardProvider>
           </GestureHandlerRootView>

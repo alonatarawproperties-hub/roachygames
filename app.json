@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "roachyhunt",
+    "scheme": "roachy-games",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#120a05",
     "newArchEnabled": true,
@@ -74,7 +74,8 @@
     "extra": {
       "eas": {
         "projectId": "b771b4a4-642a-40c9-98e4-f7af33384b5d"
-      }
+      },
+      "walletConnectProjectId": "${WALLETCONNECT_PROJECT_ID}"
     },
     "owner": "roachygames"
   }

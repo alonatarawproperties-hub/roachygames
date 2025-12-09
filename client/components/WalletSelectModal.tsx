@@ -7,11 +7,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/ThemedText';
 import { GameColors, Spacing, BorderRadius } from '@/constants/theme';
-import { useWallet, WALLET_PROVIDERS, WalletProviderType } from '@/context/WalletContext';
+import { useWallet } from '../context/WalletContext';
 
 interface WalletSelectModalProps {
   visible: boolean;
@@ -23,8 +23,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) {
   const { connectWallet, wallet } = useWallet();
 
-  const handleSelectWallet = async (providerId: WalletProviderType) => {
-    const success = await connectWallet(providerId);
+  const handleConnectWallet = async () => {
+    const success = await connectWallet();
     if (success) {
       onClose();
     }
@@ -53,46 +53,56 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
             </View>
 
             <ThemedText style={styles.subtitle}>
-              Choose a Solana wallet to connect
+              Connect your Solana wallet via WalletConnect
             </ThemedText>
 
             <View style={styles.walletList}>
-              {WALLET_PROVIDERS.map((provider, index) => (
-                <AnimatedPressable
-                  key={provider.id}
-                  entering={FadeInDown.delay(index * 50).springify()}
-                  style={styles.walletOption}
-                  onPress={() => handleSelectWallet(provider.id)}
-                  disabled={wallet.isConnecting}
-                >
-                  <View style={styles.walletIconContainer}>
-                    <Feather 
-                      name={provider.iconName as any} 
-                      size={28} 
-                      color={GameColors.primary} 
-                    />
-                  </View>
-                  <View style={styles.walletInfo}>
-                    <ThemedText style={styles.walletName}>
-                      {provider.name}
-                    </ThemedText>
-                    <ThemedText style={styles.walletDescription}>
-                      {provider.id === 'phantom' ? 'Most popular Solana wallet' :
-                       provider.id === 'solflare' ? 'Feature-rich Solana wallet' :
-                       'Multi-chain wallet'}
-                    </ThemedText>
-                  </View>
-                  {wallet.isConnecting ? (
-                    <ActivityIndicator size="small" color={GameColors.primary} />
-                  ) : (
-                    <Feather 
-                      name="chevron-right" 
-                      size={20} 
-                      color={GameColors.textSecondary} 
-                    />
-                  )}
-                </AnimatedPressable>
-              ))}
+              <AnimatedPressable
+                entering={FadeInDown.springify()}
+                style={styles.walletOption}
+                onPress={handleConnectWallet}
+                disabled={wallet.isConnecting}
+              >
+                <View style={styles.walletIconContainer}>
+                  <Feather 
+                    name="link" 
+                    size={28} 
+                    color={GameColors.primary} 
+                  />
+                </View>
+                <View style={styles.walletInfo}>
+                  <ThemedText style={styles.walletName}>
+                    WalletConnect
+                  </ThemedText>
+                  <ThemedText style={styles.walletDescription}>
+                    Connect with Phantom, Solflare, and more
+                  </ThemedText>
+                </View>
+                {wallet.isConnecting ? (
+                  <ActivityIndicator size="small" color={GameColors.primary} />
+                ) : (
+                  <Feather 
+                    name="chevron-right" 
+                    size={20} 
+                    color={GameColors.textSecondary} 
+                  />
+                )}
+              </AnimatedPressable>
+            </View>
+
+            <View style={styles.supportedWallets}>
+              <ThemedText style={styles.supportedLabel}>Supported wallets:</ThemedText>
+              <View style={styles.walletBadges}>
+                <View style={styles.walletBadge}>
+                  <ThemedText style={styles.walletBadgeText}>Phantom</ThemedText>
+                </View>
+                <View style={styles.walletBadge}>
+                  <ThemedText style={styles.walletBadgeText}>Solflare</ThemedText>
+                </View>
+                <View style={styles.walletBadge}>
+                  <ThemedText style={styles.walletBadgeText}>Backpack</ThemedText>
+                </View>
+              </View>
             </View>
 
             <View style={styles.footer}>
@@ -170,6 +180,29 @@ const styles = StyleSheet.create({
   },
   walletDescription: {
     fontSize: 13,
+    color: GameColors.textSecondary,
+  },
+  supportedWallets: {
+    marginBottom: Spacing.lg,
+  },
+  supportedLabel: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  walletBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  walletBadge: {
+    backgroundColor: GameColors.surfaceLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
+  },
+  walletBadgeText: {
+    fontSize: 12,
     color: GameColors.textSecondary,
   },
   footer: {

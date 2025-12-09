@@ -25,7 +25,7 @@ import { Button } from "@/components/Button";
 import { WalletSelectModal } from "@/components/WalletSelectModal";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
-import { useWallet, WALLET_PROVIDERS } from "@/context/WalletContext";
+import { useWallet } from "../context/WalletContext";
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES } from "@/constants/creatures";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -102,8 +102,7 @@ export default function ProfileScreen() {
 
   const getProviderName = () => {
     if (!wallet.provider) return '';
-    const provider = WALLET_PROVIDERS.find(p => p.id === wallet.provider);
-    return provider?.name || '';
+    return 'WalletConnect';
   };
 
   return (

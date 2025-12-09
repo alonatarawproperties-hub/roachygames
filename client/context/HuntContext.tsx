@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useWallet } from "@/context/WalletContext";
+import { useWallet } from "./WalletContext";
 
 const WALLET_STORAGE_KEY = "roachy_hunt_wallet_address";
 
