@@ -614,6 +614,7 @@ export function registerHuntRoutes(app: Express) {
         economy.energy = economy.maxEnergy;
       }
 
+      console.log(`[Economy] wallet=${walletAddress} collectedEggs=${economy.collectedEggs}`);
       res.json({ economy });
     } catch (error) {
       console.error("Economy fetch error:", error);
