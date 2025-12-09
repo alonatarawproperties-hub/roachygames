@@ -47,6 +47,7 @@ export interface EconomyStats {
   catchesSinceEpic: number;
   currentStreak: number;
   longestStreak: number;
+  collectedEggs: number;
 }
 
 export interface Egg {
@@ -83,6 +84,12 @@ export interface CatchResult {
   streak?: number;
 }
 
+interface HatchResult {
+  success: boolean;
+  creature?: CaughtCreature;
+  error?: string;
+}
+
 interface HuntContextType {
   walletAddress: string;
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
@@ -92,10 +99,12 @@ interface HuntContextType {
   eggs: Egg[];
   raids: Raid[];
   isLoading: boolean;
+  collectedEggs: number;
   updateLocation: (latitude: number, longitude: number, heading?: number) => Promise<void>;
   spawnCreatures: () => Promise<void>;
   catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
   collectEgg: (spawnId: string) => Promise<CatchResult | null>;
+  hatchEggs: () => Promise<HatchResult>;
   startIncubation: (eggId: string, incubatorId: string) => Promise<void>;
   walkEgg: (eggId: string, distance: number) => Promise<any>;
   joinRaid: (raidId: string) => Promise<void>;
@@ -351,6 +360,33 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [walletAddress, queryClient]);
 
+  const hatchEggs = useCallback(async (): Promise<HatchResult> => {
+    const collectedEggs = economyData?.collectedEggs || 0;
+    if (collectedEggs < 10) {
+      return { success: false, error: "Not enough eggs (need 10)" };
+    }
+    try {
+      const response = await apiRequest("POST", "/api/hunt/hatch", {
+        walletAddress,
+        latitude: playerLocation?.latitude,
+        longitude: playerLocation?.longitude,
+      });
+      const data = await response.json();
+      if (data.success && data.creature) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+        return {
+          success: true,
+          creature: data.creature as CaughtCreature,
+        };
+      }
+      return { success: false, error: data.error || "Hatch failed" };
+    } catch (error) {
+      console.error("Failed to hatch eggs:", error);
+      return { success: false, error: "Failed to hatch eggs" };
+    }
+  }, [walletAddress, playerLocation, economyData, queryClient]);
+
   return (
     <HuntContext.Provider
       value={{
@@ -362,10 +398,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
         eggs: eggsData?.eggs || [],
         raids: raidsData || [],
         isLoading: spawnsLoading,
+        collectedEggs: economyData?.collectedEggs || 0,
         updateLocation,
         spawnCreatures,
         catchCreature,
         collectEgg,
+        hatchEggs,
         startIncubation,
         walkEgg,
         joinRaid,

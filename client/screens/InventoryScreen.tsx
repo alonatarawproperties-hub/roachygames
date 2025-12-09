@@ -17,9 +17,8 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { useGame } from "@/context/GameContext";
+import { useHunt, CaughtCreature as HuntCaughtCreature } from "@/context/HuntContext";
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES } from "@/constants/creatures";
-import { CaughtCreature } from "@/constants/gameState";
 import { InventoryStackParamList } from "@/navigation/InventoryStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<InventoryStackParamList>;
@@ -27,13 +26,13 @@ type NavigationProp = NativeStackNavigationProp<InventoryStackParamList>;
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface CreatureGridItemProps {
-  creature: CaughtCreature;
+  creature: HuntCaughtCreature;
   index: number;
   onPress: () => void;
 }
 
 function CreatureGridItem({ creature, index, onPress }: CreatureGridItemProps) {
-  const def = getCreatureDefinition(creature.id);
+  const def = getCreatureDefinition(creature.templateId);
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -42,7 +41,7 @@ function CreatureGridItem({ creature, index, onPress }: CreatureGridItemProps) {
 
   if (!def) return null;
 
-  const rarityColor = getRarityColor(def.rarity);
+  const rarityColor = getRarityColor(creature.rarity as any);
 
   return (
     <AnimatedPressable
@@ -58,24 +57,24 @@ function CreatureGridItem({ creature, index, onPress }: CreatureGridItemProps) {
     >
       <View style={[styles.cardGlow, { backgroundColor: rarityColor }]} />
       <View style={styles.cardContent}>
-        <Image source={CREATURE_IMAGES[creature.id]} style={styles.creatureImage} />
+        <Image source={CREATURE_IMAGES[creature.templateId]} style={styles.creatureImage} />
         
-        {creature.blockchainMinted ? (
+        {creature.isPerfect ? (
           <View style={styles.nftBadge}>
-            <Feather name="check-circle" size={12} color="#4ECDC4" />
+            <Feather name="star" size={12} color="#FFD700" />
           </View>
         ) : null}
 
         <View style={[styles.rarityBadge, { backgroundColor: rarityColor }]}>
           <ThemedText style={styles.rarityText}>
-            {def.rarity.charAt(0).toUpperCase()}
+            {creature.rarity.charAt(0).toUpperCase()}
           </ThemedText>
         </View>
       </View>
       
       <View style={styles.cardInfo}>
         <ThemedText style={styles.creatureName} numberOfLines={1}>
-          {def.name}
+          {creature.name}
         </ThemedText>
         <ThemedText style={styles.levelText}>
           Lv. {creature.level}
@@ -155,7 +154,7 @@ export default function InventoryScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { state, hatchEggs } = useGame();
+  const { collection, collectedEggs, hatchEggs } = useHunt();
   const [isHatching, setIsHatching] = useState(false);
 
   const handleHatch = async () => {
@@ -163,7 +162,7 @@ export default function InventoryScreen() {
     try {
       const result = await hatchEggs();
       if (result.success && result.creature) {
-        const def = getCreatureDefinition(result.creature.id);
+        const def = getCreatureDefinition(result.creature.templateId);
         Alert.alert(
           "Egg Hatched!",
           `You got a ${def?.rarity || 'common'} ${def?.name || 'Roachy'}!`,
@@ -179,17 +178,17 @@ export default function InventoryScreen() {
     }
   };
 
-  const renderItem = ({ item, index }: { item: CaughtCreature; index: number }) => (
+  const renderItem = ({ item, index }: { item: HuntCaughtCreature; index: number }) => (
     <CreatureGridItem
       creature={item}
       index={index}
-      onPress={() => navigation.navigate("CreatureDetail", { uniqueId: item.uniqueId })}
+      onPress={() => navigation.navigate("CreatureDetail", { uniqueId: item.id })}
     />
   );
 
   const renderHeader = () => (
     <EggSection 
-      eggCount={state.eggCount} 
+      eggCount={collectedEggs} 
       onHatch={handleHatch}
       isHatching={isHatching}
     />
@@ -212,9 +211,9 @@ export default function InventoryScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={state.inventory}
+        data={collection}
         renderItem={renderItem}
-        keyExtractor={(item) => item.uniqueId}
+        keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={{
           paddingTop: headerHeight + Spacing.xl,
