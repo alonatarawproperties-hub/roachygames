@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import { Feather } from "@expo/vector-icons";
@@ -18,10 +19,17 @@ import {
   TokenBalanceCard,
   NetworkStatusBadge,
   SolanaTrustBadge,
+  ActivityHistory,
+  EarningsTracker,
+  AchievementBadges,
+  Leaderboard,
+  OnboardingFlow,
 } from "@/components/arcade";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet, WALLET_PROVIDERS } from "@/context/WalletContext";
+
+const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
 
 export function ArcadeHomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -29,7 +37,30 @@ export function ArcadeHomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const { wallet, disconnectWallet } = useWallet();
+
+  useEffect(() => {
+    checkOnboardingStatus();
+  }, []);
+
+  const checkOnboardingStatus = async () => {
+    try {
+      const completed = await AsyncStorage.getItem(ONBOARDING_KEY);
+      setShowOnboarding(completed !== "true");
+    } catch {
+      setShowOnboarding(false);
+    }
+  };
+
+  const handleOnboardingComplete = async () => {
+    try {
+      await AsyncStorage.setItem(ONBOARDING_KEY, "true");
+      setShowOnboarding(false);
+    } catch {
+      setShowOnboarding(false);
+    }
+  };
 
   const featuredGame = GAMES_CATALOG[0];
   const gamesList = GAMES_CATALOG;
@@ -89,6 +120,29 @@ export function ArcadeHomeScreen() {
     Alert.alert("Notifications", "Coming soon!");
   };
 
+  if (showOnboarding === null) {
+    return (
+      <ThemedView style={styles.container}>
+        <LinearGradient
+          colors={[GameColors.background, "#1A0F08", "#2D1810", "#1A0F08", GameColors.background]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={GameColors.gold} />
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <OnboardingFlow
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingComplete}
+      />
+    );
+  }
+
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
@@ -135,6 +189,8 @@ export function ArcadeHomeScreen() {
                   onPress={() => handleGamePress(featuredGame.routeName)}
                   viewerCount="184 hunting"
                 />
+                <View style={styles.sectionSpacer} />
+                <EarningsTracker isConnected={wallet.connected} />
               </>
             )}
 
@@ -208,29 +264,18 @@ export function ArcadeHomeScreen() {
             </View>
 
             <View style={styles.rewardsSection}>
-              <ThemedText style={styles.sectionTitle}>Achievements</ThemedText>
-              {[
-                { icon: "target", title: "First Catch", desc: "Catch your first Roachy", progress: 100 },
-                { icon: "users", title: "Collector", desc: "Catch 10 Roachies", progress: 30 },
-                { icon: "star", title: "Rare Hunter", desc: "Catch a rare Roachy", progress: 0 },
-              ].map((achievement, index) => (
-                <View key={index} style={styles.achievementCard}>
-                  <View style={[styles.achievementIcon, achievement.progress === 100 && styles.achievementComplete]}>
-                    <Feather name={achievement.icon as any} size={24} color={achievement.progress === 100 ? GameColors.gold : GameColors.textSecondary} />
-                  </View>
-                  <View style={styles.achievementInfo}>
-                    <ThemedText style={styles.achievementTitle}>{achievement.title}</ThemedText>
-                    <ThemedText style={styles.achievementDesc}>{achievement.desc}</ThemedText>
-                    <View style={styles.progressBar}>
-                      <View style={[styles.progressFill, { width: `${achievement.progress}%` }]} />
-                    </View>
-                  </View>
-                  {achievement.progress === 100 && (
-                    <Feather name="check" size={20} color={GameColors.success} />
-                  )}
-                </View>
-              ))}
+              <AchievementBadges />
             </View>
+
+            <View style={styles.rewardsSection}>
+              <Leaderboard />
+            </View>
+
+            <View style={styles.rewardsSection}>
+              <ActivityHistory />
+            </View>
+
+            <SolanaTrustBadge variant="minimal" />
           </View>
         )}
 
@@ -293,6 +338,10 @@ export function ArcadeHomeScreen() {
                   </View>
                 )}
               </View>
+            </View>
+
+            <View style={styles.achievementsSection}>
+              <AchievementBadges />
             </View>
 
             <View style={styles.webLinksSection}>
@@ -362,6 +411,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GameColors.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   scrollView: {
     flex: 1,
   },
@@ -389,6 +443,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: GameColors.textTertiary,
+  },
+  sectionSpacer: {
+    height: Spacing.lg,
+  },
+  achievementsSection: {
+    marginBottom: Spacing.xl,
   },
   livePlayersRow: {
     flexDirection: "row",
