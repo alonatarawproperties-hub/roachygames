@@ -24,6 +24,11 @@ import {
   AchievementBadges,
   Leaderboard,
   OnboardingFlow,
+  TransactionHistory,
+  NFTGallery,
+  WebCTABanner,
+  EventsCalendar,
+  FriendActivity,
 } from "@/components/arcade";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -38,6 +43,7 @@ export function ArcadeHomeScreen() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [showWebBanner, setShowWebBanner] = useState(true);
   const { wallet, disconnectWallet } = useWallet();
 
   useEffect(() => {
@@ -222,6 +228,12 @@ export function ArcadeHomeScreen() {
 
             {activeTab === "Home" && (
               <>
+                <View style={styles.sectionSpacer} />
+                {showWebBanner ? <WebCTABanner onDismiss={() => setShowWebBanner(false)} /> : null}
+                <View style={styles.sectionSpacer} />
+                <EventsCalendar />
+                <View style={styles.sectionSpacer} />
+                <FriendActivity isConnected={wallet.connected} />
                 <View style={styles.moreSection}>
                   <ThemedText style={styles.moreText}>More games coming soon</ThemedText>
                 </View>
@@ -340,6 +352,17 @@ export function ArcadeHomeScreen() {
               </View>
             </View>
 
+            <View style={styles.nftSection}>
+              <NFTGallery
+                isConnected={wallet.connected}
+                onConnectWallet={() => setShowWalletModal(true)}
+              />
+            </View>
+
+            <View style={styles.transactionSection}>
+              <TransactionHistory />
+            </View>
+
             <View style={styles.achievementsSection}>
               <AchievementBadges />
             </View>
@@ -448,6 +471,12 @@ const styles = StyleSheet.create({
     height: Spacing.lg,
   },
   achievementsSection: {
+    marginBottom: Spacing.xl,
+  },
+  nftSection: {
+    marginBottom: Spacing.xl,
+  },
+  transactionSection: {
     marginBottom: Spacing.xl,
   },
   livePlayersRow: {

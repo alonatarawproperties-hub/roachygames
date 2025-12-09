@@ -11,3 +11,8 @@ export { EarningsTracker } from "./EarningsTracker";
 export { AchievementBadges } from "./AchievementBadges";
 export { Leaderboard } from "./Leaderboard";
 export { OnboardingFlow } from "./OnboardingFlow";
+export { TransactionHistory } from "./TransactionHistory";
+export { NFTGallery } from "./NFTGallery";
+export { WebCTA, WebCTACompact, WebCTABanner } from "./WebCTA";
+export { EventsCalendar } from "./EventsCalendar";
+export { FriendActivity } from "./FriendActivity";
