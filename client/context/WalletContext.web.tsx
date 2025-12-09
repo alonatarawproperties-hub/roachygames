@@ -1,5 +1,4 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface WalletState {
@@ -54,20 +53,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   };
 
   const openWalletModal = () => {
-    if (Platform.OS === 'web') {
-      console.log('[Wallet] Web wallet connection coming soon');
-      return;
-    }
-    console.log('[Wallet] Native wallet requires TestFlight build with AppKit');
+    console.log('[Wallet] Web wallet connection - use TestFlight app');
   };
 
   const connectWallet = async (): Promise<boolean> => {
-    if (Platform.OS === 'web') {
-      console.log('[Wallet] Web wallet connection coming soon');
-      return false;
-    }
-    
-    console.log('[Wallet] Native wallet requires TestFlight build with AppKit');
+    console.log('[Wallet] Web wallet connection - use TestFlight app');
     return false;
   };
 
