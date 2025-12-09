@@ -284,28 +284,24 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
       <GestureDetector gesture={tapGesture}>
         <View style={StyleSheet.absoluteFill}>
           <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
-            <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: rarityColor }]} />
-            <View style={[styles.creatureBody, { backgroundColor: rarityColor }]}>
-              <View style={styles.creatureEyes}>
-                <View style={styles.eye}>
-                  <View style={styles.pupil} />
-                </View>
-                <View style={styles.eye}>
-                  <View style={styles.pupil} />
-                </View>
+            <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
+            <LinearGradient
+              colors={["#FFD700", "#FFA500", "#FF8C00"]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.eggBody}
+            >
+              <View style={styles.eggShine} />
+              <View style={styles.eggShineSmall} />
+              <ThemedText style={styles.eggQuestion}>?</ThemedText>
+              <View style={[styles.eggClassBadge, { backgroundColor: classColor }]}>
+                <Feather name={classIcon as any} size={12} color="#fff" />
               </View>
-              <View style={styles.creatureAntennae}>
-                <View style={[styles.antenna, styles.antennaLeft]} />
-                <View style={[styles.antenna, styles.antennaRight]} />
-              </View>
-              <View style={styles.creatureLegs}>
-                <View style={styles.leg} />
-                <View style={styles.leg} />
-                <View style={styles.leg} />
-              </View>
-              <View style={[styles.classIndicator, { backgroundColor: classColor }]}>
-                <Feather name={classIcon as any} size={14} color="#fff" />
-              </View>
+            </LinearGradient>
+            <View style={styles.eggSparkles}>
+              <View style={[styles.sparkle, styles.sparkle1]} />
+              <View style={[styles.sparkle, styles.sparkle2]} />
+              <View style={[styles.sparkle, styles.sparkle3]} />
             </View>
           </Animated.View>
 
@@ -541,75 +537,80 @@ const styles = StyleSheet.create({
     shadowRadius: 30,
     elevation: 20,
   },
-  creatureBody: {
-    width: 100,
-    height: 80,
-    borderRadius: 40,
+  eggBody: {
+    width: 90,
+    height: 110,
+    borderRadius: 45,
+    borderTopLeftRadius: 45,
+    borderTopRightRadius: 45,
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.4)",
   },
-  creatureEyes: {
-    flexDirection: "row",
-    gap: 20,
-    marginBottom: 10,
+  eggShine: {
+    position: "absolute",
+    top: 15,
+    left: 15,
+    width: 25,
+    height: 35,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    transform: [{ rotate: "-20deg" }],
   },
-  eye: {
+  eggShineSmall: {
+    position: "absolute",
+    top: 30,
+    left: 45,
+    width: 10,
+    height: 15,
+    borderRadius: 5,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
+  eggQuestion: {
+    fontSize: 40,
+    fontWeight: "bold",
+    color: "rgba(139,69,19,0.6)",
+    marginTop: 5,
+  },
+  eggClassBadge: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pupil: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#000",
-  },
-  creatureAntennae: {
-    position: "absolute",
-    top: -20,
-    flexDirection: "row",
-    width: 60,
-    justifyContent: "space-between",
-  },
-  antenna: {
-    width: 4,
-    height: 25,
-    backgroundColor: "#333",
-    borderRadius: 2,
-  },
-  antennaLeft: {
-    transform: [{ rotate: "-30deg" }],
-  },
-  antennaRight: {
-    transform: [{ rotate: "30deg" }],
-  },
-  creatureLegs: {
-    position: "absolute",
-    bottom: -15,
-    flexDirection: "row",
-    gap: 15,
-  },
-  leg: {
-    width: 6,
-    height: 20,
-    backgroundColor: "#333",
-    borderRadius: 3,
-  },
-  classIndicator: {
-    position: "absolute",
-    bottom: -5,
-    right: -5,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#fff",
+  },
+  eggSparkles: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+  },
+  sparkle: {
+    position: "absolute",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFD700",
+  },
+  sparkle1: {
+    top: 10,
+    right: 20,
+  },
+  sparkle2: {
+    bottom: 15,
+    left: 10,
+  },
+  sparkle3: {
+    top: 50,
+    left: 5,
   },
   netContainer: {
     position: "absolute",
