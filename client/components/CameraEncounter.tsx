@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -17,11 +17,16 @@ import Animated, {
   withSpring,
   Easing,
   runOnJS,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -39,14 +44,14 @@ interface CameraEncounterProps {
 export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncounterProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [isReady, setIsReady] = useState(false);
 
   const creatureX = useSharedValue(SCREEN_WIDTH / 2 - 60);
-  const creatureY = useSharedValue(SCREEN_HEIGHT / 3);
+  const creatureY = useSharedValue(SCREEN_HEIGHT / 2.5);
   const creatureScale = useSharedValue(1);
   const creatureRotation = useSharedValue(0);
   const glowOpacity = useSharedValue(0.5);
   const floatOffset = useSharedValue(0);
+  const pulseScale = useSharedValue(1);
 
   const netScale = useSharedValue(0);
   const netOpacity = useSharedValue(0);
@@ -59,8 +64,8 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
   useEffect(() => {
     floatOffset.value = withRepeat(
       withSequence(
-        withTiming(-15, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(15, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+        withTiming(-12, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(12, { duration: 1500, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
@@ -68,8 +73,8 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
 
     creatureRotation.value = withRepeat(
       withSequence(
-        withTiming(-5, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(5, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(-4, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(4, { duration: 2000, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
@@ -84,14 +89,23 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
       true
     );
 
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+
     const randomMove = () => {
-      const newX = 50 + Math.random() * (SCREEN_WIDTH - 170);
-      const newY = 100 + Math.random() * (SCREEN_HEIGHT / 2 - 100);
-      creatureX.value = withTiming(newX, { duration: 3000, easing: Easing.inOut(Easing.ease) });
-      creatureY.value = withTiming(newY, { duration: 3000, easing: Easing.inOut(Easing.ease) });
+      const newX = 60 + Math.random() * (SCREEN_WIDTH - 180);
+      const newY = 150 + Math.random() * (SCREEN_HEIGHT / 2.5 - 100);
+      creatureX.value = withTiming(newX, { duration: 3500, easing: Easing.inOut(Easing.ease) });
+      creatureY.value = withTiming(newY, { duration: 3500, easing: Easing.inOut(Easing.ease) });
     };
 
-    const moveInterval = setInterval(randomMove, 4000);
+    const moveInterval = setInterval(randomMove, 4500);
     return () => clearInterval(moveInterval);
   }, []);
 
@@ -146,6 +160,10 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
       { scale: netScale.value },
     ],
     opacity: netOpacity.value,
+  }));
+
+  const pulseAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
   }));
 
   if (!permission) {
@@ -215,26 +233,53 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
         </View>
       )}
 
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+      <LinearGradient
+        colors={["rgba(0,0,0,0.5)", "transparent"]}
+        style={[styles.topVignette, { height: insets.top + 80 }]}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.6)"]}
+        style={[styles.bottomVignette, { height: 180 + insets.bottom }]}
+        pointerEvents="none"
+      />
+
+      <Animated.View 
+        entering={FadeInDown.duration(300).springify()}
+        style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}
+      >
         <Pressable style={styles.closeButton} onPress={onCancel}>
-          <Feather name="x" size={24} color="#fff" />
+          <BlurView intensity={40} tint="dark" style={styles.blurButton}>
+            <Feather name="x" size={20} color="#fff" />
+          </BlurView>
         </Pressable>
         
-        <View style={styles.creatureInfo}>
-          <View style={[styles.rarityBadge, { backgroundColor: rarityColor + "40" }]}>
-            <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
-              {spawn.rarity.toUpperCase()}
+        <View style={styles.statRibbon}>
+          <BlurView intensity={50} tint="dark" style={styles.ribbonBlur}>
+            <View style={[styles.rarityPill, { backgroundColor: rarityColor + "30" }]}>
+              <View style={[styles.rarityDot, { backgroundColor: rarityColor }]} />
+              <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
+                {spawn.rarity.toUpperCase()}
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.creatureName} numberOfLines={1}>
+              {spawn.name}
             </ThemedText>
-          </View>
-          <ThemedText style={styles.creatureName}>{spawn.name}</ThemedText>
-          <View style={[styles.classBadge, { backgroundColor: classColor + "40" }]}>
-            <Feather name={classIcon as any} size={12} color={classColor} />
-            <ThemedText style={[styles.classText, { color: classColor }]}>
-              {spawn.creatureClass}
-            </ThemedText>
-          </View>
+            <View style={[styles.classPill, { backgroundColor: classColor + "30" }]}>
+              <Feather name={classIcon as any} size={12} color={classColor} />
+            </View>
+          </BlurView>
         </View>
-      </View>
+
+        <View style={styles.distanceBadge}>
+          <BlurView intensity={40} tint="dark" style={styles.distanceBlur}>
+            <Feather name="navigation" size={12} color={GameColors.primary} />
+            <ThemedText style={styles.distanceText}>
+              {spawn.distance ? `${spawn.distance}m` : "Near"}
+            </ThemedText>
+          </BlurView>
+        </View>
+      </Animated.View>
 
       <GestureDetector gesture={tapGesture}>
         <View style={StyleSheet.absoluteFill}>
@@ -259,7 +304,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
                 <View style={styles.leg} />
               </View>
               <View style={[styles.classIndicator, { backgroundColor: classColor }]}>
-                <Feather name={classIcon as any} size={16} color="#fff" />
+                <Feather name={classIcon as any} size={14} color="#fff" />
               </View>
             </View>
           </Animated.View>
@@ -272,22 +317,31 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
         </View>
       </GestureDetector>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <View style={styles.targetIndicator}>
-          <View style={styles.targetRing}>
-            <View style={styles.targetInner} />
-          </View>
+      <Animated.View 
+        entering={FadeInUp.duration(400).springify()}
+        style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
+      >
+        <View style={styles.actionCapsule}>
+          <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
+            <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
+            
+            <Animated.View style={pulseAnimatedStyle}>
+              <LinearGradient
+                colors={[GameColors.primary, "#FF6B00"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.catchButton}
+              >
+                <View style={styles.catchButtonInner}>
+                  <Feather name="crosshair" size={28} color="#fff" />
+                </View>
+              </LinearGradient>
+            </Animated.View>
+            
+            <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+          </BlurView>
         </View>
-        <ThemedText style={styles.instruction}>
-          TAP to throw net and catch!
-        </ThemedText>
-        <View style={styles.distanceContainer}>
-          <Feather name="map-pin" size={14} color={GameColors.textSecondary} />
-          <ThemedText style={styles.distanceText}>
-            {spawn.distance ? `${spawn.distance}m away` : "Nearby"}
-          </ThemedText>
-        </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -326,6 +380,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: GameColors.textSecondary,
     marginTop: Spacing.sm,
+  },
+  topVignette: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  bottomVignette: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   permissionContainer: {
     flex: 1,
@@ -380,52 +446,83 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
     zIndex: 100,
   },
   closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    overflow: "hidden",
+    borderRadius: 20,
+  },
+  blurButton: {
+    width: 40,
+    height: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.md,
+    overflow: "hidden",
   },
-  creatureInfo: {
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    padding: Spacing.md,
+  statRibbon: {
+    flex: 1,
     borderRadius: BorderRadius.lg,
+    overflow: "hidden",
   },
-  rarityBadge: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
+  ribbonBlur: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.sm,
+    overflow: "hidden",
+  },
+  rarityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
     borderRadius: BorderRadius.full,
-    marginBottom: Spacing.xs,
+    gap: 4,
+  },
+  rarityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   rarityText: {
     fontSize: 10,
     fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   creatureName: {
-    fontSize: 24,
-    fontWeight: "bold",
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
     color: "#fff",
-    marginBottom: Spacing.xs,
   },
-  classBadge: {
+  classPill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  distanceBadge: {
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  distanceBlur: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.xs,
+    gap: 4,
+    overflow: "hidden",
   },
-  classText: {
+  distanceText: {
     fontSize: 12,
     fontWeight: "600",
-    textTransform: "capitalize",
+    color: "#fff",
   },
   creature: {
     position: "absolute",
@@ -506,9 +603,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -5,
     right: -5,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
@@ -536,46 +633,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
   },
-  targetIndicator: {
-    marginBottom: Spacing.md,
+  actionCapsule: {
+    borderRadius: BorderRadius.xl,
+    overflow: "hidden",
   },
-  targetRing: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.5)",
-    justifyContent: "center",
+  capsuleBlur: {
     alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    overflow: "hidden",
   },
-  targetInner: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: GameColors.primary,
-    backgroundColor: "rgba(255,149,0,0.2)",
-  },
-  instruction: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
+  instructionSmall: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.6)",
+    letterSpacing: 1,
     marginBottom: Spacing.sm,
   },
-  distanceContainer: {
-    flexDirection: "row",
+  catchButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
+    padding: 4,
   },
-  distanceText: {
-    color: GameColors.textSecondary,
-    fontSize: 12,
+  catchButtonInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 32,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  catchLabel: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#fff",
+    marginTop: Spacing.sm,
+    letterSpacing: 2,
   },
 });
