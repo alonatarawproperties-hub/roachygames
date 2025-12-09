@@ -67,6 +67,7 @@ args = "Start dev servers"
 [[workflows.workflow]]
 name = "Start dev servers"
 author = "agent"
+mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
