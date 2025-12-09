@@ -4,7 +4,12 @@
 Roachy Games is an arcade platform for play-to-earn (P2E) games featuring Roachies (cockroach-themed creatures). The platform launches with Roachy Hunt and plans to add more games.
 
 ## Current State
-**Phase:** Arcade Launcher Implemented
+**Phase:** TestFlight Beta Live
+
+**Deployment Status:**
+- iOS TestFlight: LIVE (December 2025)
+- Bundle ID: com.roachygames.app
+- EAS Build configured for development, preview, and production profiles
 
 The app includes:
 - **Arcade Home:** Game launcher with featured game and coming soon tiles
