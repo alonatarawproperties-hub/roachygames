@@ -70,6 +70,7 @@ export default function HuntScreen() {
     eggs,
     raids,
     isLoading,
+    collectedEggs,
     updateLocation,
     spawnCreatures,
     catchCreature,
@@ -409,78 +410,72 @@ export default function HuntScreen() {
     </ScrollView>
   );
 
+  const EGGS_REQUIRED = 10;
+  const eggProgress = Math.min(collectedEggs / EGGS_REQUIRED, 1);
+
   const renderEggs = () => (
     <ScrollView
       style={styles.eggsContainer}
       contentContainerStyle={styles.eggsContent}
     >
       <ThemedText type="h4" style={styles.sectionTitle}>
-        Eggs ({eggs.length})
+        Mystery Eggs ({collectedEggs}/10)
       </ThemedText>
-      {eggs.length === 0 ? (
-        <Card style={styles.emptyCard}>
-          <Feather name="gift" size={48} color={GameColors.textSecondary} />
-          <ThemedText style={styles.emptyText}>
-            No eggs yet. Catch creatures to earn eggs!
-          </ThemedText>
-        </Card>
-      ) : (
-        eggs.map((egg) => (
-          <Card key={egg.id} style={styles.eggCard}>
-            <View style={styles.eggInfo}>
-              <View
-                style={[
-                  styles.eggIcon,
-                  { backgroundColor: RARITY_COLORS[egg.rarity] + "30" },
-                ]}
-              >
-                <Feather
-                  name="package"
-                  size={24}
-                  color={RARITY_COLORS[egg.rarity]}
+      
+      <Card style={styles.eggCard}>
+        <View style={styles.eggInfo}>
+          <View
+            style={[
+              styles.eggIcon,
+              { backgroundColor: GameColors.primary + "30" },
+            ]}
+          >
+            <Feather
+              name="gift"
+              size={24}
+              color={GameColors.primary}
+            />
+          </View>
+          <View style={styles.eggDetails}>
+            <ThemedText style={styles.eggRarity}>
+              Collected Mystery Eggs
+            </ThemedText>
+            <View style={styles.eggProgress}>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${eggProgress * 100}%`,
+                      backgroundColor: GameColors.primary,
+                    },
+                  ]}
                 />
               </View>
-              <View style={styles.eggDetails}>
-                <ThemedText style={styles.eggRarity}>
-                  {egg.rarity.toUpperCase()} Egg
-                </ThemedText>
-                <View style={styles.eggProgress}>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${(egg.walkedDistance / egg.requiredDistance) * 100}%`,
-                          backgroundColor: RARITY_COLORS[egg.rarity],
-                        },
-                      ]}
-                    />
-                  </View>
-                  <ThemedText style={styles.progressText}>
-                    {egg.walkedDistance.toFixed(1)} / {egg.requiredDistance} km
-                  </ThemedText>
-                </View>
-              </View>
+              <ThemedText style={styles.progressText}>
+                {collectedEggs} / {EGGS_REQUIRED} eggs
+              </ThemedText>
             </View>
-            {egg.isIncubating ? (
-              <View style={styles.incubatingBadge}>
-                <Feather name="loader" size={14} color="#22C55E" />
-                <ThemedText style={styles.incubatingText}>Incubating</ThemedText>
-              </View>
-            ) : (
-              <Pressable
-                style={styles.incubateButton}
-                onPress={() => {
-                  walkEgg(egg.id, 0.1);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-              >
-                <ThemedText style={styles.incubateButtonText}>Walk +0.1km</ThemedText>
-              </Pressable>
-            )}
-          </Card>
-        ))
-      )}
+          </View>
+        </View>
+        {collectedEggs >= EGGS_REQUIRED ? (
+          <View style={styles.incubatingBadge}>
+            <Feather name="check-circle" size={14} color="#22C55E" />
+            <ThemedText style={styles.incubatingText}>Ready to Hatch!</ThemedText>
+          </View>
+        ) : (
+          <View style={styles.incubatingBadge}>
+            <Feather name="info" size={14} color={GameColors.textSecondary} />
+            <ThemedText style={[styles.incubatingText, { color: GameColors.textSecondary }]}>
+              Need {EGGS_REQUIRED - collectedEggs} more
+            </ThemedText>
+          </View>
+        )}
+      </Card>
+
+      <ThemedText style={styles.eggHint}>
+        Tap mystery egg markers on the map to collect eggs. Collect 10 to hatch a random Roachy!
+      </ThemedText>
     </ScrollView>
   );
 
@@ -974,6 +969,13 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 10,
     color: GameColors.textSecondary,
+  },
+  eggHint: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
   },
   incubatingBadge: {
     flexDirection: "row",
