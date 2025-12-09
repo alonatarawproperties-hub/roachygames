@@ -17,11 +17,11 @@ interface ArcadeTabBarProps {
 }
 
 const TABS: TabItem[] = [
-  { icon: "clock", label: "Recent" },
-  { icon: "heart", label: "Favorites" },
+  { icon: "home", label: "Home" },
+  { icon: "package", label: "Collection" },
   { icon: "play-circle", label: "Games" },
-  { icon: "bar-chart-2", label: "Stats" },
-  { icon: "settings", label: "Settings" },
+  { icon: "award", label: "Rewards" },
+  { icon: "user", label: "Profile" },
 ];
 
 export function ArcadeTabBar({ activeTab, onTabPress }: ArcadeTabBarProps) {
