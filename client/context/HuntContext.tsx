@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const WALLET_STORAGE_KEY = "roachy_hunt_wallet_address";
 
 export interface Spawn {
   id: string;
@@ -129,8 +132,31 @@ interface HuntProviderProps {
 
 export function HuntProvider({ children }: HuntProviderProps) {
   const queryClient = useQueryClient();
-  const [walletAddress] = useState(() => `player_${Math.random().toString(36).substring(2, 15)}`);
+  const [walletAddress, setWalletAddress] = useState<string>("");
+  const [isWalletLoaded, setIsWalletLoaded] = useState(false);
   const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
+
+  useEffect(() => {
+    const loadOrCreateWallet = async () => {
+      try {
+        const storedWallet = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
+        if (storedWallet) {
+          setWalletAddress(storedWallet);
+        } else {
+          const newWallet = `player_${Math.random().toString(36).substring(2, 15)}`;
+          await AsyncStorage.setItem(WALLET_STORAGE_KEY, newWallet);
+          setWalletAddress(newWallet);
+        }
+      } catch (error) {
+        console.error("Failed to load wallet:", error);
+        const fallbackWallet = `player_${Math.random().toString(36).substring(2, 15)}`;
+        setWalletAddress(fallbackWallet);
+      } finally {
+        setIsWalletLoaded(true);
+      }
+    };
+    loadOrCreateWallet();
+  }, []);
 
   const { data: economyData, refetch: refreshEconomy } = useQuery({
     queryKey: ["/api/hunt/economy", walletAddress],
@@ -141,7 +167,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       return data.economy as EconomyStats;
     },
-    enabled: !!walletAddress,
+    enabled: isWalletLoaded && !!walletAddress,
   });
 
   const { data: spawnsData, refetch: refreshSpawns, isLoading: spawnsLoading } = useQuery({
@@ -188,7 +214,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       return data.creatures || [];
     },
-    enabled: !!walletAddress,
+    enabled: isWalletLoaded && !!walletAddress,
   });
 
   const { data: eggsData } = useQuery({
@@ -199,7 +225,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       if (!response.ok) return { eggs: [], incubators: [] };
       return await response.json();
     },
-    enabled: !!walletAddress,
+    enabled: isWalletLoaded && !!walletAddress,
   });
 
   const { data: raidsData } = useQuery({
