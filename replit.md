@@ -48,8 +48,16 @@ The app includes:
   - Live player count indicator: Shows online players and active hunters
   - Profile tab: Marketplace button with Token Swap and Staking shortcuts
   - Currently using placeholder data - ready for Solana RPC/backend integration
-- **Full Solana Wallet Integration**
-  - Implemented complete wallet connection with Diffie-Hellman encryption
+- **WalletConnect (Reown AppKit) Integration**
+  - Replaced custom DH encryption with official Reown AppKit SDK
+  - Platform-specific implementation: AppKit on native (iOS/Android), stub on web
+  - Uses Metro resolver to exclude AppKit packages from web builds
+  - Supports WalletConnect-compatible wallets via Reown modal
+  - Requires WALLETCONNECT_PROJECT_ID secret in environment
+  - Disconnect flow properly calls AppKit disconnect() API
+  - `isAppKitReady` guard prevents UI access when project ID missing
+  - Files: AppKitWrapper.native.tsx, AppKitWrapper.web.tsx, WalletContext.native.tsx, WalletContext.web.tsx
+- **Full Solana Wallet Integration (Legacy - now using Reown AppKit)**
   - Uses tweetnacl for X25519 keypair generation and encrypted payload handling
   - Supports Phantom, Solflare, and Backpack wallets via universal links
   - Proper session management with encrypted shared secrets
