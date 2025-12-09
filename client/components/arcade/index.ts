@@ -3,3 +3,6 @@ export { GameTile } from "./GameTile";
 export { FeaturedGameHero } from "./FeaturedGameHero";
 export { GameListItem } from "./GameListItem";
 export { ArcadeTabBar } from "./ArcadeTabBar";
+export { TokenBalanceCard } from "./TokenBalanceCard";
+export { NetworkStatusBadge } from "./NetworkStatusBadge";
+export { SolanaTrustBadge } from "./SolanaTrustBadge";
