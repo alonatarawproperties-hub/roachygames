@@ -24,7 +24,14 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
-- **Full Solana Wallet Integration (Latest)**
+- **Crypto Arcade UI Components (Latest)**
+  - TokenBalanceCard: Shows RCH + SOL balances with USD conversion, "Connect Wallet" CTA when not connected
+  - NetworkStatusBadge: Pulsing green dot with "Solana" label for connection status
+  - SolanaTrustBadge: "Powered by Solana" footer in minimal and full variants
+  - Live player count indicator: Shows online players and active hunters
+  - Profile tab: Marketplace button with Token Swap and Staking shortcuts
+  - Currently using placeholder data - ready for Solana RPC/backend integration
+- **Full Solana Wallet Integration**
   - Implemented complete wallet connection with Diffie-Hellman encryption
   - Uses tweetnacl for X25519 keypair generation and encrypted payload handling
   - Supports Phantom, Solflare, and Backpack wallets via universal links
