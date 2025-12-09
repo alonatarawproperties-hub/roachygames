@@ -30,14 +30,18 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "APP_ENV": "production"
+      }
     }
   },
   "submit": {
     "production": {
       "ios": {
         "appleId": "3groundsremote5@gmail.com",
-        "ascAppId": "6756288409"
+        "ascAppId": "6756288409",
+        "appleTeamId": "YOUR_TEAM_ID"
       }
     }
   }
