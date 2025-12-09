@@ -14,6 +14,7 @@ interface WalletContextType {
   disconnectWallet: () => Promise<void>;
   isLoading: boolean;
   openWalletModal: () => void;
+  isAppKitReady: boolean;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -80,6 +81,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         disconnectWallet,
         isLoading,
         openWalletModal,
+        isAppKitReady: false,
       }}
     >
       {children}
