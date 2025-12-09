@@ -24,7 +24,24 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
-- **Crypto Arcade UI Components (Latest)**
+- **Player Engagement Features (Latest)**
+  - **OnboardingFlow**: 5-step welcome flow for new players (Welcome, Hunt, Collection, Earn, Wallet)
+    - Uses AsyncStorage to show only once per device
+    - Skip and complete handlers, animated step indicators
+  - **EarningsTracker**: Shows RCH earned today/week/all-time with percentage changes
+    - Wallet connectivity gating - prompts "Connect wallet" when disconnected
+    - Displayed on Home tab below header
+  - **ActivityHistory**: Recent activity feed showing catches, rewards, hatches, trades
+    - Timestamp formatting, RCH amounts, activity icons
+    - Displayed in Rewards tab
+  - **AchievementBadges**: 6 achievements across 4 rarity tiers (common/rare/epic/legendary)
+    - Unlocked/locked states, progress bars, horizontal scroll
+    - Displayed in Rewards and Profile tabs
+  - **Leaderboard**: Tabbed view (Catches/Earnings/Streaks) with top 5 + current user rank
+    - Live indicator, rank badges for top 3, player avatars
+    - Displayed in Rewards tab
+  - All components use placeholder data - ready for Solana RPC/backend integration
+- **Crypto Arcade UI Components**
   - TokenBalanceCard: Shows RCH + SOL balances with USD conversion, "Connect Wallet" CTA when not connected
   - NetworkStatusBadge: Pulsing green dot with "Solana" label for connection status
   - SolanaTrustBadge: "Powered by Solana" footer in minimal and full variants
