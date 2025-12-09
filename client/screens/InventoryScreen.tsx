@@ -154,8 +154,10 @@ export default function InventoryScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { collection, collectedEggs, hatchEggs } = useHunt();
+  const { collection, collectedEggs, hatchEggs, walletAddress } = useHunt();
   const [isHatching, setIsHatching] = useState(false);
+
+  console.log("[Inventory] wallet:", walletAddress, "eggs:", collectedEggs, "collection:", collection.length);
 
   const handleHatch = async () => {
     setIsHatching(true);
@@ -187,11 +189,19 @@ export default function InventoryScreen() {
   );
 
   const renderHeader = () => (
-    <EggSection 
-      eggCount={collectedEggs} 
-      onHatch={handleHatch}
-      isHatching={isHatching}
-    />
+    <>
+      <View style={styles.walletInfo}>
+        <Feather name="user" size={14} color={GameColors.textSecondary} />
+        <ThemedText style={styles.walletText}>
+          {walletAddress.slice(-8)}
+        </ThemedText>
+      </View>
+      <EggSection 
+        eggCount={collectedEggs} 
+        onHatch={handleHatch}
+        isHatching={isHatching}
+      />
+    </>
   );
 
   const renderEmptyState = () => (
@@ -399,5 +409,22 @@ const styles = StyleSheet.create({
   },
   hatchButtonTextDisabled: {
     color: GameColors.textSecondary,
+  },
+  walletInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.sm,
+    alignSelf: "center",
+  },
+  walletText: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    fontFamily: "monospace",
   },
 });
