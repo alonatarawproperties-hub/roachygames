@@ -8,7 +8,7 @@
     "scheme": "roachy-games",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#120a05",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cryptocreatures.app",
