@@ -10,6 +10,7 @@ interface ArcadeHeaderProps {
   onSearchChange?: (text: string) => void;
   onWalletPress?: () => void;
   onNotificationPress?: () => void;
+  walletConnected?: boolean;
 }
 
 export function ArcadeHeader({
@@ -18,6 +19,7 @@ export function ArcadeHeader({
   onSearchChange,
   onWalletPress,
   onNotificationPress,
+  walletConnected = false,
 }: ArcadeHeaderProps) {
   const insets = useSafeAreaInsets();
 
@@ -34,11 +36,15 @@ export function ArcadeHeader({
           <Pressable
             style={({ pressed }) => [
               styles.actionButton,
+              walletConnected && styles.walletConnected,
               pressed && styles.actionButtonPressed,
             ]}
             onPress={onWalletPress}
           >
-            <Feather name="credit-card" size={18} color={GameColors.gold} />
+            {walletConnected ? (
+              <View style={styles.walletConnectedDot} />
+            ) : null}
+            <Feather name="credit-card" size={18} color={walletConnected ? GameColors.secondary : GameColors.gold} />
           </Pressable>
 
           <Pressable
@@ -126,6 +132,20 @@ const styles = StyleSheet.create({
   actionButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.95 }],
+  },
+  walletConnected: {
+    borderColor: GameColors.secondary,
+    borderWidth: 2,
+  },
+  walletConnectedDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: GameColors.secondary,
+    zIndex: 1,
   },
   notificationDot: {
     position: "absolute",

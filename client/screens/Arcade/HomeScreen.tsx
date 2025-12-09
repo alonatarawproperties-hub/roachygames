@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { WalletSelectModal } from "@/components/WalletSelectModal";
 import {
   ArcadeHeader,
   FeaturedGameHero,
@@ -13,11 +15,14 @@ import {
 } from "@/components/arcade";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing } from "@/constants/theme";
+import { useWallet } from "@/context/WalletContext";
 
 export function ArcadeHomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const [activeTab, setActiveTab] = useState("Games");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const { wallet, disconnectWallet } = useWallet();
 
   const featuredGame = GAMES_CATALOG[0];
   const gamesList = GAMES_CATALOG;
@@ -33,11 +38,24 @@ export function ArcadeHomeScreen() {
   };
 
   const handleWalletPress = () => {
-    console.log("Wallet press");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (wallet.connected) {
+      Alert.alert(
+        "Wallet Connected",
+        `Connected to ${wallet.address?.substring(0, 6)}...${wallet.address?.substring(wallet.address.length - 4)}`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Disconnect", style: "destructive", onPress: disconnectWallet },
+        ]
+      );
+    } else {
+      setShowWalletModal(true);
+    }
   };
 
   const handleNotificationPress = () => {
-    console.log("Notification press");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert("Notifications", "Coming soon!");
   };
 
   return (
@@ -54,6 +72,7 @@ export function ArcadeHomeScreen() {
         onSearchChange={setSearchQuery}
         onWalletPress={handleWalletPress}
         onNotificationPress={handleNotificationPress}
+        walletConnected={wallet.connected}
       />
 
       <ScrollView
@@ -97,6 +116,11 @@ export function ArcadeHomeScreen() {
       </ScrollView>
 
       <ArcadeTabBar activeTab={activeTab} onTabPress={setActiveTab} />
+
+      <WalletSelectModal
+        visible={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
     </ThemedView>
   );
 }
