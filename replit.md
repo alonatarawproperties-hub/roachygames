@@ -24,13 +24,13 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
-- **Solana Wallet Integration UI (Latest)**
-  - Added WalletContext for managing wallet connection state
-  - WalletSelectModal component for choosing wallet providers (Phantom, Solflare, Backpack)
-  - ProfileScreen integrated with wallet connection UI
+- **Full Solana Wallet Integration (Latest)**
+  - Implemented complete wallet connection with Diffie-Hellman encryption
+  - Uses tweetnacl for X25519 keypair generation and encrypted payload handling
+  - Supports Phantom, Solflare, and Backpack wallets via universal links
+  - Proper session management with encrypted shared secrets
+  - Works in TestFlight builds with registered app scheme
   - HuntContext syncs with WalletContext - uses Solana address when connected, guest ID when not
-  - **Note:** Full Solana Mobile Wallet Adapter requires EAS development build (see Wallet Integration section below)
-  - Current status: UI ready, shows "Coming Soon" until MWA package is integrated
 - **Unified Egg System**
   - ALL spawns now appear as eggs on the map (templateId: 'wild_egg')
   - Two egg types differentiated by `creatureClass` field:
@@ -167,34 +167,50 @@ server/
 
 ## Wallet Integration
 
-### Current Status
-The wallet UI is ready but shows "Coming Soon" message. Full wallet connection requires:
-- Solana Mobile Wallet Adapter (MWA) native package
-- EAS development build (not compatible with Expo Go)
+### Current Status: READY FOR TESTFLIGHT
+Solana wallet connection is fully implemented using proper Diffie-Hellman encryption via tweetnacl. Works in TestFlight builds with registered app scheme.
 
-### To Enable Full Wallet Support
-1. Install Solana Mobile packages:
-   ```bash
-   npx expo install @solana-mobile/mobile-wallet-adapter-protocol-web3js @solana-mobile/mobile-wallet-adapter-protocol @solana/web3.js react-native-get-random-values buffer
-   ```
-2. Add polyfills to client/index.js:
-   ```javascript
-   import 'react-native-get-random-values';
-   import { Buffer } from 'buffer';
-   global.Buffer = Buffer;
-   ```
-3. Build EAS development client:
-   ```bash
-   npx eas build --profile development --platform android
-   npx eas build --profile development --platform ios
-   ```
-4. Update WalletContext.tsx to use MWA `transact()` API
+**Note:** Expo Go users will see "TestFlight Required" message because Expo Go cannot handle wallet redirect URLs. The full wallet flow only works in the published TestFlight app where the `roachy-games://` scheme is registered.
+
+### Supported Wallets
+- **Phantom** - Primary wallet, uses universal links
+- **Solflare** - Alternative wallet option
+- **Backpack** - Additional wallet support
+
+### Technical Implementation
+The wallet connection uses the official Phantom deeplink protocol with encryption:
+1. Generate ephemeral X25519 keypair using tweetnacl
+2. Send connect request with dapp_encryption_public_key (Base58 encoded)
+3. Wallet returns encrypted response with phantom_encryption_public_key (Base58) + data (Base64) + nonce (Base64)
+4. Compute shared secret using nacl.box.before() with wallet's public key
+5. Decrypt data/nonce using nacl.box.open.after() with shared secret
+6. Extract wallet address and session token from decrypted JSON
+
+### Encoding Standards (Phantom Protocol)
+- **Public keys**: Base58 encoded (dapp_encryption_public_key, phantom_encryption_public_key, wallet address)
+- **Encrypted data/nonce**: Base64 encoded (use tweetnacl-util decodeBase64)
+- **Session storage**: Keys stored as Base58 strings, must decode back to Uint8Array for signing
+
+### Dependencies
+- `tweetnacl` - Pure JS implementation of NaCl cryptographic library (box.keyPair, box.before, box.open.after)
+- `tweetnacl-util` - Utility functions for Base64 encoding/decoding
+- `bs58` - Base58 encoding for Solana public keys and addresses
 
 ### Key Files
-- `client/context/WalletContext.tsx` - Wallet state management
+- `client/context/WalletContext.tsx` - Full wallet connection with DH encryption
 - `client/components/WalletSelectModal.tsx` - Provider selection UI
 - `client/screens/ProfileScreen.tsx` - Wallet connection UI
 - `client/context/HuntContext.tsx` - Uses wallet address for game API calls
+
+### Connection Flow
+1. User taps "Connect Wallet" on Profile screen
+2. Modal shows available wallet providers
+3. User selects wallet (e.g., Phantom)
+4. App generates encryption keypair and opens wallet via deep link
+5. User approves connection in wallet app
+6. Wallet redirects back with encrypted public key
+7. App decrypts response and stores wallet address
+8. Game uses Solana address as player identifier
 
 ## Future Development
 - Full Solana Mobile Wallet Adapter integration
