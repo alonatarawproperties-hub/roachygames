@@ -265,9 +265,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
         return data.creature;
       }
       return null;
@@ -290,8 +290,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
         return {
           success: true,
           isMysteryEgg: data.isMysteryEgg,
@@ -312,11 +312,11 @@ export function HuntProvider({ children }: HuntProviderProps) {
   const startIncubation = useCallback(async (eggId: string, incubatorId: string) => {
     try {
       await apiRequest("POST", `/api/hunt/eggs/${eggId}/incubate`, { incubatorId });
-      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
     } catch (error) {
       console.error("Failed to start incubation:", error);
     }
-  }, [queryClient]);
+  }, [queryClient, walletAddress]);
 
   const walkEgg = useCallback(async (eggId: string, distance: number) => {
     try {
@@ -325,9 +325,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
         walletAddress,
       });
       const data = await response.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
       if (data.hatched) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", walletAddress] });
       }
       return data;
     } catch (error) {
@@ -373,8 +373,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
       });
       const data = await response.json();
       if (data.success && data.creature) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", walletAddress] });
         return {
           success: true,
           creature: data.creature as CaughtCreature,
