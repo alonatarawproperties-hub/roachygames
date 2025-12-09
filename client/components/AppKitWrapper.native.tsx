@@ -89,20 +89,32 @@ interface AppKitWrapperProps {
 
 export function AppKitWrapper({ children }: AppKitWrapperProps) {
   const [isReady, setIsReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    initializeAppKit();
+    console.log('[AppKitWrapper] Starting initialization, projectId:', projectId ? 'present' : 'missing');
+    
+    if (!projectId) {
+      console.warn('[AppKitWrapper] No project ID - skipping AppKit initialization');
+      setIsReady(true);
+      return;
+    }
+    
+    try {
+      initializeAppKit();
+      console.log('[AppKitWrapper] Initialization complete');
+    } catch (error) {
+      console.error('[AppKitWrapper] Initialization failed:', error);
+      setInitError(error instanceof Error ? error.message : 'Unknown error');
+    }
     setIsReady(true);
   }, []);
 
-  if (!isReady) {
-    return <View style={styles.container}>{children}</View>;
-  }
-
+  // Always render children, only add AppKit modal if properly initialized
   return (
     <View style={styles.container}>
       {children}
-      <AppKit />
+      {isReady && appKitInitialized && !initError ? <AppKit /> : null}
     </View>
   );
 }

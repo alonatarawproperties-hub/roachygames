@@ -1,6 +1,21 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAccount, useAppKit, useAppKitState } from '@reown/appkit-react-native';
+
+// Safely import AppKit hooks - they may throw if not initialized
+let useAccount: any;
+let useAppKit: any;
+let useAppKitState: any;
+let appKitHooksAvailable = false;
+
+try {
+  const appKit = require('@reown/appkit-react-native');
+  useAccount = appKit.useAccount;
+  useAppKit = appKit.useAppKit;
+  useAppKitState = appKit.useAppKitState;
+  appKitHooksAvailable = true;
+} catch (error) {
+  console.warn('[WalletContext] AppKit hooks not available:', error);
+}
 
 interface WalletState {
   connected: boolean;
@@ -22,7 +37,10 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 const WALLET_STORAGE_KEY = '@wallet_connection';
 
-export function WalletProvider({ children }: { children: ReactNode }) {
+const projectId = process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID || process.env.WALLETCONNECT_PROJECT_ID || '';
+
+// Inner component that uses AppKit hooks (only rendered when AppKit is ready)
+function WalletProviderWithAppKit({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount();
   const { open, disconnect } = useAppKit();
   const { isOpen } = useAppKitState();
@@ -35,7 +53,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     isConnecting: false,
   });
 
-  const projectId = process.env.WALLETCONNECT_PROJECT_ID;
   const isAppKitReady = Boolean(projectId);
 
   useEffect(() => {
@@ -122,6 +139,62 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       {children}
     </WalletContext.Provider>
   );
+}
+
+// Fallback provider when AppKit is not available or project ID is missing
+function WalletProviderFallback({ children }: { children: ReactNode }) {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    console.log('[WalletProvider] Running in fallback mode - AppKit not available');
+    setIsLoading(false);
+  }, []);
+
+  const fallbackWallet: WalletState = {
+    connected: false,
+    address: null,
+    provider: null,
+    isConnecting: false,
+  };
+
+  const noOpConnect = useCallback(async () => {
+    console.warn('[Wallet] AppKit not available in this build');
+    return false;
+  }, []);
+
+  const noOpDisconnect = useCallback(async () => {
+    console.warn('[Wallet] AppKit not available in this build');
+  }, []);
+
+  const noOpOpenModal = useCallback(() => {
+    console.warn('[Wallet] AppKit not available in this build');
+  }, []);
+
+  return (
+    <WalletContext.Provider
+      value={{
+        wallet: fallbackWallet,
+        connectWallet: noOpConnect,
+        disconnectWallet: noOpDisconnect,
+        isLoading,
+        openWalletModal: noOpOpenModal,
+        isAppKitReady: false,
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
+  );
+}
+
+// Main WalletProvider that chooses the right implementation
+export function WalletProvider({ children }: { children: ReactNode }) {
+  // Use fallback if AppKit hooks aren't available or project ID is missing
+  if (!appKitHooksAvailable || !projectId) {
+    console.log('[WalletProvider] Using fallback - hooks available:', appKitHooksAvailable, 'projectId:', !!projectId);
+    return <WalletProviderFallback>{children}</WalletProviderFallback>;
+  }
+  
+  return <WalletProviderWithAppKit>{children}</WalletProviderWithAppKit>;
 }
 
 export function useWallet() {
