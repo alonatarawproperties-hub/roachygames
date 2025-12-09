@@ -22,13 +22,6 @@
         "buildType": "apk"
       }
     },
-    "testflight": {
-      "distribution": "store",
-      "ios": {
-        "resourceClass": "m-medium"
-      },
-      "autoIncrement": true
-    },
     "production": {
       "ios": {
         "resourceClass": "m-medium"
@@ -37,15 +30,6 @@
         "buildType": "app-bundle"
       },
       "autoIncrement": true
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
-      }
     }
   }
 }
