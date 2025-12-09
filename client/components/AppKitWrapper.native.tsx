@@ -13,7 +13,7 @@ import {
 import { SolanaAdapter } from '@reown/appkit-solana-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const projectId = process.env.WALLETCONNECT_PROJECT_ID || '';
+const projectId = process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID || process.env.WALLETCONNECT_PROJECT_ID || '';
 
 const appKitStorage: Storage = {
   async getKeys(): Promise<string[]> {

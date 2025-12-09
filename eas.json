@@ -32,7 +32,8 @@
       },
       "autoIncrement": true,
       "env": {
-        "APP_ENV": "production"
+        "APP_ENV": "production",
+        "EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID": "ead5b3b443f5a1b83d13565a5591b32b"
       }
     }
   },
