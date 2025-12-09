@@ -22,8 +22,10 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
+import { WalletSelectModal } from "@/components/WalletSelectModal";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
+import { useWallet, WALLET_PROVIDERS } from "@/context/WalletContext";
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES } from "@/constants/creatures";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -61,20 +63,18 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const { state, connectWallet, disconnectWallet, addEggs } = useGame();
-  const [connecting, setConnecting] = useState(false);
+  const { state, addEggs } = useGame();
+  const { wallet, disconnectWallet } = useWallet();
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const rarestCreature = state.playerStats.rarestCatch
     ? getCreatureDefinition(state.playerStats.rarestCatch)
     : null;
 
-  const handleConnectWallet = async () => {
-    setConnecting(true);
+  const handleConnectWallet = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await connectWallet();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setConnecting(false);
+    setShowWalletModal(true);
   };
 
   const handleDisconnectWallet = () => {
@@ -83,8 +83,8 @@ export default function ProfileScreen() {
   };
 
   const handleCopyAddress = async () => {
-    if (state.wallet.address) {
-      await Clipboard.setStringAsync(state.wallet.address);
+    if (wallet.address) {
+      await Clipboard.setStringAsync(wallet.address);
       setCopied(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setTimeout(() => setCopied(false), 2000);
@@ -97,7 +97,13 @@ export default function ProfileScreen() {
   };
 
   const truncateAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
+
+  const getProviderName = () => {
+    if (!wallet.provider) return '';
+    const provider = WALLET_PROVIDERS.find(p => p.id === wallet.provider);
+    return provider?.name || '';
   };
 
   return (
@@ -200,13 +206,13 @@ export default function ProfileScreen() {
           Wallet
         </ThemedText>
         <View style={styles.walletCard}>
-          {state.wallet.connected ? (
+          {wallet.connected && wallet.address ? (
             <>
               <View style={styles.walletConnected}>
                 <View style={styles.walletStatus}>
                   <View style={styles.walletDot} />
                   <ThemedText style={styles.walletStatusText}>
-                    Connected
+                    {getProviderName()} Connected
                   </ThemedText>
                 </View>
                 <Pressable onPress={handleDisconnectWallet}>
@@ -221,10 +227,10 @@ export default function ProfileScreen() {
                 style={styles.addressContainer}
                 onPress={handleCopyAddress}
               >
-                <ThemedText style={styles.addressLabel}>Address</ThemedText>
+                <ThemedText style={styles.addressLabel}>Solana Address</ThemedText>
                 <View style={styles.addressRow}>
                   <ThemedText style={styles.address}>
-                    {truncateAddress(state.wallet.address || "")}
+                    {truncateAddress(wallet.address)}
                   </ThemedText>
                   <Feather
                     name={copied ? "check" : "copy"}
@@ -243,14 +249,14 @@ export default function ProfileScreen() {
                 Connect Your Wallet
               </ThemedText>
               <ThemedText style={styles.walletDescription}>
-                Connect a blockchain wallet to mint your creatures as NFTs and prove ownership.
+                Connect a Solana wallet to mint your creatures as NFTs and prove ownership.
               </ThemedText>
               <Button
                 onPress={handleConnectWallet}
-                disabled={connecting}
+                disabled={wallet.isConnecting}
                 style={styles.connectButton}
               >
-                {connecting ? (
+                {wallet.isConnecting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   "Connect Wallet"
@@ -259,6 +265,11 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        <WalletSelectModal 
+          visible={showWalletModal}
+          onClose={() => setShowWalletModal(false)}
+        />
       </Animated.View>
 
       <Animated.View

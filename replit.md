@@ -24,7 +24,14 @@ The app includes:
   - Economy system with energy/pity mechanics
 
 ## Recent Changes (December 2025)
-- **Unified Egg System (Latest)**
+- **Solana Wallet Integration UI (Latest)**
+  - Added WalletContext for managing wallet connection state
+  - WalletSelectModal component for choosing wallet providers (Phantom, Solflare, Backpack)
+  - ProfileScreen integrated with wallet connection UI
+  - HuntContext syncs with WalletContext - uses Solana address when connected, guest ID when not
+  - **Note:** Full Solana Mobile Wallet Adapter requires EAS development build (see Wallet Integration section below)
+  - Current status: UI ready, shows "Coming Soon" until MWA package is integrated
+- **Unified Egg System**
   - ALL spawns now appear as eggs on the map (templateId: 'wild_egg')
   - Two egg types differentiated by `creatureClass` field:
     - Mystery Eggs (60%): `creatureClass='egg'`, simple tap-to-collect, accumulate 10 to hatch
@@ -158,9 +165,40 @@ server/
 - Development server: Port 5000 (Express) + Port 8081 (Expo)
 - Scan QR code in Expo Go to test on mobile device
 
+## Wallet Integration
+
+### Current Status
+The wallet UI is ready but shows "Coming Soon" message. Full wallet connection requires:
+- Solana Mobile Wallet Adapter (MWA) native package
+- EAS development build (not compatible with Expo Go)
+
+### To Enable Full Wallet Support
+1. Install Solana Mobile packages:
+   ```bash
+   npx expo install @solana-mobile/mobile-wallet-adapter-protocol-web3js @solana-mobile/mobile-wallet-adapter-protocol @solana/web3.js react-native-get-random-values buffer
+   ```
+2. Add polyfills to client/index.js:
+   ```javascript
+   import 'react-native-get-random-values';
+   import { Buffer } from 'buffer';
+   global.Buffer = Buffer;
+   ```
+3. Build EAS development client:
+   ```bash
+   npx eas build --profile development --platform android
+   npx eas build --profile development --platform ios
+   ```
+4. Update WalletContext.tsx to use MWA `transact()` API
+
+### Key Files
+- `client/context/WalletContext.tsx` - Wallet state management
+- `client/components/WalletSelectModal.tsx` - Provider selection UI
+- `client/screens/ProfileScreen.tsx` - Wallet connection UI
+- `client/context/HuntContext.tsx` - Uses wallet address for game API calls
+
 ## Future Development
-- Wallet connection (WalletConnect)
-- NFT minting via marketplace dApp
+- Full Solana Mobile Wallet Adapter integration
+- NFT minting for caught Roachies
 - Additional P2E games
 - Cross-platform sync (mobile + web)
 

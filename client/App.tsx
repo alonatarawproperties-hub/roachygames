@@ -15,6 +15,7 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
+import { WalletProvider } from "@/context/WalletContext";
 import { AppLoadingScreen } from "@/components/AppLoadingScreen";
 import { GameColors } from "@/constants/theme";
 
@@ -59,13 +60,15 @@ export default function App() {
         <SafeAreaProvider onLayout={onLayoutRootView}>
           <GestureHandlerRootView style={styles.root}>
             <KeyboardProvider>
-              <GameProvider>
-                <HuntProvider>
-                  <NavigationContainer>
-                    <RootStackNavigator />
-                  </NavigationContainer>
-                </HuntProvider>
-              </GameProvider>
+              <WalletProvider>
+                <GameProvider>
+                  <HuntProvider>
+                    <NavigationContainer>
+                      <RootStackNavigator />
+                    </NavigationContainer>
+                  </HuntProvider>
+                </GameProvider>
+              </WalletProvider>
               <StatusBar style="light" />
             </KeyboardProvider>
           </GestureHandlerRootView>

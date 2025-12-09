@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useWallet } from "@/context/WalletContext";
 
 const WALLET_STORAGE_KEY = "roachy_hunt_wallet_address";
 
@@ -132,30 +133,35 @@ interface HuntProviderProps {
 
 export function HuntProvider({ children }: HuntProviderProps) {
   const queryClient = useQueryClient();
-  const [walletAddress, setWalletAddress] = useState<string>("");
+  const { wallet: solanaWallet } = useWallet();
+  const [guestWalletAddress, setGuestWalletAddress] = useState<string>("");
   const [isWalletLoaded, setIsWalletLoaded] = useState(false);
   const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
 
+  const walletAddress = solanaWallet.connected && solanaWallet.address 
+    ? solanaWallet.address 
+    : guestWalletAddress;
+
   useEffect(() => {
-    const loadOrCreateWallet = async () => {
+    const loadOrCreateGuestWallet = async () => {
       try {
         const storedWallet = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
         if (storedWallet) {
-          setWalletAddress(storedWallet);
+          setGuestWalletAddress(storedWallet);
         } else {
           const newWallet = `player_${Math.random().toString(36).substring(2, 15)}`;
           await AsyncStorage.setItem(WALLET_STORAGE_KEY, newWallet);
-          setWalletAddress(newWallet);
+          setGuestWalletAddress(newWallet);
         }
       } catch (error) {
         console.error("Failed to load wallet:", error);
         const fallbackWallet = `player_${Math.random().toString(36).substring(2, 15)}`;
-        setWalletAddress(fallbackWallet);
+        setGuestWalletAddress(fallbackWallet);
       } finally {
         setIsWalletLoaded(true);
       }
     };
-    loadOrCreateWallet();
+    loadOrCreateGuestWallet();
   }, []);
 
   const { data: economyData, refetch: refreshEconomy } = useQuery({
