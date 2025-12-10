@@ -14,9 +14,9 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
-import { WalletProvider } from "./context/WalletContext";
-import { AppLoadingScreen } from "@/components/AppLoadingScreen";
-import { AppKitWrapper } from "./components/AppKitWrapper";
+import { WalletProvider } from "@/context/WalletContext";
+import AnimatedSplash from "@/components/AnimatedSplash";
+import { AppKitWrapper } from "@/components/AppKitWrapper";
 import { GameColors } from "@/constants/theme";
 
 SystemUI.setBackgroundColorAsync(GameColors.background);
@@ -24,20 +24,15 @@ SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
-
-  console.log('[App] Rendering, appIsReady:', appIsReady);
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
 
   useEffect(() => {
-    console.log('[App] useEffect starting...');
     async function prepare() {
       try {
-        console.log('[App] Preparing app...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        console.log('[App] Preparation complete');
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (e) {
         console.warn('[App] Error during preparation:', e);
       } finally {
-        console.log('[App] Setting appIsReady to true');
         setAppIsReady(true);
       }
     }
@@ -51,13 +46,12 @@ export default function App() {
     }
   }, [appIsReady]);
 
+  const handleSplashComplete = useCallback(() => {
+    setShowAnimatedSplash(false);
+  }, []);
+
   if (!appIsReady) {
-    return (
-      <GestureHandlerRootView style={styles.root}>
-        <AppLoadingScreen />
-        <StatusBar style="light" />
-      </GestureHandlerRootView>
-    );
+    return null;
   }
 
   return (
@@ -65,17 +59,21 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider onLayout={onLayoutRootView}>
           <GestureHandlerRootView style={styles.root}>
-            <AppKitWrapper>
-              <WalletProvider>
-                <GameProvider>
-                  <HuntProvider>
-                    <NavigationContainer>
-                      <RootStackNavigator />
-                    </NavigationContainer>
-                  </HuntProvider>
-                </GameProvider>
-              </WalletProvider>
-            </AppKitWrapper>
+            {showAnimatedSplash ? (
+              <AnimatedSplash onAnimationComplete={handleSplashComplete} />
+            ) : (
+              <AppKitWrapper>
+                <WalletProvider>
+                  <GameProvider>
+                    <HuntProvider>
+                      <NavigationContainer>
+                        <RootStackNavigator />
+                      </NavigationContainer>
+                    </HuntProvider>
+                  </GameProvider>
+                </WalletProvider>
+              </AppKitWrapper>
+            )}
             <StatusBar style="light" />
           </GestureHandlerRootView>
         </SafeAreaProvider>
