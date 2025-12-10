@@ -1,4 +1,4 @@
-import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 
@@ -24,9 +24,47 @@ const TOKEN_2022_PROGRAM_ID = new PublicKey(
   "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 );
 
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+);
+
 export interface TokenBalances {
   roachy: number;
   diamonds: number;
+}
+
+function getAssociatedTokenAddress(
+  mint: PublicKey,
+  owner: PublicKey,
+  programId: PublicKey
+): PublicKey {
+  const [address] = PublicKey.findProgramAddressSync(
+    [owner.toBytes(), programId.toBytes(), mint.toBytes()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return address;
+}
+
+async function getTokenBalance(
+  connection: Connection,
+  owner: PublicKey,
+  mint: PublicKey,
+  programId: PublicKey
+): Promise<number> {
+  try {
+    const ata = getAssociatedTokenAddress(mint, owner, programId);
+    const accountInfo = await connection.getParsedAccountInfo(ata);
+    
+    if (accountInfo.value) {
+      const data = accountInfo.value.data as any;
+      if (data?.parsed?.info?.tokenAmount?.uiAmount !== undefined) {
+        return data.parsed.info.tokenAmount.uiAmount;
+      }
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
 }
 
 export async function fetchTokenBalances(
@@ -34,65 +72,37 @@ export async function fetchTokenBalances(
 ): Promise<TokenBalances> {
   const connection = getConnection();
   const owner = new PublicKey(walletAddress);
+  const roachyMint = new PublicKey(TOKEN_MINTS.ROACHY);
+  const diamondsMint = new PublicKey(TOKEN_MINTS.DIAMONDS);
+
+  console.log(`[Solana] Fetching balances for ${walletAddress.slice(0, 8)}...`);
 
   try {
-    const roachyMint = new PublicKey(TOKEN_MINTS.ROACHY);
-    const diamondsMint = new PublicKey(TOKEN_MINTS.DIAMONDS);
-
-    const [
-      tokenAccounts,
-      token2022Accounts,
-      roachyAccounts,
-      diamondsAccounts,
-    ] = await Promise.all([
-      connection.getParsedTokenAccountsByOwner(owner, {
-        programId: TOKEN_PROGRAM_ID,
-      }),
-      connection.getParsedTokenAccountsByOwner(owner, {
-        programId: TOKEN_2022_PROGRAM_ID,
-      }),
-      connection.getParsedTokenAccountsByOwner(owner, {
-        mint: roachyMint,
-      }).catch(() => ({ value: [] })),
-      connection.getParsedTokenAccountsByOwner(owner, {
-        mint: diamondsMint,
-      }).catch(() => ({ value: [] })),
+    const [roachyBalance, diamondsBalance] = await Promise.all([
+      getTokenBalance(connection, owner, roachyMint, TOKEN_PROGRAM_ID),
+      getTokenBalance(connection, owner, diamondsMint, TOKEN_2022_PROGRAM_ID),
     ]);
 
-    let roachy = 0;
-    let diamonds = 0;
+    console.log(`[Solana] ROACHY (Token Program): ${roachyBalance}`);
+    console.log(`[Solana] DIAMONDS (Token 2022): ${diamondsBalance}`);
 
-    console.log(
-      `[Solana] Fetching balances for ${walletAddress.slice(0, 8)}...`
-    );
-    console.log(
-      `[Solana] Token Program accounts: ${tokenAccounts.value.length}, Token2022 accounts: ${token2022Accounts.value.length}`
-    );
-    console.log(
-      `[Solana] Direct mint query - ROACHY accounts: ${roachyAccounts.value.length}, DIAMONDS accounts: ${diamondsAccounts.value.length}`
-    );
-
-    for (const account of roachyAccounts.value) {
-      const parsedInfo = account.account.data.parsed?.info;
-      if (parsedInfo?.tokenAmount?.uiAmount) {
-        roachy = parsedInfo.tokenAmount.uiAmount;
-        console.log(`[Solana] Found ROACHY via direct query: ${roachy}`);
-      }
-    }
-
-    for (const account of diamondsAccounts.value) {
-      const parsedInfo = account.account.data.parsed?.info;
-      if (parsedInfo?.tokenAmount?.uiAmount) {
-        diamonds = parsedInfo.tokenAmount.uiAmount;
-        console.log(`[Solana] Found DIAMONDS via direct query: ${diamonds}`);
-      }
-    }
+    let roachy = roachyBalance;
+    let diamonds = diamondsBalance;
 
     if (roachy === 0 || diamonds === 0) {
-      const allAccounts = [
-        ...tokenAccounts.value,
-        ...token2022Accounts.value,
-      ];
+      console.log(`[Solana] Fallback: scanning all token accounts...`);
+      
+      const [tokenAccounts, token2022Accounts] = await Promise.all([
+        connection.getParsedTokenAccountsByOwner(owner, {
+          programId: TOKEN_PROGRAM_ID,
+        }),
+        connection.getParsedTokenAccountsByOwner(owner, {
+          programId: TOKEN_2022_PROGRAM_ID,
+        }),
+      ]);
+
+      const allAccounts = [...tokenAccounts.value, ...token2022Accounts.value];
+      console.log(`[Solana] Found ${allAccounts.length} total token accounts`);
 
       for (const account of allAccounts) {
         const parsedInfo = account.account.data.parsed?.info;
@@ -101,20 +111,20 @@ export async function fetchTokenBalances(
         const mint = parsedInfo.mint;
         const uiAmount = parsedInfo.tokenAmount?.uiAmount || 0;
 
+        console.log(`[Solana] Account mint: ${mint}, balance: ${uiAmount}`);
+
         if (mint === TOKEN_MINTS.ROACHY && roachy === 0) {
           roachy = uiAmount;
-          console.log(`[Solana] Found ROACHY via program scan: ${roachy}`);
         } else if (mint === TOKEN_MINTS.DIAMONDS && diamonds === 0) {
           diamonds = uiAmount;
-          console.log(`[Solana] Found DIAMONDS via program scan: ${diamonds}`);
         }
       }
     }
 
-    console.log(`[Solana] Final balances - ROACHY: ${roachy}, DIAMONDS: ${diamonds}`);
+    console.log(`[Solana] Final - ROACHY: ${roachy}, DIAMONDS: ${diamonds}`);
     return { roachy, diamonds };
   } catch (error) {
-    console.error("Failed to fetch token balances:", error);
+    console.error("[Solana] Failed to fetch token balances:", error);
     return { roachy: 0, diamonds: 0 };
   }
 }
