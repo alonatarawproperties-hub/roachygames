@@ -1,0 +1,43 @@
+# Node modules are installed during the build
+node_modules/
+
+# Attached assets not needed for the app
+attached_assets/
+
+# Logs and caches
+*.log
+.cache/
+tmp/
+.tmp/
+
+# Development files
+.git/
+.gitignore
+*.md
+!app.json
+!eas.json
+!package.json
+!tsconfig.json
+!babel.config.js
+!metro.config.js
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+
+# IDE files
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Replit specific
+.replit
+replit.nix
+.upm/

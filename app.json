@@ -79,7 +79,7 @@
       "eas": {
         "projectId": "b771b4a4-642a-40c9-98e4-f7af33384b5d"
       },
-      "walletConnectProjectId": "${WALLETCONNECT_PROJECT_ID}"
+      "walletConnectProjectId": "${EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID}"
     },
     "owner": "roachygames"
   }
