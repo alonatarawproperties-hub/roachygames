@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
-const roachyLogo = require("../../../assets/images/roachy-logo.jpg");
+const roachyLogo = require("../../../assets/images/roachy-logo.png");
 
 interface ArcadeHeaderProps {
   showSearch?: boolean;
