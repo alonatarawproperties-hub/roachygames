@@ -1,13 +1,16 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import * as Linking from 'expo-linking';
 import { 
-  connectPhantom, 
-  disconnectPhantom, 
-  handlePhantomRedirect, 
+  connectWallet as connectToWallet, 
+  disconnectWallet as disconnectFromWallet, 
+  handleWalletRedirect, 
   restoreSession, 
   isConnected as checkIsConnected,
-  getCurrentWalletAddress
-} from '@/lib/phantomDeeplink';
+  getCurrentWalletAddress,
+  getProviderName,
+  getAvailableWallets,
+  WalletProvider as WalletProviderType,
+} from '@/lib/walletDeeplink';
 
 interface WalletState {
   connected: boolean;
@@ -18,7 +21,7 @@ interface WalletState {
 
 interface WalletContextType {
   wallet: WalletState;
-  connectWallet: () => Promise<boolean>;
+  connectWallet: (provider?: WalletProviderType) => Promise<boolean>;
   disconnectWallet: () => Promise<void>;
   isLoading: boolean;
   openWalletModal: () => void;
@@ -42,7 +45,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const subscription = Linking.addEventListener('url', handleUrl);
     
     Linking.getInitialURL().then((url) => {
-      if (url && url.includes('phantom')) {
+      if (url && (url.includes('wallet-connect') || url.includes('encryption_public_key'))) {
         handleUrl({ url });
       }
     });
@@ -54,15 +57,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const loadSavedSession = async () => {
     try {
-      const address = await restoreSession();
+      const { address, provider } = await restoreSession();
       if (address && checkIsConnected()) {
+        const providerName = getProviderName() || provider || 'Wallet';
         setWallet({
           connected: true,
           address,
-          provider: 'Phantom',
+          provider: providerName,
           isConnecting: false,
         });
-        console.log('[Wallet] Restored session:', address);
+        console.log(`[Wallet] Restored ${providerName} session:`, address);
       }
     } catch (error) {
       console.warn('[Wallet] Failed to restore session:', error);
@@ -74,38 +78,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const handleUrl = async ({ url }: { url: string }) => {
     console.log('[Wallet] Received URL:', url);
     
-    if (url.includes('phantom-connect') || url.includes('phantom_encryption_public_key')) {
-      const address = await handlePhantomRedirect(url);
+    if (url.includes('wallet-connect') || url.includes('encryption_public_key')) {
+      const address = await handleWalletRedirect(url);
       if (address) {
+        const providerName = getProviderName() || 'Wallet';
         setWallet({
           connected: true,
           address,
-          provider: 'Phantom',
+          provider: providerName,
           isConnecting: false,
         });
       } else {
         setWallet(prev => ({ ...prev, isConnecting: false }));
       }
-    } else if (url.includes('phantom-disconnect')) {
-      setWallet({
-        connected: false,
-        address: null,
-        provider: null,
-        isConnecting: false,
-      });
     }
   };
 
-  const connectWallet = useCallback(async (): Promise<boolean> => {
+  const connectWallet = useCallback(async (provider: WalletProviderType = 'phantom'): Promise<boolean> => {
     try {
       setWallet(prev => ({ ...prev, isConnecting: true }));
-      const address = await connectPhantom();
+      const address = await connectToWallet(provider);
       
       if (address) {
+        const providerName = getProviderName() || 'Wallet';
         setWallet({
           connected: true,
           address,
-          provider: 'Phantom',
+          provider: providerName,
           isConnecting: false,
         });
         return true;
@@ -122,7 +121,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnectWallet = useCallback(async () => {
     try {
       setIsLoading(true);
-      await disconnectPhantom();
+      await disconnectFromWallet();
       setWallet({
         connected: false,
         address: null,
@@ -137,7 +136,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openWalletModal = useCallback(() => {
-    connectWallet();
+    connectWallet('phantom');
   }, [connectWallet]);
 
   return (
@@ -166,10 +165,4 @@ export function useWallet() {
 
 export { WalletContext };
 
-export const WALLET_PROVIDERS = [
-  {
-    id: 'phantom',
-    name: 'Phantom',
-    iconName: 'credit-card',
-  },
-];
+export const WALLET_PROVIDERS = getAvailableWallets();

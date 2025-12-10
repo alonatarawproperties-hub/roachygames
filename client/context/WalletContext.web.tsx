@@ -8,9 +8,11 @@ interface WalletState {
   isConnecting: boolean;
 }
 
+type WalletProviderType = 'phantom' | 'solflare' | 'backpack';
+
 interface WalletContextType {
   wallet: WalletState;
-  connectWallet: () => Promise<boolean>;
+  connectWallet: (provider?: WalletProviderType) => Promise<boolean>;
   disconnectWallet: () => Promise<void>;
   isLoading: boolean;
   openWalletModal: () => void;
@@ -57,7 +59,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     console.log('[Wallet] Web wallet connection - use TestFlight app');
   };
 
-  const connectWallet = async (): Promise<boolean> => {
+  const connectWallet = async (_provider?: WalletProviderType): Promise<boolean> => {
     console.log('[Wallet] Web wallet connection - use TestFlight app');
     return false;
   };
@@ -99,10 +101,20 @@ export function useWallet() {
 
 export { WalletContext };
 
-export const WALLET_PROVIDERS = [
+export const WALLET_PROVIDERS: Array<{ id: WalletProviderType; name: string; iconName: string }> = [
   {
-    id: 'walletconnect',
-    name: 'WalletConnect',
-    iconName: 'link',
+    id: 'phantom',
+    name: 'Phantom',
+    iconName: 'credit-card',
+  },
+  {
+    id: 'solflare',
+    name: 'Solflare',
+    iconName: 'sun',
+  },
+  {
+    id: 'backpack',
+    name: 'Backpack',
+    iconName: 'package',
   },
 ];
