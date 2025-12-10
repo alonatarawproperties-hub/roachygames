@@ -134,7 +134,7 @@ export function ArcadeHomeScreen() {
     return (
       <ThemedView style={styles.container}>
         <LinearGradient
-          colors={[GameColors.background, "#1A0F08", "#2D1810", "#1A0F08", GameColors.background]}
+          colors={[GameColors.background, "#150C06"]}
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.loadingContainer}>
@@ -156,10 +156,10 @@ export function ArcadeHomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
-        colors={[GameColors.background, "#1A0F08", "#2D1810", "#1A0F08", GameColors.background]}
+        colors={[GameColors.background, "#150C06"]}
         style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
       />
 
       <ArcadeHeader

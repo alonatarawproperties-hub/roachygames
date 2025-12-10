@@ -2,7 +2,11 @@ import React from "react";
 import { View, StyleSheet, Pressable, TextInput, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+
+const roachyLogo = require("@assets/images/roachy-logo.jpg");
 
 interface ArcadeHeaderProps {
   showSearch?: boolean;
@@ -28,8 +32,9 @@ export function ArcadeHeader({
       <View style={styles.topRow}>
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
-            <Feather name="disc" size={22} color={GameColors.gold} />
+            <Image source={roachyLogo} style={styles.logoImage} contentFit="cover" />
           </View>
+          <ThemedText style={styles.logoText}>Roachy Games</ThemedText>
         </View>
 
         <View style={styles.actions}>
@@ -97,23 +102,35 @@ const styles = StyleSheet.create({
   logoIcon: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 22,
     backgroundColor: GameColors.surfaceElevated,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: GameColors.gold + "40",
+    borderWidth: 2,
+    borderColor: GameColors.gold,
+    overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: GameColors.gold,
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
         shadowOffset: { width: 0, height: 0 },
       },
       web: {
-        boxShadow: `0 0 12px rgba(255, 215, 0, 0.3)`,
+        boxShadow: `0 0 12px rgba(255, 215, 0, 0.4)`,
       },
     }),
+  },
+  logoImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: GameColors.gold,
+    letterSpacing: 0.5,
   },
   actions: {
     flexDirection: "row",
