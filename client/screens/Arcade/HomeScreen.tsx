@@ -19,10 +19,7 @@ import {
   TokenBalanceCard,
   NetworkStatusBadge,
   SolanaTrustBadge,
-  ActivityHistory,
   EarningsTracker,
-  AchievementBadges,
-  Leaderboard,
   OnboardingFlow,
   TransactionHistory,
   NFTGallery,
@@ -254,12 +251,12 @@ export function ArcadeHomeScreen() {
               <Feather name="award" size={48} color={GameColors.gold} />
               <ThemedText style={styles.rewardsTitle}>Rewards Center</ThemedText>
               <ThemedText style={styles.rewardsSubtitle}>
-                Earn rewards by playing games and completing achievements
+                Earn rewards by playing games across the arcade
               </ThemedText>
             </View>
 
             <View style={styles.rewardsSection}>
-              <ThemedText style={styles.sectionTitle}>Daily Rewards</ThemedText>
+              <ThemedText style={styles.sectionTitle}>Daily Login Bonus</ThemedText>
               <View style={styles.dailyRewardsGrid}>
                 {[1, 2, 3, 4, 5, 6, 7].map((day) => (
                   <View
@@ -281,15 +278,29 @@ export function ArcadeHomeScreen() {
             </View>
 
             <View style={styles.rewardsSection}>
-              <AchievementBadges />
+              <EarningsTracker isConnected={wallet.connected} />
             </View>
 
             <View style={styles.rewardsSection}>
-              <Leaderboard />
-            </View>
-
-            <View style={styles.rewardsSection}>
-              <ActivityHistory />
+              <ThemedText style={styles.sectionTitle}>Your Games</ThemedText>
+              <ThemedText style={styles.rewardsHint}>
+                View leaderboards and achievements inside each game
+              </ThemedText>
+              <View style={styles.gameShortcuts}>
+                {GAMES_CATALOG.filter(g => !g.isLocked).map((game) => (
+                  <Pressable
+                    key={game.id}
+                    style={styles.gameShortcut}
+                    onPress={() => handleGamePress(game.routeName)}
+                  >
+                    <View style={styles.gameShortcutIcon}>
+                      <Feather name={game.iconName as any} size={24} color={GameColors.gold} />
+                    </View>
+                    <ThemedText style={styles.gameShortcutTitle}>{game.title}</ThemedText>
+                    <Feather name="chevron-right" size={16} color={GameColors.textSecondary} />
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             <SolanaTrustBadge variant="minimal" />
@@ -366,10 +377,6 @@ export function ArcadeHomeScreen() {
 
             <View style={styles.transactionSection}>
               <TransactionHistory />
-            </View>
-
-            <View style={styles.achievementsSection}>
-              <AchievementBadges />
             </View>
 
             <View style={styles.webLinksSection}>
@@ -804,5 +811,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: GameColors.textSecondary,
+  },
+  rewardsHint: {
+    fontSize: 13,
+    color: GameColors.textTertiary,
+    marginBottom: Spacing.md,
+  },
+  gameShortcuts: {
+    gap: Spacing.sm,
+  },
+  gameShortcut: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  gameShortcutIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: GameColors.gold + "20",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gameShortcutTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
   },
 });
