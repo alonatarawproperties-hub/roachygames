@@ -5,6 +5,8 @@
  * ALL games in the Roachy Games arcade platform.
  */
 
+import type { ImageSourcePropType } from "react-native";
+
 export type InventoryItemType = 
   | 'creature'
   | 'egg'
@@ -32,7 +34,7 @@ export type RarityTier =
 
 export interface InventoryItemMedia {
   icon?: string;
-  image?: string;
+  image?: ImageSourcePropType;
   color?: string;
   backgroundColor?: string;
 }

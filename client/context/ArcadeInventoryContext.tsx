@@ -9,6 +9,7 @@
 import React, { createContext, useContext, useMemo, useCallback } from "react";
 import { useHunt } from "./HuntContext";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
+import { CREATURE_IMAGES } from "@/constants/creatures";
 import type {
   ArcadeInventoryItem,
   ArcadeInventoryState,
@@ -78,6 +79,7 @@ export function ArcadeInventoryProvider({ children }: { children: React.ReactNod
         displayName: creature.name,
         description: `A ${creature.rarity} ${creature.creatureClass} Roachy`,
         media: {
+          image: CREATURE_IMAGES[creature.templateId],
           icon: creature.creatureClass,
           color: getRarityColor(rarity),
           backgroundColor: getRarityColor(rarity) + "20",

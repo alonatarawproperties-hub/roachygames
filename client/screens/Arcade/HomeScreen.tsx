@@ -30,7 +30,6 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet } from "../../context/WalletContext";
 import { useTokenBalances } from "@/hooks/useTokenBalances";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
-import { getRarityColor, CREATURE_IMAGES } from "@/constants/creatures";
 import type { ArcadeInventoryItem, InventoryFilter } from "@/types/inventory";
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
@@ -109,15 +108,15 @@ function InventoryItemSection({
                         ]} 
                       />
                       
-                      {item.itemType === "creature" && item.gamePayload ? (
+                      {item.media.image ? (
                         <Image 
-                          source={CREATURE_IMAGES[(item.gamePayload as any).templateId]} 
+                          source={item.media.image} 
                           style={sectionStyles.itemImage} 
                         />
                       ) : (
                         <View style={sectionStyles.itemIconContainer}>
                           <Feather 
-                            name={item.itemType === "egg" ? "package" : "hexagon"} 
+                            name={item.media.icon || (item.itemType === "egg" ? "package" : "hexagon")} 
                             size={28} 
                             color={item.media.color || GameColors.gold} 
                           />
