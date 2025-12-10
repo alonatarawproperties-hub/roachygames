@@ -16,7 +16,15 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "phantom",
+          "solflare",
+          "backpack",
+          "metamask",
+          "trust",
+          "rainbow"
+        ]
       }
     },
     "android": {
