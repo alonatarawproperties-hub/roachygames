@@ -17,7 +17,11 @@ The project is built as an arcade platform with a clear separation between platf
 The client is developed using Expo and React Native, ensuring cross-platform compatibility (iOS, Android, and web with specific fallbacks).
 
 **Key Features:**
-- **Arcade Home:** Central hub for game selection, token balances, live player counts, and access to rewards, profile, and marketplace links.
+- **Arcade Home (Platform-Wide Only):** Central hub for game selection, token balances, live player counts, and access to rewards, profile, and marketplace links. Contains only platform-wide features:
+    - Home Tab: Featured games, game tiles, search
+    - Games Tab: Full game catalog
+    - Rewards Tab: Daily login bonus, earnings tracker, game shortcuts (no game-specific leaderboards/achievements)
+    - Profile Tab: Wallet connection, user info, account settings
 - **Roachy Hunt Game:**
     - GPS-based creature hunting with an "AR-like" camera encounter system for catching Roachies.
     - 12 unique Roachies across 4 classes and 5 rarity tiers.
