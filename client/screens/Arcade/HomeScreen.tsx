@@ -175,10 +175,10 @@ export function ArcadeHomeScreen() {
             {activeTab === "Home" && (
               <>
                 <TokenBalanceCard
-                  rchBalance={wallet.connected ? 1250 : 0}
-                  solBalance={wallet.connected ? 2.45 : 0}
-                  rchUsdValue={wallet.connected ? 125.00 : 0}
-                  solUsdValue={wallet.connected ? 245.00 : 0}
+                  roachyBalance={wallet.connected ? 0 : 0}
+                  diamondsBalance={wallet.connected ? 0 : 0}
+                  roachyUsdValue={wallet.connected ? 0 : 0}
+                  diamondsUsdValue={wallet.connected ? 0 : 0}
                   isConnected={wallet.connected}
                   onPress={() => setShowWalletModal(true)}
                 />

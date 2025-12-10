@@ -5,24 +5,29 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
+export const TOKEN_MINTS = {
+  ROACHY: "BJqV6DGuHY8U8KYpBGHVV74YMjJYHdYMPfb1g7dppump",
+  DIAMONDS: "28AUaEftPy8L9bhuFusG84RYynFwjnNCVwT2jkyTz6CA",
+};
+
 interface TokenBalanceCardProps {
-  rchBalance: number;
-  solBalance: number;
-  rchUsdValue: number;
-  solUsdValue: number;
+  roachyBalance: number;
+  diamondsBalance: number;
+  roachyUsdValue: number;
+  diamondsUsdValue: number;
   onPress?: () => void;
   isConnected: boolean;
 }
 
 export function TokenBalanceCard({
-  rchBalance = 0,
-  solBalance = 0,
-  rchUsdValue = 0,
-  solUsdValue = 0,
+  roachyBalance = 0,
+  diamondsBalance = 0,
+  roachyUsdValue = 0,
+  diamondsUsdValue = 0,
   onPress,
   isConnected,
 }: TokenBalanceCardProps) {
-  const totalUsdValue = rchUsdValue + solUsdValue;
+  const totalUsdValue = roachyUsdValue + diamondsUsdValue;
 
   const formatNumber = (num: number, decimals: number = 2) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -73,24 +78,24 @@ export function TokenBalanceCard({
 
       <View style={styles.tokensRow}>
         <View style={styles.tokenItem}>
-          <View style={[styles.tokenIcon, styles.rchIcon]}>
-            <ThemedText style={styles.tokenSymbolText}>R</ThemedText>
+          <View style={[styles.tokenIcon, styles.roachyIcon]}>
+            <ThemedText style={styles.roachySymbolText}>R</ThemedText>
           </View>
           <View style={styles.tokenInfo}>
-            <ThemedText style={styles.tokenBalance}>{formatNumber(rchBalance, 0)} RCH</ThemedText>
-            <ThemedText style={styles.tokenUsd}>{formatUsd(rchUsdValue)}</ThemedText>
+            <ThemedText style={styles.tokenBalance}>{formatNumber(roachyBalance, 0)} ROACHY</ThemedText>
+            <ThemedText style={styles.tokenUsd}>{formatUsd(roachyUsdValue)}</ThemedText>
           </View>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.tokenItem}>
-          <View style={[styles.tokenIcon, styles.solIcon]}>
-            <ThemedText style={styles.solSymbolText}>S</ThemedText>
+          <View style={[styles.tokenIcon, styles.diamondsIcon]}>
+            <ThemedText style={styles.diamondsSymbolText}>D</ThemedText>
           </View>
           <View style={styles.tokenInfo}>
-            <ThemedText style={styles.tokenBalance}>{formatNumber(solBalance, 4)} SOL</ThemedText>
-            <ThemedText style={styles.tokenUsd}>{formatUsd(solUsdValue)}</ThemedText>
+            <ThemedText style={styles.tokenBalance}>{formatNumber(diamondsBalance, 0)} DIAMONDS</ThemedText>
+            <ThemedText style={styles.tokenUsd}>{formatUsd(diamondsUsdValue)}</ThemedText>
           </View>
         </View>
       </View>
@@ -143,25 +148,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  rchIcon: {
+  roachyIcon: {
     backgroundColor: GameColors.gold + "20",
     borderWidth: 1,
     borderColor: GameColors.gold + "40",
   },
-  solIcon: {
-    backgroundColor: "#9945FF20",
+  diamondsIcon: {
+    backgroundColor: "#00D4FF20",
     borderWidth: 1,
-    borderColor: "#9945FF40",
+    borderColor: "#00D4FF40",
   },
-  tokenSymbolText: {
+  roachySymbolText: {
     fontSize: 16,
     fontWeight: "800",
     color: GameColors.gold,
   },
-  solSymbolText: {
+  diamondsSymbolText: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#9945FF",
+    color: "#00D4FF",
   },
   tokenInfo: {
     flex: 1,
