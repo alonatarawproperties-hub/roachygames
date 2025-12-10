@@ -36,42 +36,78 @@ export async function fetchTokenBalances(
   const owner = new PublicKey(walletAddress);
 
   try {
-    const [tokenAccounts, token2022Accounts] = await Promise.all([
+    const roachyMint = new PublicKey(TOKEN_MINTS.ROACHY);
+    const diamondsMint = new PublicKey(TOKEN_MINTS.DIAMONDS);
+
+    const [
+      tokenAccounts,
+      token2022Accounts,
+      roachyAccounts,
+      diamondsAccounts,
+    ] = await Promise.all([
       connection.getParsedTokenAccountsByOwner(owner, {
         programId: TOKEN_PROGRAM_ID,
       }),
       connection.getParsedTokenAccountsByOwner(owner, {
         programId: TOKEN_2022_PROGRAM_ID,
       }),
+      connection.getParsedTokenAccountsByOwner(owner, {
+        mint: roachyMint,
+      }).catch(() => ({ value: [] })),
+      connection.getParsedTokenAccountsByOwner(owner, {
+        mint: diamondsMint,
+      }).catch(() => ({ value: [] })),
     ]);
-
-    const allAccounts = [
-      ...tokenAccounts.value,
-      ...token2022Accounts.value,
-    ];
 
     let roachy = 0;
     let diamonds = 0;
 
     console.log(
-      `[Solana] Found ${allAccounts.length} token accounts for ${walletAddress.slice(0, 8)}...`
+      `[Solana] Fetching balances for ${walletAddress.slice(0, 8)}...`
+    );
+    console.log(
+      `[Solana] Token Program accounts: ${tokenAccounts.value.length}, Token2022 accounts: ${token2022Accounts.value.length}`
+    );
+    console.log(
+      `[Solana] Direct mint query - ROACHY accounts: ${roachyAccounts.value.length}, DIAMONDS accounts: ${diamondsAccounts.value.length}`
     );
 
-    for (const account of allAccounts) {
+    for (const account of roachyAccounts.value) {
       const parsedInfo = account.account.data.parsed?.info;
-      if (!parsedInfo) continue;
+      if (parsedInfo?.tokenAmount?.uiAmount) {
+        roachy = parsedInfo.tokenAmount.uiAmount;
+        console.log(`[Solana] Found ROACHY via direct query: ${roachy}`);
+      }
+    }
 
-      const mint = parsedInfo.mint;
-      const uiAmount = parsedInfo.tokenAmount?.uiAmount || 0;
+    for (const account of diamondsAccounts.value) {
+      const parsedInfo = account.account.data.parsed?.info;
+      if (parsedInfo?.tokenAmount?.uiAmount) {
+        diamonds = parsedInfo.tokenAmount.uiAmount;
+        console.log(`[Solana] Found DIAMONDS via direct query: ${diamonds}`);
+      }
+    }
 
-      console.log(`[Solana] Token: ${mint.slice(0, 8)}... Balance: ${uiAmount}`);
+    if (roachy === 0 || diamonds === 0) {
+      const allAccounts = [
+        ...tokenAccounts.value,
+        ...token2022Accounts.value,
+      ];
 
-      if (mint === TOKEN_MINTS.ROACHY) {
-        roachy = uiAmount;
-        console.log(`[Solana] Found ROACHY: ${roachy}`);
-      } else if (mint === TOKEN_MINTS.DIAMONDS) {
-        diamonds = uiAmount;
-        console.log(`[Solana] Found DIAMONDS: ${diamonds}`);
+      for (const account of allAccounts) {
+        const parsedInfo = account.account.data.parsed?.info;
+        if (!parsedInfo) continue;
+
+        const mint = parsedInfo.mint;
+        const uiAmount = parsedInfo.tokenAmount?.uiAmount || 0;
+
+        if (mint === TOKEN_MINTS.ROACHY && roachy === 0) {
+          roachy = uiAmount;
+          console.log(`[Solana] Found ROACHY via program scan: ${roachy}`);
+        } else if (mint === TOKEN_MINTS.DIAMONDS && diamonds === 0) {
+          diamonds = uiAmount;
+          console.log(`[Solana] Found DIAMONDS via program scan: ${diamonds}`);
+        }
       }
     }
 
