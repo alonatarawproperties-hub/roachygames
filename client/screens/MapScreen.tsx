@@ -106,10 +106,10 @@ export default function MapScreen() {
             }
           );
         } catch {
-          updateLocation(37.7749, -122.4194);
+          // Don't set fallback location - wait for real GPS
         }
       } else {
-        updateLocation(37.7749, -122.4194);
+        // Don't set fallback location - wait for real GPS
       }
       setLoading(false);
     })();
