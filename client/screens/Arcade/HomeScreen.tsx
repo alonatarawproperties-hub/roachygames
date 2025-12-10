@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator, Image, FlatList } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,8 +29,12 @@ import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet } from "../../context/WalletContext";
 import { useTokenBalances } from "@/hooks/useTokenBalances";
+import { useHunt, CaughtCreature } from "@/context/HuntContext";
+import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES } from "@/constants/creatures";
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
+
+type InventoryFilter = "all" | "creatures" | "eggs" | "nfts";
 
 export function ArcadeHomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -40,11 +44,13 @@ export function ArcadeHomeScreen() {
   const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [showWebBanner, setShowWebBanner] = useState(true);
+  const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const { wallet, disconnectWallet } = useWallet();
   const { roachy, diamonds, isLoading: balancesLoading } = useTokenBalances(
     wallet.address,
     wallet.connected
   );
+  const { collection: creatures, eggs, isLoading: isLoadingInventory } = useHunt();
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -237,6 +243,189 @@ export function ArcadeHomeScreen() {
               </>
             )}
           </>
+        )}
+
+        {activeTab === "Inventory" && (
+          <View style={styles.tabContent}>
+            <View style={styles.inventoryBanner}>
+              <Feather name="briefcase" size={48} color={GameColors.gold} />
+              <ThemedText style={styles.inventoryTitle}>Your Collection</ThemedText>
+              <ThemedText style={styles.inventorySubtitle}>
+                All your items across all games in one place
+              </ThemedText>
+            </View>
+
+            <View style={styles.inventoryFilters}>
+              {(["all", "creatures", "eggs", "nfts"] as InventoryFilter[]).map((filter) => (
+                <Pressable
+                  key={filter}
+                  style={[
+                    styles.filterChip,
+                    inventoryFilter === filter && styles.filterChipActive,
+                  ]}
+                  onPress={() => setInventoryFilter(filter)}
+                >
+                  <Feather
+                    name={filter === "all" ? "grid" : filter === "creatures" ? "target" : filter === "eggs" ? "package" : "hexagon"}
+                    size={14}
+                    color={inventoryFilter === filter ? GameColors.gold : GameColors.textSecondary}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.filterChipText,
+                      inventoryFilter === filter && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.inventoryStats}>
+              <View style={styles.statBox}>
+                <ThemedText style={styles.statNumber}>{creatures.length}</ThemedText>
+                <ThemedText style={styles.statLabel}>Creatures</ThemedText>
+              </View>
+              <View style={styles.statBox}>
+                <ThemedText style={styles.statNumber}>{eggs.length}</ThemedText>
+                <ThemedText style={styles.statLabel}>Eggs</ThemedText>
+              </View>
+              <View style={styles.statBox}>
+                <ThemedText style={styles.statNumber}>{creatures.filter(c => c.isPerfect).length}</ThemedText>
+                <ThemedText style={styles.statLabel}>NFT-Ready</ThemedText>
+              </View>
+            </View>
+
+            {isLoadingInventory ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={GameColors.gold} />
+                <ThemedText style={styles.loadingText}>Loading collection...</ThemedText>
+              </View>
+            ) : (
+              <>
+                {(inventoryFilter === "all" || inventoryFilter === "creatures") && (
+                  <View style={styles.inventorySection}>
+                    <View style={styles.sectionHeader}>
+                      <Feather name="target" size={18} color={GameColors.gold} />
+                      <ThemedText style={styles.sectionTitle}>Creatures</ThemedText>
+                      <View style={styles.gameBadge}>
+                        <ThemedText style={styles.gameBadgeText}>Roachy Hunt</ThemedText>
+                      </View>
+                    </View>
+                    {creatures.length > 0 ? (
+                      <View style={styles.creatureGrid}>
+                        {creatures.map((creature) => {
+                          const def = getCreatureDefinition(creature.templateId);
+                          if (!def) return null;
+                          const rarityColor = getRarityColor(creature.rarity as any);
+                          return (
+                            <Pressable
+                              key={creature.id}
+                              style={styles.creatureCard}
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                navigation.navigate("HuntTab", {
+                                  screen: "InventoryTab",
+                                  params: { screen: "CreatureDetail", params: { creatureId: creature.id } },
+                                });
+                              }}
+                            >
+                              <View style={[styles.creatureGlow, { backgroundColor: rarityColor }]} />
+                              <Image source={CREATURE_IMAGES[creature.templateId]} style={styles.creatureImage} />
+                              {creature.isPerfect ? (
+                                <View style={styles.nftBadge}>
+                                  <Feather name="star" size={10} color="#FFD700" />
+                                </View>
+                              ) : null}
+                              <View style={[styles.rarityDot, { backgroundColor: rarityColor }]} />
+                              <ThemedText style={styles.creatureCardName} numberOfLines={1}>
+                                {creature.name}
+                              </ThemedText>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <View style={styles.emptyInventory}>
+                        <Feather name="inbox" size={40} color={GameColors.textTertiary} />
+                        <ThemedText style={styles.emptyText}>No creatures yet</ThemedText>
+                        <ThemedText style={styles.emptyHint}>Play Roachy Hunt to catch creatures</ThemedText>
+                        <Button
+                          onPress={() => handleGamePress("HuntTab")}
+                          style={styles.playButton}
+                        >
+                          Play Now
+                        </Button>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {(inventoryFilter === "all" || inventoryFilter === "eggs") && (
+                  <View style={styles.inventorySection}>
+                    <View style={styles.sectionHeader}>
+                      <Feather name="package" size={18} color={GameColors.gold} />
+                      <ThemedText style={styles.sectionTitle}>Eggs</ThemedText>
+                      <View style={styles.gameBadge}>
+                        <ThemedText style={styles.gameBadgeText}>Roachy Hunt</ThemedText>
+                      </View>
+                    </View>
+                    {eggs.length > 0 ? (
+                      <View style={styles.eggGrid}>
+                        {eggs.map((egg) => (
+                          <View key={egg.id} style={styles.eggCard}>
+                            <View style={styles.eggIcon}>
+                              <Feather name="package" size={24} color={GameColors.gold} />
+                            </View>
+                            <ThemedText style={styles.eggType}>{egg.rarity} Egg</ThemedText>
+                            {egg.isIncubating ? (
+                              <View style={styles.incubatingBadge}>
+                                <Feather name="clock" size={10} color={GameColors.primary} />
+                                <ThemedText style={styles.incubatingText}>Hatching</ThemedText>
+                              </View>
+                            ) : null}
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.emptyInventorySmall}>
+                        <ThemedText style={styles.emptyTextSmall}>No eggs collected</ThemedText>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {(inventoryFilter === "all" || inventoryFilter === "nfts") && (
+                  <View style={styles.inventorySection}>
+                    <View style={styles.sectionHeader}>
+                      <Feather name="hexagon" size={18} color={GameColors.gold} />
+                      <ThemedText style={styles.sectionTitle}>NFTs</ThemedText>
+                    </View>
+                    {creatures.filter(c => c.isPerfect).length > 0 ? (
+                      <View style={styles.nftInfo}>
+                        <ThemedText style={styles.nftInfoText}>
+                          {creatures.filter(c => c.isPerfect).length} perfect creatures ready to mint
+                        </ThemedText>
+                        <Button
+                          onPress={() => wallet.connected ? Alert.alert("Coming Soon", "NFT minting coming soon!") : setShowWalletModal(true)}
+                          style={styles.mintButton}
+                        >
+                          {wallet.connected ? "Mint NFTs" : "Connect Wallet"}
+                        </Button>
+                      </View>
+                    ) : (
+                      <View style={styles.emptyInventorySmall}>
+                        <ThemedText style={styles.emptyTextSmall}>Catch perfect creatures to mint NFTs</ThemedText>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </>
+            )}
+
+            <SolanaTrustBadge variant="minimal" />
+          </View>
         )}
 
         {activeTab === "Rewards" && (
@@ -835,5 +1024,216 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: GameColors.textPrimary,
+  },
+  inventoryBanner: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
+    marginBottom: Spacing.lg,
+  },
+  inventoryTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: GameColors.gold,
+    marginTop: Spacing.md,
+  },
+  inventorySubtitle: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
+  },
+  inventoryFilters: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceGlow,
+  },
+  filterChipActive: {
+    backgroundColor: GameColors.gold + "20",
+    borderColor: GameColors.gold,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.textSecondary,
+  },
+  filterChipTextActive: {
+    color: GameColors.gold,
+  },
+  inventoryStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  statBox: {
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    color: GameColors.textSecondary,
+  },
+  inventorySection: {
+    marginBottom: Spacing.xl,
+  },
+  gameBadge: {
+    marginLeft: "auto",
+    backgroundColor: GameColors.primary + "20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  gameBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: GameColors.primary,
+  },
+  creatureGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  creatureCard: {
+    width: "30%",
+    aspectRatio: 0.9,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.xs,
+    position: "relative",
+    overflow: "hidden",
+  },
+  creatureGlow: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    borderTopLeftRadius: BorderRadius.md,
+    borderTopRightRadius: BorderRadius.md,
+  },
+  creatureImage: {
+    width: 48,
+    height: 48,
+    marginBottom: Spacing.xs,
+  },
+  nftBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: GameColors.gold + "30",
+    borderRadius: 10,
+    padding: 3,
+  },
+  rarityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: Spacing.xs,
+  },
+  creatureCardName: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    textAlign: "center",
+  },
+  emptyInventory: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+  },
+  emptyHint: {
+    fontSize: 12,
+    color: GameColors.textTertiary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.lg,
+  },
+  playButton: {
+    paddingHorizontal: Spacing.xl,
+  },
+  eggGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  eggCard: {
+    width: 80,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  eggIcon: {
+    marginBottom: Spacing.xs,
+  },
+  eggType: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    textTransform: "capitalize",
+  },
+  incubatingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginTop: Spacing.xs,
+    backgroundColor: GameColors.primary + "20",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  incubatingText: {
+    fontSize: 8,
+    fontWeight: "600",
+    color: GameColors.primary,
+  },
+  emptyInventorySmall: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+  },
+  emptyTextSmall: {
+    fontSize: 12,
+    color: GameColors.textTertiary,
+  },
+  nftInfo: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+  },
+  nftInfoText: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  mintButton: {
+    paddingHorizontal: Spacing.xl,
   },
 });

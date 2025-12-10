@@ -19,6 +19,7 @@ interface ArcadeTabBarProps {
 const TABS: TabItem[] = [
   { icon: "home", label: "Home" },
   { icon: "play-circle", label: "Games" },
+  { icon: "briefcase", label: "Inventory" },
   { icon: "award", label: "Rewards" },
   { icon: "user", label: "Profile" },
 ];
