@@ -30,7 +30,8 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet } from "../../context/WalletContext";
 import { useTokenBalances } from "@/hooks/useTokenBalances";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
-import type { ArcadeInventoryItem, InventoryFilter } from "@/types/inventory";
+import type { ArcadeInventoryItem, InventoryFilter, InventoryItemType, ItemTypeMetadata } from "@/types/inventory";
+import { ITEM_TYPE_REGISTRY, getItemTypeMetadata } from "@/types/inventory";
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
 
@@ -116,7 +117,7 @@ function InventoryItemSection({
                       ) : (
                         <View style={sectionStyles.itemIconContainer}>
                           <Feather 
-                            name={item.media.icon || (item.itemType === "egg" ? "package" : "hexagon")} 
+                            name={(item.media.icon || (item.itemType === "egg" ? "package" : "hexagon")) as keyof typeof Feather.glyphMap} 
                             size={28} 
                             color={item.media.color || GameColors.gold} 
                           />
@@ -315,7 +316,12 @@ export function ArcadeHomeScreen() {
     getGameInfo,
     getCountByType,
     getMintableCount,
+    getActiveItemTypes,
+    getTypeMetadata,
   } = useArcadeInventory();
+
+  // Get unique item types that exist in inventory for dynamic filters
+  const activeItemTypes = getActiveItemTypes();
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -520,46 +526,75 @@ export function ArcadeHomeScreen() {
               </ThemedText>
             </View>
 
+            {/* Dynamic Filter Chips - based on what items exist */}
             <View style={styles.inventoryFilters}>
-              {(["all", "creature", "egg", "nft"] as InventoryFilter[]).map((filter) => (
+              <Pressable
+                style={[
+                  styles.filterChip,
+                  inventoryFilter === "all" && styles.filterChipActive,
+                ]}
+                onPress={() => setInventoryFilter("all")}
+              >
+                <Feather
+                  name="grid"
+                  size={14}
+                  color={inventoryFilter === "all" ? GameColors.gold : GameColors.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.filterChipText,
+                    inventoryFilter === "all" && styles.filterChipTextActive,
+                  ]}
+                >
+                  All ({inventoryItems.length})
+                </ThemedText>
+              </Pressable>
+              
+              {/* Dynamically render filter chips for each item type present */}
+              {activeItemTypes.map((typeMeta) => (
                 <Pressable
-                  key={filter}
+                  key={typeMeta.type}
                   style={[
                     styles.filterChip,
-                    inventoryFilter === filter && styles.filterChipActive,
+                    inventoryFilter === typeMeta.type && styles.filterChipActive,
                   ]}
-                  onPress={() => setInventoryFilter(filter)}
+                  onPress={() => setInventoryFilter(typeMeta.type)}
                 >
                   <Feather
-                    name={filter === "all" ? "grid" : filter === "creature" ? "target" : filter === "egg" ? "package" : "hexagon"}
+                    name={typeMeta.icon as keyof typeof Feather.glyphMap}
                     size={14}
-                    color={inventoryFilter === filter ? GameColors.gold : GameColors.textSecondary}
+                    color={inventoryFilter === typeMeta.type ? GameColors.gold : GameColors.textSecondary}
                   />
                   <ThemedText
                     style={[
                       styles.filterChipText,
-                      inventoryFilter === filter && styles.filterChipTextActive,
+                      inventoryFilter === typeMeta.type && styles.filterChipTextActive,
                     ]}
                   >
-                    {filter === "all" ? "All" : filter === "creature" ? "Creatures" : filter === "egg" ? "Eggs" : "NFTs"}
+                    {typeMeta.pluralLabel}
                   </ThemedText>
                 </Pressable>
               ))}
             </View>
 
+            {/* Dynamic Stats - shows counts for whatever types exist */}
             <View style={styles.inventoryStats}>
               <View style={styles.statBox}>
-                <ThemedText style={styles.statNumber}>{getCountByType("creature")}</ThemedText>
-                <ThemedText style={styles.statLabel}>Creatures</ThemedText>
+                <ThemedText style={styles.statNumber}>{inventoryItems.length}</ThemedText>
+                <ThemedText style={styles.statLabel}>Total Items</ThemedText>
               </View>
-              <View style={styles.statBox}>
-                <ThemedText style={styles.statNumber}>{getCountByType("egg")}</ThemedText>
-                <ThemedText style={styles.statLabel}>Eggs</ThemedText>
-              </View>
-              <View style={styles.statBox}>
-                <ThemedText style={styles.statNumber}>{getMintableCount()}</ThemedText>
-                <ThemedText style={styles.statLabel}>NFT-Ready</ThemedText>
-              </View>
+              {activeItemTypes.slice(0, 2).map((typeMeta) => (
+                <View key={typeMeta.type} style={styles.statBox}>
+                  <ThemedText style={styles.statNumber}>{getCountByType(typeMeta.type)}</ThemedText>
+                  <ThemedText style={styles.statLabel}>{typeMeta.pluralLabel}</ThemedText>
+                </View>
+              ))}
+              {getMintableCount() > 0 ? (
+                <View style={styles.statBox}>
+                  <ThemedText style={styles.statNumber}>{getMintableCount()}</ThemedText>
+                  <ThemedText style={styles.statLabel}>NFT-Ready</ThemedText>
+                </View>
+              ) : null}
             </View>
 
             {isLoadingInventory ? (
@@ -567,75 +602,82 @@ export function ArcadeHomeScreen() {
                 <ActivityIndicator size="large" color={GameColors.gold} />
                 <ThemedText style={styles.loadingText}>Loading collection...</ThemedText>
               </View>
+            ) : inventoryItems.length === 0 ? (
+              /* Empty state when no items at all */
+              <View style={styles.emptyInventory}>
+                <Feather name="inbox" size={48} color={GameColors.textTertiary} />
+                <ThemedText style={styles.emptyText}>No items yet</ThemedText>
+                <ThemedText style={styles.emptyHint}>
+                  Play games to collect creatures, eggs, badges, and more
+                </ThemedText>
+                <Button
+                  onPress={() => handleGamePress("HuntTab")}
+                  style={styles.playButton}
+                >
+                  Start Playing
+                </Button>
+              </View>
             ) : (
+              /* Dynamic sections - render one for each active item type */
               <>
-                {(inventoryFilter === "all" || inventoryFilter === "creature") && (
-                  <InventoryItemSection
-                    title="Creatures"
-                    icon="target"
-                    items={getFilteredItems("creature")}
-                    getGameInfo={getGameInfo}
-                    onItemPress={(item) => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      if (item.actions?.[0]?.route) {
-                        const route = item.actions[0].route;
-                        navigation.navigate(route.gameId === "roachy-hunt" ? "HuntTab" : route.gameId, {
-                          screen: "InventoryTab",
-                          params: { screen: route.screen, params: route.params },
-                        });
-                      }
-                    }}
-                    emptyMessage="No creatures yet"
-                    emptyHint="Play games to collect creatures"
-                    onPlayPress={() => handleGamePress("HuntTab")}
-                  />
-                )}
+                {activeItemTypes
+                  .filter((typeMeta) => 
+                    inventoryFilter === "all" || inventoryFilter === typeMeta.type
+                  )
+                  .map((typeMeta) => {
+                    const items = getFilteredItems(typeMeta.type);
+                    if (items.length === 0 && inventoryFilter !== "all") return null;
+                    
+                    return (
+                      <InventoryItemSection
+                        key={typeMeta.type}
+                        title={typeMeta.pluralLabel}
+                        icon={typeMeta.icon as keyof typeof Feather.glyphMap}
+                        items={items}
+                        getGameInfo={getGameInfo}
+                        onItemPress={(item) => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          if (item.actions?.[0]?.route) {
+                            const route = item.actions[0].route;
+                            const routeMap: Record<string, string> = {
+                              "roachy-hunt": "HuntTab",
+                              "roachy-battles": "BattlesTab",
+                              "flappy-roach": "FlappyTab",
+                              "roachy-mate": "MateTab",
+                            };
+                            navigation.navigate(routeMap[route.gameId] || route.gameId, {
+                              screen: route.screen,
+                              params: route.params,
+                            });
+                          }
+                        }}
+                        emptyMessage={typeMeta.emptyMessage}
+                        emptyHint={typeMeta.emptyHint}
+                        onPlayPress={() => handleGamePress("HuntTab")}
+                      />
+                    );
+                  })}
 
-                {(inventoryFilter === "all" || inventoryFilter === "egg") && (
-                  <InventoryItemSection
-                    title="Eggs"
-                    icon="package"
-                    items={getFilteredItems("egg")}
-                    getGameInfo={getGameInfo}
-                    onItemPress={(item) => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      if (item.actions?.[0]?.route) {
-                        const route = item.actions[0].route;
-                        navigation.navigate(route.gameId === "roachy-hunt" ? "HuntTab" : route.gameId, {
-                          screen: route.screen,
-                          params: route.params,
-                        });
-                      }
-                    }}
-                    emptyMessage="No eggs collected"
-                  />
-                )}
-
-                {(inventoryFilter === "all" || inventoryFilter === "nft") && (
+                {/* NFT minting section - always show if there are mintable items */}
+                {getMintableCount() > 0 && inventoryFilter === "all" ? (
                   <View style={styles.inventorySection}>
                     <View style={styles.sectionHeader}>
                       <Feather name="hexagon" size={18} color={GameColors.gold} />
-                      <ThemedText style={styles.sectionTitle}>NFTs</ThemedText>
+                      <ThemedText style={styles.sectionTitle}>Ready to Mint</ThemedText>
                     </View>
-                    {getMintableCount() > 0 ? (
-                      <View style={styles.nftInfo}>
-                        <ThemedText style={styles.nftInfoText}>
-                          {getMintableCount()} items ready to mint as NFTs
-                        </ThemedText>
-                        <Button
-                          onPress={() => wallet.connected ? Alert.alert("Coming Soon", "NFT minting coming soon!") : setShowWalletModal(true)}
-                          style={styles.mintButton}
-                        >
-                          {wallet.connected ? "Mint NFTs" : "Connect Wallet"}
-                        </Button>
-                      </View>
-                    ) : (
-                      <View style={styles.emptyInventorySmall}>
-                        <ThemedText style={styles.emptyTextSmall}>Collect perfect items to mint NFTs</ThemedText>
-                      </View>
-                    )}
+                    <View style={styles.nftInfo}>
+                      <ThemedText style={styles.nftInfoText}>
+                        {getMintableCount()} items ready to mint as NFTs
+                      </ThemedText>
+                      <Button
+                        onPress={() => wallet.connected ? Alert.alert("Coming Soon", "NFT minting coming soon!") : setShowWalletModal(true)}
+                        style={styles.mintButton}
+                      >
+                        {wallet.connected ? "Mint NFTs" : "Connect Wallet"}
+                      </Button>
+                    </View>
                   </View>
-                )}
+                ) : null}
               </>
             )}
 

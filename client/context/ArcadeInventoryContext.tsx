@@ -17,7 +17,9 @@ import type {
   InventoryItemType,
   GameInfo,
   RarityTier,
+  ItemTypeMetadata,
 } from "@/types/inventory";
+import { getItemTypeMetadata } from "@/types/inventory";
 
 interface ArcadeInventoryContextType extends ArcadeInventoryState {
   getFilteredItems: (filter: InventoryFilter) => ArcadeInventoryItem[];
@@ -27,6 +29,8 @@ interface ArcadeInventoryContextType extends ArcadeInventoryState {
   getTotalCount: () => number;
   getCountByType: (type: InventoryItemType) => number;
   getMintableCount: () => number;
+  getActiveItemTypes: () => ItemTypeMetadata[];
+  getTypeMetadata: (type: InventoryItemType) => ItemTypeMetadata;
   refetch: () => void;
 }
 
@@ -293,6 +297,26 @@ export function ArcadeInventoryProvider({ children }: { children: React.ReactNod
   }, [allItems]);
 
   /**
+   * Get all active item types present in the inventory
+   * Returns metadata sorted by priority
+   */
+  const getActiveItemTypes = useCallback((): ItemTypeMetadata[] => {
+    const uniqueTypes = new Set<InventoryItemType>();
+    allItems.forEach((item) => uniqueTypes.add(item.itemType));
+    
+    return Array.from(uniqueTypes)
+      .map((type) => getItemTypeMetadata(type))
+      .sort((a, b) => a.priority - b.priority);
+  }, [allItems]);
+
+  /**
+   * Get metadata for a specific item type
+   */
+  const getTypeMetadata = useCallback((type: InventoryItemType): ItemTypeMetadata => {
+    return getItemTypeMetadata(type);
+  }, []);
+
+  /**
    * Refetch all inventory data
    */
   const refetch = useCallback(() => {
@@ -313,6 +337,8 @@ export function ArcadeInventoryProvider({ children }: { children: React.ReactNod
     getTotalCount,
     getCountByType,
     getMintableCount,
+    getActiveItemTypes,
+    getTypeMetadata,
     refetch,
   };
 
