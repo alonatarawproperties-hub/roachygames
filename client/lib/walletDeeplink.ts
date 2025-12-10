@@ -1,10 +1,10 @@
 import 'react-native-get-random-values';
 import * as Linking from 'expo-linking';
+import * as SecureStore from 'expo-secure-store';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const WALLET_SESSION_STORAGE_KEY = '@wallet_session';
+const WALLET_SESSION_STORAGE_KEY = 'wallet_session';
 
 export type WalletProvider = 'phantom' | 'solflare' | 'backpack';
 
@@ -57,30 +57,38 @@ let pendingConnectResolve: ((address: string | null) => void) | null = null;
 let pendingConnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export async function initSession(): Promise<WalletSession | null> {
-  const saved = await AsyncStorage.getItem(WALLET_SESSION_STORAGE_KEY);
-  if (saved) {
-    try {
+  try {
+    const saved = await SecureStore.getItemAsync(WALLET_SESSION_STORAGE_KEY);
+    if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && parsed.dappKeyPair && parsed.publicKey && parsed.session && parsed.provider) {
         currentSession = parsed;
         return currentSession;
       }
-    } catch (e) {
-      console.warn('[Wallet] Failed to parse saved session:', e);
     }
+  } catch (e) {
+    console.warn('[Wallet] Failed to load saved session:', e);
   }
   return null;
 }
 
 async function saveSession(): Promise<void> {
   if (currentSession) {
-    await AsyncStorage.setItem(WALLET_SESSION_STORAGE_KEY, JSON.stringify(currentSession));
+    try {
+      await SecureStore.setItemAsync(WALLET_SESSION_STORAGE_KEY, JSON.stringify(currentSession));
+    } catch (e) {
+      console.warn('[Wallet] Failed to save session:', e);
+    }
   }
 }
 
 export async function clearSession(): Promise<void> {
   currentSession = null;
-  await AsyncStorage.removeItem(WALLET_SESSION_STORAGE_KEY);
+  try {
+    await SecureStore.deleteItemAsync(WALLET_SESSION_STORAGE_KEY);
+  } catch (e) {
+    console.warn('[Wallet] Failed to clear session:', e);
+  }
 }
 
 function decryptPayload(dataBase58: string, nonceBase58: string, sharedSecret: Uint8Array): Record<string, unknown> | null {

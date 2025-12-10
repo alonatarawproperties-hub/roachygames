@@ -4,12 +4,12 @@
 Roachy Games is an arcade platform for play-to-earn (P2E) games featuring Roachies (cockroach-themed creatures). The platform launches with Roachy Hunt and plans to add more games.
 
 ## Current State
-**Phase:** TestFlight Beta - Build #47 Submitted
+**Phase:** TestFlight Beta - Build #48 Submitted
 
 **SDK Version:** Expo SDK 53 (stable) - Downgraded from SDK 54 due to iOS build issues
 
 **Deployment Status:**
-- iOS TestFlight: Build #47 submitted with multi-wallet support (Phantom, Solflare, Backpack)
+- iOS TestFlight: Build #48 submitted with multi-wallet support and secure session storage
 - Bundle ID: com.cryptocreatures.app
 - EAS Build configured for development, preview, and production profiles
 - Build uses Xcode 16.0 on macOS Sonoma 14.6
