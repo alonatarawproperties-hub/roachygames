@@ -118,11 +118,12 @@ function getConnectUrl(provider: WalletProvider, dappPublicKey: string): string 
   const params = new URLSearchParams({
     dapp_encryption_public_key: dappPublicKey,
     cluster: 'mainnet-beta',
-    app_url: encodeURIComponent('https://roachygames.com'),
-    redirect_link: encodeURIComponent(redirectUri),
+    app_url: 'https://roachygames.com',
+    redirect_link: redirectUri,
   });
 
-  console.log(`[Wallet] ${config.name} connect URL redirect:`, redirectUri);
+  console.log(`[Wallet] ${config.name} connect URL:`, `${config.connectUrl}?${params.toString()}`);
+  console.log(`[Wallet] Redirect URI:`, redirectUri);
   return `${config.connectUrl}?${params.toString()}`;
 }
 
