@@ -33,6 +33,7 @@ import {
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet } from "../../context/WalletContext";
+import { useTokenBalances } from "@/hooks/useTokenBalances";
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
 
@@ -45,6 +46,10 @@ export function ArcadeHomeScreen() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [showWebBanner, setShowWebBanner] = useState(true);
   const { wallet, disconnectWallet } = useWallet();
+  const { roachy, diamonds, isLoading: balancesLoading } = useTokenBalances(
+    wallet.address,
+    wallet.connected
+  );
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -175,11 +180,12 @@ export function ArcadeHomeScreen() {
             {activeTab === "Home" && (
               <>
                 <TokenBalanceCard
-                  roachyBalance={wallet.connected ? 0 : 0}
-                  diamondsBalance={wallet.connected ? 0 : 0}
-                  roachyUsdValue={wallet.connected ? 0 : 0}
-                  diamondsUsdValue={wallet.connected ? 0 : 0}
+                  roachyBalance={roachy}
+                  diamondsBalance={diamonds}
+                  roachyUsdValue={0}
+                  diamondsUsdValue={0}
                   isConnected={wallet.connected}
+                  isLoading={balancesLoading}
                   onPress={() => setShowWalletModal(true)}
                 />
                 <View style={styles.livePlayersRow}>

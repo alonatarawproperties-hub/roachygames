@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Platform, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
@@ -17,6 +17,7 @@ interface TokenBalanceCardProps {
   diamondsUsdValue: number;
   onPress?: () => void;
   isConnected: boolean;
+  isLoading?: boolean;
 }
 
 export function TokenBalanceCard({
@@ -26,6 +27,7 @@ export function TokenBalanceCard({
   diamondsUsdValue = 0,
   onPress,
   isConnected,
+  isLoading = false,
 }: TokenBalanceCardProps) {
   const totalUsdValue = roachyUsdValue + diamondsUsdValue;
 
@@ -82,8 +84,14 @@ export function TokenBalanceCard({
             <ThemedText style={styles.roachySymbolText}>R</ThemedText>
           </View>
           <View style={styles.tokenInfo}>
-            <ThemedText style={styles.tokenBalance}>{formatNumber(roachyBalance, 0)} ROACHY</ThemedText>
-            <ThemedText style={styles.tokenUsd}>{formatUsd(roachyUsdValue)}</ThemedText>
+            {isLoading ? (
+              <ActivityIndicator size="small" color={GameColors.gold} />
+            ) : (
+              <>
+                <ThemedText style={styles.tokenBalance}>{formatNumber(roachyBalance, 0)} ROACHY</ThemedText>
+                <ThemedText style={styles.tokenUsd}>{formatUsd(roachyUsdValue)}</ThemedText>
+              </>
+            )}
           </View>
         </View>
 
@@ -94,8 +102,14 @@ export function TokenBalanceCard({
             <ThemedText style={styles.diamondsSymbolText}>D</ThemedText>
           </View>
           <View style={styles.tokenInfo}>
-            <ThemedText style={styles.tokenBalance}>{formatNumber(diamondsBalance, 0)} DIAMONDS</ThemedText>
-            <ThemedText style={styles.tokenUsd}>{formatUsd(diamondsUsdValue)}</ThemedText>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#00D4FF" />
+            ) : (
+              <>
+                <ThemedText style={styles.tokenBalance}>{formatNumber(diamondsBalance, 0)} DIAMONDS</ThemedText>
+                <ThemedText style={styles.tokenUsd}>{formatUsd(diamondsUsdValue)}</ThemedText>
+              </>
+            )}
           </View>
         </View>
       </View>
