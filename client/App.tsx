@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
 import { WalletProvider } from "@/context/WalletContext";
+import { ArcadeInventoryProvider } from "@/context/ArcadeInventoryContext";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { AppKitWrapper } from "@/components/AppKitWrapper";
 import { GameColors } from "@/constants/theme";
@@ -66,9 +67,11 @@ export default function App() {
                 <WalletProvider>
                   <GameProvider>
                     <HuntProvider>
-                      <NavigationContainer>
-                        <RootStackNavigator />
-                      </NavigationContainer>
+                      <ArcadeInventoryProvider>
+                        <NavigationContainer>
+                          <RootStackNavigator />
+                        </NavigationContainer>
+                      </ArcadeInventoryProvider>
                     </HuntProvider>
                   </GameProvider>
                 </WalletProvider>
