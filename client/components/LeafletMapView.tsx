@@ -25,6 +25,7 @@ interface LeafletMapViewProps {
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onRefresh: () => void;
+  onMapReady?: () => void;
 }
 
 export interface LeafletMapViewRef {
@@ -554,9 +555,10 @@ const STABLE_MAP_HTML = `
 `;
 
 export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapViewProps>(
-  ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh }, ref) => {
+  ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
     const webViewRef = useRef<WebView>(null);
     const [isReady, setIsReady] = useState(false);
+    const mapReadyCalledRef = useRef(false);
     const lastLocationRef = useRef<PlayerLocation | null>(null);
     const lastSpawnsRef = useRef<string>("");
     const lastRaidsRef = useRef<string>("");
@@ -617,6 +619,10 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
               spawns: formattedSpawns,
               raids: formattedRaids
             }));
+            if (!mapReadyCalledRef.current && onMapReady) {
+              mapReadyCalledRef.current = true;
+              onMapReady();
+            }
           } else if (data.type === "spawnTap") {
             const spawn = spawns.find((s) => s.id === data.spawnId);
             if (spawn) onSpawnTap(spawn);

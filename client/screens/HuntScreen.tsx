@@ -30,6 +30,7 @@ import { CatchMiniGame } from "@/components/CatchMiniGame";
 import { EggReveal } from "@/components/EggReveal";
 import { RaidBattleMiniGame } from "@/components/RaidBattleMiniGame";
 import { MapViewWrapper, MapViewWrapperRef } from "@/components/MapViewWrapper";
+import { HuntLoadingOverlay } from "@/components/HuntLoadingOverlay";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -82,6 +83,7 @@ export default function HuntScreen() {
   } = useHunt();
 
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [selectedSpawn, setSelectedSpawn] = useState<Spawn | null>(null);
   const [showCameraEncounter, setShowCameraEncounter] = useState(false);
   const [showCatchGame, setShowCatchGame] = useState(false);
@@ -90,9 +92,27 @@ export default function HuntScreen() {
   const [collectedEggInfo, setCollectedEggInfo] = useState<{rarity: string; count: number} | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<Raid | null>(null);
   const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs">("map");
+  const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapViewWrapperRef>(null);
+  const loadingFadeAnim = useSharedValue(1);
 
   const pulseAnim = useSharedValue(1);
+
+  const gpsReady = !!playerLocation;
+  const dataReady = !isLoading && !!economy;
+  const allReady = gpsReady && dataReady && mapReady;
+
+  useEffect(() => {
+    if (allReady) {
+      loadingFadeAnim.value = withTiming(0, { duration: 400, easing: Easing.ease });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [allReady]);
+
+  const loadingOverlayStyle = useAnimatedStyle(() => ({
+    opacity: loadingFadeAnim.value,
+    pointerEvents: loadingFadeAnim.value > 0 ? "auto" as const : "none" as const,
+  }));
 
   useEffect(() => {
     pulseAnim.value = withRepeat(
@@ -112,8 +132,10 @@ export default function HuntScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           setLocationError("Location permission required for hunting");
+          setPermissionDenied(true);
           return;
         }
+        setPermissionDenied(false);
 
         if (Platform.OS === "android") {
           try {
@@ -349,6 +371,7 @@ export default function HuntScreen() {
           spawnCreatures();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }}
+        onMapReady={() => setMapReady(true)}
       />
     );
   };
@@ -655,6 +678,15 @@ export default function HuntScreen() {
           </View>
         </View>
       </Modal>
+
+      <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
+        <HuntLoadingOverlay
+          gpsReady={gpsReady}
+          dataReady={dataReady}
+          mapReady={mapReady}
+          permissionDenied={permissionDenied}
+        />
+      </Animated.View>
     </View>
   );
 }

@@ -35,6 +35,7 @@ interface MapViewWrapperProps {
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onRefresh: () => void;
+  onMapReady?: () => void;
 }
 
 export interface MapViewWrapperRef {
@@ -160,10 +161,11 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh }, ref) => {
+  ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
+    const mapReadyCalledRef = useRef(false);
 
     useImperativeHandle(ref, () => ({
       centerOnPlayer: () => {
@@ -205,9 +207,17 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           onSpawnTap={onSpawnTap}
           onRaidTap={onRaidTap}
           onRefresh={onRefresh}
+          onMapReady={onMapReady}
         />
       );
     }
+
+    const handleNativeMapReady = () => {
+      if (!mapReadyCalledRef.current && onMapReady) {
+        mapReadyCalledRef.current = true;
+        onMapReady();
+      }
+    };
 
     const handleMapError = () => {
       setNativeMapFailed(true);
@@ -240,6 +250,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           mapType="standard"
           userInterfaceStyle="dark"
           onError={handleMapError}
+          onMapReady={handleNativeMapReady}
           initialRegion={{
             latitude: playerLocation.latitude,
             longitude: playerLocation.longitude,
