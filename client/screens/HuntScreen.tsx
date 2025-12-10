@@ -105,15 +105,13 @@ export default function HuntScreen() {
   }, []);
 
   useEffect(() => {
-    updateLocation(37.7749, -122.4194);
-    
     let locationSubscription: Location.LocationSubscription | null = null;
     
     const startHighAccuracyTracking = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          setLocationError("Using default location");
+          setLocationError("Location permission required for hunting");
           return;
         }
 
@@ -140,18 +138,23 @@ export default function HuntScreen() {
                 bestLocation = location;
               }
               
-              if (locAccuracy <= 10) {
+              if (locAccuracy <= 15) {
                 break;
               }
               
-              await new Promise(resolve => setTimeout(resolve, 500));
+              await new Promise(resolve => setTimeout(resolve, 400));
             } catch {
               break;
             }
           }
           
           if (bestLocation) {
-            updateLocation(bestLocation.coords.latitude, bestLocation.coords.longitude);
+            const heading = bestLocation.coords.heading;
+            updateLocation(
+              bestLocation.coords.latitude, 
+              bestLocation.coords.longitude,
+              heading !== null && heading >= 0 ? heading : 0
+            );
             console.log(`Initial location accuracy: ${bestLocation.coords.accuracy}m`);
           }
         };
@@ -161,12 +164,12 @@ export default function HuntScreen() {
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 2000,
-            distanceInterval: 3,
+            timeInterval: 1000,
+            distanceInterval: 2,
           },
           (newLocation) => {
             const accuracy = newLocation.coords.accuracy ?? 100;
-            if (accuracy <= 20) {
+            if (accuracy <= 50) {
               const heading = newLocation.coords.heading;
               updateLocation(
                 newLocation.coords.latitude, 

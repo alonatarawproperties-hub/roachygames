@@ -77,11 +77,7 @@ const STABLE_MAP_HTML = `
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
     }
     
-    .direction-arrow.hidden {
-      opacity: 0;
-    }
-    
-    .direction-arrow.visible {
+    .direction-arrow {
       opacity: 1;
     }
     
@@ -235,20 +231,23 @@ const STABLE_MAP_HTML = `
   <div class="location-info" id="location-info">Loading...</div>
   
   <script>
-    // State
-    let playerLat = 37.7749;
-    let playerLng = -122.4194;
-    let playerHeading = null;
+    // State - no default coordinates, wait for real GPS
+    let playerLat = null;
+    let playerLng = null;
+    let playerHeading = 0;
     let prevLat = null;
     let prevLng = null;
     let spawns = [];
     let raids = [];
+    let pendingSpawns = [];
+    let pendingRaids = [];
     let spawnMarkers = [];
     let raidMarkers = [];
     let playerMarker = null;
     let catchRadius = null;
     let mapInitialized = false;
     let map = null;
+    let waitingForLocation = true;
     
     // Calculate bearing between two points
     function calculateBearing(lat1, lng1, lat2, lng2) {
@@ -282,9 +281,7 @@ const STABLE_MAP_HTML = `
     // Update direction arrow rotation
     function updateDirectionArrow(heading) {
       const arrow = document.getElementById('direction-arrow');
-      if (arrow && heading !== null) {
-        arrow.classList.remove('hidden');
-        arrow.classList.add('visible');
+      if (arrow && heading !== null && heading !== undefined) {
         arrow.style.transform = 'rotate(' + heading + 'deg)';
       }
     }
@@ -292,7 +289,12 @@ const STABLE_MAP_HTML = `
     // Initialize map
     function initMap() {
       if (mapInitialized) return;
+      if (playerLat === null || playerLng === null) {
+        document.getElementById('location-info').textContent = 'Waiting for GPS...';
+        return;
+      }
       
+      waitingForLocation = false;
       map = L.map('map', {
         zoomControl: false,
         attributionControl: true
@@ -309,7 +311,7 @@ const STABLE_MAP_HTML = `
         className: 'player-marker-container',
         html: \`
           <div class="player-marker-wrapper">
-            <div id="direction-arrow" class="direction-arrow hidden">
+            <div id="direction-arrow" class="direction-arrow" style="transform: rotate(\${playerHeading || 0}deg)">
               <svg viewBox="0 0 48 48" fill="none">
                 <path d="M24 4L32 20H16L24 4Z" fill="#FF9500" stroke="white" stroke-width="2"/>
               </svg>
@@ -335,35 +337,69 @@ const STABLE_MAP_HTML = `
       }).addTo(map);
       
       mapInitialized = true;
+      waitingForLocation = false;
       updateLocationDisplay();
+      
+      // Apply any pending spawns/raids that came before map was ready
+      if (pendingSpawns.length > 0) {
+        updateSpawns(pendingSpawns);
+        pendingSpawns = [];
+      }
+      if (pendingRaids.length > 0) {
+        updateRaids(pendingRaids);
+        pendingRaids = [];
+      }
     }
 
     function updateLocationDisplay() {
-      document.getElementById('location-info').textContent = 
-        playerLat.toFixed(4) + ', ' + playerLng.toFixed(4);
+      if (playerLat !== null && playerLng !== null) {
+        document.getElementById('location-info').textContent = 
+          playerLat.toFixed(4) + ', ' + playerLng.toFixed(4);
+      } else {
+        document.getElementById('location-info').textContent = 'Waiting for GPS...';
+      }
     }
 
     function updatePlayerLocation(lat, lng, heading) {
+      // First location - initialize the map
+      if (playerLat === null || playerLng === null) {
+        playerLat = lat;
+        playerLng = lng;
+        playerHeading = (heading !== undefined && heading !== null && heading >= 0) ? heading : 0;
+        prevLat = lat;
+        prevLng = lng;
+        
+        // Now we have coordinates, initialize the map
+        if (!mapInitialized) {
+          initMap();
+        }
+        return;
+      }
+      
+      // Filter out GPS jitter by checking if movement is significant
+      const distance = prevLat !== null ? calculateDistance(prevLat, prevLng, lat, lng) : 1000;
+      
+      // Only update position if moved more than 1.5 meters (filter GPS noise)
+      if (distance < 1.5 && prevLat !== null) {
+        // Still update heading if provided
+        if (heading !== undefined && heading !== null && heading >= 0) {
+          playerHeading = heading;
+          updateDirectionArrow(playerHeading);
+        }
+        return;
+      }
+      
       // Calculate heading from movement if not provided
-      if (heading === undefined || heading === null) {
-        if (prevLat !== null && prevLng !== null) {
-          const distance = calculateDistance(prevLat, prevLng, lat, lng);
-          // Only update heading if moved more than 3 meters (filter GPS jitter)
-          if (distance > 3) {
-            playerHeading = calculateBearing(prevLat, prevLng, lat, lng);
-            prevLat = lat;
-            prevLng = lng;
-          }
-        } else {
-          prevLat = lat;
-          prevLng = lng;
+      if (heading === undefined || heading === null || heading < 0) {
+        if (prevLat !== null && prevLng !== null && distance > 3) {
+          playerHeading = calculateBearing(prevLat, prevLng, lat, lng);
         }
       } else {
         playerHeading = heading;
-        prevLat = lat;
-        prevLng = lng;
       }
       
+      prevLat = lat;
+      prevLng = lng;
       playerLat = lat;
       playerLng = lng;
       
@@ -375,7 +411,7 @@ const STABLE_MAP_HTML = `
       }
       
       // Update the direction arrow
-      if (playerHeading !== null) {
+      if (playerHeading !== null && playerHeading !== undefined) {
         updateDirectionArrow(playerHeading);
       }
       
@@ -384,7 +420,11 @@ const STABLE_MAP_HTML = `
 
     function centerOnPlayer() {
       if (map) {
-        map.setView([playerLat, playerLng], 17, { animate: true });
+        map.flyTo([playerLat, playerLng], 17, { 
+          animate: true, 
+          duration: 0.5,
+          easeLinearity: 0.5
+        });
       }
     }
 
@@ -473,11 +513,16 @@ const STABLE_MAP_HTML = `
         
         switch (data.type) {
           case 'init':
-            playerLat = data.lat || playerLat;
-            playerLng = data.lng || playerLng;
-            initMap();
-            if (data.spawns) updateSpawns(data.spawns);
-            if (data.raids) updateRaids(data.raids);
+            // Store spawns/raids for later if map not ready
+            if (data.spawns) pendingSpawns = data.spawns;
+            if (data.raids) pendingRaids = data.raids;
+            
+            if (data.lat && data.lng) {
+              playerLat = data.lat;
+              playerLng = data.lng;
+              playerHeading = data.heading || 0;
+              initMap();
+            }
             break;
           case 'updateLocation':
             updatePlayerLocation(data.lat, data.lng, data.heading);
@@ -566,8 +611,9 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
             const formattedRaids = formatRaidsForWebView(raids);
             webViewRef.current?.postMessage(JSON.stringify({
               type: 'init',
-              lat: playerLocation?.latitude ?? 37.7749,
-              lng: playerLocation?.longitude ?? -122.4194,
+              lat: playerLocation?.latitude || null,
+              lng: playerLocation?.longitude || null,
+              heading: playerLocation?.heading || 0,
               spawns: formattedSpawns,
               raids: formattedRaids
             }));

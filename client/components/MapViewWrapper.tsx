@@ -213,6 +213,18 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
       setNativeMapFailed(true);
     };
 
+    // Wait for location before showing native map
+    if (!hasLocation) {
+      return (
+        <View style={[styles.mapContainer, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Feather name="navigation" size={32} color={GameColors.primary} />
+          <ThemedText style={{ color: GameColors.textSecondary, marginTop: Spacing.md }}>
+            Waiting for GPS...
+          </ThemedText>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.mapContainer}>
         <MapViewComponent
@@ -229,8 +241,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           userInterfaceStyle="dark"
           onError={handleMapError}
           initialRegion={{
-            latitude: hasLocation ? playerLocation.latitude : 37.7749,
-            longitude: hasLocation ? playerLocation.longitude : -122.4194,
+            latitude: playerLocation.latitude,
+            longitude: playerLocation.longitude,
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           }}
