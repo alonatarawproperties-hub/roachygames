@@ -23,6 +23,7 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { WalletSelectModal } from "@/components/WalletSelectModal";
+import { Leaderboard, AchievementBadges, ActivityHistory } from "@/components/arcade";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
 import { useWallet } from "../context/WalletContext";
@@ -298,6 +299,36 @@ export default function ProfileScreen() {
             />
           </View>
         </Pressable>
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeInDown.delay(600).springify()}
+        style={styles.section}
+      >
+        <ThemedText type="h4" style={styles.sectionTitle}>
+          Leaderboard
+        </ThemedText>
+        <Leaderboard />
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeInDown.delay(700).springify()}
+        style={styles.section}
+      >
+        <ThemedText type="h4" style={styles.sectionTitle}>
+          Achievements
+        </ThemedText>
+        <AchievementBadges />
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeInDown.delay(800).springify()}
+        style={styles.section}
+      >
+        <ThemedText type="h4" style={styles.sectionTitle}>
+          Recent Activity
+        </ThemedText>
+        <ActivityHistory />
       </Animated.View>
     </ScrollView>
   );
