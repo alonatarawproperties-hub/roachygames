@@ -9,6 +9,15 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#120a05",
     "newArchEnabled": false,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b771b4a4-642a-40c9-98e4-f7af33384b5d",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cryptocreatures.app",
