@@ -5,9 +5,6 @@ const config = getDefaultConfig(__dirname);
 
 const nativeOnlyModules = [
   "react-native-maps",
-  "@reown/appkit-react-native",
-  "@reown/appkit-solana-react-native",
-  "@walletconnect/react-native-compat",
 ];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {

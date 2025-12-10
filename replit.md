@@ -12,12 +12,13 @@ Roachy Games is an arcade platform for play-to-earn (P2E) games featuring Roachi
 - iOS TestFlight: Build #41 submitted with WalletConnect enabled
 - Bundle ID: com.cryptocreatures.app
 - EAS Build configured for development, preview, and production profiles
-- Build uses Xcode 16.3 on macOS Sequoia 15.4 for stability
+- Build uses Xcode 16.0 on macOS Sonoma 14.6
 
-**WalletConnect Configuration:**
-- Uses Reown AppKit SDK with Solana adapter
-- Project ID: configured via EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID
-- Platform-specific: Native only (iOS/Android), web uses stub
+**Wallet Connection:**
+- Uses direct Phantom deep-link protocol with tweetnacl encryption (no AppKit SDK)
+- Removed @reown/appkit-react-native due to iOS build incompatibility with Expo SDK 53
+- Implementation: client/lib/phantomDeeplink.ts
+- Supports Phantom wallet via universal links (https://phantom.app/ul/v1/)
 
 The app includes:
 - **Arcade Home:** Game launcher with featured game and coming soon tiles

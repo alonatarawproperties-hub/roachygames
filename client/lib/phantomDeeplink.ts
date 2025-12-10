@@ -1,7 +1,6 @@
 import 'react-native-get-random-values';
 import * as Linking from 'expo-linking';
 import nacl from 'tweetnacl';
-import { decodeBase64, encodeBase64 } from 'tweetnacl-util';
 import bs58 from 'bs58';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -24,6 +23,7 @@ interface ConnectResponse {
 
 let currentSession: PhantomSession | null = null;
 let pendingConnectResolve: ((address: string | null) => void) | null = null;
+let pendingConnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function buildUrl(path: string, params: URLSearchParams): string {
   return `https://phantom.app/ul/v1/${path}?${params.toString()}`;
@@ -33,9 +33,10 @@ export async function initSession(): Promise<PhantomSession> {
   const saved = await AsyncStorage.getItem(PHANTOM_CONNECT_STORAGE_KEY);
   if (saved) {
     try {
-      currentSession = JSON.parse(saved);
-      if (currentSession) {
-        return currentSession;
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.dappKeyPair && parsed.publicKey && parsed.session) {
+        currentSession = parsed;
+        return currentSession!;
       }
     } catch (e) {
       console.warn('[Phantom] Failed to parse saved session:', e);
@@ -67,13 +68,12 @@ export async function clearSession(): Promise<void> {
   await AsyncStorage.removeItem(PHANTOM_CONNECT_STORAGE_KEY);
 }
 
-function decryptPayload(data: string, nonce: string, sharedSecret: Uint8Array): Record<string, unknown> | null {
+function decryptPayload(dataBase58: string, nonceBase58: string, sharedSecret: Uint8Array): Record<string, unknown> | null {
   try {
-    const decrypted = nacl.box.open.after(
-      decodeBase64(data),
-      decodeBase64(nonce),
-      sharedSecret
-    );
+    const dataBytes = bs58.decode(dataBase58);
+    const nonceBytes = bs58.decode(nonceBase58);
+    
+    const decrypted = nacl.box.open.after(dataBytes, nonceBytes, sharedSecret);
     
     if (!decrypted) {
       console.error('[Phantom] Decryption failed - null result');
@@ -93,63 +93,63 @@ export function getConnectUrl(): string {
     throw new Error('Session not initialized');
   }
 
+  const redirectUri = Linking.createURL('phantom-connect');
+  
   const params = new URLSearchParams({
     dapp_encryption_public_key: currentSession.dappKeyPair.publicKey,
     cluster: 'mainnet-beta',
-    app_url: 'https://roachygames.com',
-    redirect_link: Linking.createURL('phantom-connect'),
+    app_url: encodeURIComponent('https://roachygames.com'),
+    redirect_link: encodeURIComponent(redirectUri),
   });
 
+  console.log('[Phantom] Connect URL redirect:', redirectUri);
   return buildUrl('connect', params);
-}
-
-export function getDisconnectUrl(): string {
-  if (!currentSession || !currentSession.session) {
-    throw new Error('No active session');
-  }
-
-  const params = new URLSearchParams({
-    dapp_encryption_public_key: currentSession.dappKeyPair.publicKey,
-    redirect_link: Linking.createURL('phantom-disconnect'),
-  });
-
-  const payload = { session: currentSession.session };
-  const secretKey = bs58.decode(currentSession.dappKeyPair.secretKey);
-  const sharedSecretBytes = currentSession.sharedSecret 
-    ? bs58.decode(currentSession.sharedSecret) 
-    : null;
-  
-  if (sharedSecretBytes) {
-    const nonce = nacl.randomBytes(24);
-    const encrypted = nacl.box.after(
-      new TextEncoder().encode(JSON.stringify(payload)),
-      nonce,
-      sharedSecretBytes
-    );
-    
-    params.append('nonce', encodeBase64(nonce));
-    params.append('payload', encodeBase64(encrypted));
-  }
-
-  return buildUrl('disconnect', params);
 }
 
 export async function connectPhantom(): Promise<string | null> {
   await initSession();
+  
+  if (currentSession?.publicKey && currentSession?.session) {
+    console.log('[Phantom] Already connected:', currentSession.publicKey);
+    return currentSession.publicKey;
+  }
+  
+  const keypair = nacl.box.keyPair();
+  currentSession = {
+    dappKeyPair: {
+      publicKey: bs58.encode(keypair.publicKey),
+      secretKey: bs58.encode(keypair.secretKey),
+    },
+    sharedSecret: null,
+    session: null,
+    publicKey: null,
+  };
+  
   const url = getConnectUrl();
   
   return new Promise((resolve) => {
     pendingConnectResolve = resolve;
     
-    setTimeout(() => {
+    if (pendingConnectTimeout) {
+      clearTimeout(pendingConnectTimeout);
+    }
+    
+    pendingConnectTimeout = setTimeout(() => {
       if (pendingConnectResolve === resolve) {
+        console.log('[Phantom] Connect timeout');
         pendingConnectResolve = null;
+        pendingConnectTimeout = null;
         resolve(null);
       }
     }, 120000);
     
+    console.log('[Phantom] Opening wallet:', url);
     Linking.openURL(url).catch((error) => {
       console.error('[Phantom] Failed to open URL:', error);
+      if (pendingConnectTimeout) {
+        clearTimeout(pendingConnectTimeout);
+        pendingConnectTimeout = null;
+      }
       pendingConnectResolve = null;
       resolve(null);
     });
@@ -157,29 +157,23 @@ export async function connectPhantom(): Promise<string | null> {
 }
 
 export async function disconnectPhantom(): Promise<void> {
-  if (!currentSession?.session) {
-    await clearSession();
-    return;
-  }
-
-  try {
-    const url = getDisconnectUrl();
-    await Linking.openURL(url);
-  } catch (error) {
-    console.warn('[Phantom] Disconnect URL failed:', error);
-  }
-  
   await clearSession();
 }
 
 export async function handlePhantomRedirect(url: string): Promise<string | null> {
   try {
+    console.log('[Phantom] Handling redirect URL:', url);
+    
     const parsedUrl = new URL(url);
     const params = parsedUrl.searchParams;
     
     const errorCode = params.get('errorCode');
     if (errorCode) {
       console.error('[Phantom] Error from wallet:', errorCode, params.get('errorMessage'));
+      if (pendingConnectTimeout) {
+        clearTimeout(pendingConnectTimeout);
+        pendingConnectTimeout = null;
+      }
       pendingConnectResolve?.(null);
       pendingConnectResolve = null;
       return null;
@@ -189,8 +183,20 @@ export async function handlePhantomRedirect(url: string): Promise<string | null>
     const data = params.get('data');
     const nonce = params.get('nonce');
 
-    if (!phantomPublicKey || !data || !nonce || !currentSession) {
-      console.log('[Phantom] Missing params:', { phantomPublicKey: !!phantomPublicKey, data: !!data, nonce: !!nonce });
+    console.log('[Phantom] Response params:', { 
+      hasPhantomKey: !!phantomPublicKey, 
+      hasData: !!data, 
+      hasNonce: !!nonce,
+      hasSession: !!currentSession
+    });
+
+    if (!phantomPublicKey || !data || !nonce) {
+      console.error('[Phantom] Missing required params');
+      return null;
+    }
+    
+    if (!currentSession) {
+      console.error('[Phantom] No current session');
       return null;
     }
 
@@ -206,6 +212,8 @@ export async function handlePhantomRedirect(url: string): Promise<string | null>
       return null;
     }
 
+    console.log('[Phantom] Decrypted response:', decrypted);
+    
     const response = decrypted as unknown as ConnectResponse;
     currentSession.publicKey = response.public_key;
     currentSession.session = response.session;
@@ -213,6 +221,11 @@ export async function handlePhantomRedirect(url: string): Promise<string | null>
     await saveSession();
 
     console.log('[Phantom] Connected successfully:', currentSession.publicKey);
+    
+    if (pendingConnectTimeout) {
+      clearTimeout(pendingConnectTimeout);
+      pendingConnectTimeout = null;
+    }
     
     if (pendingConnectResolve) {
       pendingConnectResolve(currentSession.publicKey);
@@ -222,6 +235,10 @@ export async function handlePhantomRedirect(url: string): Promise<string | null>
     return currentSession.publicKey;
   } catch (error) {
     console.error('[Phantom] Handle redirect error:', error);
+    if (pendingConnectTimeout) {
+      clearTimeout(pendingConnectTimeout);
+      pendingConnectTimeout = null;
+    }
     pendingConnectResolve?.(null);
     pendingConnectResolve = null;
     return null;
@@ -238,5 +255,8 @@ export function isConnected(): boolean {
 
 export async function restoreSession(): Promise<string | null> {
   await initSession();
-  return currentSession?.publicKey || null;
+  if (currentSession?.publicKey && currentSession?.session) {
+    return currentSession.publicKey;
+  }
+  return null;
 }
