@@ -1,5 +1,6 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppKit, useAccount } from '@reown/appkit-react-native';
+import { projectId } from '@/lib/appKitConfig';
 
 interface WalletState {
   connected: boolean;
@@ -19,16 +20,97 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const WALLET_STORAGE_KEY = '@wallet_connection';
+function WalletProviderInner({ children }: { children: ReactNode }) {
+  const [isLoading, setIsLoading] = useState(false);
+  
+  let appKitHooks: { open: () => void; disconnect: () => void } | null = null;
+  let accountHooks: { address: string | undefined; isConnected: boolean } | null = null;
+  
+  try {
+    appKitHooks = useAppKit();
+    accountHooks = useAccount();
+  } catch (error) {
+    console.warn('[WalletProvider] AppKit hooks not available:', error);
+  }
+  
+  const address = accountHooks?.address || null;
+  const isConnected = accountHooks?.isConnected || false;
+
+  const wallet: WalletState = {
+    connected: isConnected,
+    address: address,
+    provider: isConnected ? 'WalletConnect' : null,
+    isConnecting: isLoading,
+  };
+
+  const connectWallet = useCallback(async () => {
+    if (!appKitHooks) {
+      console.warn('[Wallet] AppKit not available');
+      return false;
+    }
+    
+    try {
+      setIsLoading(true);
+      appKitHooks.open();
+      return true;
+    } catch (error) {
+      console.error('[Wallet] Failed to open wallet modal:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appKitHooks]);
+
+  const disconnectWallet = useCallback(async () => {
+    if (!appKitHooks) {
+      console.warn('[Wallet] AppKit not available');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      await appKitHooks.disconnect();
+    } catch (error) {
+      console.error('[Wallet] Failed to disconnect:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appKitHooks]);
+
+  const openWalletModal = useCallback(() => {
+    if (!appKitHooks) {
+      console.warn('[Wallet] AppKit not available');
+      return;
+    }
+    appKitHooks.open();
+  }, [appKitHooks]);
+
+  return (
+    <WalletContext.Provider
+      value={{
+        wallet,
+        connectWallet,
+        disconnectWallet,
+        isLoading,
+        openWalletModal,
+        isAppKitReady: !!projectId && !!appKitHooks,
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
+  );
+}
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true);
+  if (!projectId) {
+    console.warn('[WalletProvider] WalletConnect Project ID not set - using fallback');
+    return <WalletProviderFallback>{children}</WalletProviderFallback>;
+  }
   
-  useEffect(() => {
-    console.log('[WalletProvider] Running in stub mode - AppKit packages removed for build testing');
-    setIsLoading(false);
-  }, []);
+  return <WalletProviderInner>{children}</WalletProviderInner>;
+}
 
+function WalletProviderFallback({ children }: { children: ReactNode }) {
   const fallbackWallet: WalletState = {
     connected: false,
     address: null,
@@ -37,16 +119,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   };
 
   const noOpConnect = useCallback(async () => {
-    console.warn('[Wallet] Wallet connect temporarily disabled for build testing');
+    console.warn('[Wallet] WalletConnect Project ID not configured');
     return false;
   }, []);
 
   const noOpDisconnect = useCallback(async () => {
-    console.warn('[Wallet] Wallet disconnect temporarily disabled for build testing');
+    console.warn('[Wallet] WalletConnect Project ID not configured');
   }, []);
 
   const noOpOpenModal = useCallback(() => {
-    console.warn('[Wallet] Wallet modal temporarily disabled for build testing');
+    console.warn('[Wallet] WalletConnect Project ID not configured');
   }, []);
 
   return (
@@ -55,7 +137,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         wallet: fallbackWallet,
         connectWallet: noOpConnect,
         disconnectWallet: noOpDisconnect,
-        isLoading,
+        isLoading: false,
         openWalletModal: noOpOpenModal,
         isAppKitReady: false,
       }}
