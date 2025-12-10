@@ -6,14 +6,13 @@ import bs58 from 'bs58';
 
 const WALLET_SESSION_STORAGE_KEY = 'wallet_session';
 
-export type WalletProvider = 'phantom' | 'solflare' | 'backpack' | 'trust';
+export type WalletProvider = 'phantom' | 'solflare' | 'backpack';
 
 interface WalletConfig {
   name: string;
   connectUrl: string;
   publicKeyParam: string;
   iconName: string;
-  usesWalletConnect?: boolean;
 }
 
 const WALLET_CONFIGS: Record<WalletProvider, WalletConfig> = {
@@ -34,13 +33,6 @@ const WALLET_CONFIGS: Record<WalletProvider, WalletConfig> = {
     connectUrl: 'https://backpack.app/ul/v1/connect',
     publicKeyParam: 'backpack_encryption_public_key',
     iconName: 'package',
-  },
-  trust: {
-    name: 'Trust Wallet',
-    connectUrl: 'https://link.trustwallet.com/open_url',
-    publicKeyParam: 'trust_encryption_public_key',
-    iconName: 'shield',
-    usesWalletConnect: true,
   },
 };
 
