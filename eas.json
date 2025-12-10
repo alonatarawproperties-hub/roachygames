@@ -25,7 +25,11 @@
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "latest",
+        "cache": {
+          "disabled": true
+        }
       },
       "android": {
         "buildType": "app-bundle"
