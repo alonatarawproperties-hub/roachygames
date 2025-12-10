@@ -1,6 +1,13 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
-import { useAppKit, useAccount } from '@reown/appkit-react-native';
-import { projectId } from '@/lib/appKitConfig';
+import * as Linking from 'expo-linking';
+import { 
+  connectPhantom, 
+  disconnectPhantom, 
+  handlePhantomRedirect, 
+  restoreSession, 
+  isConnected as checkIsConnected,
+  getCurrentWalletAddress
+} from '@/lib/phantomDeeplink';
 
 interface WalletState {
   connected: boolean;
@@ -20,70 +27,118 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-function WalletProviderInner({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState(false);
-  
-  let appKitHooks: { open: () => void; disconnect: () => void } | null = null;
-  let accountHooks: { address: string | undefined; isConnected: boolean } | null = null;
-  
-  try {
-    appKitHooks = useAppKit();
-    accountHooks = useAccount();
-  } catch (error) {
-    console.warn('[WalletProvider] AppKit hooks not available:', error);
-  }
-  
-  const address = accountHooks?.address || null;
-  const isConnected = accountHooks?.isConnected || false;
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const [wallet, setWallet] = useState<WalletState>({
+    connected: false,
+    address: null,
+    provider: null,
+    isConnecting: false,
+  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const wallet: WalletState = {
-    connected: isConnected,
-    address: address,
-    provider: isConnected ? 'WalletConnect' : null,
-    isConnecting: isLoading,
+  useEffect(() => {
+    loadSavedSession();
+    
+    const subscription = Linking.addEventListener('url', handleUrl);
+    
+    Linking.getInitialURL().then((url) => {
+      if (url && url.includes('phantom')) {
+        handleUrl({ url });
+      }
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const loadSavedSession = async () => {
+    try {
+      const address = await restoreSession();
+      if (address && checkIsConnected()) {
+        setWallet({
+          connected: true,
+          address,
+          provider: 'Phantom',
+          isConnecting: false,
+        });
+        console.log('[Wallet] Restored session:', address);
+      }
+    } catch (error) {
+      console.warn('[Wallet] Failed to restore session:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const connectWallet = useCallback(async () => {
-    if (!appKitHooks) {
-      console.warn('[Wallet] AppKit not available');
-      return false;
-    }
+  const handleUrl = async ({ url }: { url: string }) => {
+    console.log('[Wallet] Received URL:', url);
     
-    try {
-      setIsLoading(true);
-      appKitHooks.open();
-      return true;
-    } catch (error) {
-      console.error('[Wallet] Failed to open wallet modal:', error);
-      return false;
-    } finally {
-      setIsLoading(false);
+    if (url.includes('phantom-connect') || url.includes('phantom_encryption_public_key')) {
+      const address = await handlePhantomRedirect(url);
+      if (address) {
+        setWallet({
+          connected: true,
+          address,
+          provider: 'Phantom',
+          isConnecting: false,
+        });
+      } else {
+        setWallet(prev => ({ ...prev, isConnecting: false }));
+      }
+    } else if (url.includes('phantom-disconnect')) {
+      setWallet({
+        connected: false,
+        address: null,
+        provider: null,
+        isConnecting: false,
+      });
     }
-  }, [appKitHooks]);
+  };
+
+  const connectWallet = useCallback(async (): Promise<boolean> => {
+    try {
+      setWallet(prev => ({ ...prev, isConnecting: true }));
+      const address = await connectPhantom();
+      
+      if (address) {
+        setWallet({
+          connected: true,
+          address,
+          provider: 'Phantom',
+          isConnecting: false,
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[Wallet] Connect error:', error);
+      setWallet(prev => ({ ...prev, isConnecting: false }));
+      return false;
+    }
+  }, []);
 
   const disconnectWallet = useCallback(async () => {
-    if (!appKitHooks) {
-      console.warn('[Wallet] AppKit not available');
-      return;
-    }
-    
     try {
       setIsLoading(true);
-      await appKitHooks.disconnect();
+      await disconnectPhantom();
+      setWallet({
+        connected: false,
+        address: null,
+        provider: null,
+        isConnecting: false,
+      });
     } catch (error) {
-      console.error('[Wallet] Failed to disconnect:', error);
+      console.error('[Wallet] Disconnect error:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [appKitHooks]);
+  }, []);
 
   const openWalletModal = useCallback(() => {
-    if (!appKitHooks) {
-      console.warn('[Wallet] AppKit not available');
-      return;
-    }
-    appKitHooks.open();
-  }, [appKitHooks]);
+    connectWallet();
+  }, [connectWallet]);
 
   return (
     <WalletContext.Provider
@@ -93,53 +148,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
         disconnectWallet,
         isLoading,
         openWalletModal,
-        isAppKitReady: !!projectId && !!appKitHooks,
-      }}
-    >
-      {children}
-    </WalletContext.Provider>
-  );
-}
-
-export function WalletProvider({ children }: { children: ReactNode }) {
-  if (!projectId) {
-    console.warn('[WalletProvider] WalletConnect Project ID not set - using fallback');
-    return <WalletProviderFallback>{children}</WalletProviderFallback>;
-  }
-  
-  return <WalletProviderInner>{children}</WalletProviderInner>;
-}
-
-function WalletProviderFallback({ children }: { children: ReactNode }) {
-  const fallbackWallet: WalletState = {
-    connected: false,
-    address: null,
-    provider: null,
-    isConnecting: false,
-  };
-
-  const noOpConnect = useCallback(async () => {
-    console.warn('[Wallet] WalletConnect Project ID not configured');
-    return false;
-  }, []);
-
-  const noOpDisconnect = useCallback(async () => {
-    console.warn('[Wallet] WalletConnect Project ID not configured');
-  }, []);
-
-  const noOpOpenModal = useCallback(() => {
-    console.warn('[Wallet] WalletConnect Project ID not configured');
-  }, []);
-
-  return (
-    <WalletContext.Provider
-      value={{
-        wallet: fallbackWallet,
-        connectWallet: noOpConnect,
-        disconnectWallet: noOpDisconnect,
-        isLoading: false,
-        openWalletModal: noOpOpenModal,
-        isAppKitReady: false,
+        isAppKitReady: true,
       }}
     >
       {children}
@@ -159,8 +168,8 @@ export { WalletContext };
 
 export const WALLET_PROVIDERS = [
   {
-    id: 'walletconnect',
-    name: 'WalletConnect',
-    iconName: 'link',
+    id: 'phantom',
+    name: 'Phantom',
+    iconName: 'credit-card',
   },
 ];
