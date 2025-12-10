@@ -113,7 +113,7 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
         <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
           <View style={styles.logoGlow} />
           <Image
-            source={require("@assets/images/roachy-logo.png")}
+            source={require("../../assets/images/roachy-logo.png")}
             style={styles.logo}
             contentFit="contain"
           />
