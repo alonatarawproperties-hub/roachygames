@@ -32,8 +32,6 @@
         "backgroundColor": "#120a05",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
       "package": "com.cryptocreatures.app",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -49,14 +47,6 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "buildReactNativeFromSource": true
-          }
-        }
-      ],
       "expo-system-ui",
       [
         "expo-splash-screen",
@@ -85,9 +75,6 @@
       ],
       "expo-font"
     ],
-    "experiments": {
-      "reactCompiler": false
-    },
     "extra": {
       "eas": {
         "projectId": "b771b4a4-642a-40c9-98e4-f7af33384b5d"
