@@ -24,8 +24,6 @@ import {
   TransactionHistory,
   NFTGallery,
   WebCTABanner,
-  EventsCalendar,
-  FriendActivity,
 } from "@/components/arcade";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -232,10 +230,6 @@ export function ArcadeHomeScreen() {
               <>
                 <View style={styles.sectionSpacer} />
                 {showWebBanner ? <WebCTABanner onDismiss={() => setShowWebBanner(false)} /> : null}
-                <View style={styles.sectionSpacer} />
-                <EventsCalendar />
-                <View style={styles.sectionSpacer} />
-                <FriendActivity isConnected={wallet.connected} />
                 <View style={styles.moreSection}>
                   <ThemedText style={styles.moreText}>More games coming soon</ThemedText>
                 </View>
