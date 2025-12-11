@@ -37,6 +37,7 @@ function shuffleArray<T>(array: T[]): T[] {
 class TournamentOrchestrator {
   private isRunning = false;
   private tickInterval: ReturnType<typeof setInterval> | null = null;
+  private consecutiveErrors = 0;
 
   start() {
     if (this.isRunning) {
@@ -47,8 +48,11 @@ class TournamentOrchestrator {
     this.isRunning = true;
     console.log('[TournamentOrchestrator] Starting automatic tournament management');
 
-    this.tick();
-    this.tickInterval = setInterval(() => this.tick(), TICK_INTERVAL);
+    // Delay first tick by 5 seconds to let DB warm up
+    setTimeout(() => {
+      this.tick();
+      this.tickInterval = setInterval(() => this.tick(), TICK_INTERVAL);
+    }, 5000);
   }
 
   stop() {
@@ -62,13 +66,21 @@ class TournamentOrchestrator {
 
   private async tick() {
     try {
+      console.log('[TournamentOrchestrator] Tick starting...');
       await this.ensureSitAndGoPool();
       await this.startReadyTournaments();
       await this.checkMatchCompletions();
       await this.advanceBrackets();
       await this.finalizeTournaments();
-    } catch (error) {
-      console.error('[TournamentOrchestrator] Tick error:', error);
+      this.consecutiveErrors = 0;
+      console.log('[TournamentOrchestrator] Tick completed');
+    } catch (error: any) {
+      this.consecutiveErrors++;
+      if (this.consecutiveErrors <= 3) {
+        console.error('[TournamentOrchestrator] Tick error (attempt ' + this.consecutiveErrors + '):', error?.message || error);
+      } else if (this.consecutiveErrors === 4) {
+        console.error('[TournamentOrchestrator] Multiple DB errors, reducing log frequency');
+      }
     }
   }
 
