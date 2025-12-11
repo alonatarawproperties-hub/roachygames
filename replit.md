@@ -80,3 +80,18 @@ A simple Express.js server handles API routes and data storage.
 ### Build and Deployment
 - **Expo SDK 53:** Core framework for React Native development.
 - **EAS Build:** Used for creating development, preview, and production builds, especially for native capabilities like full Apple/Google Maps.
+
+## Pending Actions (December 11, 2025)
+
+### Submit Build 79 to TestFlight
+- **Status:** Build 79 is ready, waiting for Apple upload limit to reset (~24 hours)
+- **Build ID:** 2b943211-d0d0-427c-9a24-245d8653e956
+- **IPA URL:** https://expo.dev/artifacts/eas/6o7Hz9z8gCkPRWdAEgzpTU.ipa
+- **Fixes included:**
+  - LeafletMapView controls repositioned to `bottom: 140px` (above tab bar)
+  - Location info repositioned to `bottom: 140px` (above tab bar)
+  - 118 active spawns in database near user location (14.676, 121.043)
+- **Command to submit:** `npx eas-cli submit --platform ios --id 2b943211-d0d0-427c-9a24-245d8653e956 --non-interactive`
+
+### Current TestFlight Build
+- Build 76 is currently on TestFlight (has UI positioning bugs)
