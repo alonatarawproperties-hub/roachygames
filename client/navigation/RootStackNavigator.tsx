@@ -3,12 +3,18 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CatchScreen from "@/screens/CatchScreen";
 import { ArcadeHomeScreen } from "@/screens/Arcade";
+import { FlappyRoachScreen } from "@/screens/FlappyRoachScreen";
+import { RoachyMateScreen } from "@/screens/RoachyMateScreen";
+import { RoachyBattlesScreen } from "@/screens/RoachyBattlesScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { WildCreature } from "@/constants/gameState";
 
 export type RootStackParamList = {
   ArcadeHome: undefined;
   RoachyHuntStack: undefined;
+  FlappyRoachStack: undefined;
+  RoachyMateStack: undefined;
+  RoachyBattlesStack: undefined;
   Catch: { creature: WildCreature };
 };
 
@@ -36,6 +42,30 @@ export default function RootStackNavigator() {
           presentation: "fullScreenModal",
           headerShown: false,
           animation: "fade",
+        }}
+      />
+      <Stack.Screen
+        name="FlappyRoachStack"
+        component={FlappyRoachScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="RoachyMateStack"
+        component={RoachyMateScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="RoachyBattlesStack"
+        component={RoachyBattlesScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
         }}
       />
     </Stack.Navigator>
