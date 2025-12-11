@@ -1,43 +1,55 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Linking } from "react-native";
+import { View, StyleSheet, Pressable, Linking, Platform } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import Svg, { Defs, LinearGradient, Stop, Path } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 
 interface SolanaTrustBadgeProps {
   variant?: "minimal" | "full";
 }
 
 function SolanaLogo({ size = 20 }: { size?: number }) {
+  const barHeight = size * 0.18;
+  const barSpacing = size * 0.08;
+  
   return (
-    <Svg width={size} height={size} viewBox="0 0 397.7 311.7">
-      <Defs>
-        <LinearGradient id="solanaGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%" stopColor="#00FFA3" />
-          <Stop offset="100%" stopColor="#DC1FFF" />
-        </LinearGradient>
-        <LinearGradient id="solanaGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%" stopColor="#00FFA3" />
-          <Stop offset="100%" stopColor="#DC1FFF" />
-        </LinearGradient>
-        <LinearGradient id="solanaGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%" stopColor="#00FFA3" />
-          <Stop offset="100%" stopColor="#DC1FFF" />
-        </LinearGradient>
-      </Defs>
-      <Path
-        fill="url(#solanaGradient1)"
-        d="M64.6,237.9c2.4-2.4,5.7-3.8,9.2-3.8h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,237.9z"
+    <View style={{ width: size, height: size, justifyContent: "center", alignItems: "center" }}>
+      <LinearGradient
+        colors={["#00FFA3", "#DC1FFF"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          width: size * 0.9,
+          height: barHeight,
+          borderRadius: 2,
+          marginBottom: barSpacing,
+          transform: [{ skewX: "-15deg" }],
+        }}
       />
-      <Path
-        fill="url(#solanaGradient2)"
-        d="M64.6,3.8C67.1,1.4,70.4,0,73.8,0h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,3.8z"
+      <LinearGradient
+        colors={["#00FFA3", "#DC1FFF"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          width: size * 0.9,
+          height: barHeight,
+          borderRadius: 2,
+          marginBottom: barSpacing,
+          transform: [{ skewX: "-15deg" }],
+        }}
       />
-      <Path
-        fill="url(#solanaGradient3)"
-        d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6,11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4c5.8,0,8.7-7,4.6-11.1L333.1,120.1z"
+      <LinearGradient
+        colors={["#00FFA3", "#DC1FFF"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          width: size * 0.9,
+          height: barHeight,
+          borderRadius: 2,
+          transform: [{ skewX: "-15deg" }],
+        }}
       />
-    </Svg>
+    </View>
   );
 }
 
@@ -50,7 +62,7 @@ export function SolanaTrustBadge({ variant = "minimal" }: SolanaTrustBadgeProps)
     return (
       <Pressable style={styles.minimalContainer} onPress={handlePress}>
         <View style={styles.logoWrapper}>
-          <SolanaLogo size={18} />
+          <SolanaLogo size={22} />
         </View>
         <ThemedText style={styles.minimalText}>Powered by</ThemedText>
         <ThemedText style={styles.solanaName}>Solana</ThemedText>
@@ -82,12 +94,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.xl,
-    gap: 6,
-    opacity: 0.8,
+    gap: 8,
+    opacity: 0.9,
   },
   logoWrapper: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -118,8 +130,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   logoWrapperFull: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     backgroundColor: GameColors.surfaceLight,
     borderRadius: 12,
     justifyContent: "center",
