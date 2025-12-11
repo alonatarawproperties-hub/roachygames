@@ -49,7 +49,16 @@ A simple Express.js server handles API routes and data storage.
 
 ### Game Catalog
 - **Roachy Hunt (LIVE):** GPS-based creature hunting, catch, collect, battle.
-- **Coming Soon:** Roachy Battles (PvP), Flappy Roach (endless runner), Roachy Mate (breeding/evolution).
+- **Roachy Mate (LIVE):** Native chess game with Unicode piece rendering. Located in `client/games/chess/`.
+- **Coming Soon:** Roachy Battles (PvP), Flappy Roach (endless runner).
+
+### Native Games Architecture
+Games are migrated from web to native React Native components:
+- **Location:** `client/games/<game-name>/` folders
+- **Roachy Mate (Chess):** 
+  - `client/games/chess/ChessBoard.tsx` - Core chess component using chess.js
+  - Uses Unicode chess symbols for cross-platform rendering
+  - Features: Touch-move, board flip, move validation, check/checkmate detection
 
 ## External Dependencies
 
