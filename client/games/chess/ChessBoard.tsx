@@ -1,28 +1,62 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   Dimensions,
 } from 'react-native';
 import { Chess, Square, Move as ChessMove } from 'chess.js';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring,
+} from 'react-native-reanimated';
+import { PieceSprite } from './pieces/ChessPieces';
 
-const PIECE_CHARS: Record<string, { char: string; isWhite: boolean }> = {
-  'K': { char: '\u265A', isWhite: true },
-  'Q': { char: '\u265B', isWhite: true },
-  'R': { char: '\u265C', isWhite: true },
-  'B': { char: '\u265D', isWhite: true },
-  'N': { char: '\u265E', isWhite: true },
-  'P': { char: '\u265F', isWhite: true },
-  'k': { char: '\u265A', isWhite: false },
-  'q': { char: '\u265B', isWhite: false },
-  'r': { char: '\u265C', isWhite: false },
-  'b': { char: '\u265D', isWhite: false },
-  'n': { char: '\u265E', isWhite: false },
-  'p': { char: '\u265F', isWhite: false },
-};
+function detectMoveFromFenChange(oldFen: string, newFen: string): { from: Square; to: Square } | null {
+  try {
+    const oldGame = new Chess(oldFen);
+    const newGame = new Chess(newFen);
+    
+    const history = newGame.history({ verbose: true });
+    if (history.length > 0) {
+      const lastHistoryMove = history[history.length - 1];
+      return { from: lastHistoryMove.from as Square, to: lastHistoryMove.to as Square };
+    }
+    
+    const allSquares: Square[] = [];
+    for (const file of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      for (const rank of ['1', '2', '3', '4', '5', '6', '7', '8']) {
+        allSquares.push(`${file}${rank}` as Square);
+      }
+    }
+    
+    let fromSquare: Square | null = null;
+    let toSquare: Square | null = null;
+    
+    for (const sq of allSquares) {
+      const oldPiece = oldGame.get(sq);
+      const newPiece = newGame.get(sq);
+      
+      if (oldPiece && !newPiece) {
+        fromSquare = sq;
+      } else if (!oldPiece && newPiece) {
+        toSquare = sq;
+      } else if (oldPiece && newPiece && oldPiece.type !== newPiece.type) {
+        toSquare = sq;
+      }
+    }
+    
+    if (fromSquare && toSquare) {
+      return { from: fromSquare, to: toSquare };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 interface ChessBoardProps {
   fen?: string;
@@ -32,31 +66,6 @@ interface ChessBoardProps {
   showCoordinates?: boolean;
   size?: number;
 }
-
-const ChessPiece = ({ piece, size = 40 }: { piece: string; size?: number }) => {
-  const pieceData = PIECE_CHARS[piece];
-  if (!pieceData) return null;
-  
-  const { char, isWhite } = pieceData;
-  
-  return (
-    <View style={[styles.pieceWrapper, { width: size, height: size }]}>
-      <Text style={[
-        styles.pieceText,
-        { 
-          fontSize: size * 0.78,
-          lineHeight: size,
-          color: isWhite ? '#FFFFFF' : '#1a1a1a',
-          textShadowColor: isWhite ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.3)',
-          textShadowOffset: { width: 1, height: 1 },
-          textShadowRadius: isWhite ? 3 : 2,
-        }
-      ]}>
-        {char}
-      </Text>
-    </View>
-  );
-};
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -83,9 +92,17 @@ export function ChessBoard({
   const lastFenRef = useRef<string>(fen);
   const pendingMoveRef = useRef<boolean>(false);
   
+  const lastMoveScale = useSharedValue(1);
+  const lastMoveSquareRef = useRef<Square | null>(null);
+  
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
   const boardSize = size || Math.min(screenWidth - 16, screenHeight * 0.55, 500);
   const squareSize = boardSize / 8;
+  
+  const triggerMoveAnimation = useCallback(() => {
+    lastMoveScale.value = 0.7;
+    lastMoveScale.value = withSpring(1, { damping: 12, stiffness: 200 });
+  }, [lastMoveScale]);
   
   useEffect(() => {
     if (pendingMoveRef.current) {
@@ -97,25 +114,32 @@ export function ChessBoard({
     }
     
     if (fen !== lastFenRef.current) {
+      const detectedMove = detectMoveFromFenChange(lastFenRef.current, fen);
       lastFenRef.current = fen;
       const newGame = new Chess(fen);
       setGame(newGame);
       setSelectedSquare(null);
       setValidMoves([]);
+      
+      if (detectedMove) {
+        setLastMove(detectedMove);
+        lastMoveSquareRef.current = detectedMove.to;
+        triggerMoveAnimation();
+      }
     }
-  }, [fen]);
+  }, [fen, triggerMoveAnimation]);
   
   const isFlipped = playerColor === 'black';
   
-  const getSquareColor = (file: number, rank: number): string => {
+  const getSquareColor = useCallback((file: number, rank: number): string => {
     return (file + rank) % 2 === 0 ? DARK_SQUARE : LIGHT_SQUARE;
-  };
+  }, []);
   
-  const getPieceAt = (square: Square): string | null => {
+  const getPieceAt = useCallback((square: Square): string | null => {
     const piece = game.get(square);
     if (!piece) return null;
     return piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
-  };
+  }, [game]);
   
   const handleSquarePress = useCallback((square: Square) => {
     if (disabled) return;
@@ -129,6 +153,8 @@ export function ChessBoard({
           const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
           if (move) {
             setLastMove({ from: selectedSquare, to: square });
+            lastMoveSquareRef.current = square;
+            triggerMoveAnimation();
             setSelectedSquare(null);
             setValidMoves([]);
             pendingMoveRef.current = true;
@@ -166,9 +192,13 @@ export function ChessBoard({
         setValidMoves(moves.map(m => m.to as Square));
       }
     }
-  }, [game, selectedSquare, validMoves, disabled, playerColor, onMove]);
+  }, [game, selectedSquare, validMoves, disabled, playerColor, onMove, triggerMoveAnimation]);
   
-  const renderSquare = (index: number) => {
+  const lastMoveAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: lastMoveScale.value }],
+  }));
+  
+  const renderSquare = useCallback((index: number) => {
     const file = index % 8;
     const rank = Math.floor(index / 8);
     const actualFile = isFlipped ? 7 - file : file;
@@ -183,7 +213,7 @@ export function ChessBoard({
     const isInCheck = game.inCheck() && piece && 
       ((piece === 'K' && game.turn() === 'w') || (piece === 'k' && game.turn() === 'b'));
     
-    let backgroundColor = getSquareColor(actualFile, actualRank);
+    const backgroundColor = getSquareColor(actualFile, actualRank);
     let overlayColor: string | null = null;
     
     if (isLastMoveFrom || isLastMoveTo) {
@@ -200,8 +230,10 @@ export function ChessBoard({
     const showRankLabel = showCoordinates && file === 0;
     const labelColor = (actualFile + actualRank) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
     
+    const shouldAnimate = isLastMoveTo && lastMoveSquareRef.current === square;
+    
     return (
-      <TouchableOpacity
+      <Pressable
         key={square}
         testID={`square-${square}`}
         style={[
@@ -213,14 +245,19 @@ export function ChessBoard({
           },
         ]}
         onPress={() => handleSquarePress(square)}
-        activeOpacity={0.9}
       >
         {overlayColor ? (
           <View style={[styles.squareOverlay, { backgroundColor: overlayColor }]} />
         ) : null}
         
         {piece ? (
-          <ChessPiece piece={piece} size={squareSize * 0.92} />
+          shouldAnimate ? (
+            <Animated.View style={lastMoveAnimatedStyle}>
+              <PieceSprite piece={piece} size={squareSize} square={square} />
+            </Animated.View>
+          ) : (
+            <PieceSprite piece={piece} size={squareSize} square={square} />
+          )
         ) : null}
         
         {isValidMove && !piece ? (
@@ -250,9 +287,13 @@ export function ChessBoard({
             {RANKS[actualRank]}
           </Text>
         ) : null}
-      </TouchableOpacity>
+      </Pressable>
     );
-  };
+  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle]);
+  
+  const squares = useMemo(() => {
+    return Array.from({ length: 64 }).map((_, i) => renderSquare(i));
+  }, [renderSquare]);
   
   return (
     <View style={styles.container}>
@@ -264,7 +305,7 @@ export function ChessBoard({
       >
         <View style={[styles.boardInner, { width: boardSize + 4, height: boardSize + 4 }]}>
           <View style={[styles.board, { width: boardSize, height: boardSize }]}>
-            {Array.from({ length: 64 }).map((_, i) => renderSquare(i))}
+            {squares}
           </View>
         </View>
       </LinearGradient>
@@ -307,14 +348,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  pieceWrapper: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pieceText: {
-    textAlign: 'center',
-    fontWeight: 'bold',
   },
   validMoveIndicator: {
     position: 'absolute',
