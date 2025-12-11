@@ -96,6 +96,7 @@ export default function HuntScreen() {
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapViewWrapperRef>(null);
   const loadingFadeAnim = useSharedValue(1);
+  const hasAutoSpawned = useRef(false);
 
   const pulseAnim = useSharedValue(1);
 
@@ -233,10 +234,13 @@ export default function HuntScreen() {
     console.log("Auto-spawn check:", { 
       hasLocation: !!playerLocation, 
       spawnsLength: spawns.length, 
-      isLoading 
+      isLoading,
+      hasAutoSpawned: hasAutoSpawned.current
     });
-    if (playerLocation && spawns.length === 0 && !isLoading) {
-      console.log("Triggering auto-spawn!");
+    // Auto-spawn eggs when player location is first detected and no spawns nearby
+    if (playerLocation && spawns.length === 0 && !isLoading && !hasAutoSpawned.current) {
+      console.log("Triggering auto-spawn for new player!");
+      hasAutoSpawned.current = true;
       spawnCreatures();
     }
   }, [playerLocation, spawns.length, isLoading, spawnCreatures]);
@@ -789,6 +793,7 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
+    marginHorizontal: Spacing.md,
     padding: Spacing.xs,
   },
   tab: {
@@ -796,8 +801,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.xs,
+    gap: 6,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
   },
   activeTab: {

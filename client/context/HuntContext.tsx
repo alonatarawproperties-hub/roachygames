@@ -321,7 +321,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const response = await apiRequest("POST", "/api/hunt/spawn", {
         latitude: playerLocation.latitude,
         longitude: playerLocation.longitude,
-        count: 5,
+        count: 15,
       });
       const data = await response.json();
       console.log("spawnCreatures: Response", data);

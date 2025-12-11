@@ -464,9 +464,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           ) : null}
         </View>
 
-        {/* Map Controls - Bottom Right, stacked vertically with glassmorphic style */}
-        {/* Position ABOVE the hunt menu container (~120px menu + bottom inset + padding) */}
-        <View style={[styles.mapControlsContainer, { bottom: insets.bottom + 140 }]}>
+        {/* Map Controls - Bottom Right inside map container */}
+        <View style={styles.mapControlsContainer}>
           <AnimatedControlButton 
             iconName="navigation" 
             onPress={centerOnPlayerMap}
@@ -477,9 +476,9 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           />
         </View>
 
-        {/* Coordinates display - Bottom Left */}
+        {/* Coordinates display - Bottom Left inside map container */}
         {hasLocation ? (
-          <View style={[styles.locationInfo, { bottom: insets.bottom + 24 }]}>
+          <View style={styles.locationInfo}>
             <Feather name="map-pin" size={10} color={GameColors.primary} />
             <ThemedText style={styles.locationText}>
               {playerLocation.latitude.toFixed(4)}, {playerLocation.longitude.toFixed(4)}
@@ -585,10 +584,11 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
   },
 
-  // Map Controls - Bottom Right stacked - ABOVE the hunt menu (menu is ~120px + insets)
+  // Map Controls - Bottom Right corner inside map container
   mapControlsContainer: {
     position: "absolute",
     right: Spacing.md,
+    bottom: Spacing.md,
     gap: 10,
     zIndex: 50,
     elevation: 50,
@@ -601,10 +601,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.1)",
   },
 
-  // Location info - Bottom Left
+  // Location info - Bottom Left inside map container
   locationInfo: {
     position: "absolute",
-    left: Spacing.sm,
+    left: Spacing.md,
+    bottom: Spacing.md,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
