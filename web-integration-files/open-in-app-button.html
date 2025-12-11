@@ -1,0 +1,87 @@
+<!-- 
+  Open in App Button - Copy this code to your roachy.games web pages
+  This button attempts to open the mobile app, with fallback to web
+-->
+
+<style>
+.open-in-app-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #FFD93D 0%, #C9A227 100%);
+  color: #120a05;
+  font-weight: 600;
+  font-size: 16px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.open-in-app-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 217, 61, 0.4);
+}
+
+.open-in-app-btn svg {
+  width: 20px;
+  height: 20px;
+}
+</style>
+
+<!-- Basic Open in App Button -->
+<a href="roachy-games://home" class="open-in-app-btn" id="openInAppBtn">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 18l-6-6 6-6M6 12h12"/>
+  </svg>
+  Open in App
+</a>
+
+<script>
+// Smart deep link handler with fallback
+function openInApp(path = '', fallbackUrl = window.location.href) {
+  const deepLink = 'roachy-games://' + path;
+  const universalLink = 'https://roachy.games/app/' + path;
+  
+  // Try universal link first (better iOS experience)
+  const start = Date.now();
+  
+  // Set a timeout to check if app opened
+  const timeout = setTimeout(() => {
+    // If we're still here after 1.5s, app didn't open
+    // Stay on web page (don't redirect)
+    console.log('App not installed, staying on web');
+  }, 1500);
+  
+  // Listen for page visibility change (app opened)
+  document.addEventListener('visibilitychange', function handler() {
+    if (document.hidden) {
+      clearTimeout(timeout);
+      document.removeEventListener('visibilitychange', handler);
+    }
+  });
+  
+  // Try to open the app
+  window.location.href = deepLink;
+}
+
+// Example: Open specific screens
+function openHuntScreen() {
+  openInApp('hunt');
+}
+
+function openInventoryScreen() {
+  openInApp('inventory');
+}
+
+function openProfileScreen() {
+  openInApp('profile');
+}
+
+// With wallet address for shared identity
+function openAppWithWallet(walletAddress) {
+  openInApp('home?wallet=' + encodeURIComponent(walletAddress));
+}
+</script>
