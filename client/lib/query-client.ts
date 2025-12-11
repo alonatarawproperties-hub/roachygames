@@ -1,19 +1,33 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 /**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
+ * Gets the base URL for the Express API server
+ * In production, uses roachy.games. In development, uses local server.
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
+  // Production builds use roachy.games as the shared backend
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  // Development fallback to local server
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+    throw new Error("EXPO_PUBLIC_DOMAIN or EXPO_PUBLIC_API_URL is not set");
   }
 
   let url = new URL(`https://${host}`);
 
   return url.href;
+}
+
+/**
+ * Gets the marketplace URL for cross-app navigation
+ */
+export function getMarketplaceUrl(): string {
+  return "https://roachy.games";
 }
 
 async function throwIfResNotOk(res: Response) {

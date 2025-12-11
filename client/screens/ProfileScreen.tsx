@@ -13,6 +13,8 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
+import { getMarketplaceUrl } from "@/lib/query-client";
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -95,6 +97,11 @@ export default function ProfileScreen() {
   const handleAddEggs = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEggs(5);
+  };
+
+  const handleOpenMarketplace = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await WebBrowser.openBrowserAsync(getMarketplaceUrl());
   };
 
   const truncateAddress = (address: string) => {
@@ -279,6 +286,26 @@ export default function ProfileScreen() {
         <ThemedText type="h4" style={styles.sectionTitle}>
           Resources
         </ThemedText>
+        <Pressable style={styles.resourceCard} onPress={handleOpenMarketplace}>
+          <View style={styles.resourceRow}>
+            <View style={[styles.resourceIcon, { backgroundColor: GameColors.primary + "20" }]}>
+              <Feather name="shopping-bag" size={24} color={GameColors.primary} />
+            </View>
+            <View style={styles.resourceInfo}>
+              <ThemedText style={styles.resourceTitle}>
+                Marketplace
+              </ThemedText>
+              <ThemedText style={styles.resourceDescription}>
+                Trade Roachies, eggs, and items
+              </ThemedText>
+            </View>
+            <Feather
+              name="external-link"
+              size={24}
+              color={GameColors.textSecondary}
+            />
+          </View>
+        </Pressable>
         <Pressable style={styles.resourceCard} onPress={handleAddEggs}>
           <View style={styles.resourceRow}>
             <View style={styles.resourceIcon}>
