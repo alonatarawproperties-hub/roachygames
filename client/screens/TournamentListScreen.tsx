@@ -1,13 +1,55 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  Easing,
+  withSequence,
+} from "react-native-reanimated";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl } from "@/lib/query-client";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+function AnimatedLoader({ size = 32, color = GameColors.primary }: { size?: number; color?: string }) {
+  const rotation = useSharedValue(0);
+  const scale = useSharedValue(1);
+  
+  useEffect(() => {
+    rotation.value = withRepeat(
+      withTiming(360, { duration: 1200, easing: Easing.linear }),
+      -1,
+      false
+    );
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: `${rotation.value}deg` },
+      { scale: scale.value },
+    ],
+  }));
+  
+  return (
+    <Animated.View style={[styles.loaderContainer, animatedStyle]}>
+      <Feather name="loader" size={size} color={color} />
+    </Animated.View>
+  );
+}
 
 type TournamentType = 'sit_and_go' | 'daily' | 'weekly' | 'monthly';
 type FilterType = 'all' | TournamentType;
@@ -284,7 +326,7 @@ export function TournamentListScreen() {
           </View>
         ) : isLoading ? (
           <View style={styles.emptyState}>
-            <Feather name="loader" size={32} color={GameColors.textSecondary} />
+            <AnimatedLoader size={40} color={GameColors.primary} />
             <Text style={styles.emptyTitle}>
               {loadingTime > 5 ? 'Still connecting...' : 'Loading tournaments...'}
             </Text>
@@ -298,6 +340,11 @@ export function TournamentListScreen() {
                 Almost there! First connection takes longest.
               </Text>
             ) : null}
+            <View style={styles.loadingDots}>
+              <Animated.View style={[styles.loadingDot, { opacity: 0.3 + (loadingTime % 3 === 0 ? 0.7 : 0) }]} />
+              <Animated.View style={[styles.loadingDot, { opacity: 0.3 + (loadingTime % 3 === 1 ? 0.7 : 0) }]} />
+              <Animated.View style={[styles.loadingDot, { opacity: 0.3 + (loadingTime % 3 === 2 ? 0.7 : 0) }]} />
+            </View>
           </View>
         ) : filteredTournaments.length === 0 ? (
           <View style={styles.emptyState}>
@@ -558,6 +605,20 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
+  },
+  loaderContainer: {
+    marginBottom: Spacing.sm,
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: Spacing.md,
+  },
+  loadingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: GameColors.primary,
   },
   retryButton: {
     flexDirection: 'row',
