@@ -345,3 +345,101 @@ export type ChessMatch = typeof chessMatches.$inferSelect;
 export type InsertChessMatch = z.infer<typeof insertChessMatchSchema>;
 export type ChessMatchmakingQueue = typeof chessMatchmakingQueue.$inferSelect;
 export type InsertChessMatchmakingQueue = z.infer<typeof insertChessMatchmakingQueueSchema>;
+
+// ==================== TOURNAMENT TABLES ====================
+
+export const TOURNAMENT_TYPES = ['sit_and_go', 'daily', 'weekly', 'monthly'] as const;
+export type TournamentType = typeof TOURNAMENT_TYPES[number];
+
+export const TOURNAMENT_STATUS = ['scheduled', 'registering', 'active', 'completed', 'cancelled'] as const;
+export type TournamentStatus = typeof TOURNAMENT_STATUS[number];
+
+export const chessTournaments = pgTable("chess_tournaments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  tournamentType: text("tournament_type").notNull().default('sit_and_go'),
+  timeControl: text("time_control").notNull().default('blitz'),
+  entryFee: integer("entry_fee").notNull().default(0),
+  prizePool: integer("prize_pool").notNull().default(0),
+  rakeAmount: integer("rake_amount").notNull().default(0),
+  maxPlayers: integer("max_players").notNull().default(8),
+  minPlayers: integer("min_players").notNull().default(2),
+  currentPlayers: integer("current_players").notNull().default(0),
+  currentRound: integer("current_round").notNull().default(0),
+  totalRounds: integer("total_rounds").notNull().default(3),
+  status: text("status").notNull().default('scheduled'),
+  scheduledStartAt: timestamp("scheduled_start_at"),
+  registrationEndsAt: timestamp("registration_ends_at"),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  winnerWallet: text("winner_wallet"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const chessTournamentParticipants = pgTable("chess_tournament_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tournamentId: varchar("tournament_id").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  seed: integer("seed"),
+  currentRound: integer("current_round").notNull().default(1),
+  wins: integer("wins").notNull().default(0),
+  losses: integer("losses").notNull().default(0),
+  isEliminated: boolean("is_eliminated").notNull().default(false),
+  finalPlacement: integer("final_placement"),
+  prizesWon: integer("prizes_won").notNull().default(0),
+  joinedAt: timestamp("joined_at").notNull().default(sql`now()`),
+});
+
+export const chessTournamentMatches = pgTable("chess_tournament_matches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tournamentId: varchar("tournament_id").notNull(),
+  chessMatchId: varchar("chess_match_id"),
+  roundNumber: integer("round_number").notNull(),
+  matchNumber: integer("match_number").notNull(),
+  player1Wallet: text("player1_wallet"),
+  player2Wallet: text("player2_wallet"),
+  winnerWallet: text("winner_wallet"),
+  status: text("status").notNull().default('pending'),
+  scheduledAt: timestamp("scheduled_at"),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertChessTournamentSchema = createInsertSchema(chessTournaments).omit({
+  id: true,
+  createdAt: true,
+  currentPlayers: true,
+  currentRound: true,
+  startedAt: true,
+  endedAt: true,
+  winnerWallet: true,
+});
+
+export const insertChessTournamentParticipantSchema = createInsertSchema(chessTournamentParticipants).omit({
+  id: true,
+  joinedAt: true,
+  seed: true,
+  currentRound: true,
+  wins: true,
+  losses: true,
+  isEliminated: true,
+  finalPlacement: true,
+  prizesWon: true,
+});
+
+export const insertChessTournamentMatchSchema = createInsertSchema(chessTournamentMatches).omit({
+  id: true,
+  createdAt: true,
+  chessMatchId: true,
+  winnerWallet: true,
+  startedAt: true,
+  endedAt: true,
+});
+
+export type ChessTournament = typeof chessTournaments.$inferSelect;
+export type InsertChessTournament = z.infer<typeof insertChessTournamentSchema>;
+export type ChessTournamentParticipant = typeof chessTournamentParticipants.$inferSelect;
+export type InsertChessTournamentParticipant = z.infer<typeof insertChessTournamentParticipantSchema>;
+export type ChessTournamentMatch = typeof chessTournamentMatches.$inferSelect;
+export type InsertChessTournamentMatch = z.infer<typeof insertChessTournamentMatchSchema>;
