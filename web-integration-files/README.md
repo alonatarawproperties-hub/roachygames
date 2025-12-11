@@ -2,11 +2,13 @@
 
 Copy these files to your **FlappyHtml v2** (roachy.games) project to enable deep linking between the web marketplace and the mobile app.
 
+**Your Apple Team ID: X4G4WJ8BD6** (already configured in the files)
+
 ## Quick Setup
 
 ### Step 1: Create the .well-known folder
 
-In your web project root, create a folder called `.well-known`
+In your FlappyHtml v2 project root, create a folder called `.well-known`
 
 ### Step 2: Copy the files
 
@@ -14,20 +16,14 @@ In your web project root, create a folder called `.well-known`
    - **Important**: This file must have NO file extension
    - Must be served with `Content-Type: application/json`
 
-2. Copy `assetlinks.json` to `.well-known/assetlinks.json`
+2. Copy `assetlinks.json` to `.well-known/assetlinks.json` (for Android later)
 
-### Step 3: Update the placeholder values
+### Step 3: Android fingerprint (when you build for Android)
 
-**In apple-app-site-association:**
-- Replace `YOUR_TEAM_ID` with your Apple Developer Team ID
-  - Find it at: https://developer.apple.com/account → Membership → Team ID
-  - Example: If your Team ID is `ABC123DEF4`, the appID becomes `ABC123DEF4.com.cryptocreatures.app`
-
-**In assetlinks.json:**
-- Replace `YOUR_SHA256_FINGERPRINT_HERE` with your Android signing key fingerprint
-  - Get it by running: `npx eas-cli credentials --platform android`
-  - Look for "SHA256 Fingerprint" in the output
-  - Format: `12:34:56:78:90:AB:CD:EF:...`
+The `assetlinks.json` file has a placeholder. When you create your first Android build:
+1. Run `npx eas-cli credentials` → select Android → Keystore → Download
+2. Copy the SHA256 fingerprint shown
+3. Replace `ADD_YOUR_SHA256_FINGERPRINT_LATER` in assetlinks.json
 
 ### Step 4: Ensure proper serving
 
