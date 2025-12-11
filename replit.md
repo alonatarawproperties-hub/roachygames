@@ -65,9 +65,17 @@ A simple Express.js server handles API routes and data storage.
 - **Reown AppKit SDK:** Used for WalletConnect-compatible wallets, platform-specific implementation for native builds. Requires `WALLETCONNECT_PROJECT_ID`.
 
 ### Mapping and Location
-- **OpenStreetMap tiles:** Used for the Leaflet WebView map.
+- **OpenStreetMap tiles:** Used for the Leaflet WebView map fallback.
 - **Google Maps API Key:** Required for future upgrades to native Google Maps on Android.
 - **Apple Developer Account:** Required for future upgrades to native Apple Maps on iOS.
+
+**CRITICAL: Dual Map Implementation**
+- `MapViewWrapper.tsx` has TWO map implementations that must stay in sync:
+  1. **Native maps (`react-native-maps`)** - Used in production iOS/Android TestFlight builds
+  2. **Leaflet WebView fallback (`LeafletMapView.tsx`)** - Used in Expo Go and when native maps fail
+- When adding map features (controls, indicators, overlays), you MUST update BOTH implementations
+- Native map controls are React Native components; Leaflet controls are HTML/JS in the WebView template
+- Features to keep synchronized: GPS indicator, map controls position, button animations, heading arrow
 
 ### Build and Deployment
 - **Expo SDK 53:** Core framework for React Native development.
