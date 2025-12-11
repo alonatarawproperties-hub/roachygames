@@ -695,25 +695,79 @@ export function ArcadeHomeScreen() {
               </ThemedText>
             </View>
 
-            <View style={styles.rewardsSection}>
-              <ThemedText style={styles.sectionTitle}>Daily Login Bonus</ThemedText>
+            <View style={styles.dailyBonusContainer}>
+              <View style={styles.dailyBonusHeader}>
+                <View style={styles.dailyBonusHeaderLeft}>
+                  <Feather name="calendar" size={20} color={GameColors.gold} />
+                  <ThemedText style={styles.dailyBonusTitle}>Daily Login Bonus</ThemedText>
+                </View>
+                <View style={styles.streakBadge}>
+                  <Feather name="zap" size={14} color={GameColors.gold} />
+                  <ThemedText style={styles.streakText}>1 Day Streak</ThemedText>
+                </View>
+              </View>
+              
               <View style={styles.dailyRewardsGrid}>
-                {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-                  <View
-                    key={day}
-                    style={[
-                      styles.dailyRewardCard,
-                      day === 1 && styles.dailyRewardActive,
-                    ]}
-                  >
-                    <ThemedText style={styles.dayText}>Day {day}</ThemedText>
-                    <Feather
-                      name={day <= 1 ? "check-circle" : "gift"}
-                      size={20}
-                      color={day <= 1 ? GameColors.success : GameColors.textSecondary}
-                    />
-                  </View>
-                ))}
+                {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                  const isCompleted = day < 1;
+                  const isCurrent = day === 1;
+                  const isLocked = day > 1;
+                  const isDay7 = day === 7;
+                  
+                  return (
+                    <View
+                      key={day}
+                      style={[
+                        styles.dailyRewardCard,
+                        isCurrent && styles.dailyRewardCurrent,
+                        isCompleted && styles.dailyRewardCompleted,
+                        isLocked && styles.dailyRewardLocked,
+                        isDay7 && styles.dailyRewardGrand,
+                      ]}
+                    >
+                      <ThemedText style={[
+                        styles.dayLabel,
+                        isCurrent && styles.dayLabelCurrent,
+                        isCompleted && styles.dayLabelCompleted,
+                      ]}>
+                        {isDay7 ? "Day 7" : `Day ${day}`}
+                      </ThemedText>
+                      
+                      <View style={[
+                        styles.rewardIconContainer,
+                        isCurrent && styles.rewardIconCurrent,
+                        isDay7 && styles.rewardIconGrand,
+                      ]}>
+                        {isCompleted ? (
+                          <Feather name="check" size={24} color={GameColors.success} />
+                        ) : isDay7 ? (
+                          <Feather name="star" size={28} color={GameColors.gold} />
+                        ) : (
+                          <Feather 
+                            name="gift" 
+                            size={24} 
+                            color={isCurrent ? GameColors.gold : GameColors.textSecondary} 
+                          />
+                        )}
+                      </View>
+                      
+                      <ThemedText style={[
+                        styles.rewardAmount,
+                        isCurrent && styles.rewardAmountCurrent,
+                        isDay7 && styles.rewardAmountGrand,
+                      ]}>
+                        {isDay7 ? "50" : `${day * 5}`}
+                      </ThemedText>
+                    </View>
+                  );
+                })}
+              </View>
+              
+              <View style={styles.dailyBonusFooter}>
+                <Feather name="info" size={14} color={GameColors.textSecondary} />
+                <ThemedText style={styles.dailyBonusHint}>
+                  Login daily to claim rewards. Day 7 bonus is 10x!
+                </ThemedText>
               </View>
             </View>
 
@@ -994,27 +1048,133 @@ const styles = StyleSheet.create({
   rewardsSection: {
     marginBottom: Spacing.xl,
   },
-  dailyRewardsGrid: {
+  dailyBonusContainer: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
+  },
+  dailyBonusHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  dailyBonusHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
-  dailyRewardCard: {
-    width: 70,
-    paddingVertical: Spacing.md,
-    backgroundColor: GameColors.surface,
-    borderRadius: BorderRadius.md,
+  dailyBonusTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  streakBadge: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 4,
+    backgroundColor: GameColors.gold + "20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  streakText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.gold,
+  },
+  dailyRewardsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: Spacing.xs,
   },
-  dailyRewardActive: {
-    borderWidth: 2,
-    borderColor: GameColors.gold,
+  dailyRewardCard: {
+    flex: 1,
+    minWidth: 44,
+    maxWidth: 52,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: 4,
+    backgroundColor: GameColors.surfaceLight,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
-  dayText: {
-    fontSize: 11,
+  dailyRewardCurrent: {
+    backgroundColor: GameColors.gold + "15",
+    borderColor: GameColors.gold,
+    borderWidth: 2,
+  },
+  dailyRewardCompleted: {
+    backgroundColor: GameColors.success + "10",
+    opacity: 0.7,
+  },
+  dailyRewardLocked: {
+    opacity: 0.5,
+  },
+  dailyRewardGrand: {
+    backgroundColor: GameColors.gold + "20",
+    borderColor: GameColors.gold + "50",
+    borderWidth: 1,
+  },
+  dayLabel: {
+    fontSize: 10,
     color: GameColors.textSecondary,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  dayLabelCurrent: {
+    color: GameColors.gold,
+  },
+  dayLabelCompleted: {
+    color: GameColors.success,
+  },
+  rewardIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  rewardIconCurrent: {
+    backgroundColor: GameColors.gold + "30",
+  },
+  rewardIconGrand: {
+    backgroundColor: GameColors.gold + "40",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  rewardAmount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: GameColors.textSecondary,
+  },
+  rewardAmountCurrent: {
+    color: GameColors.gold,
+  },
+  rewardAmountGrand: {
+    color: GameColors.gold,
+    fontSize: 14,
+  },
+  dailyBonusFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: GameColors.surfaceLight,
+  },
+  dailyBonusHint: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    flex: 1,
   },
   achievementCard: {
     flexDirection: "row",
