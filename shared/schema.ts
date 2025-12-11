@@ -261,3 +261,87 @@ export type HuntRaid = typeof huntRaids.$inferSelect;
 export type InsertHuntRaid = z.infer<typeof insertHuntRaidSchema>;
 export type HuntRaidParticipant = typeof huntRaidParticipants.$inferSelect;
 export type InsertHuntRaidParticipant = z.infer<typeof insertHuntRaidParticipantSchema>;
+
+// ==================== CHESS/ROACHY MATE TABLES ====================
+
+export const CHESS_GAME_MODES = ['casual', 'ranked', 'wager', 'tournament'] as const;
+export type ChessGameMode = typeof CHESS_GAME_MODES[number];
+
+export const CHESS_TIME_CONTROLS = ['bullet', 'blitz', 'rapid', 'classical'] as const;
+export type ChessTimeControl = typeof CHESS_TIME_CONTROLS[number];
+
+export const TIME_CONTROL_SECONDS: Record<ChessTimeControl, number> = {
+  bullet: 60,
+  blitz: 300,
+  rapid: 600,
+  classical: 1800,
+};
+
+export const chessRatings = pgTable("chess_ratings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull().unique(),
+  rating: integer("rating").notNull().default(1200),
+  gamesPlayed: integer("games_played").notNull().default(0),
+  gamesWon: integer("games_won").notNull().default(0),
+  gamesLost: integer("games_lost").notNull().default(0),
+  gamesDraw: integer("games_draw").notNull().default(0),
+  winStreak: integer("win_streak").notNull().default(0),
+  bestWinStreak: integer("best_win_streak").notNull().default(0),
+  lastPlayedAt: timestamp("last_played_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const chessMatches = pgTable("chess_matches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  player1Wallet: text("player1_wallet").notNull(),
+  player2Wallet: text("player2_wallet"),
+  gameMode: text("game_mode").notNull().default('casual'),
+  timeControl: text("time_control").notNull().default('rapid'),
+  status: text("status").notNull().default('waiting'),
+  fen: text("fen").notNull().default('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
+  currentTurn: text("current_turn").notNull().default('white'),
+  player1TimeRemaining: integer("player1_time_remaining").notNull(),
+  player2TimeRemaining: integer("player2_time_remaining").notNull(),
+  wagerAmount: integer("wager_amount").notNull().default(0),
+  winnerWallet: text("winner_wallet"),
+  winReason: text("win_reason"),
+  moveHistory: text("move_history").default(''),
+  isAgainstBot: boolean("is_against_bot").notNull().default(false),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const chessMatchmakingQueue = pgTable("chess_matchmaking_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull().unique(),
+  gameMode: text("game_mode").notNull(),
+  timeControl: text("time_control").notNull(),
+  wagerAmount: integer("wager_amount").notNull().default(0),
+  rating: integer("rating").notNull().default(1200),
+  joinedAt: timestamp("joined_at").notNull().default(sql`now()`),
+});
+
+export const insertChessRatingSchema = createInsertSchema(chessRatings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChessMatchSchema = createInsertSchema(chessMatches).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertChessMatchmakingQueueSchema = createInsertSchema(chessMatchmakingQueue).omit({
+  id: true,
+  joinedAt: true,
+});
+
+export type ChessRating = typeof chessRatings.$inferSelect;
+export type InsertChessRating = z.infer<typeof insertChessRatingSchema>;
+export type ChessMatch = typeof chessMatches.$inferSelect;
+export type InsertChessMatch = z.infer<typeof insertChessMatchSchema>;
+export type ChessMatchmakingQueue = typeof chessMatchmakingQueue.$inferSelect;
+export type InsertChessMatchmakingQueue = z.infer<typeof insertChessMatchmakingQueueSchema>;
