@@ -332,11 +332,10 @@ const styles = StyleSheet.create({
     borderColor: GameColors.primary,
   },
   modeButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: GameColors.textPrimary,
-    flex: 0,
-    width: 80,
+    minWidth: 65,
   },
   modeButtonTextSelected: {
     color: GameColors.background,
