@@ -391,38 +391,38 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             </MarkerComponent>
           ) : null}
 
-          {/* Spawn markers */}
-          {spawns && spawns.length > 0 && MarkerComponent ? spawns.map((spawn) => {
-            const spawnLat = parseFloat(String(spawn.latitude));
-            const spawnLng = parseFloat(String(spawn.longitude));
-            if (isNaN(spawnLat) || isNaN(spawnLng)) return null;
-            
-            return (
-              <MarkerComponent
-                key={spawn.id}
-                coordinate={{
-                  latitude: spawnLat,
-                  longitude: spawnLng,
-                }}
-                onPress={() => onSpawnTap(spawn)}
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <View style={styles.mapMarkerContainer}>
-                  <View style={styles.mysteryMarkerOuter}>
-                    <View style={styles.mysteryMarkerInner}>
-                      <Feather name="help-circle" size={16} color="#fff" />
+          {/* Spawn markers - Golden mystery eggs */}
+          {spawns && spawns.length > 0 && MarkerComponent ? (() => {
+            console.log(`[MapViewWrapper] Rendering ${spawns.length} spawn markers`);
+            return spawns.map((spawn) => {
+              const spawnLat = parseFloat(String(spawn.latitude));
+              const spawnLng = parseFloat(String(spawn.longitude));
+              if (isNaN(spawnLat) || isNaN(spawnLng)) {
+                console.log(`[MapViewWrapper] Invalid spawn coordinates: ${spawn.latitude}, ${spawn.longitude}`);
+                return null;
+              }
+              
+              return (
+                <MarkerComponent
+                  key={spawn.id}
+                  coordinate={{
+                    latitude: spawnLat,
+                    longitude: spawnLng,
+                  }}
+                  onPress={() => onSpawnTap(spawn)}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={true}
+                >
+                  <View style={styles.eggMarkerContainer}>
+                    <View style={styles.eggMarkerGlow} />
+                    <View style={styles.eggMarkerBody}>
+                      <Feather name="gift" size={14} color="#8B4513" />
                     </View>
                   </View>
-                  <View style={styles.mapMarkerLabel}>
-                    <ThemedText style={styles.mapMarkerName}>???</ThemedText>
-                    <ThemedText style={styles.mapMarkerDistance}>
-                      {spawn.distance ? `${spawn.distance}m` : "nearby"}
-                    </ThemedText>
-                  </View>
-                </View>
-              </MarkerComponent>
-            );
-          }) : null}
+                </MarkerComponent>
+              );
+            });
+          })() : null}
 
           {/* Raid markers */}
           {raids.map((raid) => {
@@ -465,7 +465,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
         </View>
 
         {/* Map Controls - Bottom Right, stacked vertically with glassmorphic style */}
-        <View style={[styles.mapControlsContainer, { bottom: insets.bottom + 24 }]}>
+        {/* Position ABOVE the hunt menu container (~120px menu + bottom inset + padding) */}
+        <View style={[styles.mapControlsContainer, { bottom: insets.bottom + 140 }]}>
           <AnimatedControlButton 
             iconName="navigation" 
             onPress={centerOnPlayerMap}
@@ -509,6 +510,7 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "visible", // CRITICAL: Allow heading wedge to render outside bounds
   },
   playerAccuracyHalo: {
     position: "absolute",
@@ -583,11 +585,13 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
   },
 
-  // Map Controls - Bottom Right stacked
+  // Map Controls - Bottom Right stacked - ABOVE the hunt menu (menu is ~120px + insets)
   mapControlsContainer: {
     position: "absolute",
     right: Spacing.md,
     gap: 10,
+    zIndex: 50,
+    elevation: 50,
   },
   controlButton: {
     backgroundColor: "rgba(0, 0, 0, 0.75)",
@@ -730,7 +734,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   
-  // Map markers
+  // Map markers - Egg markers (golden egg style)
+  eggMarkerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 40,
+    height: 48,
+  },
+  eggMarkerGlow: {
+    position: "absolute",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 215, 0, 0.4)",
+  },
+  eggMarkerBody: {
+    width: 28,
+    height: 34,
+    borderRadius: 14,
+    backgroundColor: "#FFD700",
+    borderWidth: 2,
+    borderColor: "#DAA520",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
   mapMarkerContainer: {
     alignItems: "center",
   },
