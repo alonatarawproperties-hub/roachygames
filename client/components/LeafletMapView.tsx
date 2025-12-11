@@ -169,7 +169,7 @@ const STABLE_MAP_HTML = `
     
     .controls {
       position: absolute;
-      bottom: 16px;
+      bottom: 140px;
       right: 16px;
       z-index: 1000;
       display: flex;
@@ -233,7 +233,7 @@ const STABLE_MAP_HTML = `
     
     .location-info {
       position: absolute;
-      bottom: 16px;
+      bottom: 140px;
       left: 16px;
       z-index: 1000;
       background: rgba(0,0,0,0.7);
