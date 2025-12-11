@@ -207,6 +207,14 @@ export function ChessLobbyScreen() {
               {createDemoMatchMutation.isPending ? 'Starting...' : 'Play vs Bot'}
             </Text>
           </Pressable>
+          
+          <Pressable 
+            style={[styles.playButton, styles.playButtonTournament]}
+            onPress={() => navigation.navigate('TournamentList')}
+          >
+            <Feather name="award" size={24} color="#f59e0b" />
+            <Text style={styles.playButtonTextTournament}>Tournaments</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -407,6 +415,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: GameColors.primary,
+  },
+  playButtonTournament: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 2,
+    borderColor: '#f59e0b',
+  },
+  playButtonTextTournament: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#f59e0b',
   },
 });
 

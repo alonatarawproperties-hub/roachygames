@@ -9,6 +9,8 @@ import { RoachyBattlesScreen } from "@/screens/RoachyBattlesScreen";
 import { ChessLobbyScreen } from "@/screens/ChessLobbyScreen";
 import { ChessMatchmakingScreen } from "@/screens/ChessMatchmakingScreen";
 import { ChessGameScreen } from "@/screens/ChessGameScreen";
+import { TournamentListScreen } from "@/screens/TournamentListScreen";
+import { TournamentDetailScreen } from "@/screens/TournamentDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { WildCreature } from "@/constants/gameState";
 
@@ -22,6 +24,8 @@ export type RootStackParamList = {
   ChessLobby: undefined;
   ChessMatchmaking: { walletAddress: string; gameMode: string; timeControl: string };
   ChessGame: { matchId: string; walletAddress: string };
+  TournamentList: undefined;
+  TournamentDetail: { tournamentId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -96,6 +100,22 @@ export default function RootStackNavigator() {
         options={{
           headerShown: false,
           animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="TournamentList"
+        component={TournamentListScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="TournamentDetail"
+        component={TournamentDetailScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
         }}
       />
     </Stack.Navigator>
