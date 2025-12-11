@@ -32,6 +32,7 @@ interface MapViewWrapperProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
   raids: Raid[];
+  gpsAccuracy?: number | null;
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onRefresh: () => void;
@@ -161,7 +162,7 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, gpsAccuracy, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -204,6 +205,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           playerLocation={playerLocation}
           spawns={spawns}
           raids={raids}
+          gpsAccuracy={gpsAccuracy}
           onSpawnTap={onSpawnTap}
           onRaidTap={onRaidTap}
           onRefresh={onRefresh}

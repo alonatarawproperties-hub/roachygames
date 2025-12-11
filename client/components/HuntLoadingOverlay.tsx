@@ -23,20 +23,35 @@ interface HuntLoadingOverlayProps {
   gpsReady: boolean;
   dataReady: boolean;
   mapReady: boolean;
+  gpsAccuracy?: number | null;
   permissionDenied?: boolean;
   onRequestPermission?: () => void;
 }
 
+const getGpsLabel = (accuracy: number | null | undefined, ready: boolean) => {
+  const hasAccuracy = accuracy !== null && accuracy !== undefined;
+  if (!ready) {
+    if (hasAccuracy && accuracy <= 20) return "GPS locked (high precision)";
+    if (hasAccuracy && accuracy <= 50) return "GPS signal acquired";
+    return "Acquiring GPS signal...";
+  }
+  if (hasAccuracy && accuracy <= 10) return "GPS: Excellent";
+  if (hasAccuracy && accuracy <= 20) return "GPS: Good";
+  if (hasAccuracy && accuracy <= 50) return "GPS: Fair";
+  return "GPS: Acquired";
+};
+
 const LOADING_MESSAGES = [
-  { key: "gps", label: "Acquiring GPS signal..." },
-  { key: "data", label: "Loading hunt data..." },
-  { key: "map", label: "Preparing hunting grounds..." },
+  { key: "gps", label: "Acquiring GPS signal" },
+  { key: "data", label: "Loading hunt data" },
+  { key: "map", label: "Preparing hunting grounds" },
 ];
 
 export function HuntLoadingOverlay({
   gpsReady,
   dataReady,
   mapReady,
+  gpsAccuracy,
   permissionDenied,
   onRequestPermission,
 }: HuntLoadingOverlayProps) {
@@ -136,11 +151,15 @@ export function HuntLoadingOverlay({
             </View>
 
             <View style={styles.checklistContainer}>
-              {LOADING_MESSAGES.map((item, index) => {
+              {LOADING_MESSAGES.map((item) => {
                 const isComplete =
                   (item.key === "gps" && gpsReady) ||
                   (item.key === "data" && dataReady) ||
                   (item.key === "map" && mapReady);
+
+                const displayLabel = item.key === "gps" 
+                  ? getGpsLabel(gpsAccuracy, gpsReady)
+                  : item.label;
 
                 return (
                   <View key={item.key} style={styles.checklistItem}>
@@ -156,14 +175,21 @@ export function HuntLoadingOverlay({
                         <View style={styles.loadingDot} />
                       )}
                     </View>
-                    <ThemedText
-                      style={[
-                        styles.checklistLabel,
-                        isComplete && styles.checklistLabelComplete,
-                      ]}
-                    >
-                      {item.label.replace("...", "")}
-                    </ThemedText>
+                    <View style={styles.checklistLabelContainer}>
+                      <ThemedText
+                        style={[
+                          styles.checklistLabel,
+                          isComplete && styles.checklistLabelComplete,
+                        ]}
+                      >
+                        {displayLabel}
+                      </ThemedText>
+                      {item.key === "gps" && gpsAccuracy ? (
+                        <ThemedText style={styles.gpsAccuracyText}>
+                          {Math.round(gpsAccuracy)}m accuracy
+                        </ThemedText>
+                      ) : null}
+                    </View>
                   </View>
                 );
               })}
@@ -262,8 +288,16 @@ const styles = StyleSheet.create({
   },
   checklistItem: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: Spacing.sm,
+  },
+  checklistLabelContainer: {
+    flex: 1,
+  },
+  gpsAccuracyText: {
+    fontSize: 11,
+    color: GameColors.primary,
+    marginTop: 2,
   },
   checkIcon: {
     width: 20,

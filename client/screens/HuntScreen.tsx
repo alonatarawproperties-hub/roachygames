@@ -125,8 +125,14 @@ export default function HuntScreen() {
     );
   }, []);
 
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+
+  const bestAccuracyRef = useRef<number>(Infinity);
+
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
+    let hasInitialLocation = false;
     
     const startHighAccuracyTracking = async () => {
       try {
@@ -145,44 +151,34 @@ export default function HuntScreen() {
           }
         }
 
-        const getAccurateInitialLocation = async () => {
-          let bestLocation: Location.LocationObject | null = null;
-          
-          for (let attempt = 0; attempt < 5; attempt++) {
-            try {
-              const location = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.BestForNavigation,
-              });
+        // FAST initial location - accept lower accuracy to start quickly
+        const getQuickInitialLocation = async () => {
+          try {
+            const quickLocation = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            
+            if (isMounted && quickLocation && !hasInitialLocation) {
+              const heading = quickLocation.coords.heading;
+              const accuracy = quickLocation.coords.accuracy ?? 100;
               
-              const locAccuracy = location.coords.accuracy ?? 100;
-              const bestAccuracy = bestLocation?.coords.accuracy ?? 100;
-              
-              if (!bestLocation || locAccuracy < bestAccuracy) {
-                bestLocation = location;
-              }
-              
-              if (locAccuracy <= 15) {
-                break;
-              }
-              
-              await new Promise(resolve => setTimeout(resolve, 400));
-            } catch {
-              break;
+              // Accept first location regardless of accuracy to unblock loading
+              hasInitialLocation = true;
+              bestAccuracyRef.current = accuracy;
+              setGpsAccuracy(accuracy);
+              updateLocation(
+                quickLocation.coords.latitude, 
+                quickLocation.coords.longitude,
+                heading !== null && heading >= 0 ? heading : 0
+              );
+              console.log(`Quick initial location accuracy: ${accuracy}m`);
             }
-          }
-          
-          if (bestLocation) {
-            const heading = bestLocation.coords.heading;
-            updateLocation(
-              bestLocation.coords.latitude, 
-              bestLocation.coords.longitude,
-              heading !== null && heading >= 0 ? heading : 0
-            );
-            console.log(`Initial location accuracy: ${bestLocation.coords.accuracy}m`);
+          } catch (error) {
+            console.log("Quick location failed, waiting for watch...");
           }
         };
         
-        await getAccurateInitialLocation();
+        getQuickInitialLocation();
 
         locationSubscription = await Location.watchPositionAsync(
           {
@@ -191,8 +187,24 @@ export default function HuntScreen() {
             distanceInterval: 2,
           },
           (newLocation) => {
+            if (!isMounted) return;
             const accuracy = newLocation.coords.accuracy ?? 100;
-            if (accuracy <= 50) {
+            
+            // Always update GPS indicator
+            setGpsAccuracy(accuracy);
+            
+            // Only update location if this reading is better or comparable to our best
+            // After initial fix, only accept readings that don't regress accuracy significantly
+            const shouldUpdate = !hasInitialLocation || 
+              accuracy <= bestAccuracyRef.current || 
+              accuracy <= 50; // Always accept readings under 50m
+            
+            if (shouldUpdate) {
+              if (accuracy < bestAccuracyRef.current) {
+                bestAccuracyRef.current = accuracy;
+              }
+              
+              hasInitialLocation = true;
               const heading = newLocation.coords.heading;
               updateLocation(
                 newLocation.coords.latitude, 
@@ -210,6 +222,7 @@ export default function HuntScreen() {
     startHighAccuracyTracking();
     
     return () => {
+      isMounted = false;
       if (locationSubscription) {
         locationSubscription.remove();
       }
@@ -366,6 +379,7 @@ export default function HuntScreen() {
         playerLocation={playerLocation}
         spawns={spawns}
         raids={raids}
+        gpsAccuracy={gpsAccuracy}
         onSpawnTap={handleSpawnTap}
         onRaidTap={(raid) => setSelectedRaid(raid)}
         onRefresh={() => {
@@ -580,6 +594,19 @@ export default function HuntScreen() {
       {activeTab === "collection" && renderCollection()}
       {activeTab === "eggs" && renderEggs()}
 
+      {__DEV__ && activeTab === "map" && playerLocation ? (
+        <Pressable 
+          style={styles.devSpawnButton}
+          onPress={() => {
+            spawnCreatures();
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          }}
+        >
+          <Feather name="plus-circle" size={16} color="#fff" />
+          <ThemedText style={styles.devSpawnText}>Spawn Here</ThemedText>
+        </Pressable>
+      ) : null}
+
       <Modal
         visible={showCameraEncounter && selectedSpawn !== null}
         animationType="slide"
@@ -685,6 +712,7 @@ export default function HuntScreen() {
           gpsReady={gpsReady}
           dataReady={dataReady}
           mapReady={mapReady}
+          gpsAccuracy={gpsAccuracy}
           permissionDenied={permissionDenied}
         />
       </Animated.View>
@@ -1192,5 +1220,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: GameColors.textSecondary,
     textAlign: "center",
+  },
+  devSpawnButton: {
+    position: "absolute",
+    bottom: 120,
+    left: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: "#22C55E",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    zIndex: 50,
+  },
+  devSpawnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
   },
 });

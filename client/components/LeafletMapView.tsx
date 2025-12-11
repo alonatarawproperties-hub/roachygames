@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { View, StyleSheet, Platform } from "react-native";
 import { WebView } from "react-native-webview";
+import * as Haptics from "expo-haptics";
 import type { Spawn, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -22,6 +23,7 @@ interface LeafletMapViewProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
   raids: Raid[];
+  gpsAccuracy?: number | null;
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onRefresh: () => void;
@@ -163,12 +165,12 @@ const STABLE_MAP_HTML = `
     
     .controls {
       position: absolute;
-      top: 10px;
+      top: 60px;
       right: 10px;
       z-index: 1000;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
     }
     
     .control-btn {
@@ -184,10 +186,45 @@ const STABLE_MAP_HTML = `
       align-items: center;
       justify-content: center;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
     }
     
     .control-btn:active {
-      background: rgba(255,149,0,0.8);
+      background: rgba(255,149,0,0.9);
+      transform: scale(0.92);
+      opacity: 0.9;
+    }
+    
+    .gps-indicator {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(0,0,0,0.7);
+      padding: 6px 10px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #22C55E;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    .gps-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22C55E;
+      animation: gps-pulse 1.5s ease-in-out infinite;
+    }
+    
+    .gps-dot.fair { background: #F59E0B; }
+    .gps-dot.poor { background: #EF4444; }
+    
+    @keyframes gps-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
     
     .location-info {
@@ -215,13 +252,17 @@ const STABLE_MAP_HTML = `
 </head>
 <body>
   <div id="map"></div>
+  <div class="gps-indicator" id="gps-indicator">
+    <div class="gps-dot" id="gps-dot"></div>
+    <span id="gps-text">GPS</span>
+  </div>
   <div class="controls">
-    <button class="control-btn" onclick="centerOnPlayer()">
+    <button class="control-btn" onclick="handleCenterPress()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
       </svg>
     </button>
-    <button class="control-btn" onclick="requestRefresh()">
+    <button class="control-btn" onclick="handleRefreshPress()">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="23 4 23 10 17 10"></polyline>
         <polyline points="1 20 1 14 7 14"></polyline>
@@ -419,6 +460,42 @@ const STABLE_MAP_HTML = `
       updateLocationDisplay();
     }
 
+    let lastGpsAccuracy = null;
+    
+    function updateGpsIndicator(accuracy) {
+      lastGpsAccuracy = accuracy;
+      const dot = document.getElementById('gps-dot');
+      const text = document.getElementById('gps-text');
+      if (!dot || !text) return;
+      
+      dot.className = 'gps-dot';
+      if (accuracy <= 10) {
+        text.textContent = 'GPS: Excellent';
+        text.style.color = '#22C55E';
+      } else if (accuracy <= 20) {
+        text.textContent = 'GPS: Good';
+        text.style.color = '#22C55E';
+      } else if (accuracy <= 50) {
+        text.textContent = 'GPS: Fair';
+        text.style.color = '#F59E0B';
+        dot.className = 'gps-dot fair';
+      } else {
+        text.textContent = 'GPS: Weak';
+        text.style.color = '#EF4444';
+        dot.className = 'gps-dot poor';
+      }
+    }
+
+    function handleCenterPress() {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style: 'light' }));
+      centerOnPlayer();
+    }
+    
+    function handleRefreshPress() {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style: 'medium' }));
+      requestRefresh();
+    }
+
     function centerOnPlayer() {
       if (map) {
         map.flyTo([playerLat, playerLng], 17, { 
@@ -537,6 +614,9 @@ const STABLE_MAP_HTML = `
           case 'centerOnPlayer':
             centerOnPlayer();
             break;
+          case 'updateGpsAccuracy':
+            updateGpsIndicator(data.accuracy);
+            break;
         }
       } catch (e) {
         console.error('Message parse error:', e);
@@ -555,13 +635,14 @@ const STABLE_MAP_HTML = `
 `;
 
 export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapViewProps>(
-  ({ playerLocation, spawns, raids, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, gpsAccuracy, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
     const webViewRef = useRef<WebView>(null);
     const [isReady, setIsReady] = useState(false);
     const mapReadyCalledRef = useRef(false);
     const lastLocationRef = useRef<PlayerLocation | null>(null);
     const lastSpawnsRef = useRef<string>("");
     const lastRaidsRef = useRef<string>("");
+    const lastGpsAccuracyRef = useRef<number | null>(null);
 
     const sendMessage = useCallback((message: object) => {
       if (webViewRef.current && isReady) {
@@ -631,6 +712,14 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
             if (raid) onRaidTap(raid);
           } else if (data.type === "refresh") {
             onRefresh();
+          } else if (data.type === "haptic") {
+            if (data.style === "light") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } else if (data.style === "medium") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            } else if (data.style === "heavy") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            }
           }
         } catch (e) {
           console.error("WebView message error:", e);
@@ -692,6 +781,18 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
         lastRaidsRef.current = raidsJson;
       }
     }, [raids, isReady, sendMessage, formatRaidsForWebView]);
+
+    useEffect(() => {
+      if (!isReady || gpsAccuracy === null || gpsAccuracy === undefined) return;
+      
+      if (gpsAccuracy !== lastGpsAccuracyRef.current) {
+        sendMessage({
+          type: "updateGpsAccuracy",
+          accuracy: gpsAccuracy,
+        });
+        lastGpsAccuracyRef.current = gpsAccuracy;
+      }
+    }, [gpsAccuracy, isReady, sendMessage]);
 
     return (
       <View style={styles.container}>
