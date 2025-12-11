@@ -11,16 +11,14 @@ export function getApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // Development/production fallback to EXPO_PUBLIC_DOMAIN
-  let host = process.env.EXPO_PUBLIC_DOMAIN;
-
-  if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN or EXPO_PUBLIC_API_URL is not set");
+  // Use domain if provided
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
   }
 
-  let url = new URL(`https://${host}`);
-
-  return url.href;
+  // Development fallback - use local server
+  // In development, Express runs alongside Expo
+  return "http://localhost:5000";
 }
 
 /**
