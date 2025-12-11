@@ -103,6 +103,7 @@ interface HuntContextType {
   eggs: Egg[];
   raids: Raid[];
   isLoading: boolean;
+  economyReady: boolean;
   collectedEggs: number;
   updateLocation: (latitude: number, longitude: number, heading?: number) => Promise<void>;
   spawnCreatures: () => Promise<void>;
@@ -164,7 +165,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
     loadOrCreateGuestWallet();
   }, []);
 
-  const { data: economyData, refetch: refreshEconomy } = useQuery({
+  const { data: economyData, refetch: refreshEconomy, isFetched: economyFetched } = useQuery({
     queryKey: ["/api/hunt/economy", walletAddress],
     queryFn: async () => {
       const url = new URL(`/api/hunt/economy/${walletAddress}`, getApiUrl());
@@ -430,6 +431,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         eggs: eggsData?.eggs || [],
         raids: raidsData || [],
         isLoading: spawnsLoading,
+        economyReady: economyFetched && !!economyData,
         collectedEggs: economyData?.collectedEggs || 0,
         updateLocation,
         spawnCreatures,

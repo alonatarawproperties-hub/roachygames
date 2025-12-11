@@ -67,6 +67,7 @@ export default function HuntScreen() {
     playerLocation,
     spawns,
     economy,
+    economyReady,
     collection,
     eggs,
     raids,
@@ -99,7 +100,7 @@ export default function HuntScreen() {
   const pulseAnim = useSharedValue(1);
 
   const gpsReady = !!playerLocation;
-  const dataReady = !isLoading && !!economy;
+  const dataReady = economyReady;
   const allReady = gpsReady && dataReady && mapReady;
 
   useEffect(() => {
