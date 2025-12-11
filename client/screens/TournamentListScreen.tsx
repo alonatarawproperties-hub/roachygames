@@ -61,16 +61,45 @@ export function TournamentListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [loadingTime, setLoadingTime] = useState(0);
   
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching, isError, error } = useQuery({
     queryKey: ['/api/tournaments'],
     queryFn: async () => {
-      const res = await fetch(new URL('/api/tournaments', getApiUrl()).toString());
-      if (!res.ok) throw new Error('Failed to fetch tournaments');
-      return res.json();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      try {
+        const res = await fetch(new URL('/api/tournaments', getApiUrl()).toString(), {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error('Failed to fetch tournaments');
+        return res.json();
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          throw new Error('Connection timed out - the server may be waking up');
+        }
+        throw err;
+      }
     },
     refetchInterval: 30000,
+    retry: 2,
+    retryDelay: 3000,
   });
+  
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isLoading) {
+      setLoadingTime(0);
+      interval = setInterval(() => {
+        setLoadingTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isLoading]);
   
   const tournaments: Tournament[] = data?.tournaments || [];
   
@@ -143,7 +172,7 @@ export function TournamentListScreen() {
           <View style={styles.prizeInfo}>
             <Text style={styles.prizeLabel}>Prize Pool</Text>
             <View style={styles.prizeValue}>
-              <Feather name="diamond" size={16} color={GameColors.primary} />
+              <Feather name="award" size={16} color={GameColors.primary} />
               <Text style={styles.prizeAmount}>{tournament.prizePool}</Text>
             </View>
           </View>
@@ -236,10 +265,39 @@ export function TournamentListScreen() {
           />
         }
       >
-        {isLoading ? (
+        {isError ? (
+          <View style={styles.emptyState}>
+            <Feather name="wifi-off" size={48} color={GameColors.error || '#ef4444'} />
+            <Text style={styles.emptyTitle}>Connection Issue</Text>
+            <Text style={styles.emptyText}>
+              {error?.message?.includes('timed out') 
+                ? 'The server is waking up. This can take a moment after being idle.'
+                : 'Unable to load tournaments. Please check your connection.'}
+            </Text>
+            <Pressable 
+              style={styles.retryButton}
+              onPress={() => refetch()}
+            >
+              <Feather name="refresh-cw" size={16} color={GameColors.background} />
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </Pressable>
+          </View>
+        ) : isLoading ? (
           <View style={styles.emptyState}>
             <Feather name="loader" size={32} color={GameColors.textSecondary} />
-            <Text style={styles.emptyText}>Loading tournaments...</Text>
+            <Text style={styles.emptyTitle}>
+              {loadingTime > 5 ? 'Still connecting...' : 'Loading tournaments...'}
+            </Text>
+            {loadingTime > 5 ? (
+              <Text style={styles.emptyText}>
+                The database is waking up. This only takes a moment.
+              </Text>
+            ) : null}
+            {loadingTime > 10 ? (
+              <Text style={[styles.emptyText, { marginTop: 8, color: GameColors.primary }]}>
+                Almost there! First connection takes longest.
+              </Text>
+            ) : null}
           </View>
         ) : filteredTournaments.length === 0 ? (
           <View style={styles.emptyState}>
@@ -247,9 +305,16 @@ export function TournamentListScreen() {
             <Text style={styles.emptyTitle}>No Tournaments</Text>
             <Text style={styles.emptyText}>
               {filter === 'all' 
-                ? 'No active tournaments right now. Check back later!'
+                ? 'Tournaments are being created automatically. Pull to refresh!'
                 : `No ${TOURNAMENT_TYPE_INFO[filter as TournamentType]?.label} tournaments available.`}
             </Text>
+            <Pressable 
+              style={styles.retryButton}
+              onPress={() => refetch()}
+            >
+              <Feather name="refresh-cw" size={16} color={GameColors.background} />
+              <Text style={styles.retryButtonText}>Refresh</Text>
+            </Pressable>
           </View>
         ) : (
           <>
@@ -493,6 +558,21 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: GameColors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+    marginTop: Spacing.md,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: GameColors.background,
   },
   quickJoinSection: {
     backgroundColor: GameColors.surface,
