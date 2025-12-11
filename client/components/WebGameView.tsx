@@ -44,22 +44,20 @@ export function WebGameView({ gameUrl, gameName, onExit }: WebGameViewProps) {
           <Text style={styles.headerTitle}>{gameName}</Text>
           <View style={styles.placeholder} />
         </View>
-        <View style={styles.webFallback}>
-          <Feather name="smartphone" size={48} color={Colors.textSecondary} />
-          <Text style={styles.webFallbackText}>
-            Play {gameName} in the Expo Go app for the best experience
-          </Text>
-          <Pressable
-            style={styles.openWebButton}
-            onPress={() => {
-              if (typeof window !== "undefined") {
-                window.open(gameUrl, "_blank");
-              }
+        <View style={styles.webViewContainer}>
+          <iframe
+            src={gameUrl}
+            style={{
+              flex: 1,
+              width: "100%",
+              height: "100%",
+              border: "none",
+              backgroundColor: GameColors.background,
             }}
-          >
-            <Text style={styles.openWebButtonText}>Open in Browser</Text>
-            <Feather name="external-link" size={16} color={GameColors.background} />
-          </Pressable>
+            title={gameName}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
         </View>
       </View>
     );
