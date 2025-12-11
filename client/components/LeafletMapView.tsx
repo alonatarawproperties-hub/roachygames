@@ -169,8 +169,8 @@ const STABLE_MAP_HTML = `
     
     .controls {
       position: absolute;
-      bottom: 50px;
-      right: 12px;
+      bottom: 16px;
+      right: 16px;
       z-index: 1000;
       display: flex;
       flex-direction: column;
@@ -233,8 +233,8 @@ const STABLE_MAP_HTML = `
     
     .location-info {
       position: absolute;
-      bottom: 10px;
-      left: 10px;
+      bottom: 16px;
+      left: 16px;
       z-index: 1000;
       background: rgba(0,0,0,0.7);
       color: #D4A574;
