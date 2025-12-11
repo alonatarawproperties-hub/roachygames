@@ -1,12 +1,14 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from "react";
 import { View, StyleSheet, Pressable, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
   Easing,
 } from "react-native-reanimated";
 import { ThemedText } from "./ThemedText";
@@ -75,6 +77,51 @@ function getSpawnPosition(id: string, index: number): { left: `${number}%`; top:
   const left = 15 + (hash % 70);
   const top = 10 + ((hash >> 8) % 60);
   return { left: `${left}%` as `${number}%`, top: `${top}%` as `${number}%` };
+}
+
+function getGpsStatusInfo(accuracy: number | null | undefined): { label: string; color: string } {
+  if (!accuracy || accuracy > 100) return { label: "Poor", color: "#EF4444" };
+  if (accuracy > 50) return { label: "Fair", color: "#F59E0B" };
+  if (accuracy > 20) return { label: "Good", color: "#22C55E" };
+  return { label: "Excellent", color: "#10B981" };
+}
+
+interface AnimatedControlButtonProps {
+  iconName: keyof typeof Feather.glyphMap;
+  onPress: () => void;
+}
+
+function AnimatedControlButton({ iconName, onPress }: AnimatedControlButtonProps) {
+  const scale = useSharedValue(1);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.9, { damping: 15, stiffness: 400 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+  };
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPress();
+  };
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+    >
+      <Animated.View style={[styles.mapControlButton, animatedStyle]}>
+        <Feather name={iconName} size={20} color="#fff" />
+      </Animated.View>
+    </Pressable>
+  );
 }
 
 function FallbackMapView({ 
@@ -184,6 +231,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     }));
 
     const hasLocation = playerLocation && playerLocation.latitude && playerLocation.longitude;
+    const gpsStatus = getGpsStatusInfo(gpsAccuracy);
     
     // Web: use simple fallback (grid)
     if (Platform.OS === "web") {
@@ -223,6 +271,21 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
 
     const handleMapError = () => {
       setNativeMapFailed(true);
+    };
+
+    const centerOnPlayerMap = () => {
+      if (nativeMapRef.current && playerLocation) {
+        nativeMapRef.current.animateToRegion({
+          latitude: playerLocation.latitude,
+          longitude: playerLocation.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        }, 500);
+      }
+    };
+
+    const handleRefresh = () => {
+      onRefresh();
     };
 
     // Wait for location before showing native map
@@ -331,23 +394,42 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           })}
         </MapViewComponent>
 
-        <View style={styles.mapControls}>
-          <Pressable style={styles.mapControlButton} onPress={() => {
-            if (nativeMapRef.current && playerLocation) {
-              nativeMapRef.current.animateToRegion({
-                latitude: playerLocation.latitude,
-                longitude: playerLocation.longitude,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-              }, 500);
-            }
-          }}>
-            <Feather name="navigation" size={20} color="#fff" />
-          </Pressable>
-          <Pressable style={styles.mapControlButton} onPress={onRefresh}>
-            <Feather name="refresh-cw" size={20} color="#fff" />
-          </Pressable>
+        {/* GPS Signal Indicator - Top Left */}
+        <View style={styles.gpsIndicator}>
+          <View style={[styles.gpsIndicatorDot, { backgroundColor: gpsStatus.color }]} />
+          <ThemedText style={[styles.gpsIndicatorText, { color: gpsStatus.color }]}>
+            {gpsStatus.label}
+          </ThemedText>
+          {gpsAccuracy ? (
+            <ThemedText style={styles.gpsAccuracyText}>
+              {Math.round(gpsAccuracy)}m
+            </ThemedText>
+          ) : null}
         </View>
+
+        {/* Map Controls - Positioned below compass area */}
+        <View style={styles.mapControls}>
+          <AnimatedControlButton 
+            iconName="navigation" 
+            onPress={centerOnPlayerMap}
+          />
+          <AnimatedControlButton 
+            iconName="refresh-cw" 
+            onPress={handleRefresh}
+          />
+        </View>
+
+        {/* Directional Arrow Indicator - Bottom Right */}
+        {playerLocation.heading !== undefined && playerLocation.heading >= 0 ? (
+          <View style={styles.headingIndicator}>
+            <View style={[styles.headingArrow, { transform: [{ rotate: `${playerLocation.heading}deg` }] }]}>
+              <Feather name="navigation-2" size={24} color={GameColors.primary} />
+            </View>
+            <ThemedText style={styles.headingText}>
+              {Math.round(playerLocation.heading)}°
+            </ThemedText>
+          </View>
+        ) : null}
 
         {hasLocation ? (
           <View style={styles.locationInfo}>
@@ -510,9 +592,37 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  mapControls: {
+  // GPS Indicator - Top Left, avoiding compass
+  gpsIndicator: {
     position: "absolute",
     top: Spacing.md,
+    left: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    gap: 6,
+  },
+  gpsIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  gpsIndicatorText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  gpsAccuracyText: {
+    fontSize: 10,
+    color: GameColors.textSecondary,
+    marginLeft: 2,
+  },
+  // Map Controls - Position below compass (top: 100 to clear compass)
+  mapControls: {
+    position: "absolute",
+    top: 100,
     right: Spacing.md,
     gap: Spacing.sm,
   },
@@ -524,6 +634,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.sm,
+  },
+  // Heading/Directional Indicator - Bottom Right
+  headingIndicator: {
+    position: "absolute",
+    bottom: 60,
+    right: Spacing.md,
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
+  },
+  headingArrow: {
+    marginBottom: 2,
+  },
+  headingText: {
+    fontSize: 10,
+    color: GameColors.textSecondary,
   },
   locationInfo: {
     position: "absolute",
