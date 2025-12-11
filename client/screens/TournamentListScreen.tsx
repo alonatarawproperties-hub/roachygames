@@ -63,8 +63,12 @@ export function TournamentListScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   
   const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['/api/tournaments/active'],
-    queryFn: () => fetch(new URL('/api/tournaments/active', getApiUrl()).toString()).then(r => r.json()),
+    queryKey: ['/api/tournaments'],
+    queryFn: async () => {
+      const res = await fetch(new URL('/api/tournaments', getApiUrl()).toString());
+      if (!res.ok) throw new Error('Failed to fetch tournaments');
+      return res.json();
+    },
     refetchInterval: 30000,
   });
   
