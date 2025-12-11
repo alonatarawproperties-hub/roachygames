@@ -354,8 +354,23 @@ export type TournamentType = typeof TOURNAMENT_TYPES[number];
 export const TOURNAMENT_STATUS = ['scheduled', 'registering', 'active', 'completed', 'cancelled'] as const;
 export type TournamentStatus = typeof TOURNAMENT_STATUS[number];
 
+export const chessTournamentTemplates = pgTable("chess_tournament_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  tournamentType: text("tournament_type").notNull(),
+  timeControl: text("time_control").notNull().default('blitz'),
+  entryFee: integer("entry_fee").notNull().default(0),
+  prizeMultiplier: real("prize_multiplier").notNull().default(0.85),
+  maxPlayers: integer("max_players").notNull().default(8),
+  minPlayers: integer("min_players").notNull().default(2),
+  isActive: boolean("is_active").notNull().default(true),
+  autoCreateCount: integer("auto_create_count").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const chessTournaments = pgTable("chess_tournaments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id"),
   name: text("name").notNull(),
   tournamentType: text("tournament_type").notNull().default('sit_and_go'),
   timeControl: text("time_control").notNull().default('blitz'),
@@ -437,6 +452,13 @@ export const insertChessTournamentMatchSchema = createInsertSchema(chessTourname
   endedAt: true,
 });
 
+export const insertChessTournamentTemplateSchema = createInsertSchema(chessTournamentTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ChessTournamentTemplate = typeof chessTournamentTemplates.$inferSelect;
+export type InsertChessTournamentTemplate = z.infer<typeof insertChessTournamentTemplateSchema>;
 export type ChessTournament = typeof chessTournaments.$inferSelect;
 export type InsertChessTournament = z.infer<typeof insertChessTournamentSchema>;
 export type ChessTournamentParticipant = typeof chessTournamentParticipants.$inferSelect;

@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { tournamentOrchestrator } from "./tournament-orchestrator";
 
 const app = express();
 const log = console.log;
@@ -290,6 +291,8 @@ function setupErrorHandler(app: express.Application) {
     },
     () => {
       log(`express server serving on port ${port}${staticMode ? " (static mode)" : ""}`);
+      
+      tournamentOrchestrator.start();
     },
   );
 })();
