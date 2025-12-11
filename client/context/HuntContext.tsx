@@ -165,16 +165,56 @@ export function HuntProvider({ children }: HuntProviderProps) {
     loadOrCreateGuestWallet();
   }, []);
 
-  const { data: economyData, refetch: refreshEconomy, isFetched: economyFetched } = useQuery({
+  const { data: economyData, refetch: refreshEconomy, isFetched: economyFetched, isError: economyError } = useQuery({
     queryKey: ["/api/hunt/economy", walletAddress],
     queryFn: async () => {
+      console.log("Economy query starting for:", walletAddress);
       const url = new URL(`/api/hunt/economy/${walletAddress}`, getApiUrl());
-      const response = await fetch(url.toString());
-      if (!response.ok) return null;
-      const data = await response.json();
-      return data.economy as EconomyStats;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      try {
+        const response = await fetch(url.toString(), { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          console.log("Economy fetch failed:", response.status);
+          // Return default economy on error instead of null
+          return {
+            energy: 100,
+            maxEnergy: 100,
+            catchesToday: 0,
+            maxCatchesPerDay: 50,
+            catchesSinceRare: 0,
+            catchesSinceEpic: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            collectedEggs: 0,
+          } as EconomyStats;
+        }
+        const data = await response.json();
+        console.log("Economy data loaded:", data.economy);
+        return data.economy as EconomyStats;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.log("Economy fetch error:", error);
+        // Return default economy on error
+        return {
+          energy: 100,
+          maxEnergy: 100,
+          catchesToday: 0,
+          maxCatchesPerDay: 50,
+          catchesSinceRare: 0,
+          catchesSinceEpic: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+          collectedEggs: 0,
+        } as EconomyStats;
+      }
     },
     enabled: isWalletLoaded && !!walletAddress,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   const { data: spawnsData, refetch: refreshSpawns, isLoading: spawnsLoading } = useQuery({
@@ -431,7 +471,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         eggs: eggsData?.eggs || [],
         raids: raidsData || [],
         isLoading: spawnsLoading,
-        economyReady: economyFetched && !!economyData,
+        economyReady: economyFetched,
         collectedEggs: economyData?.collectedEggs || 0,
         updateLocation,
         spawnCreatures,
