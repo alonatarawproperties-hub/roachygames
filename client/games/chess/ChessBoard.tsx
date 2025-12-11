@@ -5,13 +5,23 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { Chess, Square, Move as ChessMove } from 'chess.js';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const PIECE_SYMBOLS: Record<string, string> = {
-  'K': '\u2654', 'Q': '\u2655', 'R': '\u2656', 'B': '\u2657', 'N': '\u2658', 'P': '\u2659',
-  'k': '\u265A', 'q': '\u265B', 'r': '\u265C', 'b': '\u265D', 'n': '\u265E', 'p': '\u265F',
+const PIECE_CHARS: Record<string, { char: string; isWhite: boolean }> = {
+  'K': { char: '\u265A', isWhite: true },
+  'Q': { char: '\u265B', isWhite: true },
+  'R': { char: '\u265C', isWhite: true },
+  'B': { char: '\u265D', isWhite: true },
+  'N': { char: '\u265E', isWhite: true },
+  'P': { char: '\u265F', isWhite: true },
+  'k': { char: '\u265A', isWhite: false },
+  'q': { char: '\u265B', isWhite: false },
+  'r': { char: '\u265C', isWhite: false },
+  'b': { char: '\u265D', isWhite: false },
+  'n': { char: '\u265E', isWhite: false },
+  'p': { char: '\u265F', isWhite: false },
 };
 
 interface ChessBoardProps {
@@ -20,39 +30,51 @@ interface ChessBoardProps {
   playerColor?: 'white' | 'black';
   disabled?: boolean;
   showCoordinates?: boolean;
+  size?: number;
 }
 
 const ChessPiece = ({ piece, size = 40 }: { piece: string; size?: number }) => {
-  const symbol = PIECE_SYMBOLS[piece];
-  if (!symbol) return null;
+  const pieceData = PIECE_CHARS[piece];
+  if (!pieceData) return null;
+  
+  const { char, isWhite } = pieceData;
   
   return (
-    <Text style={{ 
-      fontSize: size * 0.85, 
-      lineHeight: size,
-      textAlign: 'center',
-      textShadowColor: 'rgba(0,0,0,0.3)',
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 2,
-    }}>
-      {symbol}
-    </Text>
+    <View style={[styles.pieceWrapper, { width: size, height: size }]}>
+      <Text style={[
+        styles.pieceText,
+        { 
+          fontSize: size * 0.78,
+          lineHeight: size,
+          color: isWhite ? '#FFFFFF' : '#1a1a1a',
+          textShadowColor: isWhite ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.3)',
+          textShadowOffset: { width: 1, height: 1 },
+          textShadowRadius: isWhite ? 3 : 2,
+        }
+      ]}>
+        {char}
+      </Text>
+    </View>
   );
 };
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
-const { width: screenWidth } = Dimensions.get('window');
-const BOARD_SIZE = Math.min(screenWidth - 32, 400);
-const SQUARE_SIZE = BOARD_SIZE / 8;
+const LIGHT_SQUARE = '#E8D4B8';
+const DARK_SQUARE = '#B58863';
+const SELECTED_COLOR = 'rgba(240, 200, 80, 0.7)';
+const LAST_MOVE_COLOR = 'rgba(240, 200, 80, 0.4)';
+const CHECK_COLOR = 'rgba(239, 68, 68, 0.7)';
+const VALID_MOVE_COLOR = 'rgba(100, 200, 100, 0.6)';
 
 export function ChessBoard({ 
   fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   onMove,
   playerColor = 'white',
   disabled = false,
-  showCoordinates = true 
+  showCoordinates = true,
+  size,
 }: ChessBoardProps) {
   const [game, setGame] = useState(() => new Chess(fen));
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
@@ -60,6 +82,10 @@ export function ChessBoard({
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const lastFenRef = useRef<string>(fen);
   const pendingMoveRef = useRef<boolean>(false);
+  
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const boardSize = size || Math.min(screenWidth - 16, screenHeight * 0.55, 500);
+  const squareSize = boardSize / 8;
   
   useEffect(() => {
     if (pendingMoveRef.current) {
@@ -82,7 +108,7 @@ export function ChessBoard({
   const isFlipped = playerColor === 'black';
   
   const getSquareColor = (file: number, rank: number): string => {
-    return (file + rank) % 2 === 0 ? '#b58863' : '#f0d9b5';
+    return (file + rank) % 2 === 0 ? DARK_SQUARE : LIGHT_SQUARE;
   };
   
   const getPieceAt = (square: Square): string | null => {
@@ -118,7 +144,18 @@ export function ChessBoard({
             }
           }
         } catch {
-          // Move failed but keep piece selected (touch-move)
+          setSelectedSquare(null);
+          setValidMoves([]);
+        }
+      } else {
+        const piece = game.get(square);
+        if (piece && piece.color === playerTurn && currentTurn === playerTurn) {
+          setSelectedSquare(square);
+          const moves = game.moves({ square, verbose: true }) as ChessMove[];
+          setValidMoves(moves.map(m => m.to as Square));
+        } else {
+          setSelectedSquare(null);
+          setValidMoves([]);
         }
       }
     } else {
@@ -130,17 +167,6 @@ export function ChessBoard({
       }
     }
   }, [game, selectedSquare, validMoves, disabled, playerColor, onMove]);
-  
-  const gameStatus = () => {
-    if (game.isCheckmate()) {
-      const winner = game.turn() === 'w' ? 'Black' : 'White';
-      return `Checkmate! ${winner} wins!`;
-    }
-    if (game.isDraw()) return 'Draw!';
-    if (game.isStalemate()) return 'Stalemate!';
-    if (game.isCheck()) return 'Check!';
-    return game.turn() === 'w' ? "White's turn" : "Black's turn";
-  };
   
   const renderSquare = (index: number) => {
     const file = index % 8;
@@ -158,12 +184,21 @@ export function ChessBoard({
       ((piece === 'K' && game.turn() === 'w') || (piece === 'k' && game.turn() === 'b'));
     
     let backgroundColor = getSquareColor(actualFile, actualRank);
+    let overlayColor: string | null = null;
+    
     if (isLastMoveFrom || isLastMoveTo) {
-      backgroundColor = '#cdd26a';
+      overlayColor = LAST_MOVE_COLOR;
+    }
+    if (isSelected) {
+      overlayColor = SELECTED_COLOR;
     }
     if (isInCheck) {
-      backgroundColor = 'rgba(239, 68, 68, 0.6)';
+      overlayColor = CHECK_COLOR;
     }
+    
+    const showFileLabel = showCoordinates && rank === 7;
+    const showRankLabel = showCoordinates && file === 0;
+    const labelColor = (actualFile + actualRank) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
     
     return (
       <TouchableOpacity
@@ -173,42 +208,45 @@ export function ChessBoard({
           styles.square,
           { 
             backgroundColor,
-            width: SQUARE_SIZE,
-            height: SQUARE_SIZE,
+            width: squareSize,
+            height: squareSize,
           },
-          isSelected && styles.selectedSquare,
         ]}
         onPress={() => handleSquarePress(square)}
-        activeOpacity={0.8}
+        activeOpacity={0.9}
       >
+        {overlayColor ? (
+          <View style={[styles.squareOverlay, { backgroundColor: overlayColor }]} />
+        ) : null}
+        
         {piece ? (
-          <View style={styles.pieceContainer}>
-            <ChessPiece piece={piece} size={SQUARE_SIZE * 0.9} />
-          </View>
+          <ChessPiece piece={piece} size={squareSize * 0.92} />
         ) : null}
         
         {isValidMove && !piece ? (
-          <View style={styles.validMoveIndicator} />
+          <View style={[styles.validMoveIndicator, { 
+            width: squareSize * 0.32, 
+            height: squareSize * 0.32,
+            borderRadius: squareSize * 0.16,
+            backgroundColor: VALID_MOVE_COLOR,
+          }]} />
         ) : null}
         
         {isValidMove && piece ? (
-          <View style={styles.captureIndicator} />
+          <View style={[styles.captureIndicator, {
+            borderWidth: squareSize * 0.08,
+            borderColor: VALID_MOVE_COLOR,
+          }]} />
         ) : null}
         
-        {showCoordinates && rank === 7 ? (
-          <Text style={[
-            styles.fileLabel,
-            { color: (actualFile + actualRank) % 2 === 0 ? '#f0d9b5' : '#b58863' }
-          ]}>
+        {showFileLabel ? (
+          <Text style={[styles.fileLabel, { color: labelColor, fontSize: squareSize * 0.22 }]}>
             {FILES[actualFile]}
           </Text>
         ) : null}
         
-        {showCoordinates && file === 0 ? (
-          <Text style={[
-            styles.rankLabel,
-            { color: (actualFile + actualRank) % 2 === 0 ? '#f0d9b5' : '#b58863' }
-          ]}>
+        {showRankLabel ? (
+          <Text style={[styles.rankLabel, { color: labelColor, fontSize: squareSize * 0.22 }]}>
             {RANKS[actualRank]}
           </Text>
         ) : null}
@@ -218,19 +256,18 @@ export function ChessBoard({
   
   return (
     <View style={styles.container}>
-      <Text style={styles.statusText} testID="game-status">
-        {gameStatus()}
-      </Text>
-      
-      <View style={[styles.board, { width: BOARD_SIZE, height: BOARD_SIZE }]}>
-        {Array.from({ length: 64 }).map((_, i) => renderSquare(i))}
-      </View>
-      
-      {game.isGameOver() ? (
-        <View style={styles.gameOverBanner}>
-          <Text style={styles.gameOverText}>Game Over!</Text>
+      <LinearGradient
+        colors={['#D4A84B', '#8B6914', '#D4A84B']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.boardFrame, { width: boardSize + 12, height: boardSize + 12 }]}
+      >
+        <View style={[styles.boardInner, { width: boardSize + 4, height: boardSize + 4 }]}>
+          <View style={[styles.board, { width: boardSize, height: boardSize }]}>
+            {Array.from({ length: 64 }).map((_, i) => renderSquare(i))}
+          </View>
         </View>
-      ) : null}
+      </LinearGradient>
     </View>
   );
 }
@@ -238,19 +275,25 @@ export function ChessBoard({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    gap: 8,
   },
-  statusText: {
-    color: '#f0c850',
-    fontWeight: 'bold',
-    fontSize: 18,
+  boardFrame: {
+    borderRadius: 8,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  boardInner: {
+    backgroundColor: '#2a1a0a',
+    borderRadius: 4,
+    padding: 2,
   },
   board: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    borderWidth: 4,
-    borderColor: '#3b2418',
-    borderRadius: 8,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   square: {
@@ -258,20 +301,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
-  selectedSquare: {
-    borderWidth: 4,
-    borderColor: 'rgba(240, 200, 80, 0.8)',
+  squareOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  pieceContainer: {
+  pieceWrapper: {
     justifyContent: 'center',
     alignItems: 'center',
   },
+  pieceText: {
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
   validMoveIndicator: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'rgba(240, 200, 80, 0.5)',
   },
   captureIndicator: {
     position: 'absolute',
@@ -279,36 +325,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderWidth: 4,
-    borderColor: 'rgba(240, 200, 80, 0.5)',
-    borderRadius: 2,
+    borderRadius: 4,
   },
   fileLabel: {
     position: 'absolute',
-    bottom: 2,
-    left: 4,
-    fontSize: 10,
-    fontWeight: 'bold',
+    bottom: 1,
+    right: 3,
+    fontWeight: '700',
   },
   rankLabel: {
     position: 'absolute',
-    top: 2,
-    right: 4,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  gameOverBanner: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#1e1109',
-    borderWidth: 1,
-    borderColor: '#3b2418',
-    borderRadius: 8,
-  },
-  gameOverText: {
-    color: '#f0c850',
-    fontWeight: 'bold',
+    top: 1,
+    left: 3,
+    fontWeight: '700',
   },
 });
 

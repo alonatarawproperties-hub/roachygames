@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, Pressable, Text, Alert, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Text, Alert, Platform, Dimensions } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 import { ChessBoard } from "@/games/chess/ChessBoard";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
@@ -15,6 +16,8 @@ type RouteParams = {
     walletAddress: string;
   };
 };
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function ChessGameScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -188,20 +191,60 @@ export function ChessGameScreen() {
   const didWin = winner === walletAddress;
   const isDraw = winReason === 'draw' || winReason === 'stalemate' || winReason === 'threefold_repetition';
   
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.playerBar}>
+  const isLowTime = (time: number) => time <= 30;
+  const isCriticalTime = (time: number) => time <= 10;
+  
+  const boardSize = Math.min(SCREEN_WIDTH - 16, SCREEN_HEIGHT * 0.52);
+  
+  const renderPlayerBar = (isOpponent: boolean) => {
+    const name = isOpponent ? opponentName : `You (${playerColor})`;
+    const time = isOpponent ? opponentTime : myTime;
+    const isActive = isOpponent ? !isMyTurn && !gameOver : isMyTurn && !gameOver;
+    const showLowTime = isLowTime(time) && isActive;
+    const showCriticalTime = isCriticalTime(time) && isActive;
+    
+    return (
+      <View style={[styles.playerBar, isActive && styles.playerBarActive]}>
         <View style={styles.playerInfo}>
-          <Feather name="user" size={18} color={GameColors.textSecondary} />
-          <Text style={styles.playerName}>{opponentName}</Text>
+          <View style={[styles.playerAvatar, isActive && styles.playerAvatarActive]}>
+            <Text style={styles.avatarText}>
+              {isOpponent ? (opponentName === 'Roachy Bot' ? 'R' : 'O') : 'Y'}
+            </Text>
+          </View>
+          <View>
+            <Text style={[styles.playerName, isActive && styles.playerNameActive]}>{name}</Text>
+            {isActive ? (
+              <Text style={styles.turnIndicator}>Your move</Text>
+            ) : null}
+          </View>
         </View>
-        <View style={[styles.timer, !isMyTurn && !gameOver && styles.timerActive]}>
-          <Feather name="clock" size={16} color={!isMyTurn ? GameColors.primary : GameColors.textSecondary} />
-          <Text style={[styles.timerText, !isMyTurn && !gameOver && styles.timerTextActive]}>
-            {formatTime(opponentTime)}
+        
+        <View style={[
+          styles.timer,
+          isActive && styles.timerActive,
+          showLowTime && styles.timerLow,
+          showCriticalTime && styles.timerCritical,
+        ]}>
+          <Feather 
+            name="clock" 
+            size={18} 
+            color={showCriticalTime ? '#fff' : isActive ? GameColors.primary : GameColors.textSecondary} 
+          />
+          <Text style={[
+            styles.timerText,
+            isActive && styles.timerTextActive,
+            showCriticalTime && styles.timerTextCritical,
+          ]}>
+            {formatTime(time)}
           </Text>
         </View>
       </View>
+    );
+  };
+  
+  return (
+    <View style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
+      {renderPlayerBar(true)}
       
       <View style={styles.boardContainer}>
         <ChessBoard
@@ -210,29 +253,22 @@ export function ChessGameScreen() {
           onMove={handleMove}
           disabled={!isMyTurn || gameOver}
           showCoordinates={true}
+          size={boardSize}
         />
       </View>
       
-      <View style={styles.playerBar}>
-        <View style={styles.playerInfo}>
-          <Feather name="user" size={18} color={GameColors.primary} />
-          <Text style={[styles.playerName, styles.playerNameActive]}>You ({playerColor})</Text>
-        </View>
-        <View style={[styles.timer, isMyTurn && !gameOver && styles.timerActive]}>
-          <Feather name="clock" size={16} color={isMyTurn ? GameColors.primary : GameColors.textSecondary} />
-          <Text style={[styles.timerText, isMyTurn && !gameOver && styles.timerTextActive]}>
-            {formatTime(myTime)}
-          </Text>
-        </View>
-      </View>
+      {renderPlayerBar(false)}
       
       {gameOver ? (
         <View style={styles.gameOverContainer}>
-          <View style={[
-            styles.gameOverBanner,
-            isDraw ? styles.drawBanner : didWin ? styles.winBanner : styles.loseBanner
-          ]}>
-            <Text style={styles.gameOverTitle}>
+          <LinearGradient
+            colors={isDraw ? ['#4a4a2a', '#3a3a1a'] : didWin ? ['#1a3a1a', '#0a2a0a'] : ['#3a1a1a', '#2a0a0a']}
+            style={styles.gameOverBanner}
+          >
+            <Text style={[
+              styles.gameOverTitle,
+              isDraw ? styles.drawText : didWin ? styles.winText : styles.loseText
+            ]}>
               {isDraw ? 'Draw!' : didWin ? 'Victory!' : 'Defeat'}
             </Text>
             <Text style={styles.gameOverReason}>
@@ -242,15 +278,22 @@ export function ChessGameScreen() {
                winReason === 'stalemate' ? 'Stalemate' :
                winReason}
             </Text>
-          </View>
+          </LinearGradient>
           <Pressable style={styles.exitButton} onPress={handleExit}>
-            <Text style={styles.exitButtonText}>Back to Lobby</Text>
+            <LinearGradient
+              colors={[GameColors.primary, GameColors.gold]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.exitButtonGradient}
+            >
+              <Text style={styles.exitButtonText}>Back to Lobby</Text>
+            </LinearGradient>
           </Pressable>
         </View>
       ) : (
         <View style={styles.controls}>
           <Pressable style={styles.resignButton} onPress={handleResign}>
-            <Feather name="flag" size={20} color={GameColors.error} />
+            <Feather name="flag" size={18} color={GameColors.error} />
             <Text style={styles.resignButtonText}>Resign</Text>
           </Pressable>
         </View>
@@ -268,36 +311,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginHorizontal: Spacing.sm,
     backgroundColor: GameColors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: GameColors.surfaceElevated,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  playerBarActive: {
+    borderColor: GameColors.primary,
+    backgroundColor: 'rgba(240, 200, 80, 0.1)',
   },
   playerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  playerName: {
+  playerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playerAvatarActive: {
+    backgroundColor: GameColors.primary,
+  },
+  avatarText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '700',
+    color: GameColors.textPrimary,
+  },
+  playerName: {
+    fontSize: 15,
+    fontWeight: '600',
     color: GameColors.textSecondary,
   },
   playerNameActive: {
+    color: GameColors.textPrimary,
+  },
+  turnIndicator: {
+    fontSize: 11,
     color: GameColors.primary,
+    fontWeight: '500',
   },
   timer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     backgroundColor: GameColors.background,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 8,
+    minWidth: 90,
+    justifyContent: 'center',
   },
   timerActive: {
     backgroundColor: 'rgba(240, 200, 80, 0.2)',
+  },
+  timerLow: {
+    backgroundColor: 'rgba(255, 165, 0, 0.3)',
+  },
+  timerCritical: {
+    backgroundColor: GameColors.error,
   },
   timerText: {
     fontSize: 18,
@@ -308,76 +386,75 @@ const styles = StyleSheet.create({
   timerTextActive: {
     color: GameColors.primary,
   },
+  timerTextCritical: {
+    color: '#fff',
+  },
   boardContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   resignButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
     backgroundColor: GameColors.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: GameColors.error,
   },
   resignButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: GameColors.error,
   },
   gameOverContainer: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
   },
   gameOverBanner: {
     alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: 16,
-    gap: Spacing.sm,
-  },
-  winBanner: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(34, 197, 94, 0.5)',
-  },
-  loseBanner: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.5)',
-  },
-  drawBanner: {
-    backgroundColor: 'rgba(240, 200, 80, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(240, 200, 80, 0.5)',
+    padding: Spacing.md,
+    borderRadius: 12,
+    gap: 4,
   },
   gameOverTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
-    color: GameColors.textPrimary,
+  },
+  winText: {
+    color: '#4ade80',
+  },
+  loseText: {
+    color: '#f87171',
+  },
+  drawText: {
+    color: GameColors.primary,
   },
   gameOverReason: {
-    fontSize: 16,
+    fontSize: 14,
     color: GameColors.textSecondary,
   },
   exitButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  exitButtonGradient: {
     alignItems: 'center',
-    padding: Spacing.lg,
-    backgroundColor: GameColors.primary,
-    borderRadius: 16,
+    paddingVertical: Spacing.md,
   },
   exitButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: GameColors.background,
   },
