@@ -48,40 +48,44 @@ const STABLE_MAP_HTML = `
     
     .player-marker-wrapper {
       position: relative;
-      width: 48px;
-      height: 48px;
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     
-    .player-marker {
-      width: 20px;
-      height: 20px;
-      background: #FF9500;
-      border: 3px solid white;
+    .player-accuracy-halo {
+      position: absolute;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      box-shadow: 0 0 10px rgba(255, 149, 0, 0.8), 0 2px 4px rgba(0,0,0,0.3);
+      background: rgba(255, 149, 0, 0.15);
+    }
+    
+    .player-marker {
+      width: 12px;
+      height: 12px;
+      background: #FF9500;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
       position: relative;
       z-index: 2;
     }
     
     .direction-arrow {
       position: absolute;
-      width: 48px;
-      height: 48px;
-      transition: transform 0.3s ease-out;
+      width: 40px;
+      height: 40px;
+      transition: transform 0.2s ease-out;
       z-index: 1;
     }
     
     .direction-arrow svg {
       width: 100%;
       height: 100%;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
-    }
-    
-    .direction-arrow {
-      opacity: 1;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
     }
     
     .spawn-marker {
@@ -165,8 +169,8 @@ const STABLE_MAP_HTML = `
     
     .controls {
       position: absolute;
-      top: 60px;
-      right: 10px;
+      bottom: 50px;
+      right: 12px;
       z-index: 1000;
       display: flex;
       flex-direction: column;
@@ -197,23 +201,23 @@ const STABLE_MAP_HTML = `
     
     .gps-indicator {
       position: absolute;
-      top: 10px;
-      right: 10px;
+      top: 8px;
+      left: 8px;
       z-index: 1000;
       background: rgba(0,0,0,0.7);
-      padding: 6px 10px;
-      border-radius: 16px;
+      padding: 4px 8px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       font-size: 11px;
       color: #22C55E;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
     .gps-dot {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: #22C55E;
       animation: gps-pulse 1.5s ease-in-out infinite;
@@ -353,16 +357,17 @@ const STABLE_MAP_HTML = `
         className: 'player-marker-container',
         html: \`
           <div class="player-marker-wrapper">
+            <div class="player-accuracy-halo"></div>
             <div id="direction-arrow" class="direction-arrow" style="transform: rotate(\${playerHeading || 0}deg)">
-              <svg viewBox="0 0 48 48" fill="none">
-                <path d="M24 4L32 20H16L24 4Z" fill="#FF9500" stroke="white" stroke-width="2"/>
+              <svg viewBox="0 0 40 40" fill="none">
+                <path d="M20 2L26 16H14L20 2Z" fill="#FF9500" fill-opacity="0.85" stroke="white" stroke-width="1.5"/>
               </svg>
             </div>
             <div class="player-marker"></div>
           </div>
         \`,
-        iconSize: [48, 48],
-        iconAnchor: [24, 24]
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
       });
       
       playerMarker = L.marker([playerLat, playerLng], { icon: playerIcon }).addTo(map);

@@ -2,6 +2,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } f
 import { View, StyleSheet, Pressable, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -23,6 +24,11 @@ const RARITY_COLORS: Record<string, string> = {
   epic: "#A855F7",
   legendary: "#F59E0B",
 };
+
+// Player marker colors following Apple/Google Maps conventions
+const PLAYER_DOT_COLOR = "#FF9500"; // Orange core
+const PLAYER_STROKE_COLOR = "#FFFFFF";
+const PLAYER_ACCURACY_COLOR = "rgba(255, 149, 0, 0.15)";
 
 export interface PlayerLocation {
   latitude: number;
@@ -89,9 +95,10 @@ function getGpsStatusInfo(accuracy: number | null | undefined): { label: string;
 interface AnimatedControlButtonProps {
   iconName: keyof typeof Feather.glyphMap;
   onPress: () => void;
+  size?: number;
 }
 
-function AnimatedControlButton({ iconName, onPress }: AnimatedControlButtonProps) {
+function AnimatedControlButton({ iconName, onPress, size = 44 }: AnimatedControlButtonProps) {
   const scale = useSharedValue(1);
   
   const animatedStyle = useAnimatedStyle(() => ({
@@ -107,7 +114,7 @@ function AnimatedControlButton({ iconName, onPress }: AnimatedControlButtonProps
   };
 
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
   };
 
@@ -117,10 +124,39 @@ function AnimatedControlButton({ iconName, onPress }: AnimatedControlButtonProps
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
     >
-      <Animated.View style={[styles.mapControlButton, animatedStyle]}>
-        <Feather name={iconName} size={20} color="#fff" />
+      <Animated.View style={[styles.controlButton, { width: size, height: size, borderRadius: size / 2 }, animatedStyle]}>
+        <Feather name={iconName} size={size * 0.45} color="#fff" />
       </Animated.View>
     </Pressable>
+  );
+}
+
+// Custom player marker with integrated heading wedge
+function PlayerMarkerView({ heading }: { heading?: number }) {
+  const hasHeading = heading !== undefined && heading >= 0;
+  
+  return (
+    <View style={styles.playerMarkerContainer}>
+      {/* Accuracy halo */}
+      <View style={styles.playerAccuracyHalo} />
+      
+      {/* Heading wedge - rotates with heading */}
+      {hasHeading ? (
+        <View 
+          style={[
+            styles.playerHeadingWedge, 
+            { transform: [{ rotate: `${heading}deg` }] }
+          ]}
+        >
+          <View style={styles.headingWedgeShape} />
+        </View>
+      ) : null}
+      
+      {/* Player dot */}
+      <View style={styles.playerDotOuter}>
+        <View style={styles.playerDotInner} />
+      </View>
+    </View>
   );
 }
 
@@ -159,9 +195,9 @@ function FallbackMapView({
             <View key={i} style={styles.mapCell} />
           ))}
         </View>
-        <Animated.View style={[styles.playerMarker, pulseStyle]}>
-          <View style={styles.playerDot} />
-          <View style={styles.playerRange} />
+        <Animated.View style={[styles.fallbackPlayerMarker, pulseStyle]}>
+          <View style={styles.fallbackPlayerDot} />
+          <View style={styles.fallbackPlayerRange} />
         </Animated.View>
         {spawns && spawns.length > 0 ? spawns.map((spawn, index) => {
           const position = getSpawnPosition(spawn.id, index);
@@ -214,6 +250,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
     const mapReadyCalledRef = useRef(false);
+    const insets = useSafeAreaInsets();
 
     useImperativeHandle(ref, () => ({
       centerOnPlayer: () => {
@@ -274,6 +311,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     };
 
     const centerOnPlayerMap = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       if (nativeMapRef.current && playerLocation) {
         nativeMapRef.current.animateToRegion({
           latitude: playerLocation.latitude,
@@ -285,6 +323,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     };
 
     const handleRefresh = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onRefresh();
     };
 
@@ -306,7 +345,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           ref={nativeMapRef}
           style={styles.map}
           provider={PROVIDER_DEFAULT_VALUE}
-          showsUserLocation={true}
+          showsUserLocation={false}
           showsMyLocationButton={false}
           followsUserLocation={false}
           showsCompass={true}
@@ -323,6 +362,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             longitudeDelta: 0.005,
           }}
         >
+          {/* 100m catch radius circle */}
           {hasLocation && CircleComponent ? (
             <CircleComponent
               center={{
@@ -330,12 +370,28 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 longitude: playerLocation.longitude,
               }}
               radius={100}
-              strokeColor="rgba(255, 149, 0, 0.5)"
-              fillColor="rgba(255, 149, 0, 0.1)"
-              strokeWidth={2}
+              strokeColor="rgba(255, 149, 0, 0.4)"
+              fillColor="rgba(255, 149, 0, 0.08)"
+              strokeWidth={1.5}
             />
           ) : null}
 
+          {/* Custom player marker with heading wedge */}
+          {hasLocation && MarkerComponent ? (
+            <MarkerComponent
+              coordinate={{
+                latitude: playerLocation.latitude,
+                longitude: playerLocation.longitude,
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat={true}
+              tracksViewChanges={true}
+            >
+              <PlayerMarkerView heading={playerLocation.heading} />
+            </MarkerComponent>
+          ) : null}
+
+          {/* Spawn markers */}
           {spawns && spawns.length > 0 && MarkerComponent ? spawns.map((spawn) => {
             const spawnLat = parseFloat(String(spawn.latitude));
             const spawnLng = parseFloat(String(spawn.longitude));
@@ -368,6 +424,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             );
           }) : null}
 
+          {/* Raid markers */}
           {raids.map((raid) => {
             const raidLat = parseFloat(String(raid.latitude));
             const raidLng = parseFloat(String(raid.longitude));
@@ -394,7 +451,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           })}
         </MapViewComponent>
 
-        {/* GPS Signal Indicator - Top Left */}
+        {/* GPS Signal Indicator - Top Left below status bar area */}
         <View style={styles.gpsIndicator}>
           <View style={[styles.gpsIndicatorDot, { backgroundColor: gpsStatus.color }]} />
           <ThemedText style={[styles.gpsIndicatorText, { color: gpsStatus.color }]}>
@@ -407,8 +464,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           ) : null}
         </View>
 
-        {/* Map Controls - Positioned below compass area */}
-        <View style={styles.mapControls}>
+        {/* Map Controls - Bottom Right, stacked vertically with glassmorphic style */}
+        <View style={[styles.mapControlsContainer, { bottom: insets.bottom + 24 }]}>
           <AnimatedControlButton 
             iconName="navigation" 
             onPress={centerOnPlayerMap}
@@ -419,21 +476,10 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           />
         </View>
 
-        {/* Directional Arrow Indicator - Bottom Right */}
-        {playerLocation.heading !== undefined && playerLocation.heading >= 0 ? (
-          <View style={styles.headingIndicator}>
-            <View style={[styles.headingArrow, { transform: [{ rotate: `${playerLocation.heading}deg` }] }]}>
-              <Feather name="navigation-2" size={24} color={GameColors.primary} />
-            </View>
-            <ThemedText style={styles.headingText}>
-              {Math.round(playerLocation.heading)}°
-            </ThemedText>
-          </View>
-        ) : null}
-
+        {/* Coordinates display - Bottom Left */}
         {hasLocation ? (
-          <View style={styles.locationInfo}>
-            <Feather name="map-pin" size={12} color={GameColors.primary} />
+          <View style={[styles.locationInfo, { bottom: insets.bottom + 24 }]}>
+            <Feather name="map-pin" size={10} color={GameColors.primary} />
             <ThemedText style={styles.locationText}>
               {playerLocation.latitude.toFixed(4)}, {playerLocation.longitude.toFixed(4)}
             </ThemedText>
@@ -456,6 +502,120 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
+  
+  // Player marker with integrated heading
+  playerMarkerContainer: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerAccuracyHalo: {
+    position: "absolute",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: PLAYER_ACCURACY_COLOR,
+  },
+  playerHeadingWedge: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    alignItems: "center",
+  },
+  headingWedgeShape: {
+    position: "absolute",
+    top: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 18,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: PLAYER_DOT_COLOR,
+    opacity: 0.8,
+  },
+  playerDotOuter: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: PLAYER_STROKE_COLOR,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  playerDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PLAYER_DOT_COLOR,
+  },
+
+  // GPS Indicator - Top Left
+  gpsIndicator: {
+    position: "absolute",
+    top: Spacing.sm,
+    left: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  gpsIndicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  gpsIndicatorText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  gpsAccuracyText: {
+    fontSize: 10,
+    color: GameColors.textSecondary,
+  },
+
+  // Map Controls - Bottom Right stacked
+  mapControlsContainer: {
+    position: "absolute",
+    right: Spacing.md,
+    gap: 10,
+  },
+  controlButton: {
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+
+  // Location info - Bottom Left
+  locationInfo: {
+    position: "absolute",
+    left: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 9,
+    color: GameColors.textSecondary,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+
+  // Fallback map styles
   webMapFallback: {
     flex: 1,
     backgroundColor: GameColors.surface,
@@ -476,72 +636,54 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: GameColors.textTertiary,
   },
-  playerMarker: {
+  fallbackPlayerMarker: {
     position: "absolute",
     top: "45%",
     left: "45%",
     alignItems: "center",
     justifyContent: "center",
   },
-  playerDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: GameColors.primary,
-    borderWidth: 3,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  playerRange: {
-    position: "absolute",
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  fallbackPlayerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: PLAYER_DOT_COLOR,
     borderWidth: 2,
-    borderColor: "rgba(245, 158, 11, 0.4)",
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderColor: PLAYER_STROKE_COLOR,
+  },
+  fallbackPlayerRange: {
+    position: "absolute",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 149, 0, 0.3)",
+    backgroundColor: "rgba(255, 149, 0, 0.08)",
   },
   spawnMarker: {
     position: "absolute",
     alignItems: "center",
     padding: Spacing.xs,
   },
-  spawnDot: {
+  mysteryDot: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#fff",
-    marginBottom: 2,
-  },
-  mysteryDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
     backgroundColor: GameColors.primary,
     borderWidth: 2,
     borderColor: "#fff",
     marginBottom: 4,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: GameColors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 6,
   },
   mysteryPulse: {
     position: "absolute",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
     borderColor: GameColors.primary,
-    opacity: 0.5,
+    opacity: 0.4,
   },
   spawnName: {
     fontSize: 10,
@@ -586,170 +728,73 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
-  // GPS Indicator - Top Left, avoiding compass
-  gpsIndicator: {
-    position: "absolute",
-    top: Spacing.md,
-    left: Spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.md,
-    gap: 6,
-  },
-  gpsIndicatorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  gpsIndicatorText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  gpsAccuracyText: {
-    fontSize: 10,
-    color: GameColors.textSecondary,
-    marginLeft: 2,
-  },
-  // Map Controls - Position below compass (top: 100 to clear compass)
-  mapControls: {
-    position: "absolute",
-    top: 100,
-    right: Spacing.md,
-    gap: Spacing.sm,
-  },
-  mapControlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.sm,
-  },
-  // Heading/Directional Indicator - Bottom Right
-  headingIndicator: {
-    position: "absolute",
-    bottom: 60,
-    right: Spacing.md,
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.md,
-  },
-  headingArrow: {
-    marginBottom: 2,
-  },
-  headingText: {
-    fontSize: 10,
-    color: GameColors.textSecondary,
-  },
-  locationInfo: {
-    position: "absolute",
-    bottom: Spacing.md,
-    left: Spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.md,
-    gap: 6,
-  },
-  locationText: {
-    fontSize: 11,
-    color: GameColors.textSecondary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
+  
+  // Map markers
   mapMarkerContainer: {
     alignItems: "center",
   },
-  mapMarkerOuter: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  mapMarkerInner: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   mysteryMarkerOuter: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 3,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
     borderColor: GameColors.primary,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
     shadowColor: GameColors.primary,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 6,
   },
   mysteryMarkerInner: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: GameColors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
   mapMarkerLabel: {
     backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
+    borderRadius: 3,
+    marginTop: 3,
     alignItems: "center",
   },
   mapMarkerName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: "#fff",
   },
   mapMarkerDistance: {
-    fontSize: 9,
+    fontSize: 8,
     color: "rgba(255, 255, 255, 0.7)",
   },
   raidMapMarker: {
     alignItems: "center",
   },
   raidMapIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#fff",
   },
   raidMapName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     color: "#fff",
     backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
+    borderRadius: 3,
+    marginTop: 3,
   },
 });
 
