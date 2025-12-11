@@ -36,6 +36,7 @@ export function ChessGameScreen() {
   const [winReason, setWinReason] = useState<string | null>(null);
   const [opponentName, setOpponentName] = useState('Opponent');
   const [moveStartTime, setMoveStartTime] = useState(Date.now());
+  const [lastSyncedTurn, setLastSyncedTurn] = useState<string | null>(null);
   
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
@@ -56,14 +57,17 @@ export function ChessGameScreen() {
       const myTurn = (match.currentTurn === 'white' && isPlayer1) || 
                      (match.currentTurn === 'black' && !isPlayer1);
       
-      if (myTurn !== isMyTurn) {
-        setMoveStartTime(Date.now());
-      }
-      setIsMyTurn(myTurn);
+      const turnChanged = lastSyncedTurn !== match.currentTurn;
       
+      if (turnChanged) {
+        setMoveStartTime(Date.now());
+        setLastSyncedTurn(match.currentTurn);
+        setPlayer1Time(match.player1TimeRemaining);
+        setPlayer2Time(match.player2TimeRemaining);
+      }
+      
+      setIsMyTurn(myTurn);
       setCurrentFen(match.fen);
-      setPlayer1Time(match.player1TimeRemaining);
-      setPlayer2Time(match.player2TimeRemaining);
       
       const opponent = isPlayer1 ? match.player2Wallet : match.player1Wallet;
       setOpponentName(opponent === 'bot' ? 'Roachy Bot' : `Player ${opponent.slice(0, 6)}...`);
@@ -72,9 +76,11 @@ export function ChessGameScreen() {
         setGameOver(true);
         setWinner(match.winnerWallet);
         setWinReason(match.winReason);
+        setPlayer1Time(match.player1TimeRemaining);
+        setPlayer2Time(match.player2TimeRemaining);
       }
     }
-  }, [matchData, walletAddress, isMyTurn]);
+  }, [matchData, walletAddress, lastSyncedTurn]);
   
   useEffect(() => {
     if (gameOver) {
@@ -123,8 +129,10 @@ export function ChessGameScreen() {
     onSuccess: (data: any) => {
       if (data.match) {
         setCurrentFen(data.match.fen);
+        setLastSyncedTurn(data.match.currentTurn);
         setPlayer1Time(data.match.player1TimeRemaining);
         setPlayer2Time(data.match.player2TimeRemaining);
+        setMoveStartTime(Date.now());
         
         if (data.gameOver) {
           setGameOver(true);
