@@ -132,38 +132,44 @@ interface HuntProviderProps {
   children: ReactNode;
 }
 
+// Generate a temporary wallet ID synchronously to avoid query registration issues
+function generateTempWalletId(): string {
+  return `player_${Math.random().toString(36).substring(2, 15)}`;
+}
+
 export function HuntProvider({ children }: HuntProviderProps) {
   const queryClient = useQueryClient();
   const { wallet: solanaWallet } = useWallet();
-  const [guestWalletAddress, setGuestWalletAddress] = useState<string>("");
-  const [isWalletLoaded, setIsWalletLoaded] = useState(false);
+  // Initialize with a temporary wallet immediately so queries can start
+  const [guestWalletAddress, setGuestWalletAddress] = useState<string>(() => generateTempWalletId());
+  const [walletSynced, setWalletSynced] = useState(false);
   const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
 
   const walletAddress = solanaWallet.connected && solanaWallet.address 
     ? solanaWallet.address 
     : guestWalletAddress;
 
+  // Sync with AsyncStorage to maintain persistence across sessions
   useEffect(() => {
-    const loadOrCreateGuestWallet = async () => {
+    const syncWalletFromStorage = async () => {
       try {
         const storedWallet = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
-        if (storedWallet) {
+        if (storedWallet && storedWallet !== guestWalletAddress) {
+          // Use the stored wallet instead of the temp one
           setGuestWalletAddress(storedWallet);
-        } else {
-          const newWallet = `player_${Math.random().toString(36).substring(2, 15)}`;
-          await AsyncStorage.setItem(WALLET_STORAGE_KEY, newWallet);
-          setGuestWalletAddress(newWallet);
+        } else if (!storedWallet) {
+          // No stored wallet - save the current temp one
+          await AsyncStorage.setItem(WALLET_STORAGE_KEY, guestWalletAddress);
         }
       } catch (error) {
-        console.error("Failed to load wallet:", error);
-        const fallbackWallet = `player_${Math.random().toString(36).substring(2, 15)}`;
-        setGuestWalletAddress(fallbackWallet);
+        console.error("Failed to sync wallet:", error);
+        // Keep using the temp wallet, it's already set
       } finally {
-        setIsWalletLoaded(true);
+        setWalletSynced(true);
       }
     };
-    loadOrCreateGuestWallet();
-  }, []);
+    syncWalletFromStorage();
+  }, [guestWalletAddress]);
 
   const { data: economyData, refetch: refreshEconomy, isFetched: economyFetched, isError: economyError } = useQuery({
     queryKey: ["/api/hunt/economy", walletAddress],
@@ -212,7 +218,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         } as EconomyStats;
       }
     },
-    enabled: isWalletLoaded && !!walletAddress,
+    // Always enabled since walletAddress is guaranteed non-empty from initialization
     retry: 2,
     retryDelay: 1000,
   });
@@ -261,7 +267,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       return data.creatures || [];
     },
-    enabled: isWalletLoaded && !!walletAddress,
+    // walletAddress is always available from initialization
   });
 
   const { data: eggsData } = useQuery({
@@ -272,7 +278,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       if (!response.ok) return { eggs: [], incubators: [] };
       return await response.json();
     },
-    enabled: isWalletLoaded && !!walletAddress,
+    // walletAddress is always available from initialization
   });
 
   const { data: raidsData } = useQuery({
