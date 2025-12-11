@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { Platform, Text, View, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 interface PieceProps {
@@ -6,6 +7,36 @@ interface PieceProps {
   isWhite: boolean;
   uniqueId: string;
 }
+
+const UNICODE_PIECES: Record<string, string> = {
+  K: '\u2654', k: '\u265A',
+  Q: '\u2655', q: '\u265B',
+  R: '\u2656', r: '\u265C',
+  B: '\u2657', b: '\u265D',
+  N: '\u2658', n: '\u265E',
+  P: '\u2659', p: '\u265F',
+};
+
+const WebPiece: React.FC<{ piece: string; size: number }> = ({ piece, size }) => {
+  const isWhite = piece === piece.toUpperCase();
+  const symbol = UNICODE_PIECES[piece] || '';
+  
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{
+        fontSize: size * 0.85,
+        color: isWhite ? '#F5E6D3' : '#2B1810',
+        textShadowColor: isWhite ? '#8B7355' : '#8B5E34',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 2,
+        lineHeight: size,
+        textAlign: 'center',
+      }}>
+        {symbol}
+      </Text>
+    </View>
+  );
+};
 
 const WHITE_FILL = '#F5E6D3';
 const WHITE_STROKE = '#C9A86C';
@@ -191,6 +222,10 @@ interface PieceSpriteProps {
 }
 
 const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square }) => {
+  if (Platform.OS === 'web') {
+    return <WebPiece piece={piece} size={size * 0.88} />;
+  }
+  
   const isWhite = piece === piece.toUpperCase();
   const pieceType = piece.toLowerCase();
   const pieceSize = size * 0.88;
