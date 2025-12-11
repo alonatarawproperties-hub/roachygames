@@ -3,15 +3,15 @@
     "apps": [],
     "details": [
       {
-        "appID": "YOUR_TEAM_ID.com.cryptocreatures.app",
+        "appID": "X4G4WJ8BD6.com.cryptocreatures.app",
         "paths": ["/app/*", "/hunt/*", "/inventory/*", "/profile/*"]
       }
     ]
   },
   "activitycontinuation": {
-    "apps": ["YOUR_TEAM_ID.com.cryptocreatures.app"]
+    "apps": ["X4G4WJ8BD6.com.cryptocreatures.app"]
   },
   "webcredentials": {
-    "apps": ["YOUR_TEAM_ID.com.cryptocreatures.app"]
+    "apps": ["X4G4WJ8BD6.com.cryptocreatures.app"]
   }
 }
