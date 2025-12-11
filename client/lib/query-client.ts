@@ -1,17 +1,17 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 /**
- * Gets the base URL for the Express API server
- * In production, uses roachy.games. In development, uses local server.
+ * Gets the base URL for the Express API server (game backend)
+ * Uses the deployed Replit app's server for game features
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
-  // Production builds use roachy.games as the shared backend
+  // Use explicitly set API URL if provided
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // Development fallback to local server
+  // Development/production fallback to EXPO_PUBLIC_DOMAIN
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {
@@ -25,9 +25,10 @@ export function getApiUrl(): string {
 
 /**
  * Gets the marketplace URL for cross-app navigation
+ * Opens the roachy.games web marketplace for trading
  */
-export function getMarketplaceUrl(): string {
-  return "https://roachy.games";
+export function getMarketplaceUrl(path: string = ""): string {
+  return `https://roachy.games${path}`;
 }
 
 async function throwIfResNotOk(res: Response) {

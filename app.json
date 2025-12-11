@@ -22,6 +22,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.cryptocreatures.app",
       "backgroundColor": "#120a05",
+      "associatedDomains": [
+        "applinks:roachy.games",
+        "webcredentials:roachy.games"
+      ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background.",
@@ -49,6 +53,20 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "roachy.games",
+              "pathPrefix": "/app"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {

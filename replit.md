@@ -95,3 +95,22 @@ A simple Express.js server handles API routes and data storage.
 
 ### Current TestFlight Build
 - Build 76 is currently on TestFlight (has UI positioning bugs)
+
+## Cross-Platform Integration (roachy.games)
+
+### Architecture
+- **Mobile App (this Replit):** Game backend for Roachy Hunt (spawns, catching, eggs, GPS gameplay)
+- **Web App (roachy.games):** Landing page, marketplace, trading, analytics
+- **Shared Identity:** Wallet address (Phantom/Solflare) is the universal user ID across both platforms
+
+### Integration Points
+1. **Marketplace Button:** Profile screen has "Marketplace" button that opens roachy.games
+2. **Deep Linking:** App responds to `roachy-games://` scheme and `https://roachy.games/app/*` links
+3. **Universal Links (iOS):** Associated domains configured for `applinks:roachy.games`
+4. **Intent Filters (Android):** Configured for `https://roachy.games/app/*`
+
+### To Complete Integration (on roachy.games web app)
+1. Add `/.well-known/apple-app-site-association` file for iOS universal links
+2. Add `/.well-known/assetlinks.json` file for Android app links
+3. Add "Open in App" buttons that link to `roachy-games://` scheme
+4. Share database or sync inventory via wallet-based API calls
