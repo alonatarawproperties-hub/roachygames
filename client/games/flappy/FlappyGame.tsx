@@ -539,6 +539,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     if (onScoreSubmit && finalScore > 0) {
       onScoreSubmit(finalScore, gameMode === "ranked");
     }
+    
+    setTimeout(() => {
+      setShowMenu(true);
+    }, 1500);
   }, [highScore, onScoreSubmit, gameMode]);
   
   const deathLoop = useCallback(() => {
@@ -963,6 +967,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
   }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId]);
   
   const jump = useCallback(() => {
+    if (showMenu) return;
+    
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
@@ -978,7 +984,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
       birdRotation.value = withTiming(-20, { duration: 100 });
       playSound("jump");
     }
-  }, [gameState, startGame, playSound, birdRotation]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu]);
   
   useEffect(() => {
     return () => {
