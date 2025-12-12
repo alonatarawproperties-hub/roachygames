@@ -118,7 +118,7 @@ function getConnectUrl(provider: WalletProvider, dappPublicKey: string): string 
   const params = new URLSearchParams({
     dapp_encryption_public_key: dappPublicKey,
     cluster: 'mainnet-beta',
-    app_url: 'https://roachygames.com',
+    app_url: 'https://roachy.games',
     redirect_link: redirectUri,
   });
 

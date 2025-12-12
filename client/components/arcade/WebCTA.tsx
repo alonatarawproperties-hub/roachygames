@@ -16,30 +16,30 @@ interface WebCTAProps {
 const CTA_CONFIGS = {
   swap: {
     title: "Swap Tokens",
-    subtitle: "Exchange RCH on roachygames.com",
+    subtitle: "Exchange RCH on roachy.games",
     icon: "repeat" as keyof typeof Feather.glyphMap,
-    url: "https://roachygames.com/swap",
+    url: "https://roachy.games/swap",
     gradient: ["#8B5CF6", "#6366F1"],
   },
   stake: {
     title: "Stake RCH",
-    subtitle: "Earn rewards on roachygames.com",
+    subtitle: "Earn rewards on roachy.games",
     icon: "trending-up" as keyof typeof Feather.glyphMap,
-    url: "https://roachygames.com/stake",
+    url: "https://roachy.games/stake",
     gradient: ["#22C55E", "#16A34A"],
   },
   marketplace: {
     title: "NFT Marketplace",
-    subtitle: "Trade Roachies on roachygames.com",
+    subtitle: "Trade Roachies on roachy.games",
     icon: "shopping-bag" as keyof typeof Feather.glyphMap,
-    url: "https://roachygames.com/marketplace",
+    url: "https://roachy.games/marketplace",
     gradient: ["#F59E0B", "#D97706"],
   },
   full: {
     title: "Open Web App",
-    subtitle: "Full experience at roachygames.com",
+    subtitle: "Full experience at roachy.games",
     icon: "globe" as keyof typeof Feather.glyphMap,
-    url: "https://roachygames.com",
+    url: "https://roachy.games",
     gradient: ["#06B6D4", "#0891B2"],
   },
 };
@@ -118,7 +118,7 @@ interface WebCTABannerProps {
 export function WebCTABanner({ onDismiss }: WebCTABannerProps) {
   const handlePress = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Linking.openURL("https://roachygames.com");
+    Linking.openURL("https://roachy.games");
   };
 
   return (
