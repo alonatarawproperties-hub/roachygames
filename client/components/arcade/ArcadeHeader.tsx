@@ -1,8 +1,7 @@
 import React from "react";
-import { View, StyleSheet, Pressable, TextInput, Platform } from "react-native";
+import { View, StyleSheet, Pressable, TextInput, Platform, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import Animated, {
@@ -84,7 +83,7 @@ export function ArcadeHeader({
       <View style={styles.topRow}>
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
-            <Image source={roachyLogo} style={styles.logoImage} contentFit="cover" />
+            <Image source={roachyLogo} style={styles.logoImage} resizeMode="cover" />
           </View>
           <ThemedText style={styles.logoText}>Roachy Games</ThemedText>
         </View>

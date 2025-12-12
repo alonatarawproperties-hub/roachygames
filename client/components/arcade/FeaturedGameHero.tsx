@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +9,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius, GlowStyles } from "@/constants/theme";
@@ -83,7 +82,7 @@ export function FeaturedGameHero({
               <Image
                 source={game.coverImage}
                 style={styles.heroImage}
-                contentFit="cover"
+                resizeMode="cover"
               />
             ) : (
               <Feather name={game.iconName as any} size={48} color={GameColors.gold} />

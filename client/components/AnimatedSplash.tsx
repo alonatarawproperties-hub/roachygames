@@ -51,13 +51,12 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
       const total = HOMEPAGE_ASSETS.length;
       let loaded = 0;
       
-      for (const assetModule of HOMEPAGE_ASSETS) {
+      const validAssets = HOMEPAGE_ASSETS.filter(Boolean);
+      
+      for (const assetModule of validAssets) {
         try {
           const asset = Asset.fromModule(assetModule);
           await asset.downloadAsync();
-          if (asset.localUri) {
-            await Image.prefetch(asset.localUri);
-          }
         } catch (e) {
         }
         loaded++;

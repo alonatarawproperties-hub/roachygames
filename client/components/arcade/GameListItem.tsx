@@ -1,12 +1,11 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -71,7 +70,7 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
           <Image
             source={game.coverImage}
             style={styles.thumbnailImage}
-            contentFit="cover"
+            resizeMode="cover"
           />
         ) : (
           <Feather
