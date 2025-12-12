@@ -16,6 +16,7 @@ import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
 import { WalletProvider } from "@/context/WalletContext";
 import { ArcadeInventoryProvider } from "@/context/ArcadeInventoryContext";
+import { AuthProvider } from "@/context/AuthContext";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { AppKitWrapper } from "@/components/AppKitWrapper";
 import { GameColors } from "@/constants/theme";
@@ -63,19 +64,21 @@ export default function App() {
             {showAnimatedSplash ? (
               <AnimatedSplash onAnimationComplete={handleSplashComplete} />
             ) : (
-              <AppKitWrapper>
-                <WalletProvider>
-                  <GameProvider>
-                    <HuntProvider>
-                      <ArcadeInventoryProvider>
-                        <NavigationContainer>
-                          <RootStackNavigator />
-                        </NavigationContainer>
-                      </ArcadeInventoryProvider>
-                    </HuntProvider>
-                  </GameProvider>
-                </WalletProvider>
-              </AppKitWrapper>
+              <AuthProvider>
+                <AppKitWrapper>
+                  <WalletProvider>
+                    <GameProvider>
+                      <HuntProvider>
+                        <ArcadeInventoryProvider>
+                          <NavigationContainer>
+                            <RootStackNavigator />
+                          </NavigationContainer>
+                        </ArcadeInventoryProvider>
+                      </HuntProvider>
+                    </GameProvider>
+                  </WalletProvider>
+                </AppKitWrapper>
+              </AuthProvider>
             )}
             <StatusBar style="light" />
           </GestureHandlerRootView>
