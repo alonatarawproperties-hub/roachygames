@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 const WEBAPP_URL = process.env.WEBAPP_URL || "https://roachy.games";
 const MOBILE_APP_SECRET = process.env.MOBILE_APP_SECRET;
 
@@ -14,6 +16,14 @@ interface RewardDistributionResponse {
   error?: string;
 }
 
+function generateIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
+function generateHmacSignature(payload: string, secret: string): string {
+  return crypto.createHmac("sha256", secret).update(payload).digest("hex");
+}
+
 export async function distributeReward(
   request: RewardDistributionRequest
 ): Promise<RewardDistributionResponse> {
@@ -23,22 +33,34 @@ export async function distributeReward(
   }
 
   try {
-    console.log(`[RewardsIntegration] Requesting ${request.amount} DIAMOND to ${request.walletAddress.slice(0, 8)}... (${request.rewardType})`);
+    const idempotencyKey = generateIdempotencyKey();
+    const timestamp = new Date().toISOString();
+    
+    const payload = {
+      walletAddress: request.walletAddress,
+      amount: request.amount,
+      rewardType: request.rewardType,
+      metadata: request.metadata,
+      source: "mobile_app",
+      timestamp,
+      idempotencyKey,
+    };
+    
+    const payloadString = JSON.stringify(payload);
+    const signature = generateHmacSignature(payloadString, MOBILE_APP_SECRET);
+    
+    console.log(`[RewardsIntegration] Requesting ${request.amount} DIAMOND to ${request.walletAddress.slice(0, 8)}... (${request.rewardType}) [key: ${idempotencyKey.slice(0, 8)}...]`);
 
     const response = await fetch(`${WEBAPP_URL}/api/rewards/distribute`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Mobile-App-Secret": MOBILE_APP_SECRET,
+        "X-Idempotency-Key": idempotencyKey,
+        "X-Signature": signature,
+        "X-Timestamp": timestamp,
       },
-      body: JSON.stringify({
-        walletAddress: request.walletAddress,
-        amount: request.amount,
-        rewardType: request.rewardType,
-        metadata: request.metadata,
-        source: "mobile_app",
-        timestamp: new Date().toISOString(),
-      }),
+      body: payloadString,
     });
 
     if (!response.ok) {
