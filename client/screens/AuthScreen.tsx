@@ -5,7 +5,6 @@ import {
   Alert,
   ActivityIndicator,
   Pressable,
-  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,10 +13,9 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Button } from "@/components/Button";
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
 
 const GoogleLogo = ({ size = 24 }: { size?: number }) => (
   <Image
@@ -27,49 +25,13 @@ const GoogleLogo = ({ size = 24 }: { size?: number }) => (
   />
 );
 
-type AuthMode = "login" | "register";
-
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { login, register, loginWithGoogle, continueAsGuest, isLoading } = useAuth();
+  const { loginWithGoogle, loginWithWallet, continueAsGuest, isLoading } = useAuth();
+  const { connectWallet, signMessage } = useWallet();
   
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleEmailAuth = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (mode === "register" && password.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters");
-      return;
-    }
-
-    setIsSubmitting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      const result = mode === "login" 
-        ? await login(email, password)
-        : await register(email, password, displayName || undefined);
-
-      if (!result.success) {
-        Alert.alert("Error", result.error || "Authentication failed");
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const [connectingWallet, setConnectingWallet] = useState(false);
 
   const handleGoogleAuth = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -91,10 +53,30 @@ export function AuthScreen() {
     }
   };
 
-  const toggleMode = () => {
-    Haptics.selectionAsync();
-    setMode(mode === "login" ? "register" : "login");
-    setPassword("");
+  const handleWalletAuth = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setConnectingWallet(true);
+
+    try {
+      const walletAddress = await connectWallet("phantom");
+      
+      if (!walletAddress) {
+        return;
+      }
+
+      const result = await loginWithWallet(walletAddress, signMessage);
+      if (!result.success) {
+        if (result.error !== "Wallet signature cancelled") {
+          Alert.alert("Error", result.error || "Wallet sign-in failed");
+        }
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Wallet sign-in failed");
+    } finally {
+      setConnectingWallet(false);
+    }
   };
 
   const handleGuestMode = async () => {
@@ -112,6 +94,8 @@ export function AuthScreen() {
     }
   };
 
+  const isDisabled = isSubmitting || connectingWallet || isLoading;
+
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
@@ -119,12 +103,7 @@ export function AuthScreen() {
         style={StyleSheet.absoluteFill}
       />
       
-      <KeyboardAwareScrollViewCompat
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-      >
+      <View style={[styles.content, { paddingTop: insets.top + Spacing["2xl"], paddingBottom: insets.bottom + Spacing.xl }]}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Image
@@ -135,20 +114,43 @@ export function AuthScreen() {
           </View>
           <ThemedText style={styles.title}>Roachy Games</ThemedText>
           <ThemedText style={styles.subtitle}>
-            {mode === "login" ? "Welcome back!" : "Join the arcade"}
+            Play-to-Earn Arcade on Solana
           </ThemedText>
         </View>
 
-        <View style={styles.formContainer}>
+        <View style={styles.authContainer}>
           <Pressable
-            style={styles.googleButton}
+            style={[styles.authButton, styles.googleButton]}
             onPress={handleGoogleAuth}
-            disabled={isSubmitting}
+            disabled={isDisabled}
           >
-            <GoogleLogo size={20} />
-            <ThemedText style={styles.googleButtonText}>
-              Continue with Google
-            </ThemedText>
+            {isSubmitting ? (
+              <ActivityIndicator color="#333" size="small" />
+            ) : (
+              <>
+                <GoogleLogo size={22} />
+                <ThemedText style={styles.googleButtonText}>
+                  Continue with Google
+                </ThemedText>
+              </>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={[styles.authButton, styles.walletButton]}
+            onPress={handleWalletAuth}
+            disabled={isDisabled}
+          >
+            {connectingWallet ? (
+              <ActivityIndicator color={GameColors.gold} size="small" />
+            ) : (
+              <>
+                <Feather name="credit-card" size={22} color={GameColors.gold} />
+                <ThemedText style={styles.walletButtonText}>
+                  Connect Wallet
+                </ThemedText>
+              </>
+            )}
           </Pressable>
 
           <View style={styles.divider}>
@@ -157,75 +159,13 @@ export function AuthScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          {mode === "register" ? (
-            <View style={styles.inputContainer}>
-              <Feather name="user" size={20} color={GameColors.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                placeholder="Display Name (optional)"
-                placeholderTextColor={GameColors.textSecondary}
-                value={displayName}
-                onChangeText={setDisplayName}
-                style={styles.textInput}
-              />
-            </View>
-          ) : null}
-
-          <View style={styles.inputContainer}>
-            <Feather name="mail" size={20} color={GameColors.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              placeholder="Email"
-              placeholderTextColor={GameColors.textSecondary}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              style={styles.textInput}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Feather name="lock" size={20} color={GameColors.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              placeholder="Password"
-              placeholderTextColor={GameColors.textSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              style={styles.textInput}
-            />
-            <Pressable
-              style={styles.eyeButton}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Feather
-                name={showPassword ? "eye-off" : "eye"}
-                size={20}
-                color={GameColors.textSecondary}
-              />
-            </Pressable>
-          </View>
-
-          <Button
-            onPress={handleEmailAuth}
-            disabled={isSubmitting || !email.trim() || !password.trim()}
-            style={styles.submitButton}
+          <Pressable 
+            style={styles.guestButton} 
+            onPress={handleGuestMode}
+            disabled={isDisabled}
           >
-            {isSubmitting ? (
-              <ActivityIndicator color={GameColors.background} size="small" />
-            ) : (
-              mode === "login" ? "Sign In" : "Create Account"
-            )}
-          </Button>
-
-          <Pressable style={styles.switchMode} onPress={toggleMode}>
-            <ThemedText style={styles.switchModeText}>
-              {mode === "login" 
-                ? "Don't have an account? " 
-                : "Already have an account? "}
-              <ThemedText style={styles.switchModeLink}>
-                {mode === "login" ? "Sign Up" : "Sign In"}
-              </ThemedText>
-            </ThemedText>
+            <Feather name="user" size={18} color={GameColors.textSecondary} />
+            <ThemedText style={styles.guestButtonText}>Continue as Guest</ThemedText>
           </Pressable>
         </View>
 
@@ -240,23 +180,14 @@ export function AuthScreen() {
           </View>
           <View style={styles.featureItem}>
             <Feather name="zap" size={24} color={GameColors.gold} />
-            <ThemedText style={styles.featureText}>Connect Wallet for Real Rewards</ThemedText>
+            <ThemedText style={styles.featureText}>Earn Real Crypto Rewards</ThemedText>
           </View>
         </View>
-
-        <Pressable 
-          style={styles.guestButton} 
-          onPress={handleGuestMode}
-          disabled={isSubmitting}
-        >
-          <Feather name="user" size={18} color={GameColors.textSecondary} />
-          <ThemedText style={styles.guestButtonText}>Continue as Guest</ThemedText>
-        </Pressable>
 
         <ThemedText style={styles.disclaimer}>
           By continuing, you agree to our Terms of Service and Privacy Policy
         </ThemedText>
-      </KeyboardAwareScrollViewCompat>
+      </View>
     </ThemedView>
   );
 }
@@ -265,13 +196,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
+  content: {
+    flex: 1,
     paddingHorizontal: Spacing.lg,
+    justifyContent: "space-between",
   },
   header: {
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    marginTop: Spacing.xl,
   },
   logoContainer: {
     marginBottom: Spacing.md,
@@ -291,33 +223,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: GameColors.textSecondary,
   },
-  formContainer: {
+  authContainer: {
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
     borderColor: "rgba(245, 158, 11, 0.2)",
-    marginBottom: Spacing.xl,
+    gap: Spacing.md,
   },
-  googleButton: {
+  authButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
     borderRadius: BorderRadius.md,
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: Spacing.lg,
     gap: 12,
+  },
+  googleButton: {
+    backgroundColor: "#FFFFFF",
   },
   googleButtonText: {
     color: "#333333",
     fontSize: 16,
     fontWeight: "600",
   },
+  walletButton: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+  },
+  walletButtonText: {
+    color: GameColors.gold,
+    fontSize: 16,
+    fontWeight: "600",
+  },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: Spacing.lg,
+    marginVertical: Spacing.sm,
   },
   dividerLine: {
     flex: 1,
@@ -329,47 +273,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     fontSize: 14,
   },
-  inputContainer: {
+  guestButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
-  inputIcon: {
-    marginRight: Spacing.sm,
-  },
-  eyeButton: {
-    padding: Spacing.sm,
-  },
-  textInput: {
-    flex: 1,
-    height: 48,
-    color: GameColors.textPrimary,
-    fontSize: 16,
-  },
-  submitButton: {
-    marginTop: Spacing.sm,
-  },
-  switchMode: {
-    alignItems: "center",
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.sm,
-  },
-  switchModeText: {
+  guestButtonText: {
     color: GameColors.textSecondary,
     fontSize: 14,
   },
-  switchModeLink: {
-    color: GameColors.gold,
-    fontWeight: "600",
-  },
   features: {
     gap: Spacing.md,
-    marginBottom: Spacing.xl,
   },
   featureItem: {
     flexDirection: "row",
@@ -377,18 +293,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   featureText: {
-    color: GameColors.textSecondary,
-    fontSize: 14,
-  },
-  guestButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  guestButtonText: {
     color: GameColors.textSecondary,
     fontSize: 14,
   },

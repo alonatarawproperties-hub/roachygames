@@ -276,6 +276,76 @@ router.post("/google", async (req: Request, res: Response) => {
 
 const WALLET_SWITCH_COOLDOWN_HOURS = 24;
 
+function getWalletLoginMessage(walletAddress: string, timestamp: number): string {
+  return `Sign in to Roachy Games with wallet ${walletAddress}.\n\nTimestamp: ${timestamp}\n\nThis signature proves you own this wallet.`;
+}
+
+router.post("/wallet-login", async (req: Request, res: Response) => {
+  try {
+    const { walletAddress, signature, timestamp } = req.body;
+
+    if (!walletAddress || !signature || !timestamp) {
+      return res.status(400).json({ error: "Wallet address, signature, and timestamp are required" });
+    }
+
+    const timeDiff = Date.now() - timestamp;
+    if (timeDiff > 5 * 60 * 1000) {
+      return res.status(400).json({ error: "Signature expired. Please try again." });
+    }
+
+    const expectedMessage = getWalletLoginMessage(walletAddress, timestamp);
+    const isValid = verifySolanaSignature(expectedMessage, signature, walletAddress);
+    
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid wallet signature" });
+    }
+
+    let [user] = await db.select().from(users).where(eq(users.walletAddress, walletAddress)).limit(1);
+
+    if (!user) {
+      const shortAddress = walletAddress.slice(0, 4) + "..." + walletAddress.slice(-4);
+      [user] = await db.insert(users).values({
+        walletAddress,
+        displayName: `Wallet ${shortAddress}`,
+        authProvider: "wallet",
+        chyBalance: 100,
+        diamondBalance: 0,
+        lastLoginAt: new Date(),
+      }).returning();
+      console.log(`[Auth] New wallet user created: ${walletAddress.slice(0, 8)}...`);
+    } else {
+      await db.update(users)
+        .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+      console.log(`[Auth] Wallet user logged in: ${walletAddress.slice(0, 8)}...`);
+    }
+
+    const token = generateToken({
+      userId: user.id,
+      authProvider: "wallet",
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        googleId: user.googleId,
+        authProvider: user.authProvider,
+        chyBalance: user.chyBalance,
+        diamondBalance: user.diamondBalance,
+        walletAddress: user.walletAddress,
+        avatarUrl: user.avatarUrl,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error("[Auth] Wallet login error:", error);
+    return res.status(500).json({ error: "Wallet authentication failed" });
+  }
+});
+
 function verifySolanaSignature(message: string, signature: string, publicKey: string): boolean {
   try {
     const messageBytes = new TextEncoder().encode(message);

@@ -39,6 +39,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  loginWithWallet: (walletAddress: string, signMessage: SignMessageFn) => Promise<{ success: boolean; error?: string }>;
   continueAsGuest: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   linkWallet: (walletAddress: string, signMessage: SignMessageFn) => Promise<LinkWalletResult>;
@@ -228,6 +229,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginWithWallet = useCallback(async (walletAddress: string, signMessage: SignMessageFn) => {
+    try {
+      const timestamp = Date.now();
+      const message = `Sign in to Roachy Games with wallet ${walletAddress}.\n\nTimestamp: ${timestamp}\n\nThis signature proves you own this wallet.`;
+      
+      const signature = await signMessage(message);
+      if (!signature) {
+        return { success: false, error: "Wallet signature cancelled" };
+      }
+
+      const response = await apiRequest("POST", "/api/auth/wallet-login", {
+        walletAddress,
+        signature,
+        timestamp,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || "Wallet login failed" };
+      }
+
+      await Promise.all([
+        secureStoreSet(AUTH_TOKEN_KEY, data.token),
+        secureStoreSet(USER_DATA_KEY, JSON.stringify(data.user)),
+      ]);
+
+      setUser(data.user);
+      return { success: true };
+    } catch (error: any) {
+      console.error("[Auth] Wallet login error:", error);
+      return { success: false, error: error.message || "Wallet sign-in failed" };
+    }
+  }, []);
+
   const continueAsGuest = useCallback(async () => {
     try {
       const guestUser: AuthUser = {
@@ -370,6 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         loginWithGoogle,
+        loginWithWallet,
         continueAsGuest,
         logout,
         linkWallet,
