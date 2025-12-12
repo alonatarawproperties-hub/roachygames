@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -119,15 +119,9 @@ export function FlappyMenuSheet({
     },
   });
 
-  const usePowerUpMutation = useMutation({
-    mutationFn: async (powerUpType: string) => {
-      return apiRequest("POST", "/api/flappy/inventory/use", { userId, powerUpType });
-    },
-    onSuccess: (_, powerUpType) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", userId] });
-      onEquipPowerUp(powerUpType as "shield" | "double" | "magnet");
-    },
-  });
+  const handleEquipToggle = useCallback((powerUpType: "shield" | "double" | "magnet") => {
+    onEquipPowerUp(powerUpType);
+  }, [onEquipPowerUp]);
 
   if (!visible) return null;
 
@@ -186,8 +180,8 @@ export function FlappyMenuSheet({
                   inventory={inventoryData?.inventory}
                   isLoading={inventoryLoading}
                   equippedPowerUps={equippedPowerUps}
-                  onEquip={(type) => usePowerUpMutation.mutate(type)}
-                  isEquipping={usePowerUpMutation.isPending}
+                  onEquip={handleEquipToggle}
+                  isEquipping={false}
                 />
               )}
             </View>

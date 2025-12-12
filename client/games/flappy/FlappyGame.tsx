@@ -25,6 +25,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { FlappyMenuSheet } from "./FlappyMenuSheet";
+import { apiRequest } from "@/lib/query-client";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -924,16 +925,26 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     gameStateRef.current = "playing";
     setGameState("playing");
     
+    const consumeAndActivatePowerUp = async (type: "shield" | "double" | "magnet") => {
+      if (!userId) return;
+      try {
+        await apiRequest("POST", "/api/flappy/inventory/use", { userId, powerUpType: type });
+        activatePowerUp(type);
+      } catch (error) {
+        console.log(`Failed to use ${type} power-up:`, error);
+      }
+    };
+    
     if (equippedPowerUps.shield) {
-      activatePowerUp("shield");
+      consumeAndActivatePowerUp("shield");
       setEquippedPowerUps((prev) => ({ ...prev, shield: false }));
     }
     if (equippedPowerUps.double) {
-      activatePowerUp("double");
+      consumeAndActivatePowerUp("double");
       setEquippedPowerUps((prev) => ({ ...prev, double: false }));
     }
     if (equippedPowerUps.magnet) {
-      activatePowerUp("magnet");
+      consumeAndActivatePowerUp("magnet");
       setEquippedPowerUps((prev) => ({ ...prev, magnet: false }));
     }
     
@@ -949,7 +960,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     }, 1000);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId]);
   
   const jump = useCallback(() => {
     if (gameState === "idle") {
