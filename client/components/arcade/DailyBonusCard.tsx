@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Alert, ActivityIndicator } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, Pressable, Alert, ActivityIndicator, Platform } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Application from "expo-application";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -38,12 +39,33 @@ interface DailyBonusData {
   totalDiamondsFromBonus: number;
 }
 
+async function getDeviceFingerprint(): Promise<string | null> {
+  try {
+    if (Platform.OS === "ios") {
+      return await Application.getIosIdForVendorAsync();
+    } else if (Platform.OS === "android") {
+      return Application.getAndroidId();
+    } else {
+      const webFingerprint = `web-${navigator.userAgent.slice(0, 50)}-${screen.width}x${screen.height}`;
+      return webFingerprint;
+    }
+  } catch (error) {
+    console.log("[DeviceFingerprint] Failed to get device ID:", error);
+    return null;
+  }
+}
+
 export function DailyBonusCard({ walletAddress, isConnected, onConnectWallet }: DailyBonusCardProps) {
   const queryClient = useQueryClient();
   const [claimingDay, setClaimingDay] = useState<number | null>(null);
+  const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
   
   const claimScale = useSharedValue(1);
   const celebrateOpacity = useSharedValue(0);
+  
+  useEffect(() => {
+    getDeviceFingerprint().then(setDeviceFingerprint);
+  }, []);
   
   const { data: bonusData, isLoading } = useQuery<DailyBonusData>({
     queryKey: ["/api/daily-bonus", walletAddress],
@@ -52,7 +74,10 @@ export function DailyBonusCard({ walletAddress, isConnected, onConnectWallet }: 
   
   const claimMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/daily-bonus/claim", { walletAddress });
+      const response = await apiRequest("POST", "/api/daily-bonus/claim", { 
+        walletAddress,
+        deviceFingerprint,
+      });
       return response.json();
     },
     onSuccess: (data) => {
@@ -83,6 +108,12 @@ export function DailyBonusCard({ walletAddress, isConnected, onConnectWallet }: 
       
       if (error?.alreadyClaimed) {
         Alert.alert("Already Claimed", "You've already claimed today's bonus. Come back tomorrow!");
+      } else if (error?.fraudBlocked) {
+        Alert.alert("Limit Reached", "Daily bonus limit reached for this device. Try again tomorrow.");
+      } else if (error?.newAccountCooldown) {
+        Alert.alert("New Account", `Please wait ${error.hoursRemaining} hours before claiming your first bonus.`);
+      } else if (error?.emailVerificationRequired) {
+        Alert.alert("Verification Required", "Please verify your email to continue your streak beyond Day 3.");
       } else {
         Alert.alert("Error", "Failed to claim bonus. Please try again.");
       }
