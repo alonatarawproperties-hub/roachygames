@@ -2,6 +2,8 @@ import type { Express, Request } from "express";
 import { db } from "./db";
 import { playerEconomy, dailyLoginBonus, dailyLoginHistory, dailyBonusFraudTracking, users } from "../shared/schema";
 import { eq, sql, and, or, gte } from "drizzle-orm";
+import { getAllTokenBalances, getRoachyBalance, getDiamondBalance, isValidSolanaAddress } from "./solana-service";
+import { SOLANA_TOKENS } from "../shared/solana-tokens";
 
 const DAILY_BONUS_REWARDS: Record<number, number> = {
   1: 1,
@@ -341,5 +343,63 @@ export function registerEconomyRoutes(app: Express) {
       console.error("[Economy] Error fetching leaderboard:", error);
       res.status(500).json({ error: "Failed to fetch leaderboard" });
     }
+  });
+
+  app.get("/api/blockchain/balances/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      if (!isValidSolanaAddress(walletAddress)) {
+        return res.status(400).json({ error: "Invalid Solana wallet address" });
+      }
+      
+      const balances = await getAllTokenBalances(walletAddress);
+      
+      res.json({
+        wallet: walletAddress,
+        tokens: {
+          roachy: {
+            balance: balances.roachy,
+            mint: SOLANA_TOKENS.ROACHY.mint,
+            symbol: SOLANA_TOKENS.ROACHY.symbol,
+            decimals: SOLANA_TOKENS.ROACHY.decimals,
+          },
+          diamond: {
+            balance: balances.diamond,
+            mint: SOLANA_TOKENS.DIAMOND.mint,
+            symbol: SOLANA_TOKENS.DIAMOND.symbol,
+            decimals: SOLANA_TOKENS.DIAMOND.decimals,
+          },
+        },
+        sol: balances.solBalance,
+        source: "blockchain",
+        network: "mainnet-beta",
+      });
+    } catch (error) {
+      console.error("[Blockchain] Error fetching balances:", error);
+      res.status(500).json({ error: "Failed to fetch blockchain balances" });
+    }
+  });
+
+  app.get("/api/blockchain/token-info", async (req, res) => {
+    res.json({
+      tokens: [
+        {
+          name: SOLANA_TOKENS.ROACHY.name,
+          symbol: SOLANA_TOKENS.ROACHY.symbol,
+          mint: SOLANA_TOKENS.ROACHY.mint,
+          decimals: SOLANA_TOKENS.ROACHY.decimals,
+          description: SOLANA_TOKENS.ROACHY.description,
+        },
+        {
+          name: SOLANA_TOKENS.DIAMOND.name,
+          symbol: SOLANA_TOKENS.DIAMOND.symbol,
+          mint: SOLANA_TOKENS.DIAMOND.mint,
+          decimals: SOLANA_TOKENS.DIAMOND.decimals,
+          description: SOLANA_TOKENS.DIAMOND.description,
+        },
+      ],
+      network: "mainnet-beta",
+    });
   });
 }
