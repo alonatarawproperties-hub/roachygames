@@ -40,16 +40,24 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
     providerId: string;
     newAddress: string;
   } | null>(null);
-  const [pendingLink, setPendingLink] = useState<string | null>(null);
-  const prevWalletAddressRef = useRef<string | null>(null);
+  const [awaitingRedirect, setAwaitingRedirect] = useState(false);
+  const [linkProcessing, setLinkProcessing] = useState(false);
+  const addressBeforeConnectRef = useRef<string | null>(null);
+  const processedAddressRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const processWalletLink = async (newAddress: string) => {
+  const processWalletLink = async (newAddress: string) => {
+    if (linkProcessing) return;
+    if (processedAddressRef.current === newAddress) return;
+    
+    setLinkProcessing(true);
+    
+    try {
       if (user?.walletAddress && user.walletAddress !== newAddress) {
         setPendingConnection({ providerId: wallet.provider || 'phantom', newAddress });
         setShowSwitchWarning(true);
         setConnectingProvider(null);
-        setPendingLink(null);
+        setAwaitingRedirect(false);
+        processedAddressRef.current = newAddress;
         return;
       }
       
@@ -57,61 +65,49 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
         const result = await linkWallet(newAddress, signMessage);
         if (!result.success) {
           Alert.alert('Wallet Link Failed', result.error || 'Could not link wallet to your account');
+          return;
         } else if (result.pendingSwitch) {
           Alert.alert(
             'Wallet Switch Initiated',
             `Your wallet switch is pending. It will complete after the 24-hour security cooldown.`
           );
         }
+        processedAddressRef.current = newAddress;
       }
       
       setConnectingProvider(null);
-      setPendingLink(null);
+      setAwaitingRedirect(false);
       onClose();
-    };
-
-    if (wallet.connected && wallet.address && pendingLink && wallet.address !== prevWalletAddressRef.current) {
-      prevWalletAddressRef.current = wallet.address;
-      processWalletLink(wallet.address);
+    } finally {
+      setLinkProcessing(false);
     }
-  }, [wallet.connected, wallet.address, wallet.provider, pendingLink, user, linkWallet, signMessage, onClose]);
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    if (!awaitingRedirect || linkProcessing) return;
+    if (!wallet.address) return;
+    if (wallet.address === addressBeforeConnectRef.current) return;
+    
+    processWalletLink(wallet.address);
+  }, [visible, wallet.address, awaitingRedirect, linkProcessing]);
 
   const handleConnectWallet = async (providerId: string) => {
     setConnectingProvider(providerId);
-    setPendingLink(providerId);
-    prevWalletAddressRef.current = wallet.address;
+    addressBeforeConnectRef.current = wallet.address;
+    processedAddressRef.current = null;
+    setAwaitingRedirect(true);
     
     try {
       const newAddress = await connectWallet(providerId as 'phantom' | 'solflare' | 'backpack');
       
-      if (newAddress) {
-        if (user?.walletAddress && user.walletAddress !== newAddress) {
-          setPendingConnection({ providerId, newAddress });
-          setShowSwitchWarning(true);
-          setConnectingProvider(null);
-          setPendingLink(null);
-          return;
-        }
-        
-        if (user) {
-          const result = await linkWallet(newAddress, signMessage);
-          if (!result.success) {
-            Alert.alert('Wallet Link Failed', result.error || 'Could not link wallet to your account');
-          } else if (result.pendingSwitch) {
-            Alert.alert(
-              'Wallet Switch Initiated',
-              `Your wallet switch is pending. It will complete after the 24-hour security cooldown.`
-            );
-          }
-        }
-        
-        setConnectingProvider(null);
-        setPendingLink(null);
-        onClose();
+      if (newAddress && newAddress !== addressBeforeConnectRef.current) {
+        await processWalletLink(newAddress);
       }
     } catch (error) {
       console.error('[WalletSelectModal] Connect error:', error);
       setConnectingProvider(null);
+      setAwaitingRedirect(false);
     }
   };
 
@@ -142,8 +138,10 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
   };
 
   const handleClose = () => {
-    setConnectingProvider(null);
-    setPendingLink(null);
+    if (linkProcessing || connectingProvider) return;
+    setAwaitingRedirect(false);
+    addressBeforeConnectRef.current = null;
+    processedAddressRef.current = null;
     onClose();
   };
 
