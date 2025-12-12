@@ -5,8 +5,16 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 
 const roachyLogo = require("../../../assets/images/roachy-logo.png");
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface ArcadeHeaderProps {
   showSearch?: boolean;
@@ -15,6 +23,50 @@ interface ArcadeHeaderProps {
   onWalletPress?: () => void;
   onNotificationPress?: () => void;
   walletConnected?: boolean;
+}
+
+function AnimatedButton({
+  onPress,
+  children,
+  style,
+  pressedStyle,
+}: {
+  onPress?: () => void;
+  children: React.ReactNode;
+  style?: any;
+  pressedStyle?: any;
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.9, { damping: 15, stiffness: 300 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 12, stiffness: 200 });
+  };
+
+  const handlePress = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress?.();
+  };
+
+  return (
+    <AnimatedPressable
+      style={[style, animatedStyle]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+    >
+      {children}
+    </AnimatedPressable>
+  );
 }
 
 export function ArcadeHeader({
@@ -38,11 +90,10 @@ export function ArcadeHeader({
         </View>
 
         <View style={styles.actions}>
-          <Pressable
-            style={({ pressed }) => [
+          <AnimatedButton
+            style={[
               styles.actionButton,
               walletConnected && styles.walletConnected,
-              pressed && styles.actionButtonPressed,
             ]}
             onPress={onWalletPress}
           >
@@ -50,18 +101,15 @@ export function ArcadeHeader({
               <View style={styles.walletConnectedDot} />
             ) : null}
             <Feather name="credit-card" size={18} color={walletConnected ? GameColors.secondary : GameColors.gold} />
-          </Pressable>
+          </AnimatedButton>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionButton,
-              pressed && styles.actionButtonPressed,
-            ]}
+          <AnimatedButton
+            style={styles.actionButton}
             onPress={onNotificationPress}
           >
             <View style={styles.notificationDot} />
             <Feather name="bell" size={18} color={GameColors.textSecondary} />
-          </Pressable>
+          </AnimatedButton>
         </View>
       </View>
 
@@ -145,10 +193,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: GameColors.surfaceGlow,
-  },
-  actionButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.95 }],
   },
   walletConnected: {
     borderColor: GameColors.secondary,

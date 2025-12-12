@@ -16,11 +16,48 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withRepeat,
+  withSpring,
   runOnJS,
   cancelAnimation,
   Easing,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+function ExitButton({ style, onPress }: { style?: any; onPress?: () => void }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.85, { damping: 15, stiffness: 300 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 12, stiffness: 200 });
+  };
+
+  const handlePress = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    onPress?.();
+  };
+
+  return (
+    <AnimatedPressable
+      style={[style, animatedStyle]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+    >
+      <Feather name="x" size={24} color="#fff" />
+    </AnimatedPressable>
+  );
+}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -758,12 +795,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
         )}
       </Pressable>
       
-      <Pressable
-        style={[styles.exitButton, { top: insets.top + 10 }]}
-        onPress={onExit}
-      >
-        <Feather name="x" size={24} color="#fff" />
-      </Pressable>
+      <ExitButton style={[styles.exitButton, { top: insets.top + 10 }]} onPress={onExit} />
     </View>
   );
 }
