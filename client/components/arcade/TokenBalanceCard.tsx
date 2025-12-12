@@ -18,6 +18,7 @@ interface TokenBalanceCardProps {
   onPress?: () => void;
   isConnected: boolean;
   isLoading?: boolean;
+  isGuest?: boolean;
 }
 
 export function TokenBalanceCard({
@@ -28,6 +29,7 @@ export function TokenBalanceCard({
   onPress,
   isConnected,
   isLoading = false,
+  isGuest = false,
 }: TokenBalanceCardProps) {
   const totalUsdValue = roachyUsdValue + diamondsUsdValue;
 
@@ -40,6 +42,29 @@ export function TokenBalanceCard({
   const formatUsd = (value: number) => {
     return `$${formatNumber(value, 2)}`;
   };
+
+  if (isGuest) {
+    return (
+      <Pressable style={styles.container} onPress={onPress}>
+        <LinearGradient
+          colors={[GameColors.surfaceElevated, GameColors.surface]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <View style={styles.notConnectedContent}>
+          <View style={styles.iconCircle}>
+            <Feather name="user" size={24} color={GameColors.textTertiary} />
+          </View>
+          <View style={styles.notConnectedText}>
+            <ThemedText style={styles.connectTitle}>Playing as Guest</ThemedText>
+            <ThemedText style={styles.connectSubtitle}>Sign in to earn crypto rewards</ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={GameColors.textTertiary} />
+        </View>
+      </Pressable>
+    );
+  }
 
   if (!isConnected) {
     return (

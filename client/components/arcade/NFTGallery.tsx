@@ -20,6 +20,7 @@ interface NFTGalleryProps {
   nfts?: NFTItem[];
   onNFTPress?: (nft: NFTItem) => void;
   isConnected?: boolean;
+  isGuest?: boolean;
   onConnectWallet?: () => void;
 }
 
@@ -63,6 +64,7 @@ export function NFTGallery({
   nfts = PLACEHOLDER_NFTS,
   onNFTPress,
   isConnected = true,
+  isGuest = false,
   onConnectWallet,
 }: NFTGalleryProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
@@ -72,7 +74,7 @@ export function NFTGallery({
   const filteredNFTs =
     selectedFilter === "all" ? nfts : nfts.filter((nft) => nft.rarity === selectedFilter);
 
-  if (!isConnected) {
+  if (isGuest || !isConnected) {
     return (
       <Card style={styles.container}>
         <View style={styles.header}>
@@ -82,11 +84,15 @@ export function NFTGallery({
           </View>
         </View>
         <View style={styles.emptyState}>
-          <Feather name="lock" size={32} color={GameColors.textSecondary} />
-          <ThemedText style={styles.emptyText}>Connect wallet to view your NFTs</ThemedText>
+          <Feather name={isGuest ? "user" : "lock"} size={32} color={GameColors.textSecondary} />
+          <ThemedText style={styles.emptyText}>
+            {isGuest ? "Sign in to view and mint NFTs" : "Connect wallet to view your NFTs"}
+          </ThemedText>
           {onConnectWallet ? (
             <Pressable style={styles.connectButton} onPress={onConnectWallet}>
-              <ThemedText style={styles.connectButtonText}>Connect Wallet</ThemedText>
+              <ThemedText style={styles.connectButtonText}>
+                {isGuest ? "Sign In" : "Connect Wallet"}
+              </ThemedText>
             </Pressable>
           ) : null}
         </View>

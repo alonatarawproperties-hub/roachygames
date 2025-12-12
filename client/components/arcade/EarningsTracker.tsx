@@ -15,11 +15,11 @@ interface EarningsData {
 }
 
 export function EarningsTracker() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isGuest } = useAuth();
 
   const { data: earnings, isLoading } = useQuery<EarningsData>({
     queryKey: ["/api/earnings", user?.id],
-    enabled: isAuthenticated && !!user?.id && !!user?.walletAddress,
+    enabled: isAuthenticated && !isGuest && !!user?.id && !!user?.walletAddress,
     refetchInterval: 60000,
   });
 
@@ -29,6 +29,23 @@ export function EarningsTracker() {
     }
     return num.toString();
   };
+
+  if (isGuest) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Feather name="trending-up" size={18} color={GameColors.gold} />
+            <ThemedText style={styles.headerTitle}>Earnings</ThemedText>
+          </View>
+        </View>
+        <View style={styles.disconnectedContent}>
+          <Feather name="user" size={24} color={GameColors.textTertiary} />
+          <ThemedText style={styles.disconnectedText}>Sign in to track your earnings</ThemedText>
+        </View>
+      </View>
+    );
+  }
 
   if (!isAuthenticated || !user?.walletAddress) {
     return (

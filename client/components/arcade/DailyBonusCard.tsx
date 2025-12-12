@@ -18,6 +18,7 @@ import { apiRequest, getApiUrl } from "@/lib/query-client";
 interface DailyBonusCardProps {
   walletAddress: string | null;
   isConnected: boolean;
+  isGuest?: boolean;
   onConnectWallet: () => void;
 }
 
@@ -55,7 +56,7 @@ async function getDeviceFingerprint(): Promise<string | null> {
   }
 }
 
-export function DailyBonusCard({ walletAddress, isConnected, onConnectWallet }: DailyBonusCardProps) {
+export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, onConnectWallet }: DailyBonusCardProps) {
   const queryClient = useQueryClient();
   const [claimingDay, setClaimingDay] = useState<number | null>(null);
   const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);

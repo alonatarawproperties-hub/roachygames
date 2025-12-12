@@ -475,7 +475,7 @@ export function ArcadeHomeScreen() {
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const [isHatching, setIsHatching] = useState(false);
   const { wallet, disconnectWallet } = useWallet();
-  const { user, logout } = useAuth();
+  const { user, logout, isGuest } = useAuth();
   const { collectedEggs, hatchEggs, refreshEconomy } = useHunt();
   const { roachy, diamonds, roachyUsdValue, isLoading: balancesLoading } = useTokenBalances(
     wallet.address,
@@ -624,8 +624,23 @@ export function ArcadeHomeScreen() {
     navigation.navigate(routeName);
   };
 
+  const showGuestWalletAlert = () => {
+    Alert.alert(
+      "Sign In Required",
+      "Create an account or sign in to connect your wallet and earn crypto rewards.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign In", onPress: () => logout() },
+      ]
+    );
+  };
+
   const handleWalletPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isGuest) {
+      showGuestWalletAlert();
+      return;
+    }
     if (wallet.connected) {
       Alert.alert(
         "Wallet Connected",
@@ -701,7 +716,8 @@ export function ArcadeHomeScreen() {
                   diamondsUsdValue={0}
                   isConnected={wallet.connected}
                   isLoading={balancesLoading}
-                  onPress={() => setShowWalletModal(true)}
+                  isGuest={isGuest}
+                  onPress={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
                 />
                 <View style={styles.livePlayersRow}>
                   <View style={styles.livePlayersBadge}>
@@ -897,10 +913,18 @@ export function ArcadeHomeScreen() {
                         {getMintableCount()} items ready to mint as NFTs
                       </ThemedText>
                       <Button
-                        onPress={() => wallet.connected ? Alert.alert("Coming Soon", "NFT minting coming soon!") : setShowWalletModal(true)}
+                        onPress={() => {
+                          if (isGuest) {
+                            showGuestWalletAlert();
+                          } else if (wallet.connected) {
+                            Alert.alert("Coming Soon", "NFT minting coming soon!");
+                          } else {
+                            setShowWalletModal(true);
+                          }
+                        }}
                         style={styles.mintButton}
                       >
-                        {wallet.connected ? "Mint NFTs" : "Connect Wallet"}
+                        {isGuest ? "Sign In" : wallet.connected ? "Mint NFTs" : "Connect Wallet"}
                       </Button>
                     </View>
                   </View>
@@ -925,7 +949,8 @@ export function ArcadeHomeScreen() {
             <DailyBonusCard 
               walletAddress={wallet.address}
               isConnected={wallet.connected}
-              onConnectWallet={() => setShowWalletModal(true)}
+              isGuest={isGuest}
+              onConnectWallet={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
             />
 
             <View style={styles.rewardsSection}>
@@ -998,19 +1023,23 @@ export function ArcadeHomeScreen() {
                 ) : (
                   <View style={styles.walletNotConnected}>
                     <View style={styles.walletIcon}>
-                      <Feather name="credit-card" size={32} color={GameColors.textSecondary} />
+                      <Feather name={isGuest ? "user" : "credit-card"} size={32} color={GameColors.textSecondary} />
                     </View>
-                    <ThemedText style={styles.walletTitle}>Connect Your Wallet</ThemedText>
+                    <ThemedText style={styles.walletTitle}>
+                      {isGuest ? "Playing as Guest" : "Connect Your Wallet"}
+                    </ThemedText>
                     <ThemedText style={styles.walletDescription}>
-                      Connect a Solana wallet to mint creatures as NFTs
+                      {isGuest ? "Sign in to connect a wallet and earn real crypto" : "Connect a Solana wallet to mint creatures as NFTs"}
                     </ThemedText>
                     <Button
-                      onPress={() => setShowWalletModal(true)}
+                      onPress={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
                       disabled={wallet.isConnecting}
                       style={styles.connectButton}
                     >
                       {wallet.isConnecting ? (
                         <ActivityIndicator color="#fff" size="small" />
+                      ) : isGuest ? (
+                        "Sign In"
                       ) : (
                         "Connect Wallet"
                       )}
@@ -1023,7 +1052,8 @@ export function ArcadeHomeScreen() {
             <View style={styles.nftSection}>
               <NFTGallery
                 isConnected={wallet.connected}
-                onConnectWallet={() => setShowWalletModal(true)}
+                isGuest={isGuest}
+                onConnectWallet={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
               />
             </View>
 
