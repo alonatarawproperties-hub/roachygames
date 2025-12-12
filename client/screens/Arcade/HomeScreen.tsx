@@ -831,6 +831,12 @@ export function ArcadeHomeScreen() {
                 <ThemedText style={styles.emptyHint}>
                   Play games to collect creatures, eggs, badges, and more
                 </ThemedText>
+                <View style={styles.eggHintContainer}>
+                  <Feather name="gift" size={16} color={GameColors.gold} />
+                  <ThemedText style={styles.eggHintText}>
+                    Collect 10 eggs in Roachy Hunt to hatch a creature
+                  </ThemedText>
+                </View>
                 <Button
                   onPress={() => handleGamePress("HuntTab")}
                   style={styles.playButton}
@@ -1788,7 +1794,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: GameColors.textTertiary,
     marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  eggHintContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.gold + "15",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
     marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  eggHintText: {
+    fontSize: 12,
+    color: GameColors.gold,
+    flex: 1,
   },
   playButton: {
     paddingHorizontal: Spacing.xl,
