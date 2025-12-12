@@ -63,12 +63,11 @@ function ExitButton({ style, onPress }: { style?: any; onPress?: () => void }) {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const ROACHY_SPRITE_1 = require("@assets/Untitled_design_1765503061373.png");
-const ROACHY_SPRITE_2 = require("@assets/Untitled_design_-_8_1765505842312.png");
-const ROACHY_SPRITE_3 = require("@assets/Untitled_design_-_7_1765505842312.png");
+const ROACHY_SPRITE_1 = require("@assets/Untitled_design_-_8_1765523477322.png");
+const ROACHY_SPRITE_2 = require("@assets/Untitled_design_-_7_1765523477322.png");
 const ROACHY_SPRITE_DEAD = require("@assets/Untitled_design_1765504788923.png");
 
-const ALL_SPRITES = [ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_3, ROACHY_SPRITE_DEAD];
+const ALL_SPRITES = [ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD];
 
 function GameLoadingSplash({ progress }: { progress: number }) {
   const pulseScale = useSharedValue(1);
@@ -238,8 +237,6 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   
   const ROACHY_FRAMES = [
     ROACHY_SPRITE_1,
-    ROACHY_SPRITE_2,
-    ROACHY_SPRITE_3,
     ROACHY_SPRITE_2,
   ];
   const ROACHY_DEAD = ROACHY_SPRITE_DEAD;
@@ -761,8 +758,8 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   useEffect(() => {
     if (gameState === "idle" || gameState === "playing") {
       wingAnimationRef.current = setInterval(() => {
-        setWingFrame((prev) => (prev + 1) % 4);
-      }, 100);
+        setWingFrame((prev) => (prev + 1) % 2);
+      }, 120);
     } else {
       if (wingAnimationRef.current) {
         clearInterval(wingAnimationRef.current);
