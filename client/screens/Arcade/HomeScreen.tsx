@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -861,11 +862,17 @@ export function ArcadeHomeScreen() {
                 <Feather name="external-link" size={20} color={GameColors.gold} />
               </Pressable>
               <View style={styles.webLinksRow}>
-                <Pressable style={styles.webLinkItem}>
+                <Pressable 
+                  style={styles.webLinkItem}
+                  onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/swap")}
+                >
                   <Feather name="repeat" size={18} color={GameColors.textSecondary} />
-                  <ThemedText style={styles.webLinkText}>Token Swap</ThemedText>
+                  <ThemedText style={styles.webLinkText}>Roachy Swap</ThemedText>
                 </Pressable>
-                <Pressable style={styles.webLinkItem}>
+                <Pressable 
+                  style={styles.webLinkItem}
+                  onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/staking")}
+                >
                   <Feather name="lock" size={18} color={GameColors.textSecondary} />
                   <ThemedText style={styles.webLinkText}>Staking</ThemedText>
                 </Pressable>
