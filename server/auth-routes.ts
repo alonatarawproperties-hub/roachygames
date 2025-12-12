@@ -147,6 +147,11 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+const ALLOWED_GOOGLE_CLIENT_IDS = [
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_WEB_CLIENT_ID,
+].filter(Boolean) as string[];
+
 async function verifyGoogleToken(idToken: string): Promise<{
   sub: string;
   email: string;
@@ -163,6 +168,16 @@ async function verifyGoogleToken(idToken: string): Promise<{
     
     if (!tokenInfo.sub || !tokenInfo.email) {
       console.error("[Auth] Invalid Google token - missing required fields");
+      return null;
+    }
+
+    if (!tokenInfo.aud || !ALLOWED_GOOGLE_CLIENT_IDS.includes(tokenInfo.aud)) {
+      console.error("[Auth] Google token audience mismatch - token not issued for this app");
+      return null;
+    }
+
+    if (tokenInfo.email_verified === false || tokenInfo.email_verified === "false") {
+      console.error("[Auth] Google token email not verified");
       return null;
     }
     
