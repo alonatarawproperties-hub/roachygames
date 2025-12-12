@@ -96,6 +96,10 @@ export function DailyBonusCard({ walletAddress, isConnected, onConnectWallet }: 
       return;
     }
     
+    if (isLoading) {
+      return;
+    }
+    
     if (!bonusData?.canClaim) {
       Alert.alert("Already Claimed", "You've already claimed today's bonus. Come back tomorrow!");
       return;
@@ -156,7 +160,7 @@ export function DailyBonusCard({ walletAddress, isConnected, onConnectWallet }: 
             <Pressable
               key={reward.day}
               onPress={() => isToday ? handleClaimPress(reward.day) : null}
-              disabled={!isToday || claimMutation.isPending}
+              disabled={!isToday || claimMutation.isPending || isLoading}
               style={[
                 styles.rewardCard,
                 isToday && styles.rewardCardToday,
