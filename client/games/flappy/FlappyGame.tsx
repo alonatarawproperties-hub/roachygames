@@ -5,12 +5,14 @@ import {
   Dimensions,
   Pressable,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -60,6 +62,108 @@ function ExitButton({ style, onPress }: { style?: any; onPress?: () => void }) {
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+const ROACHY_SPRITE_1 = require("@assets/Untitled_design_1765503061373.png");
+const ROACHY_SPRITE_2 = require("@assets/Untitled_design_-_8_1765505842312.png");
+const ROACHY_SPRITE_3 = require("@assets/Untitled_design_-_7_1765505842312.png");
+const ROACHY_SPRITE_DEAD = require("@assets/Untitled_design_1765504788923.png");
+
+const ALL_SPRITES = [ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_3, ROACHY_SPRITE_DEAD];
+
+function GameLoadingSplash({ progress }: { progress: number }) {
+  const pulseScale = useSharedValue(1);
+  
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withTiming(1.1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
+  
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+  
+  return (
+    <View style={loadingStyles.container}>
+      <LinearGradient
+        colors={["#0a0a0a", "#1a1a2e", "#0a0a0a"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      
+      <Animated.View style={[loadingStyles.iconContainer, pulseStyle]}>
+        <Image
+          source={ROACHY_SPRITE_1}
+          style={loadingStyles.roachyIcon}
+          contentFit="contain"
+        />
+      </Animated.View>
+      
+      <ThemedText style={loadingStyles.title}>Flappy Roachy</ThemedText>
+      <ThemedText style={loadingStyles.subtitle}>Loading game assets...</ThemedText>
+      
+      <View style={loadingStyles.progressContainer}>
+        <View style={loadingStyles.progressBar}>
+          <View style={[loadingStyles.progressFill, { width: `${progress}%` }]} />
+        </View>
+        <ThemedText style={loadingStyles.progressText}>{Math.round(progress)}%</ThemedText>
+      </View>
+    </View>
+  );
+}
+
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0a0a0a",
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  roachyIcon: {
+    width: 100,
+    height: 100,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: GameColors.gold,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: GameColors.textSecondary,
+    marginBottom: 32,
+  },
+  progressContainer: {
+    width: "60%",
+    alignItems: "center",
+  },
+  progressBar: {
+    width: "100%",
+    height: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: GameColors.gold,
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    marginTop: 8,
+  },
+});
 
 const GAME_WIDTH = SCREEN_WIDTH;
 const BASE_GROUND_HEIGHT = 80;
@@ -118,6 +222,8 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const GAME_HEIGHT = SCREEN_HEIGHT;
   const PLAYABLE_HEIGHT = GAME_HEIGHT - GROUND_HEIGHT;
   
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [gameState, setGameState] = useState<GameState>("idle");
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
@@ -131,12 +237,44 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const [wingFrame, setWingFrame] = useState(0);
   
   const ROACHY_FRAMES = [
-    require("@assets/Untitled_design_1765503061373.png"),
-    require("@assets/Untitled_design_-_8_1765505842312.png"),
-    require("@assets/Untitled_design_-_7_1765505842312.png"),
-    require("@assets/Untitled_design_-_8_1765505842312.png"),
+    ROACHY_SPRITE_1,
+    ROACHY_SPRITE_2,
+    ROACHY_SPRITE_3,
+    ROACHY_SPRITE_2,
   ];
-  const ROACHY_DEAD = require("@assets/Untitled_design_1765504788923.png");
+  const ROACHY_DEAD = ROACHY_SPRITE_DEAD;
+  
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function preloadAssets() {
+      const totalAssets = ALL_SPRITES.length;
+      let loaded = 0;
+      
+      for (const sprite of ALL_SPRITES) {
+        try {
+          await Image.prefetch(sprite);
+        } catch (e) {
+        }
+        loaded++;
+        if (isMounted) {
+          setLoadProgress((loaded / totalAssets) * 100);
+        }
+      }
+      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }
+    
+    preloadAssets();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   
   const birdY = useSharedValue(PLAYABLE_HEIGHT / 2);
   const birdVelocity = useRef(0);
@@ -647,6 +785,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const groundStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: groundOffset.value }],
   }));
+  
+  if (isLoading) {
+    return <GameLoadingSplash progress={loadProgress} />;
+  }
   
   return (
     <View style={styles.container}>
