@@ -206,23 +206,26 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const deathLoop = useCallback(() => {
     if (gameStateRef.current !== "dying") return;
     
-    birdVelocity.current += GRAVITY * 1.2;
-    if (birdVelocity.current > MAX_FALL_SPEED * 1.5) {
-      birdVelocity.current = MAX_FALL_SPEED * 1.5;
+    birdVelocity.current += GRAVITY;
+    if (birdVelocity.current > MAX_FALL_SPEED) {
+      birdVelocity.current = MAX_FALL_SPEED;
     }
     
     const newY = birdY.value + birdVelocity.current;
     birdY.value = newY;
     
-    birdRotation.value = withTiming(90, { duration: 200 });
+    const targetRotation = Math.min(90, birdVelocity.current * 6);
+    birdRotation.value = targetRotation;
     
     if (newY >= playableHeightRef.current - BIRD_SIZE / 2) {
       birdY.value = playableHeightRef.current - BIRD_SIZE / 2;
+      birdRotation.value = 90;
+      
       runOnJS(playSound)("hit");
       
       setTimeout(() => {
         runOnJS(showGameOverScreen)();
-      }, 300);
+      }, 500);
       return;
     }
     
