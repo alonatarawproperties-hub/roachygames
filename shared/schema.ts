@@ -575,6 +575,30 @@ export type InsertDailyLoginHistory = z.infer<typeof insertDailyLoginHistorySche
 export type DailyBonusFraudTracking = typeof dailyBonusFraudTracking.$inferSelect;
 export type InsertDailyBonusFraudTracking = z.infer<typeof insertDailyBonusFraudTrackingSchema>;
 
+// ==================== WALLET LINK HISTORY ====================
+
+export const walletLinkHistory = pgTable("wallet_link_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  previousWallet: text("previous_wallet"),
+  newWallet: text("new_wallet").notNull(),
+  action: text("action").notNull(), // 'link', 'switch', 'unlink'
+  signatureVerified: boolean("signature_verified").notNull().default(false),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  cooldownEndsAt: timestamp("cooldown_ends_at"),
+  status: text("status").notNull().default("pending"), // 'pending', 'completed', 'cancelled'
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertWalletLinkHistorySchema = createInsertSchema(walletLinkHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type WalletLinkHistory = typeof walletLinkHistory.$inferSelect;
+export type InsertWalletLinkHistory = z.infer<typeof insertWalletLinkHistorySchema>;
+
 // ==================== FLAPPY ROACHY TABLES ====================
 
 export const FLAPPY_POWERUP_TYPES = ['shield', 'double', 'magnet'] as const;
