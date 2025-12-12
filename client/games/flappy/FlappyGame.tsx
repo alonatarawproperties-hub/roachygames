@@ -565,8 +565,8 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     const newY = birdY.value + birdVelocity.current;
     birdY.value = newY;
     
-    const targetRotation = Math.min(Math.max(birdVelocity.current * 4, -30), 90);
-    birdRotation.value = withTiming(targetRotation, { duration: 100 });
+    const targetRotation = Math.min(Math.max(birdVelocity.current * 5, -35), 70);
+    birdRotation.value = withSpring(targetRotation, { damping: 8, stiffness: 200 });
     
     if (newY <= BIRD_SIZE / 2) {
       birdY.value = BIRD_SIZE / 2;
@@ -738,16 +738,19 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
+      birdRotation.value = withSpring(-35, { damping: 6, stiffness: 300 });
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
+      birdRotation.value = withSpring(-35, { damping: 6, stiffness: 300 });
       playSound("jump");
     } else if (gameState === "gameover") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
+      birdRotation.value = withSpring(-35, { damping: 6, stiffness: 300 });
       playSound("jump");
     }
-  }, [gameState, startGame, playSound]);
+  }, [gameState, startGame, playSound, birdRotation]);
   
   useEffect(() => {
     return () => {
