@@ -434,7 +434,7 @@ function LoadoutTab({
 
       <Pressable
         style={styles.marketplaceButton}
-        onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/marketplace")}
+        onPress={() => WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`)}
       >
         <Feather name="shopping-bag" size={18} color={GameColors.gold} />
         <ThemedText style={styles.marketplaceButtonText}>Visit Marketplace</ThemedText>

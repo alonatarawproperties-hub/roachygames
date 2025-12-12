@@ -6,6 +6,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -190,17 +191,44 @@ export default function InventoryScreen() {
 
   const renderHeader = () => (
     <>
-      <View style={styles.walletInfo}>
-        <Feather name="user" size={14} color={GameColors.textSecondary} />
-        <ThemedText style={styles.walletText}>
-          {walletAddress.slice(-8)}
-        </ThemedText>
+      {walletAddress ? (
+        <View style={styles.walletInfo}>
+          <Feather name="user" size={14} color={GameColors.textSecondary} />
+          <ThemedText style={styles.walletText}>
+            {walletAddress.slice(-8)}
+          </ThemedText>
+        </View>
+      ) : null}
+      
+      <Pressable
+        style={styles.marketplaceButton}
+        onPress={() => WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`)}
+      >
+        <Feather name="shopping-bag" size={18} color={GameColors.primary} />
+        <View style={styles.marketplaceInfo}>
+          <ThemedText style={styles.marketplaceTitle}>Marketplace</ThemedText>
+          <ThemedText style={styles.marketplaceDesc}>Buy power-ups, trade NFTs, and more</ThemedText>
+        </View>
+        <Feather name="external-link" size={16} color={GameColors.textSecondary} />
+      </Pressable>
+      
+      <View style={styles.gameSectionHeader}>
+        <ThemedText style={styles.gameSectionTitle}>Roachy Hunt</ThemedText>
+        <View style={styles.gameBadge}>
+          <Feather name="map-pin" size={12} color={GameColors.primary} />
+          <ThemedText style={styles.gameBadgeText}>GPS Game</ThemedText>
+        </View>
       </View>
+      
       <EggSection 
         eggCount={collectedEggs} 
         onHatch={handleHatch}
         isHatching={isHatching}
       />
+      
+      <ThemedText style={styles.collectionTitle}>
+        My Collection ({collection.length})
+      </ThemedText>
     </>
   );
 
@@ -426,5 +454,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: GameColors.textSecondary,
     fontFamily: "monospace",
+  },
+  marketplaceButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    backgroundColor: GameColors.surface,
+    borderWidth: 1,
+    borderColor: GameColors.primary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.xl,
+  },
+  marketplaceInfo: {
+    flex: 1,
+  },
+  marketplaceTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.primary,
+  },
+  marketplaceDesc: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+  },
+  gameSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  gameSectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  gameBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GameColors.primary + "20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  gameBadgeText: {
+    fontSize: 11,
+    color: GameColors.primary,
+    fontWeight: "500",
+  },
+  collectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.md,
   },
 });
