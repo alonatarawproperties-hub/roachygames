@@ -465,3 +465,61 @@ export type ChessTournamentParticipant = typeof chessTournamentParticipants.$inf
 export type InsertChessTournamentParticipant = z.infer<typeof insertChessTournamentParticipantSchema>;
 export type ChessTournamentMatch = typeof chessTournamentMatches.$inferSelect;
 export type InsertChessTournamentMatch = z.infer<typeof insertChessTournamentMatchSchema>;
+
+// ==================== PLAYER ECONOMY & DAILY LOGIN TABLES ====================
+
+export const playerEconomy = pgTable("player_economy", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull().unique(),
+  diamonds: integer("diamonds").notNull().default(0),
+  chy: integer("chy").notNull().default(0),
+  totalDiamondsEarned: integer("total_diamonds_earned").notNull().default(0),
+  totalChyEarned: integer("total_chy_earned").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const dailyLoginBonus = pgTable("daily_login_bonus", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull().unique(),
+  currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  lastClaimDate: text("last_claim_date"),
+  totalClaims: integer("total_claims").notNull().default(0),
+  totalDiamondsFromBonus: integer("total_diamonds_from_bonus").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const dailyLoginHistory = pgTable("daily_login_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  claimDate: text("claim_date").notNull(),
+  streakDay: integer("streak_day").notNull(),
+  diamondsAwarded: integer("diamonds_awarded").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertPlayerEconomySchema = createInsertSchema(playerEconomy).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDailyLoginBonusSchema = createInsertSchema(dailyLoginBonus).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDailyLoginHistorySchema = createInsertSchema(dailyLoginHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PlayerEconomy = typeof playerEconomy.$inferSelect;
+export type InsertPlayerEconomy = z.infer<typeof insertPlayerEconomySchema>;
+export type DailyLoginBonus = typeof dailyLoginBonus.$inferSelect;
+export type InsertDailyLoginBonus = z.infer<typeof insertDailyLoginBonusSchema>;
+export type DailyLoginHistory = typeof dailyLoginHistory.$inferSelect;
+export type InsertDailyLoginHistory = z.infer<typeof insertDailyLoginHistorySchema>;
