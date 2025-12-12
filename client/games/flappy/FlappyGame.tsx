@@ -91,6 +91,15 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const [shieldActive, setShieldActive] = useState(false);
   const [doublePointsActive, setDoublePointsActive] = useState(false);
   const [magnetActive, setMagnetActive] = useState(false);
+  const [wingFrame, setWingFrame] = useState(0);
+  
+  const ROACHY_FRAMES = [
+    require("@assets/Untitled_design_1765503061373.png"),
+    require("@assets/Untitled_design_-_8_1765505842312.png"),
+    require("@assets/Untitled_design_-_7_1765505842312.png"),
+    require("@assets/Untitled_design_-_8_1765505842312.png"),
+  ];
+  const ROACHY_DEAD = require("@assets/Untitled_design_1765504788923.png");
   
   const birdY = useSharedValue(PLAYABLE_HEIGHT / 2);
   const birdVelocity = useRef(0);
@@ -106,6 +115,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const shieldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doubleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const magnetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wingAnimationRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const pipeIdRef = useRef(0);
   const coinIdRef = useRef(0);
@@ -174,6 +184,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     if (magnetTimerRef.current) {
       clearTimeout(magnetTimerRef.current);
       magnetTimerRef.current = null;
+    }
+    if (wingAnimationRef.current) {
+      clearInterval(wingAnimationRef.current);
+      wingAnimationRef.current = null;
     }
     cancelAnimation(groundOffset);
   }, [groundOffset]);
@@ -566,6 +580,26 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     };
   }, [clearAllTimers]);
   
+  useEffect(() => {
+    if (gameState === "idle" || gameState === "playing") {
+      wingAnimationRef.current = setInterval(() => {
+        setWingFrame((prev) => (prev + 1) % 4);
+      }, 100);
+    } else {
+      if (wingAnimationRef.current) {
+        clearInterval(wingAnimationRef.current);
+        wingAnimationRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (wingAnimationRef.current) {
+        clearInterval(wingAnimationRef.current);
+        wingAnimationRef.current = null;
+      }
+    };
+  }, [gameState]);
+  
   const birdStyle = useAnimatedStyle(() => ({
     transform: [
       { translateY: birdY.value - BIRD_SIZE / 2 },
@@ -647,8 +681,8 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
           <Image
             source={
               gameState === "dying" || gameState === "gameover"
-                ? require("@assets/Untitled_design_1765504788923.png")
-                : require("@assets/Untitled_design_1765503061373.png")
+                ? ROACHY_DEAD
+                : ROACHY_FRAMES[wingFrame]
             }
             style={styles.roachySprite}
             contentFit="contain"
