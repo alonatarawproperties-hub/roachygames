@@ -184,6 +184,17 @@ const COIN_SPAWN_INTERVAL = 2500;
 const POWERUP_SIZE = 40;
 const POWERUP_SPAWN_INTERVAL = 12000;
 
+const CLOUD_SPEED = 1.5;
+const CLOUD_SPAWN_INTERVAL = 3000;
+
+interface Cloud {
+  id: number;
+  x: number;
+  y: number;
+  size: "small" | "medium" | "large";
+  opacity: number;
+}
+
 interface Pipe {
   id: number;
   x: number;
@@ -229,6 +240,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const [pipes, setPipes] = useState<Pipe[]>([]);
   const [coins, setCoins] = useState<Coin[]>([]);
   const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+  const [clouds, setClouds] = useState<Cloud[]>([]);
   
   const [shieldActive, setShieldActive] = useState(false);
   const [doublePointsActive, setDoublePointsActive] = useState(false);
@@ -292,10 +304,14 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const pipeIdRef = useRef(0);
   const coinIdRef = useRef(0);
   const powerUpIdRef = useRef(0);
+  const cloudIdRef = useRef(0);
+  
+  const cloudTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const pipesRef = useRef<Pipe[]>([]);
   const coinsRef = useRef<Coin[]>([]);
   const powerUpsRef = useRef<PowerUp[]>([]);
+  const cloudsRef = useRef<Cloud[]>([]);
   const shieldRef = useRef(false);
   const doublePointsRef = useRef(false);
   const magnetRef = useRef(false);
@@ -360,6 +376,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     if (wingAnimationRef.current) {
       clearInterval(wingAnimationRef.current);
       wingAnimationRef.current = null;
+    }
+    if (cloudTimerRef.current) {
+      clearInterval(cloudTimerRef.current);
+      cloudTimerRef.current = null;
     }
     cancelAnimation(groundOffset);
   }, [groundOffset]);
@@ -509,6 +529,26 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     
     powerUpsRef.current = [...powerUpsRef.current, newPowerUp];
     setPowerUps([...powerUpsRef.current]);
+  }, []);
+  
+  const spawnCloud = useCallback(() => {
+    const sizes: Array<"small" | "medium" | "large"> = ["small", "medium", "large"];
+    const size = sizes[Math.floor(Math.random() * sizes.length)];
+    const minY = 40;
+    const maxY = playableHeightRef.current * 0.5;
+    const y = Math.floor(Math.random() * (maxY - minY)) + minY;
+    const opacity = 0.4 + Math.random() * 0.4;
+    
+    const newCloud: Cloud = {
+      id: cloudIdRef.current++,
+      x: GAME_WIDTH + 100,
+      y,
+      size,
+      opacity,
+    };
+    
+    cloudsRef.current = [...cloudsRef.current, newCloud];
+    setClouds([...cloudsRef.current]);
   }, []);
   
   const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
@@ -679,9 +719,16 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     coinsRef.current = coinsRef.current.filter((coin) => !coin.collected && coin.x > -COIN_SIZE);
     powerUpsRef.current = powerUpsRef.current.filter((pu) => !pu.collected && pu.x > -POWERUP_SIZE);
     
+    cloudsRef.current = cloudsRef.current.map((cloud) => ({
+      ...cloud,
+      x: cloud.x - CLOUD_SPEED,
+    }));
+    cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
+    
     runOnJS(setPipes)([...pipesRef.current]);
     runOnJS(setCoins)([...coinsRef.current]);
     runOnJS(setPowerUps)([...powerUpsRef.current]);
+    runOnJS(setClouds)([...cloudsRef.current]);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, [birdY, birdRotation, gameOver, playSound, activatePowerUp]);
@@ -697,9 +744,23 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     doublePointsRef.current = false;
     magnetRef.current = false;
     
+    const initialClouds: Cloud[] = [];
+    for (let i = 0; i < 4; i++) {
+      const sizes: Array<"small" | "medium" | "large"> = ["small", "medium", "large"];
+      initialClouds.push({
+        id: cloudIdRef.current++,
+        x: Math.random() * GAME_WIDTH,
+        y: 60 + Math.random() * (playableHeightRef.current * 0.4),
+        size: sizes[Math.floor(Math.random() * sizes.length)],
+        opacity: 0.4 + Math.random() * 0.4,
+      });
+    }
+    cloudsRef.current = initialClouds;
+    
     setPipes([]);
     setCoins([]);
     setPowerUps([]);
+    setClouds(initialClouds);
     setScore(0);
     setShieldActive(false);
     setDoublePointsActive(false);
@@ -721,6 +782,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     pipeTimerRef.current = setInterval(spawnPipe, PIPE_SPAWN_INTERVAL);
     coinTimerRef.current = setInterval(spawnCoin, COIN_SPAWN_INTERVAL);
     powerUpTimerRef.current = setInterval(spawnPowerUp, POWERUP_SPAWN_INTERVAL);
+    cloudTimerRef.current = setInterval(spawnCloud, CLOUD_SPAWN_INTERVAL);
     
     initialPipeTimerRef.current = setTimeout(() => {
       if (gameStateRef.current === "playing") {
@@ -729,7 +791,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     }, 1000);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, gameLoop, clearAllTimers]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers]);
   
   const jump = useCallback(() => {
     if (gameState === "idle") {
@@ -794,6 +856,23 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     <View style={styles.container}>
       <Pressable style={styles.gameArea} onPress={jump}>
         <View style={styles.sky} />
+        
+        {clouds.map((cloud) => (
+          <View
+            key={cloud.id}
+            style={[
+              styles.cloud,
+              cloud.size === "small" && styles.cloudSmall,
+              cloud.size === "medium" && styles.cloudMedium,
+              cloud.size === "large" && styles.cloudLarge,
+              { left: cloud.x, top: cloud.y, opacity: cloud.opacity },
+            ]}
+          >
+            <View style={styles.cloudPuff1} />
+            <View style={styles.cloudPuff2} />
+            <View style={styles.cloudPuff3} />
+          </View>
+        ))}
         
         {pipes.map((pipe) => (
           <React.Fragment key={pipe.id}>
@@ -1058,6 +1137,51 @@ const styles = StyleSheet.create({
   powerUpMagnet: {
     backgroundColor: "#EF4444",
     borderColor: "#B91C1C",
+  },
+  cloud: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 5,
+  },
+  cloudSmall: {
+    width: 60,
+    height: 30,
+  },
+  cloudMedium: {
+    width: 90,
+    height: 45,
+  },
+  cloudLarge: {
+    width: 120,
+    height: 60,
+  },
+  cloudPuff1: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: "40%",
+    height: "60%",
+    backgroundColor: "#fff",
+    borderRadius: 100,
+  },
+  cloudPuff2: {
+    position: "absolute",
+    left: "25%",
+    bottom: 0,
+    width: "50%",
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 100,
+  },
+  cloudPuff3: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: "40%",
+    height: "70%",
+    backgroundColor: "#fff",
+    borderRadius: 100,
   },
   ground: {
     position: "absolute",
