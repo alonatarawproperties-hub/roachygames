@@ -521,7 +521,26 @@ export const dailyLoginHistory = pgTable("daily_login_history", {
   claimDate: text("claim_date").notNull(),
   streakDay: integer("streak_day").notNull(),
   diamondsAwarded: integer("diamonds_awarded").notNull(),
+  deviceFingerprint: text("device_fingerprint"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  fraudFlags: text("fraud_flags"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const dailyBonusFraudTracking = pgTable("daily_bonus_fraud_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  deviceFingerprint: text("device_fingerprint").notNull(),
+  ipSubnet: text("ip_subnet").notNull(),
+  claimsToday: integer("claims_today").notNull().default(0),
+  claimsThisWeek: integer("claims_this_week").notNull().default(0),
+  linkedWallets: text("linked_wallets"),
+  isFlagged: boolean("is_flagged").notNull().default(false),
+  flagReason: text("flag_reason"),
+  lastClaimAt: timestamp("last_claim_at"),
+  lastResetDate: text("last_reset_date"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
 export const insertPlayerEconomySchema = createInsertSchema(playerEconomy).omit({
@@ -541,12 +560,20 @@ export const insertDailyLoginHistorySchema = createInsertSchema(dailyLoginHistor
   createdAt: true,
 });
 
+export const insertDailyBonusFraudTrackingSchema = createInsertSchema(dailyBonusFraudTracking).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type PlayerEconomy = typeof playerEconomy.$inferSelect;
 export type InsertPlayerEconomy = z.infer<typeof insertPlayerEconomySchema>;
 export type DailyLoginBonus = typeof dailyLoginBonus.$inferSelect;
 export type InsertDailyLoginBonus = z.infer<typeof insertDailyLoginBonusSchema>;
 export type DailyLoginHistory = typeof dailyLoginHistory.$inferSelect;
 export type InsertDailyLoginHistory = z.infer<typeof insertDailyLoginHistorySchema>;
+export type DailyBonusFraudTracking = typeof dailyBonusFraudTracking.$inferSelect;
+export type InsertDailyBonusFraudTracking = z.infer<typeof insertDailyBonusFraudTrackingSchema>;
 
 // ==================== FLAPPY ROACHY TABLES ====================
 
