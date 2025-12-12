@@ -173,16 +173,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = useCallback(async () => {
     try {
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: "roachy-games",
-        path: "auth",
-      });
-
       const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
       
       if (!clientId) {
         return { success: false, error: "Google sign-in not configured" };
       }
+
+      const reversedClientId = clientId.split(".").slice(0, -2).reverse().join(".");
+      const redirectUri = Platform.select({
+        ios: `${reversedClientId}:/oauthredirect`,
+        android: `${reversedClientId}:/oauthredirect`,
+        default: AuthSession.makeRedirectUri({ scheme: "roachy-games", path: "auth" }),
+      });
 
       const request = new AuthSession.AuthRequest({
         clientId,
