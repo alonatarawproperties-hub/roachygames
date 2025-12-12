@@ -19,9 +19,12 @@ const { width, height } = Dimensions.get("window");
 const HOMEPAGE_ASSETS = [
   require("../../assets/images/roachy-logo.png"),
   require("../../assets/images/icon.png"),
-  require("@assets/roachy-hunt-tile_1765412227066.png"),
-  require("@assets/roachymate-tile_1765412494285.png"),
-  require("@assets/flappy-roachy-tile_1765412683498.png"),
+  require("../../assets/images/roachies/nightstalker.png"),
+  require("../../assets/images/roachies/cosmicking.png"),
+  require("../../assets/images/roachies/warlord.png"),
+  require("../../assets/images/roachies/vikingbug.png"),
+  require("../../assets/images/roachies/sparkroach.png"),
+  require("../../assets/images/roachies/shadowblade.png"),
 ];
 
 interface AnimatedSplashProps {
