@@ -8,6 +8,7 @@ import {
   Modal,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Animated, {
@@ -63,7 +64,7 @@ const GameColors = {
   textSecondary: "#aaa",
 };
 
-type TabType = "leaderboards" | "backpack";
+type TabType = "leaderboards" | "loadout";
 
 interface FlappyMenuSheetProps {
   visible: boolean;
@@ -95,7 +96,7 @@ export function FlappyMenuSheet({
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery<{ success: boolean; inventory: PowerUpInventory }>({
     queryKey: ["/api/flappy/inventory", userId],
-    enabled: visible && activeTab === "backpack" && !!userId,
+    enabled: visible && activeTab === "loadout" && !!userId,
   });
 
   const { data: rankedStatus } = useQuery<{ success: boolean } & RankedStatus>({
@@ -153,10 +154,10 @@ export function FlappyMenuSheet({
                 onPress={() => setActiveTab("leaderboards")}
               />
               <TabButton
-                label="Backpack"
-                icon="package"
-                active={activeTab === "backpack"}
-                onPress={() => setActiveTab("backpack")}
+                label="Loadout"
+                icon="briefcase"
+                active={activeTab === "loadout"}
+                onPress={() => setActiveTab("loadout")}
               />
             </View>
 
@@ -176,7 +177,7 @@ export function FlappyMenuSheet({
                   isEntering={enterRankedMutation.isPending}
                 />
               ) : (
-                <BackpackTab
+                <LoadoutTab
                   inventory={inventoryData?.inventory}
                   isLoading={inventoryLoading}
                   equippedPowerUps={equippedPowerUps}
@@ -361,7 +362,7 @@ function LeaderboardEntry({
   );
 }
 
-function BackpackTab({
+function LoadoutTab({
   inventory,
   isLoading,
   equippedPowerUps,
@@ -404,7 +405,7 @@ function BackpackTab({
   return (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
       <ThemedText style={styles.sectionTitle}>Power-Ups</ThemedText>
-      <ThemedText style={styles.backpackDesc}>
+      <ThemedText style={styles.loadoutDesc}>
         Equip power-ups before playing to start with an advantage!
       </ThemedText>
 
@@ -427,9 +428,18 @@ function BackpackTab({
       <View style={styles.tipSection}>
         <Feather name="info" size={16} color={GameColors.textSecondary} />
         <ThemedText style={styles.tipText}>
-          Collect power-ups during gameplay to add them to your backpack
+          Collect power-ups during gameplay or get more at the Marketplace
         </ThemedText>
       </View>
+
+      <Pressable
+        style={styles.marketplaceButton}
+        onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/marketplace")}
+      >
+        <Feather name="shopping-bag" size={18} color={GameColors.gold} />
+        <ThemedText style={styles.marketplaceButtonText}>Visit Marketplace</ThemedText>
+        <Feather name="external-link" size={14} color={GameColors.textSecondary} />
+      </Pressable>
     </ScrollView>
   );
 }
@@ -455,8 +465,21 @@ function PowerUpCard({
   onEquip: () => void;
   isEquipping: boolean;
 }) {
+  const getStatus = () => {
+    if (equipped) return { label: "Equipped", color: GameColors.gold, icon: "check-circle" as const };
+    if (count > 0) return { label: "Available", color: "#4ade80", icon: "circle" as const };
+    return { label: "Get More", color: GameColors.textSecondary, icon: "shopping-bag" as const };
+  };
+  
+  const status = getStatus();
+  
   return (
-    <View style={[styles.powerUpCard, { borderColor: color }]}>
+    <View style={[styles.powerUpCard, { borderColor: equipped ? GameColors.gold : color }]}>
+      <View style={styles.statusBadge}>
+        <Feather name={status.icon} size={12} color={status.color} />
+        <ThemedText style={[styles.statusText, { color: status.color }]}>{status.label}</ThemedText>
+      </View>
+      
       <View style={[styles.powerUpIconContainer, { backgroundColor: color }]}>
         {icon ? (
           <Feather name={icon as any} size={24} color="#fff" />
@@ -488,8 +511,8 @@ function PowerUpCard({
         {isEquipping ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <ThemedText style={styles.equipButtonText}>
-            {equipped ? "Equipped" : count === 0 ? "None" : "Equip"}
+          <ThemedText style={[styles.equipButtonText, equipped && { color: GameColors.gold }]}>
+            {equipped ? "Equipped" : count === 0 ? "Get More" : "Equip"}
           </ThemedText>
         )}
       </Pressable>
@@ -689,7 +712,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.lg,
   },
-  backpackDesc: {
+  loadoutDesc: {
     fontSize: 14,
     color: GameColors.textSecondary,
     marginBottom: Spacing.lg,
@@ -703,6 +726,23 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 2,
     alignItems: "center",
+    position: "relative",
+  },
+  statusBadge: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "600",
   },
   powerUpIconContainer: {
     width: 56,
@@ -784,5 +824,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: GameColors.textSecondary,
+  },
+  marketplaceButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: GameColors.surface,
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+  },
+  marketplaceButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: GameColors.gold,
   },
 });
