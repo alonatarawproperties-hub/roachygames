@@ -306,7 +306,7 @@ export function ArcadeHomeScreen() {
   const [showWebBanner, setShowWebBanner] = useState(true);
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const { wallet, disconnectWallet } = useWallet();
-  const { roachy, diamonds, isLoading: balancesLoading } = useTokenBalances(
+  const { roachy, diamonds, roachyUsdValue, isLoading: balancesLoading } = useTokenBalances(
     wallet.address,
     wallet.connected
   );
@@ -455,7 +455,7 @@ export function ArcadeHomeScreen() {
                 <TokenBalanceCard
                   roachyBalance={roachy}
                   diamondsBalance={diamonds}
-                  roachyUsdValue={0}
+                  roachyUsdValue={roachyUsdValue}
                   diamondsUsdValue={0}
                   isConnected={wallet.connected}
                   isLoading={balancesLoading}

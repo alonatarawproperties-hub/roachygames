@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchTokenBalances, TokenBalances } from "../lib/solana";
+import { fetchTokenBalances, fetchRoachyPrice, TokenBalances, TokenPrices } from "../lib/solana";
 
 interface UseTokenBalancesResult {
   roachy: number;
   diamonds: number;
+  roachyPrice: number;
+  roachyPriceChange24h: number;
+  roachyUsdValue: number;
   isLoading: boolean;
   isError: boolean;
   refetch: () => void;
@@ -13,7 +16,7 @@ export function useTokenBalances(
   walletAddress: string | null,
   isConnected: boolean
 ): UseTokenBalancesResult {
-  const query = useQuery<TokenBalances>({
+  const balanceQuery = useQuery<TokenBalances>({
     queryKey: ["wallet", "balances", walletAddress],
     queryFn: () => fetchTokenBalances(walletAddress!),
     enabled: isConnected && !!walletAddress,
@@ -21,11 +24,27 @@ export function useTokenBalances(
     refetchInterval: 60000,
   });
 
+  const priceQuery = useQuery<TokenPrices>({
+    queryKey: ["token", "price", "roachy"],
+    queryFn: fetchRoachyPrice,
+    staleTime: 60000,
+    refetchInterval: 120000,
+  });
+
+  const roachy = balanceQuery.data?.roachy ?? 0;
+  const roachyPrice = priceQuery.data?.roachyPrice ?? 0;
+
   return {
-    roachy: query.data?.roachy ?? 0,
-    diamonds: query.data?.diamonds ?? 0,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    refetch: query.refetch,
+    roachy,
+    diamonds: balanceQuery.data?.diamonds ?? 0,
+    roachyPrice,
+    roachyPriceChange24h: priceQuery.data?.roachyPriceChange24h ?? 0,
+    roachyUsdValue: roachy * roachyPrice,
+    isLoading: balanceQuery.isLoading || priceQuery.isLoading,
+    isError: balanceQuery.isError || priceQuery.isError,
+    refetch: () => {
+      balanceQuery.refetch();
+      priceQuery.refetch();
+    },
   };
 }

@@ -33,6 +33,44 @@ export interface TokenBalances {
   diamonds: number;
 }
 
+export interface TokenPrices {
+  roachyPrice: number;
+  roachyPriceChange24h: number;
+}
+
+export async function fetchRoachyPrice(): Promise<TokenPrices> {
+  try {
+    const response = await fetch(
+      `https://api.dexscreener.com/latest/dex/tokens/${TOKEN_MINTS.ROACHY}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`DexScreener API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.pairs && data.pairs.length > 0) {
+      const pair = data.pairs[0];
+      const price = parseFloat(pair.priceUsd) || 0;
+      const priceChange = parseFloat(pair.priceChange?.h24) || 0;
+      
+      console.log(`[DexScreener] ROACHY price: $${price}, 24h change: ${priceChange}%`);
+      
+      return {
+        roachyPrice: price,
+        roachyPriceChange24h: priceChange,
+      };
+    }
+    
+    console.log("[DexScreener] No pairs found for ROACHY token");
+    return { roachyPrice: 0, roachyPriceChange24h: 0 };
+  } catch (error) {
+    console.error("[DexScreener] Failed to fetch ROACHY price:", error);
+    return { roachyPrice: 0, roachyPriceChange24h: 0 };
+  }
+}
+
 function getAssociatedTokenAddress(
   mint: PublicKey,
   owner: PublicKey,
