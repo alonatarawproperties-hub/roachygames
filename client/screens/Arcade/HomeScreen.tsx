@@ -25,6 +25,7 @@ import {
   NFTGallery,
   WebCTABanner,
 } from "@/components/arcade";
+import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet } from "../../context/WalletContext";
@@ -528,52 +529,23 @@ export function ArcadeHomeScreen() {
 
             {/* Dynamic Filter Chips - based on what items exist */}
             <View style={styles.inventoryFilters}>
-              <Pressable
-                style={[
-                  styles.filterChip,
-                  inventoryFilter === "all" && styles.filterChipActive,
-                ]}
+              <AnimatedFilterChip
+                label="All"
+                icon="grid"
+                isActive={inventoryFilter === "all"}
                 onPress={() => setInventoryFilter("all")}
-              >
-                <Feather
-                  name="grid"
-                  size={14}
-                  color={inventoryFilter === "all" ? GameColors.gold : GameColors.textSecondary}
-                />
-                <ThemedText
-                  style={[
-                    styles.filterChipText,
-                    inventoryFilter === "all" && styles.filterChipTextActive,
-                  ]}
-                >
-                  All ({inventoryItems.length})
-                </ThemedText>
-              </Pressable>
+                count={inventoryItems.length}
+              />
               
               {/* Dynamically render filter chips for each item type present */}
               {activeItemTypes.map((typeMeta) => (
-                <Pressable
+                <AnimatedFilterChip
                   key={typeMeta.type}
-                  style={[
-                    styles.filterChip,
-                    inventoryFilter === typeMeta.type && styles.filterChipActive,
-                  ]}
+                  label={typeMeta.pluralLabel}
+                  icon={typeMeta.icon as keyof typeof Feather.glyphMap}
+                  isActive={inventoryFilter === typeMeta.type}
                   onPress={() => setInventoryFilter(typeMeta.type)}
-                >
-                  <Feather
-                    name={typeMeta.icon as keyof typeof Feather.glyphMap}
-                    size={14}
-                    color={inventoryFilter === typeMeta.type ? GameColors.gold : GameColors.textSecondary}
-                  />
-                  <ThemedText
-                    style={[
-                      styles.filterChipText,
-                      inventoryFilter === typeMeta.type && styles.filterChipTextActive,
-                    ]}
-                  >
-                    {typeMeta.pluralLabel}
-                  </ThemedText>
-                </Pressable>
+                />
               ))}
             </View>
 

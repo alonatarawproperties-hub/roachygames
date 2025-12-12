@@ -38,11 +38,11 @@ export function GameTile({ game, onPress, featured = false }: GameTileProps) {
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.95, { damping: 15 });
+    scale.value = withSpring(0.94, { damping: 15, stiffness: 300 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15 });
+    scale.value = withSpring(1, { damping: 12, stiffness: 200 });
   };
 
   const handlePress = () => {
