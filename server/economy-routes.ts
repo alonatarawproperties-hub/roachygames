@@ -218,19 +218,17 @@ export function registerEconomyRoutes(app: Express) {
           .values({ walletAddress, currentStreak: 0 })
           .returning();
         bonusRecord = newRecord;
-        
-        const accountCreatedAt = newRecord.createdAt;
-        const hoursSinceCreation = (Date.now() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
-        
-        if (hoursSinceCreation < NEW_ACCOUNT_COOLDOWN_HOURS) {
-          const hoursRemaining = Math.ceil(NEW_ACCOUNT_COOLDOWN_HOURS - hoursSinceCreation);
-          console.log(`[AntiExploit] New account cooldown: ${walletAddress}, ${hoursRemaining}h remaining`);
-          return res.status(403).json({ 
-            error: `New accounts must wait ${hoursRemaining} hours before claiming daily bonus`,
-            newAccountCooldown: true,
-            hoursRemaining
-          });
-        }
+      }
+      
+      const bonusAccountAge = (Date.now() - bonusRecord.createdAt.getTime()) / (1000 * 60 * 60);
+      if (bonusAccountAge < NEW_ACCOUNT_COOLDOWN_HOURS) {
+        const hoursRemaining = Math.ceil(NEW_ACCOUNT_COOLDOWN_HOURS - bonusAccountAge);
+        console.log(`[AntiExploit] New account cooldown: ${walletAddress}, ${hoursRemaining}h remaining`);
+        return res.status(403).json({ 
+          error: `New accounts must wait ${hoursRemaining} hours before claiming daily bonus`,
+          newAccountCooldown: true,
+          hoursRemaining
+        });
       }
       
       if (bonusRecord.lastClaimDate === today) {

@@ -105,6 +105,39 @@ Games are migrated from web to native React Native components:
 ### Current TestFlight Build
 - Build 76 is currently on TestFlight (has UI positioning bugs)
 
+## Daily Bonus Anti-Fraud System (December 12, 2025)
+
+### Protection Layers
+The daily login bonus system has layered anti-exploit protection:
+
+1. **Device Fingerprinting** (`expo-application`)
+   - Uses iOS Vendor ID / Android ID for device tracking
+   - Maximum 1 claim per device per 24 hours, regardless of wallet
+   - Tracks linked wallets per device (flags if >3 wallets linked)
+
+2. **Progressive Rewards**
+   - Days 1-3: Low value (1 diamond each) - no verification needed
+   - Days 4-7: Higher rewards - email verification required after Day 3
+   - Day 7 bonus: 3 diamonds for completing the week
+
+3. **New Account Cooldown**
+   - First-time bonus accounts must wait 24 hours before claiming
+   - Prevents rapid account creation farming
+
+4. **IP/User Agent Tracking**
+   - Each claim logs IP address and user agent
+   - IP subnet extracted for pattern analysis
+   - Stored in `daily_login_history` for audit
+
+### Database Tables
+- `daily_login_bonus`: Streak tracking per wallet
+- `daily_login_history`: Individual claim records with fraud metadata
+- `daily_bonus_fraud_tracking`: Device fingerprint tracking
+
+### Files
+- `server/economy-routes.ts`: Anti-fraud validation in `/api/daily-bonus/claim`
+- `client/components/arcade/DailyBonusCard.tsx`: Device fingerprint collection
+
 ## Cross-Platform Integration (roachy.games)
 
 ### Architecture
