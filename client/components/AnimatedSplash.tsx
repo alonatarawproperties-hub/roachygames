@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Dimensions, Platform } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { Asset } from "expo-asset";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,12 +20,9 @@ const { width, height } = Dimensions.get("window");
 const HOMEPAGE_ASSETS = [
   require("../../assets/images/roachy-logo.png"),
   require("../../assets/images/icon.png"),
-  require("../../assets/images/roachies/nightstalker.png"),
-  require("../../assets/images/roachies/cosmicking.png"),
-  require("../../assets/images/roachies/warlord.png"),
-  require("../../assets/images/roachies/vikingbug.png"),
-  require("../../assets/images/roachies/sparkroach.png"),
-  require("../../assets/images/roachies/shadowblade.png"),
+  require("@/assets/roachy-hunt-logo.png"),
+  require("@/assets/flappy-roach-logo.png"),
+  require("@/assets/roachy-battles-logo.png"),
 ];
 
 interface AnimatedSplashProps {
@@ -53,7 +51,7 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
       
       for (const asset of HOMEPAGE_ASSETS) {
         try {
-          await Image.prefetch(asset);
+          await Asset.loadAsync(asset);
         } catch (e) {
         }
         loaded++;
