@@ -14,15 +14,17 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { GameColors } from "@/constants/theme";
+import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 
 const { width, height } = Dimensions.get("window");
 
+const roachyLogo = require("../../assets/images/roachy-logo.png");
+const appIcon = require("../../assets/images/icon.png");
+
 const HOMEPAGE_ASSETS = [
-  require("../../assets/images/roachy-logo.png"),
-  require("../../assets/images/icon.png"),
-  require("@/assets/roachy-hunt-logo.png"),
-  require("@/assets/flappy-roach-logo.png"),
-  require("@/assets/roachy-battles-logo.png"),
+  roachyLogo,
+  appIcon,
+  ...GAMES_CATALOG.filter((g) => g.coverImage).map((g) => g.coverImage),
 ];
 
 interface AnimatedSplashProps {
@@ -49,9 +51,13 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
       const total = HOMEPAGE_ASSETS.length;
       let loaded = 0;
       
-      for (const asset of HOMEPAGE_ASSETS) {
+      for (const assetModule of HOMEPAGE_ASSETS) {
         try {
-          await Asset.loadAsync(asset);
+          const asset = Asset.fromModule(assetModule);
+          await asset.downloadAsync();
+          if (asset.localUri) {
+            await Image.prefetch(asset.localUri);
+          }
         } catch (e) {
         }
         loaded++;
