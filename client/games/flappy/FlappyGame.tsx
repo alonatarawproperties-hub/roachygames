@@ -15,7 +15,6 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withRepeat,
-  withSequence,
   runOnJS,
   cancelAnimation,
   Easing,
@@ -25,9 +24,7 @@ import * as Haptics from "expo-haptics";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const GAME_WIDTH = SCREEN_WIDTH;
-const GAME_HEIGHT = SCREEN_HEIGHT;
-const GROUND_HEIGHT = 80;
-const PLAYABLE_HEIGHT = GAME_HEIGHT - GROUND_HEIGHT;
+const BASE_GROUND_HEIGHT = 80;
 
 const GRAVITY = 0.6;
 const JUMP_STRENGTH = -12;
@@ -79,6 +76,10 @@ interface FlappyGameProps {
 export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
   
+  const GROUND_HEIGHT = BASE_GROUND_HEIGHT + insets.bottom;
+  const GAME_HEIGHT = SCREEN_HEIGHT;
+  const PLAYABLE_HEIGHT = GAME_HEIGHT - GROUND_HEIGHT;
+  
   const [gameState, setGameState] = useState<GameState>("idle");
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
@@ -96,9 +97,15 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const groundOffset = useSharedValue(0);
   
   const gameLoopRef = useRef<number | null>(null);
-  const pipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const coinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const powerUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pipeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const coinTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const powerUpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialPipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const shieldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doubleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const magnetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   const pipeIdRef = useRef(0);
   const coinIdRef = useRef(0);
   const powerUpIdRef = useRef(0);
@@ -110,6 +117,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const doublePointsRef = useRef(false);
   const magnetRef = useRef(false);
   const scoreRef = useRef(0);
+  const gameStateRef = useRef<GameState>("idle");
+  
+  const playableHeightRef = useRef(PLAYABLE_HEIGHT);
+  playableHeightRef.current = PLAYABLE_HEIGHT;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -130,7 +141,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     }
   }, []);
   
-  const stopGame = useCallback(() => {
+  const clearAllTimers = useCallback(() => {
     if (gameLoopRef.current) {
       cancelAnimationFrame(gameLoopRef.current);
       gameLoopRef.current = null;
@@ -147,10 +158,40 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
       clearInterval(powerUpTimerRef.current);
       powerUpTimerRef.current = null;
     }
+    if (initialPipeTimerRef.current) {
+      clearTimeout(initialPipeTimerRef.current);
+      initialPipeTimerRef.current = null;
+    }
+    if (shieldTimerRef.current) {
+      clearTimeout(shieldTimerRef.current);
+      shieldTimerRef.current = null;
+    }
+    if (doubleTimerRef.current) {
+      clearTimeout(doubleTimerRef.current);
+      doubleTimerRef.current = null;
+    }
+    if (magnetTimerRef.current) {
+      clearTimeout(magnetTimerRef.current);
+      magnetTimerRef.current = null;
+    }
     cancelAnimation(groundOffset);
-  }, []);
+  }, [groundOffset]);
+  
+  const stopGame = useCallback(() => {
+    clearAllTimers();
+    
+    shieldRef.current = false;
+    doublePointsRef.current = false;
+    magnetRef.current = false;
+    setShieldActive(false);
+    setDoublePointsActive(false);
+    setMagnetActive(false);
+  }, [clearAllTimers]);
   
   const gameOver = useCallback(() => {
+    if (gameStateRef.current !== "playing") return;
+    
+    gameStateRef.current = "gameover";
     stopGame();
     playSound("hit");
     setGameState("gameover");
@@ -166,8 +207,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   }, [stopGame, playSound, highScore, onScoreSubmit]);
   
   const spawnPipe = useCallback(() => {
+    if (gameStateRef.current !== "playing") return;
+    
     const minHeight = 80;
-    const maxHeight = PLAYABLE_HEIGHT - GAP_SIZE - minHeight - 50;
+    const maxHeight = playableHeightRef.current - GAP_SIZE - minHeight - 50;
     const topHeight = Math.floor(Math.random() * (maxHeight - minHeight)) + minHeight;
     
     const newPipe: Pipe = {
@@ -182,8 +225,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   }, []);
   
   const spawnCoin = useCallback(() => {
+    if (gameStateRef.current !== "playing") return;
+    
     const minY = 100;
-    const maxY = PLAYABLE_HEIGHT - 100;
+    const maxY = playableHeightRef.current - 100;
     const y = Math.floor(Math.random() * (maxY - minY)) + minY;
     const value = Math.floor(Math.random() * 50) + 10;
     
@@ -200,8 +245,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   }, []);
   
   const spawnPowerUp = useCallback(() => {
+    if (gameStateRef.current !== "playing") return;
+    
     const minY = 120;
-    const maxY = PLAYABLE_HEIGHT - 120;
+    const maxY = playableHeightRef.current - 120;
     const y = Math.floor(Math.random() * (maxY - minY)) + minY;
     const types: Array<"shield" | "double" | "magnet"> = ["shield", "double", "magnet"];
     const type = types[Math.floor(Math.random() * types.length)];
@@ -218,7 +265,49 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     setPowerUps([...powerUpsRef.current]);
   }, []);
   
+  const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
+    if (gameStateRef.current !== "playing") return;
+    
+    switch (type) {
+      case "shield":
+        if (shieldTimerRef.current) clearTimeout(shieldTimerRef.current);
+        shieldRef.current = true;
+        setShieldActive(true);
+        shieldTimerRef.current = setTimeout(() => {
+          if (gameStateRef.current === "playing") {
+            shieldRef.current = false;
+            setShieldActive(false);
+          }
+        }, 5000);
+        break;
+      case "double":
+        if (doubleTimerRef.current) clearTimeout(doubleTimerRef.current);
+        doublePointsRef.current = true;
+        setDoublePointsActive(true);
+        doubleTimerRef.current = setTimeout(() => {
+          if (gameStateRef.current === "playing") {
+            doublePointsRef.current = false;
+            setDoublePointsActive(false);
+          }
+        }, 10000);
+        break;
+      case "magnet":
+        if (magnetTimerRef.current) clearTimeout(magnetTimerRef.current);
+        magnetRef.current = true;
+        setMagnetActive(true);
+        magnetTimerRef.current = setTimeout(() => {
+          if (gameStateRef.current === "playing") {
+            magnetRef.current = false;
+            setMagnetActive(false);
+          }
+        }, 8000);
+        break;
+    }
+  }, []);
+  
   const gameLoop = useCallback(() => {
+    if (gameStateRef.current !== "playing") return;
+    
     birdVelocity.current += GRAVITY;
     if (birdVelocity.current > MAX_FALL_SPEED) {
       birdVelocity.current = MAX_FALL_SPEED;
@@ -235,7 +324,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
       birdVelocity.current = 0;
     }
     
-    if (!shieldRef.current && newY >= PLAYABLE_HEIGHT - BIRD_SIZE / 2) {
+    if (!shieldRef.current && newY >= playableHeightRef.current - BIRD_SIZE / 2) {
       runOnJS(gameOver)();
       return;
     }
@@ -349,38 +438,11 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     runOnJS(setPowerUps)([...powerUpsRef.current]);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound]);
-  
-  const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
-    switch (type) {
-      case "shield":
-        shieldRef.current = true;
-        setShieldActive(true);
-        setTimeout(() => {
-          shieldRef.current = false;
-          setShieldActive(false);
-        }, 5000);
-        break;
-      case "double":
-        doublePointsRef.current = true;
-        setDoublePointsActive(true);
-        setTimeout(() => {
-          doublePointsRef.current = false;
-          setDoublePointsActive(false);
-        }, 10000);
-        break;
-      case "magnet":
-        magnetRef.current = true;
-        setMagnetActive(true);
-        setTimeout(() => {
-          magnetRef.current = false;
-          setMagnetActive(false);
-        }, 8000);
-        break;
-    }
-  }, []);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp]);
   
   const startGame = useCallback(() => {
+    clearAllTimers();
+    
     pipesRef.current = [];
     coinsRef.current = [];
     powerUpsRef.current = [];
@@ -397,7 +459,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     setDoublePointsActive(false);
     setMagnetActive(false);
     
-    birdY.value = PLAYABLE_HEIGHT / 2;
+    birdY.value = playableHeightRef.current / 2;
     birdVelocity.current = 0;
     birdRotation.value = 0;
     
@@ -407,16 +469,21 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
       false
     );
     
+    gameStateRef.current = "playing";
     setGameState("playing");
     
     pipeTimerRef.current = setInterval(spawnPipe, PIPE_SPAWN_INTERVAL);
     coinTimerRef.current = setInterval(spawnCoin, COIN_SPAWN_INTERVAL);
     powerUpTimerRef.current = setInterval(spawnPowerUp, POWERUP_SPAWN_INTERVAL);
     
-    setTimeout(spawnPipe, 1000);
+    initialPipeTimerRef.current = setTimeout(() => {
+      if (gameStateRef.current === "playing") {
+        spawnPipe();
+      }
+    }, 1000);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, gameLoop]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, gameLoop, clearAllTimers]);
   
   const jump = useCallback(() => {
     if (gameState === "idle") {
@@ -435,9 +502,9 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   
   useEffect(() => {
     return () => {
-      stopGame();
+      clearAllTimers();
     };
-  }, [stopGame]);
+  }, [clearAllTimers]);
   
   const birdStyle = useAnimatedStyle(() => ({
     transform: [
@@ -705,9 +772,7 @@ const styles = StyleSheet.create({
   pipeTop: {
     top: 0,
   },
-  pipeBottom: {
-    bottom: GROUND_HEIGHT,
-  },
+  pipeBottom: {},
   pipeCapTop: {
     position: "absolute",
     bottom: -3,
