@@ -28,6 +28,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
+import { useHunt } from "@/context/HuntContext";
 import {
   getCreatureDefinition,
   getRarityColor,
@@ -81,11 +82,28 @@ export default function CreatureDetailScreen() {
   const headerHeight = useHeaderHeight();
   const route = useRoute<RouteProps>();
   const { state, mintCreatureNFT } = useGame();
+  const { collection: huntCollection } = useHunt();
   const [minting, setMinting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const creature = state.inventory.find(c => c.uniqueId === route.params.uniqueId);
-  const definition = creature ? getCreatureDefinition(creature.id) : null;
+  const gameCreature = state.inventory.find(c => c.uniqueId === route.params.uniqueId);
+  const huntCreature = huntCollection.find(c => c.id === route.params.uniqueId);
+  
+  const isHuntCreature = !gameCreature && !!huntCreature;
+  
+  const definition = isHuntCreature && huntCreature 
+    ? getCreatureDefinition(huntCreature.templateId)
+    : gameCreature ? getCreatureDefinition(gameCreature.id) : null;
+    
+  const creature = gameCreature || (huntCreature ? {
+    id: huntCreature.templateId,
+    uniqueId: huntCreature.id,
+    caughtAt: new Date(),
+    level: huntCreature.level,
+    blockchainMinted: false,
+    txHash: undefined,
+    catchLocation: undefined,
+  } : null);
 
   const glowScale = useSharedValue(1);
 
@@ -190,10 +208,21 @@ export default function CreatureDetailScreen() {
       <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.section}>
         <ThemedText type="h4" style={styles.sectionTitle}>Stats</ThemedText>
         <View style={styles.statsCard}>
-          <StatBar label="HP" value={definition.baseStats.hp} color="#FF6B6B" delay={300} />
-          <StatBar label="Attack" value={definition.baseStats.attack} color="#FFD93D" delay={400} />
-          <StatBar label="Defense" value={definition.baseStats.defense} color="#4ECDC4" delay={500} />
-          <StatBar label="Speed" value={definition.baseStats.speed} color="#9B59B6" delay={600} />
+          {isHuntCreature && huntCreature ? (
+            <>
+              <StatBar label="HP" value={huntCreature.baseHp + huntCreature.ivHp} color="#FF6B6B" delay={300} />
+              <StatBar label="Attack" value={huntCreature.baseAtk + huntCreature.ivAtk} color="#FFD93D" delay={400} />
+              <StatBar label="Defense" value={huntCreature.baseDef + huntCreature.ivDef} color="#4ECDC4" delay={500} />
+              <StatBar label="Speed" value={huntCreature.baseSpd + huntCreature.ivSpd} color="#9B59B6" delay={600} />
+            </>
+          ) : (
+            <>
+              <StatBar label="HP" value={definition.baseStats.hp} color="#FF6B6B" delay={300} />
+              <StatBar label="Attack" value={definition.baseStats.attack} color="#FFD93D" delay={400} />
+              <StatBar label="Defense" value={definition.baseStats.defense} color="#4ECDC4" delay={500} />
+              <StatBar label="Speed" value={definition.baseStats.speed} color="#9B59B6" delay={600} />
+            </>
+          )}
         </View>
       </Animated.View>
 
@@ -237,25 +266,47 @@ export default function CreatureDetailScreen() {
         </View>
       </Animated.View>
 
-      <Animated.View entering={FadeInUp.delay(400).springify()} style={styles.section}>
-        <ThemedText type="h4" style={styles.sectionTitle}>Catch Info</ThemedText>
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Feather name="calendar" size={18} color={GameColors.textSecondary} />
-            <ThemedText style={styles.infoText}>
-              Caught on {formatDate(creature.caughtAt)}
-            </ThemedText>
+      {!isHuntCreature ? (
+        <Animated.View entering={FadeInUp.delay(400).springify()} style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>Catch Info</ThemedText>
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Feather name="calendar" size={18} color={GameColors.textSecondary} />
+              <ThemedText style={styles.infoText}>
+                Caught on {formatDate(creature.caughtAt)}
+              </ThemedText>
+            </View>
+            {creature.catchLocation ? (
+              <View style={styles.infoRow}>
+                <Feather name="map-pin" size={18} color={GameColors.textSecondary} />
+                <ThemedText style={styles.infoText}>
+                  {creature.catchLocation.latitude.toFixed(4)}, {creature.catchLocation.longitude.toFixed(4)}
+                </ThemedText>
+              </View>
+            ) : null}
           </View>
-          <View style={styles.infoRow}>
-            <Feather name="map-pin" size={18} color={GameColors.textSecondary} />
-            <ThemedText style={styles.infoText}>
-              {creature.catchLocation.latitude.toFixed(4)}, {creature.catchLocation.longitude.toFixed(4)}
-            </ThemedText>
+        </Animated.View>
+      ) : (
+        <Animated.View entering={FadeInUp.delay(400).springify()} style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>Creature Info</ThemedText>
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Feather name="award" size={18} color={GameColors.textSecondary} />
+              <ThemedText style={styles.infoText}>
+                {huntCreature?.catchQuality || "Standard"} catch quality
+              </ThemedText>
+            </View>
+            <View style={styles.infoRow}>
+              <Feather name="star" size={18} color={huntCreature?.isPerfect ? GameColors.primary : GameColors.textSecondary} />
+              <ThemedText style={styles.infoText}>
+                {huntCreature?.isPerfect ? "Perfect IVs" : "Standard IVs"}
+              </ThemedText>
+            </View>
           </View>
-        </View>
-      </Animated.View>
+        </Animated.View>
+      )}
 
-      {!creature.blockchainMinted ? (
+      {!isHuntCreature && !creature.blockchainMinted ? (
         <View style={[styles.mintButtonContainer, { paddingBottom: insets.bottom }]}>
           <Button
             onPress={handleMint}
