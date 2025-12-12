@@ -31,6 +31,7 @@ import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useWallet } from "../../context/WalletContext";
+import { useAuth } from "@/context/AuthContext";
 import { useTokenBalances } from "@/hooks/useTokenBalances";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
 import type { ArcadeInventoryItem, InventoryFilter, InventoryItemType, ItemTypeMetadata } from "@/types/inventory";
@@ -308,6 +309,7 @@ export function ArcadeHomeScreen() {
   const [showWebBanner, setShowWebBanner] = useState(true);
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const { wallet, disconnectWallet } = useWallet();
+  const { user, logout } = useAuth();
   const { roachy, diamonds, roachyUsdValue, isLoading: balancesLoading } = useTokenBalances(
     wallet.address,
     wallet.connected
@@ -372,6 +374,46 @@ export function ArcadeHomeScreen() {
   const handleDisconnectWallet = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     disconnectWallet();
+  };
+
+  const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out? Your progress is saved to your account.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Sign Out", 
+          style: "destructive", 
+          onPress: async () => {
+            disconnectWallet();
+            await logout();
+          }
+        },
+      ]
+    );
+  };
+
+  const getUserDisplayName = (): string => {
+    if (user?.displayName) return user.displayName;
+    if (user?.email) return user.email.split("@")[0];
+    if (wallet.connected && wallet.address) return truncateAddress(wallet.address);
+    return "Guest Player";
+  };
+
+  const getAccountType = (): string => {
+    if (user?.authProvider === "google" || user?.googleId) return "Google Account";
+    if (user?.authProvider === "email" || user?.email) return "Email Account";
+    if (wallet.connected) return getProviderName() + " Wallet";
+    return "Guest";
+  };
+
+  const getAccountIcon = (): keyof typeof Feather.glyphMap => {
+    if (user?.authProvider === "google" || user?.googleId) return "globe";
+    if (user?.authProvider === "email" || user?.email) return "mail";
+    if (wallet.connected) return "credit-card";
+    return "user";
   };
 
   const filteredGames = searchQuery
@@ -709,14 +751,15 @@ export function ArcadeHomeScreen() {
           <View style={styles.tabContent}>
             <View style={styles.profileHeader}>
               <View style={styles.avatar}>
-                <Feather name="user" size={40} color={GameColors.textPrimary} />
+                <Feather name={getAccountIcon()} size={40} color={GameColors.textPrimary} />
               </View>
               <ThemedText style={styles.profileName}>
-                {wallet.connected ? truncateAddress(wallet.address || '') : 'Guest Player'}
+                {getUserDisplayName()}
               </ThemedText>
-              <ThemedText style={styles.profileSubtitle}>
-                {wallet.connected ? getProviderName() + ' Connected' : 'Connect wallet to save progress'}
-              </ThemedText>
+              <View style={styles.accountTypeBadge}>
+                <Feather name={getAccountIcon()} size={12} color={GameColors.gold} />
+                <ThemedText style={styles.accountTypeText}>{getAccountType()}</ThemedText>
+              </View>
             </View>
 
             <View style={styles.walletSection}>
@@ -828,6 +871,15 @@ export function ArcadeHomeScreen() {
                   <Feather name="chevron-right" size={20} color={GameColors.textTertiary} />
                 </Pressable>
               ))}
+              
+              <Pressable style={styles.logoutButton} onPress={handleLogout}>
+                <View style={[styles.settingsIcon, styles.logoutIcon]}>
+                  <Feather name="log-out" size={20} color={GameColors.error} />
+                </View>
+                <View style={styles.settingsInfo}>
+                  <ThemedText style={styles.logoutText}>Sign Out</ThemedText>
+                </View>
+              </Pressable>
             </View>
 
             <SolanaTrustBadge variant="full" />
@@ -1157,6 +1209,21 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     marginTop: Spacing.xs,
   },
+  accountTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.gold + "20",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  accountTypeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.gold,
+  },
   walletSection: {
     marginBottom: Spacing.xl,
   },
@@ -1265,6 +1332,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: GameColors.textSecondary,
     marginTop: 2,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.error + "15",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: GameColors.error + "30",
+  },
+  logoutIcon: {
+    backgroundColor: GameColors.error + "20",
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.error,
   },
   webLinksSection: {
     marginBottom: Spacing.xl,

@@ -7,8 +7,12 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-const JWT_SECRET = process.env.SESSION_SECRET || "roachy-games-secret-key";
+const JWT_SECRET = process.env.SESSION_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("SESSION_SECRET environment variable is required for authentication");
+}
 const JWT_EXPIRES_IN = "7d";
+const GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo";
 
 interface JWTPayload {
   userId: string;
@@ -69,6 +73,7 @@ router.post("/register", async (req: Request, res: Response) => {
         id: newUser.id,
         email: newUser.email,
         displayName: newUser.displayName,
+        googleId: newUser.googleId,
         authProvider: newUser.authProvider,
         chyBalance: newUser.chyBalance,
         diamondBalance: newUser.diamondBalance,
@@ -127,6 +132,7 @@ router.post("/login", async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        googleId: user.googleId,
         authProvider: user.authProvider,
         chyBalance: user.chyBalance,
         diamondBalance: user.diamondBalance,
@@ -141,25 +147,66 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+async function verifyGoogleToken(idToken: string): Promise<{
+  sub: string;
+  email: string;
+  name?: string;
+  picture?: string;
+} | null> {
+  try {
+    const response = await fetch(`${GOOGLE_TOKEN_INFO_URL}?id_token=${idToken}`);
+    if (!response.ok) {
+      console.error("[Auth] Google token verification failed:", response.status);
+      return null;
+    }
+    const tokenInfo = await response.json();
+    
+    if (!tokenInfo.sub || !tokenInfo.email) {
+      console.error("[Auth] Invalid Google token - missing required fields");
+      return null;
+    }
+    
+    return {
+      sub: tokenInfo.sub,
+      email: tokenInfo.email,
+      name: tokenInfo.name,
+      picture: tokenInfo.picture,
+    };
+  } catch (error) {
+    console.error("[Auth] Google token verification error:", error);
+    return null;
+  }
+}
+
 router.post("/google", async (req: Request, res: Response) => {
   try {
-    const { googleId, email, displayName, avatarUrl } = req.body;
+    const { idToken } = req.body;
 
-    if (!googleId || !email) {
-      return res.status(400).json({ error: "Google ID and email are required" });
+    if (!idToken) {
+      return res.status(400).json({ error: "Google ID token is required" });
     }
 
-    let [user] = await db.select().from(users).where(eq(users.googleId, googleId)).limit(1);
+    const tokenInfo = await verifyGoogleToken(idToken);
+    if (!tokenInfo) {
+      return res.status(401).json({ error: "Invalid or expired Google token" });
+    }
+
+    const verifiedGoogleId = tokenInfo.sub;
+    const verifiedEmail = tokenInfo.email;
+    const verifiedDisplayName = tokenInfo.name;
+    const verifiedAvatarUrl = tokenInfo.picture;
+
+    let [user] = await db.select().from(users).where(eq(users.googleId, verifiedGoogleId)).limit(1);
 
     if (!user) {
-      const [existingEmailUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      const [existingEmailUser] = await db.select().from(users).where(eq(users.email, verifiedEmail)).limit(1);
       
       if (existingEmailUser) {
         [user] = await db.update(users)
           .set({ 
-            googleId, 
-            avatarUrl: avatarUrl || existingEmailUser.avatarUrl,
-            displayName: displayName || existingEmailUser.displayName,
+            googleId: verifiedGoogleId, 
+            avatarUrl: verifiedAvatarUrl || existingEmailUser.avatarUrl,
+            displayName: verifiedDisplayName || existingEmailUser.displayName,
             lastLoginAt: new Date(),
             updatedAt: new Date(),
           })
@@ -167,10 +214,10 @@ router.post("/google", async (req: Request, res: Response) => {
           .returning();
       } else {
         [user] = await db.insert(users).values({
-          email,
-          googleId,
-          displayName: displayName || email.split("@")[0],
-          avatarUrl,
+          email: verifiedEmail,
+          googleId: verifiedGoogleId,
+          displayName: verifiedDisplayName || verifiedEmail.split("@")[0],
+          avatarUrl: verifiedAvatarUrl,
           authProvider: "google",
           chyBalance: 100,
           diamondBalance: 0,
@@ -195,6 +242,7 @@ router.post("/google", async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        googleId: user.googleId,
         authProvider: user.authProvider,
         chyBalance: user.chyBalance,
         diamondBalance: user.diamondBalance,
@@ -241,6 +289,7 @@ router.post("/link-wallet", async (req: Request, res: Response) => {
         id: updatedUser.id,
         email: updatedUser.email,
         displayName: updatedUser.displayName,
+        googleId: updatedUser.googleId,
         authProvider: updatedUser.authProvider,
         chyBalance: updatedUser.chyBalance,
         diamondBalance: updatedUser.diamondBalance,
@@ -279,6 +328,7 @@ router.get("/me", async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        googleId: user.googleId,
         authProvider: user.authProvider,
         chyBalance: user.chyBalance,
         diamondBalance: user.diamondBalance,
@@ -315,6 +365,7 @@ router.post("/unlink-wallet", async (req: Request, res: Response) => {
         id: updatedUser.id,
         email: updatedUser.email,
         displayName: updatedUser.displayName,
+        googleId: updatedUser.googleId,
         authProvider: updatedUser.authProvider,
         chyBalance: updatedUser.chyBalance,
         diamondBalance: updatedUser.diamondBalance,

@@ -14,6 +14,7 @@ export interface AuthUser {
   id: string;
   email: string | null;
   displayName: string | null;
+  googleId: string | null;
   authProvider: string;
   chyBalance: number;
   diamondBalance: number;
@@ -177,22 +178,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clientId,
         scopes: ["openid", "profile", "email"],
         redirectUri,
-        responseType: AuthSession.ResponseType.Token,
+        responseType: AuthSession.ResponseType.IdToken,
       });
 
       const result = await request.promptAsync(discovery);
 
-      if (result.type === "success" && result.authentication?.accessToken) {
-        const userInfoResponse = await fetch(
-          `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${result.authentication.accessToken}`
-        );
-        const googleUser = await userInfoResponse.json();
-
+      if (result.type === "success" && result.params?.id_token) {
         const response = await apiRequest("POST", "/api/auth/google", {
-          googleId: googleUser.sub,
-          email: googleUser.email,
-          displayName: googleUser.name,
-          avatarUrl: googleUser.picture,
+          idToken: result.params.id_token,
         });
 
         const data = await response.json();
