@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -17,6 +18,14 @@ import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+
+const GoogleLogo = ({ size = 24 }: { size?: number }) => (
+  <Image
+    source={{ uri: "https://www.google.com/favicon.ico" }}
+    style={{ width: size, height: size }}
+    contentFit="contain"
+  />
+);
 
 type AuthMode = "login" | "register";
 
@@ -91,7 +100,7 @@ export function AuthScreen() {
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
-        colors={["#1a1a2e", "#16213e", "#0f0f23"]}
+        colors={[GameColors.surface, GameColors.background, "#050302"]}
         style={StyleSheet.absoluteFill}
       />
       
@@ -103,12 +112,11 @@ export function AuthScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <LinearGradient
-              colors={[GameColors.gold, "#D97706"]}
-              style={styles.logoGradient}
-            >
-              <Feather name="zap" size={48} color={GameColors.background} />
-            </LinearGradient>
+            <Image
+              source={require("../../assets/roachy-logo.png")}
+              style={styles.logoImage}
+              contentFit="contain"
+            />
           </View>
           <ThemedText style={styles.title}>Roachy Games</ThemedText>
           <ThemedText style={styles.subtitle}>
@@ -122,9 +130,7 @@ export function AuthScreen() {
             onPress={handleGoogleAuth}
             disabled={isSubmitting}
           >
-            <View style={styles.googleIcon}>
-              <ThemedText style={styles.googleIconText}>G</ThemedText>
-            </View>
+            <GoogleLogo size={20} />
             <ThemedText style={styles.googleButtonText}>
               Continue with Google
             </ThemedText>
@@ -246,12 +252,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: Spacing.md,
   },
-  logoGradient: {
+  logoImage: {
     width: 100,
     height: 100,
     borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
   },
   title: {
     fontSize: 32,
@@ -280,19 +284,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: Spacing.lg,
     gap: 12,
-  },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#4285F4",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  googleIconText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 14,
   },
   googleButtonText: {
     color: "#333333",
