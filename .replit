@@ -55,4 +55,5 @@ externalPort = 3000
 
 [userenv.shared]
 WEBAPP_URL = "https://roachy.games"
+EXPO_PUBLIC_GOOGLE_CLIENT_ID = "433710630203-jc09iek5p6e9ug8qgjtd0l0pca904cvg.apps.googleusercontent.com"
 
