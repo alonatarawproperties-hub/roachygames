@@ -51,3 +51,8 @@ externalPort = 80
 localPort = 8082
 externalPort = 3000
 
+[userenv]
+
+[userenv.shared]
+WEBAPP_URL = "https://roachy.games"
+

@@ -152,6 +152,24 @@ The daily login bonus system has layered anti-exploit protection:
 - `server/economy-routes.ts`: Anti-fraud validation in `/api/daily-bonus/claim`
 - `client/components/arcade/DailyBonusCard.tsx`: Device fingerprint collection
 
+## Web App Rewards Integration (LIVE)
+
+### How It Works
+When players claim daily bonuses or earn rewards in the mobile app:
+1. Mobile app records reward in database
+2. Mobile app calls `roachy.games/api/rewards/distribute`
+3. Web app verifies request via `MOBILE_APP_SECRET`
+4. Web app transfers DIAMOND tokens from treasury to player wallet
+5. Transaction signature returned to mobile app
+
+### Files
+- `server/rewards-integration.ts` - API client for web app rewards
+- `server/economy-routes.ts` - Calls rewards API on daily bonus claim
+
+### Environment Variables
+- `MOBILE_APP_SECRET` - Shared secret for authenticating with web app
+- `WEBAPP_URL` - Web app URL (default: https://roachy.games)
+
 ## Cross-Platform Integration (roachy.games)
 
 ### Architecture

@@ -4,6 +4,7 @@ import { playerEconomy, dailyLoginBonus, dailyLoginHistory, dailyBonusFraudTrack
 import { eq, sql, and, or, gte } from "drizzle-orm";
 import { getAllTokenBalances, getRoachyBalance, getDiamondBalance, isValidSolanaAddress } from "./solana-service";
 import { SOLANA_TOKENS } from "../shared/solana-tokens";
+import { distributeDailyBonus } from "./rewards-integration";
 
 const DAILY_BONUS_REWARDS: Record<number, number> = {
   1: 1,
@@ -316,12 +317,28 @@ export function registerEconomyRoutes(app: Express) {
       
       console.log(`[DailyBonus] ${walletAddress} claimed day ${newStreak} bonus: ${diamondReward} diamonds${fraudFlags.length > 0 ? ` (flags: ${fraudFlags.join(", ")})` : ""}`);
       
+      let blockchainResult: { success: boolean; transactionSignature?: string } = { success: false };
+      try {
+        blockchainResult = await distributeDailyBonus(walletAddress, diamondReward, newStreak);
+        if (blockchainResult.success) {
+          console.log(`[DailyBonus] On-chain transfer successful: ${blockchainResult.transactionSignature}`);
+        } else {
+          console.log(`[DailyBonus] On-chain transfer failed, rewards tracked in database only`);
+        }
+      } catch (err) {
+        console.error(`[DailyBonus] On-chain transfer error:`, err);
+      }
+      
       res.json({
         success: true,
         diamondsAwarded: diamondReward,
         newStreak,
         longestStreak: newLongestStreak,
         totalDiamonds: updatedEconomy?.diamonds || diamondReward,
+        blockchain: {
+          success: blockchainResult.success,
+          transactionSignature: blockchainResult.transactionSignature,
+        },
       });
     } catch (error) {
       console.error("[DailyBonus] Error claiming bonus:", error);
