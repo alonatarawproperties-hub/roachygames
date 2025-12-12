@@ -67,7 +67,7 @@ interface PowerUp {
   collected: boolean;
 }
 
-type GameState = "idle" | "playing" | "gameover";
+type GameState = "idle" | "playing" | "dying" | "gameover";
 
 interface FlappyGameProps {
   onExit?: () => void;
@@ -189,12 +189,8 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     setMagnetActive(false);
   }, [clearAllTimers]);
   
-  const gameOver = useCallback(() => {
-    if (gameStateRef.current !== "playing") return;
-    
+  const showGameOverScreen = useCallback(() => {
     gameStateRef.current = "gameover";
-    stopGame();
-    playSound("hit");
     setGameState("gameover");
     
     const finalScore = scoreRef.current;
@@ -205,7 +201,67 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     if (onScoreSubmit && finalScore > 0) {
       onScoreSubmit(finalScore);
     }
-  }, [stopGame, playSound, highScore, onScoreSubmit]);
+  }, [highScore, onScoreSubmit]);
+  
+  const deathLoop = useCallback(() => {
+    if (gameStateRef.current !== "dying") return;
+    
+    birdVelocity.current += GRAVITY * 1.2;
+    if (birdVelocity.current > MAX_FALL_SPEED * 1.5) {
+      birdVelocity.current = MAX_FALL_SPEED * 1.5;
+    }
+    
+    const newY = birdY.value + birdVelocity.current;
+    birdY.value = newY;
+    
+    birdRotation.value = withTiming(90, { duration: 200 });
+    
+    if (newY >= playableHeightRef.current - BIRD_SIZE / 2) {
+      birdY.value = playableHeightRef.current - BIRD_SIZE / 2;
+      runOnJS(playSound)("hit");
+      
+      setTimeout(() => {
+        runOnJS(showGameOverScreen)();
+      }, 300);
+      return;
+    }
+    
+    gameLoopRef.current = requestAnimationFrame(deathLoop);
+  }, [birdY, birdRotation, playSound, showGameOverScreen]);
+  
+  const gameOver = useCallback(() => {
+    if (gameStateRef.current !== "playing") return;
+    
+    gameStateRef.current = "dying";
+    setGameState("dying");
+    
+    if (pipeTimerRef.current) {
+      clearInterval(pipeTimerRef.current);
+      pipeTimerRef.current = null;
+    }
+    if (coinTimerRef.current) {
+      clearInterval(coinTimerRef.current);
+      coinTimerRef.current = null;
+    }
+    if (powerUpTimerRef.current) {
+      clearInterval(powerUpTimerRef.current);
+      powerUpTimerRef.current = null;
+    }
+    if (initialPipeTimerRef.current) {
+      clearTimeout(initialPipeTimerRef.current);
+      initialPipeTimerRef.current = null;
+    }
+    cancelAnimation(groundOffset);
+    
+    playSound("hit");
+    
+    birdVelocity.current = -6;
+    
+    if (gameLoopRef.current) {
+      cancelAnimationFrame(gameLoopRef.current);
+    }
+    gameLoopRef.current = requestAnimationFrame(deathLoop);
+  }, [playSound, groundOffset, deathLoop]);
   
   const spawnPipe = useCallback(() => {
     if (gameStateRef.current !== "playing") return;
