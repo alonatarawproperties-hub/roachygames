@@ -166,9 +166,9 @@ const powerUpIndicatorStyles = StyleSheet.create({
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const ROACHY_SPRITE_1 = require("@assets/Untitled_design_-_8_1765523477322.png");
-const ROACHY_SPRITE_2 = require("@assets/Untitled_design_-_7_1765523477322.png");
-const ROACHY_SPRITE_DEAD = require("@assets/Untitled_design_1765504788923.png");
+const ROACHY_SPRITE_1 = require("@/assets/flappy/roachy-sprite-1.png");
+const ROACHY_SPRITE_2 = require("@/assets/flappy/roachy-sprite-2.png");
+const ROACHY_SPRITE_DEAD = require("@/assets/flappy/roachy-sprite-dead.png");
 
 const ALL_SPRITES = [ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD];
 

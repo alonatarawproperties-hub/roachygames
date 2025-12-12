@@ -90,20 +90,23 @@ Games are migrated from web to native React Native components:
 - **Expo SDK 53:** Core framework for React Native development.
 - **EAS Build:** Used for creating development, preview, and production builds, especially for native capabilities like full Apple/Google Maps.
 
-## Pending Actions (December 11, 2025)
+## Build Status (December 12, 2025)
 
-### Submit Build 79 to TestFlight
-- **Status:** Build 79 is ready, waiting for Apple upload limit to reset (~24 hours)
-- **Build ID:** 2b943211-d0d0-427c-9a24-245d8653e956
-- **IPA URL:** https://expo.dev/artifacts/eas/6o7Hz9z8gCkPRWdAEgzpTU.ipa
+### Build 99 - Successfully Submitted to TestFlight
+- **Build ID:** 0c694dfd-ac4e-43bd-a913-7629d7ee8349
+- **IPA URL:** https://expo.dev/artifacts/eas/2wTFP92noHyPWh1WNyyjgt.ipa
+- **Submission URL:** https://expo.dev/accounts/roachygames/projects/roachy-games/submissions/a4ec033f-b49a-4ad0-b1d9-6f5f76f50cbd
 - **Fixes included:**
-  - LeafletMapView controls repositioned to `bottom: 140px` (above tab bar)
-  - Location info repositioned to `bottom: 140px` (above tab bar)
-  - 118 active spawns in database near user location (14.676, 121.043)
-- **Command to submit:** `npx eas-cli submit --platform ios --id 2b943211-d0d0-427c-9a24-245d8653e956 --non-interactive`
+  - Fixed JavaScript bundling errors by removing @assets alias pointing to attached_assets/
+  - Moved Flappy Roachy sprites to client/assets/flappy/
+  - Removed Associated Domains (provisioning profile didn't support it - needs Apple Developer Portal update)
+  - Anti-fraud system for daily login bonuses
+  - Upgraded expo packages for SDK 53 compatibility
 
-### Current TestFlight Build
-- Build 76 is currently on TestFlight (has UI positioning bugs)
+### Note: Associated Domains Temporarily Disabled
+- Removed `associatedDomains` from app.json to fix provisioning profile mismatch
+- To re-enable: Update provisioning profile in Apple Developer Portal to include Associated Domains capability
+- Then restore: `"associatedDomains": ["applinks:roachy.games", "webcredentials:roachy.games"]`
 
 ## Daily Bonus Anti-Fraud System (December 12, 2025)
 

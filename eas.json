@@ -28,7 +28,7 @@
     "production": {
       "channel": "production",
       "ios": {
-        "resourceClass": "m-medium",
+        "resourceClass": "large",
         "image": "macos-sonoma-14.6-xcode-16.0"
       },
       "android": {
