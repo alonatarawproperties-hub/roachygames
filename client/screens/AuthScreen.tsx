@@ -113,7 +113,7 @@ export function AuthScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Image
-              source={require("../../assets/roachy-logo.png")}
+              source={require("../../assets/images/icon.png")}
               style={styles.logoImage}
               contentFit="contain"
             />
