@@ -76,7 +76,7 @@ function PowerUpIndicator({
   useEffect(() => {
     if (isExpiring) {
       pulseScale.value = withRepeat(
-        withTiming(1.2, { duration: 300, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1.3, { duration: 250, easing: Easing.inOut(Easing.ease) }),
         -1,
         true
       );
@@ -93,9 +93,9 @@ function PowerUpIndicator({
   if (!isActive) return null;
   
   const config = {
-    shield: { bg: "#3B82F6", border: "#1D4ED8", icon: "shield" as const },
-    double: { bg: "#F59E0B", border: "#B45309", icon: null },
-    magnet: { bg: "#EF4444", border: "#B91C1C", icon: null },
+    shield: { bg: "#3B82F6", border: "#1D4ED8" },
+    double: { bg: "#F59E0B", border: "#B45309" },
+    magnet: { bg: "#EF4444", border: "#B91C1C" },
   }[type];
   
   return (
@@ -107,46 +107,35 @@ function PowerUpIndicator({
         animatedStyle,
       ]}
     >
-      <View style={powerUpIndicatorStyles.iconContainer}>
-        {type === "shield" ? (
-          <Feather name="shield" size={16} color="#fff" />
-        ) : type === "double" ? (
-          <ThemedText style={powerUpIndicatorStyles.doubleText}>2x</ThemedText>
-        ) : (
-          <View style={powerUpIndicatorStyles.magnetIcon}>
-            <View style={powerUpIndicatorStyles.magnetTop} />
-            <View style={powerUpIndicatorStyles.magnetBottom} />
-          </View>
-        )}
-      </View>
-      <ThemedText style={powerUpIndicatorStyles.timeText}>{timeLeft}s</ThemedText>
+      {type === "shield" ? (
+        <Feather name="shield" size={18} color="#fff" />
+      ) : type === "double" ? (
+        <ThemedText style={powerUpIndicatorStyles.doubleText}>2x</ThemedText>
+      ) : (
+        <View style={powerUpIndicatorStyles.magnetIcon}>
+          <View style={powerUpIndicatorStyles.magnetTop} />
+          <View style={powerUpIndicatorStyles.magnetBottom} />
+        </View>
+      )}
     </Animated.View>
   );
 }
 
 const powerUpIndicatorStyles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
-    marginRight: 8,
-    marginBottom: 6,
+    marginBottom: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   expiring: {
     shadowColor: "#fff",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-  },
-  iconContainer: {
-    width: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 4,
+    shadowOpacity: 1,
+    shadowRadius: 10,
   },
   doubleText: {
     fontSize: 14,
@@ -170,11 +159,6 @@ const powerUpIndicatorStyles = StyleSheet.create({
     justifyContent: "space-between",
     width: 14,
     height: 8,
-  },
-  timeText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#fff",
   },
 });
 
