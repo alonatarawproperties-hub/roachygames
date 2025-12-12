@@ -30,7 +30,7 @@ const GRAVITY = 0.6;
 const JUMP_STRENGTH = -12;
 const MAX_FALL_SPEED = 15;
 const PIPE_SPEED = 4;
-const PIPE_SPAWN_INTERVAL = 1800;
+const PIPE_SPAWN_INTERVAL = 2800;
 const GAP_SIZE = 200;
 const PIPE_WIDTH = 70;
 
