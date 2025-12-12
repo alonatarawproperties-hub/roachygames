@@ -4,8 +4,10 @@ import { registerHuntRoutes } from "./hunt-routes";
 import { registerChessRoutes } from "./chess-routes";
 import { registerTournamentRoutes } from "./tournament-routes";
 import { registerEconomyRoutes } from "./economy-routes";
+import authRoutes from "./auth-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.use("/api/auth", authRoutes);
   registerHuntRoutes(app);
   registerChessRoutes(app);
   registerTournamentRoutes(app);

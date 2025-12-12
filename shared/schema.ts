@@ -7,17 +7,41 @@ export const users = pgTable("users", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  email: text("email").unique(),
+  passwordHash: text("password_hash"),
+  googleId: text("google_id").unique(),
+  walletAddress: text("wallet_address").unique(),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  authProvider: text("auth_provider").notNull().default("email"),
+  chyBalance: integer("chy_balance").notNull().default(0),
+  diamondBalance: integer("diamond_balance").notNull().default(0),
+  isEmailVerified: boolean("is_email_verified").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+  email: true,
+  displayName: true,
+});
+
+export const registerUserSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  displayName: z.string().min(2, "Display name must be at least 2 characters").optional(),
+});
+
+export const loginUserSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type RegisterUser = z.infer<typeof registerUserSchema>;
+export type LoginUser = z.infer<typeof loginUserSchema>;
 
 export const RARITY_TYPES = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const;
 export type Rarity = typeof RARITY_TYPES[number];
