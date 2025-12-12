@@ -716,7 +716,7 @@ export function ArcadeHomeScreen() {
                   viewerCount="184 hunting"
                 />
                 <View style={styles.sectionSpacer} />
-                <EarningsTracker isConnected={wallet.connected} />
+                <EarningsTracker />
               </>
             )}
 
@@ -929,7 +929,7 @@ export function ArcadeHomeScreen() {
             />
 
             <View style={styles.rewardsSection}>
-              <EarningsTracker isConnected={wallet.connected} />
+              <EarningsTracker />
             </View>
 
             <View style={styles.rewardsSection}>

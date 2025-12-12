@@ -1,8 +1,10 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { useAuth } from "@/context/AuthContext";
 
 interface EarningsData {
   today: number;
@@ -12,20 +14,15 @@ interface EarningsData {
   weekChange?: number;
 }
 
-interface EarningsTrackerProps {
-  earnings?: EarningsData;
-  isConnected?: boolean;
-}
+export function EarningsTracker() {
+  const { user, isAuthenticated } = useAuth();
 
-const PLACEHOLDER_EARNINGS: EarningsData = {
-  today: 45,
-  week: 320,
-  allTime: 2450,
-  todayChange: 12,
-  weekChange: 8,
-};
+  const { data: earnings, isLoading } = useQuery<EarningsData>({
+    queryKey: ["/api/earnings", user?.id],
+    enabled: isAuthenticated && !!user?.id && !!user?.walletAddress,
+    refetchInterval: 60000,
+  });
 
-export function EarningsTracker({ earnings = PLACEHOLDER_EARNINGS, isConnected = false }: EarningsTrackerProps) {
   const formatNumber = (num: number) => {
     if (num >= 1000) {
       return (num / 1000).toFixed(1) + "K";
@@ -33,7 +30,7 @@ export function EarningsTracker({ earnings = PLACEHOLDER_EARNINGS, isConnected =
     return num.toString();
   };
 
-  if (!isConnected) {
+  if (!isAuthenticated || !user?.walletAddress) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -49,6 +46,24 @@ export function EarningsTracker({ earnings = PLACEHOLDER_EARNINGS, isConnected =
       </View>
     );
   }
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Feather name="trending-up" size={18} color={GameColors.gold} />
+            <ThemedText style={styles.headerTitle}>Earnings</ThemedText>
+          </View>
+        </View>
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="small" color={GameColors.gold} />
+        </View>
+      </View>
+    );
+  }
+
+  const earningsData = earnings || { today: 0, week: 0, allTime: 0, todayChange: 0, weekChange: 0 };
 
   return (
     <View style={styles.container}>
@@ -67,13 +82,15 @@ export function EarningsTracker({ earnings = PLACEHOLDER_EARNINGS, isConnected =
         <View style={styles.statItem}>
           <ThemedText style={styles.statLabel}>Today</ThemedText>
           <View style={styles.statValueRow}>
-            <ThemedText style={styles.statValue}>{formatNumber(earnings.today)}</ThemedText>
-            <ThemedText style={styles.statUnit}>RCH</ThemedText>
+            <ThemedText style={styles.statValue}>{formatNumber(earningsData.today)}</ThemedText>
+            <View style={styles.diamondIcon}>
+              <Feather name="hexagon" size={12} color="#00D9FF" />
+            </View>
           </View>
-          {earnings.todayChange !== undefined && earnings.todayChange > 0 ? (
+          {earningsData.todayChange !== undefined && earningsData.todayChange > 0 ? (
             <View style={styles.changeRow}>
               <Feather name="arrow-up" size={10} color={GameColors.success} />
-              <ThemedText style={styles.changeText}>+{earnings.todayChange}%</ThemedText>
+              <ThemedText style={styles.changeText}>+{earningsData.todayChange}%</ThemedText>
             </View>
           ) : null}
         </View>
@@ -83,13 +100,15 @@ export function EarningsTracker({ earnings = PLACEHOLDER_EARNINGS, isConnected =
         <View style={styles.statItem}>
           <ThemedText style={styles.statLabel}>This Week</ThemedText>
           <View style={styles.statValueRow}>
-            <ThemedText style={styles.statValue}>{formatNumber(earnings.week)}</ThemedText>
-            <ThemedText style={styles.statUnit}>RCH</ThemedText>
+            <ThemedText style={styles.statValue}>{formatNumber(earningsData.week)}</ThemedText>
+            <View style={styles.diamondIcon}>
+              <Feather name="hexagon" size={12} color="#00D9FF" />
+            </View>
           </View>
-          {earnings.weekChange !== undefined && earnings.weekChange > 0 ? (
+          {earningsData.weekChange !== undefined && earningsData.weekChange > 0 ? (
             <View style={styles.changeRow}>
               <Feather name="arrow-up" size={10} color={GameColors.success} />
-              <ThemedText style={styles.changeText}>+{earnings.weekChange}%</ThemedText>
+              <ThemedText style={styles.changeText}>+{earningsData.weekChange}%</ThemedText>
             </View>
           ) : null}
         </View>
@@ -99,8 +118,10 @@ export function EarningsTracker({ earnings = PLACEHOLDER_EARNINGS, isConnected =
         <View style={styles.statItem}>
           <ThemedText style={styles.statLabel}>All Time</ThemedText>
           <View style={styles.statValueRow}>
-            <ThemedText style={[styles.statValue, styles.allTimeValue]}>{formatNumber(earnings.allTime)}</ThemedText>
-            <ThemedText style={styles.statUnit}>RCH</ThemedText>
+            <ThemedText style={[styles.statValue, styles.allTimeValue]}>{formatNumber(earningsData.allTime)}</ThemedText>
+            <View style={styles.diamondIcon}>
+              <Feather name="hexagon" size={12} color="#00D9FF" />
+            </View>
           </View>
         </View>
       </View>
@@ -170,8 +191,8 @@ const styles = StyleSheet.create({
   },
   statValueRow: {
     flexDirection: "row",
-    alignItems: "baseline",
-    gap: 2,
+    alignItems: "center",
+    gap: 4,
   },
   statValue: {
     fontSize: 20,
@@ -181,10 +202,8 @@ const styles = StyleSheet.create({
   allTimeValue: {
     color: GameColors.gold,
   },
-  statUnit: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: GameColors.textTertiary,
+  diamondIcon: {
+    marginTop: 2,
   },
   changeRow: {
     flexDirection: "row",
@@ -210,5 +229,9 @@ const styles = StyleSheet.create({
   disconnectedText: {
     fontSize: 13,
     color: GameColors.textTertiary,
+  },
+  loadingContent: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
   },
 });

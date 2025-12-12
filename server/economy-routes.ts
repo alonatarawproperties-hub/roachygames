@@ -419,4 +419,92 @@ export function registerEconomyRoutes(app: Express) {
       network: "mainnet-beta",
     });
   });
+
+  app.get("/api/earnings/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const walletAddress = user.walletAddress;
+      
+      if (!walletAddress) {
+        return res.json({
+          today: 0,
+          week: 0,
+          allTime: 0,
+          todayChange: 0,
+          weekChange: 0,
+        });
+      }
+
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+      const yesterdayDate = new Date(today);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+      const twoWeeksAgo = new Date(today);
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      const twoWeeksAgoStr = twoWeeksAgo.toISOString().split('T')[0];
+
+      const allHistory = await db.select()
+        .from(dailyLoginHistory)
+        .where(eq(dailyLoginHistory.walletAddress, walletAddress));
+
+      let todayEarnings = 0;
+      let yesterdayEarnings = 0;
+      let weekEarnings = 0;
+      let lastWeekEarnings = 0;
+      let allTimeEarnings = 0;
+
+      for (const record of allHistory) {
+        const diamonds = record.diamondsAwarded || 0;
+        allTimeEarnings += diamonds;
+
+        if (record.claimDate === todayStr) {
+          todayEarnings += diamonds;
+        }
+        if (record.claimDate === yesterdayStr) {
+          yesterdayEarnings += diamonds;
+        }
+        if (record.claimDate >= weekAgoStr) {
+          weekEarnings += diamonds;
+        }
+        if (record.claimDate >= twoWeeksAgoStr && record.claimDate < weekAgoStr) {
+          lastWeekEarnings += diamonds;
+        }
+      }
+
+      const todayChange = yesterdayEarnings > 0 
+        ? Math.round(((todayEarnings - yesterdayEarnings) / yesterdayEarnings) * 100)
+        : todayEarnings > 0 ? 100 : 0;
+
+      const weekChange = lastWeekEarnings > 0
+        ? Math.round(((weekEarnings - lastWeekEarnings) / lastWeekEarnings) * 100)
+        : weekEarnings > 0 ? 100 : 0;
+
+      res.json({
+        today: todayEarnings,
+        week: weekEarnings,
+        allTime: allTimeEarnings,
+        todayChange: Math.max(0, todayChange),
+        weekChange: Math.max(0, weekChange),
+      });
+    } catch (error) {
+      console.error("[Earnings] Error fetching earnings:", error);
+      res.status(500).json({ error: "Failed to fetch earnings" });
+    }
+  });
 }
