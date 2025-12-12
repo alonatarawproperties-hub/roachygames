@@ -6,6 +6,7 @@ import {
   Pressable,
   Platform,
 } from "react-native";
+import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
@@ -584,13 +585,11 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
         
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
-          <View style={styles.birdBody}>
-            <View style={styles.birdEye} />
-            <View style={styles.birdBeak} />
-            <View style={styles.birdWing} />
-            <View style={styles.birdAntenna1} />
-            <View style={styles.birdAntenna2} />
-          </View>
+          <Image
+            source={require("@assets/Untitled_design_1765503061373.png")}
+            style={styles.roachySprite}
+            contentFit="contain"
+          />
         </Animated.View>
         
         <View style={[styles.ground, { height: GROUND_HEIGHT }]}>
@@ -691,64 +690,11 @@ const styles = StyleSheet.create({
     height: BIRD_SIZE,
     zIndex: 100,
   },
-  birdBody: {
-    width: BIRD_SIZE,
-    height: BIRD_SIZE,
-    backgroundColor: "#8B4513",
-    borderRadius: BIRD_SIZE / 2,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#5D2E0C",
-  },
-  birdEye: {
-    position: "absolute",
-    top: 12,
-    right: 10,
-    width: 12,
-    height: 12,
-    backgroundColor: "#fff",
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#000",
-  },
-  birdBeak: {
-    position: "absolute",
-    right: -8,
-    top: 18,
-    width: 16,
-    height: 10,
-    backgroundColor: "#FFA500",
-    borderRadius: 5,
-  },
-  birdWing: {
-    position: "absolute",
-    left: 5,
-    top: 20,
-    width: 18,
-    height: 12,
-    backgroundColor: "#6B3A10",
-    borderRadius: 6,
-  },
-  birdAntenna1: {
-    position: "absolute",
-    top: -8,
-    left: 15,
-    width: 3,
-    height: 12,
-    backgroundColor: "#5D2E0C",
-    borderRadius: 2,
-    transform: [{ rotate: "-20deg" }],
-  },
-  birdAntenna2: {
-    position: "absolute",
-    top: -8,
-    right: 15,
-    width: 3,
-    height: 12,
-    backgroundColor: "#5D2E0C",
-    borderRadius: 2,
-    transform: [{ rotate: "20deg" }],
+  roachySprite: {
+    width: BIRD_SIZE + 20,
+    height: BIRD_SIZE + 20,
+    marginTop: -10,
+    marginLeft: -10,
   },
   shieldAura: {
     position: "absolute",
