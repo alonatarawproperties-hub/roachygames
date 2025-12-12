@@ -34,10 +34,174 @@ import { useWallet } from "../../context/WalletContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTokenBalances } from "@/hooks/useTokenBalances";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
+import { useHunt } from "@/context/HuntContext";
 import type { ArcadeInventoryItem, InventoryFilter, InventoryItemType, ItemTypeMetadata } from "@/types/inventory";
 import { ITEM_TYPE_REGISTRY, getItemTypeMetadata } from "@/types/inventory";
+import { useQueryClient } from "@tanstack/react-query";
+import Animated, { 
+  FadeInDown, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSequence, 
+  withTiming, 
+  withSpring 
+} from "react-native-reanimated";
+import { getCreatureDefinition } from "@/constants/creatures";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const EGGS_REQUIRED = 10;
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
+
+/**
+ * Egg Hatching Section for centralized inventory
+ */
+function EggHatchSection({ 
+  eggCount, 
+  onHatch, 
+  isHatching 
+}: { 
+  eggCount: number; 
+  onHatch: () => void; 
+  isHatching: boolean;
+}) {
+  const canHatch = eggCount >= EGGS_REQUIRED;
+  const progress = Math.min(eggCount / EGGS_REQUIRED, 1);
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = () => {
+    if (canHatch && !isHatching) {
+      scale.value = withSequence(
+        withTiming(0.95, { duration: 100 }),
+        withSpring(1)
+      );
+      onHatch();
+    }
+  };
+
+  if (eggCount === 0) return null;
+
+  return (
+    <Animated.View entering={FadeInDown.springify()} style={eggStyles.container}>
+      <View style={eggStyles.header}>
+        <View style={eggStyles.iconContainer}>
+          <Feather name="gift" size={24} color={GameColors.gold} />
+        </View>
+        <View style={eggStyles.info}>
+          <ThemedText style={eggStyles.title}>Collected Eggs</ThemedText>
+          <ThemedText style={eggStyles.count}>
+            {eggCount} / {EGGS_REQUIRED}
+          </ThemedText>
+        </View>
+      </View>
+
+      <View style={eggStyles.progressContainer}>
+        <View style={eggStyles.progressBar}>
+          <View style={[eggStyles.progressFill, { width: `${progress * 100}%` }]} />
+        </View>
+      </View>
+
+      <AnimatedPressable
+        style={[
+          eggStyles.hatchButton,
+          animatedStyle,
+          !canHatch && eggStyles.hatchButtonDisabled,
+        ]}
+        onPress={handlePress}
+        disabled={!canHatch || isHatching}
+      >
+        {isHatching ? (
+          <ThemedText style={eggStyles.hatchButtonText}>Hatching...</ThemedText>
+        ) : (
+          <>
+            <Feather name="zap" size={18} color={canHatch ? GameColors.background : GameColors.textSecondary} />
+            <ThemedText style={[eggStyles.hatchButtonText, !canHatch && eggStyles.hatchButtonTextDisabled]}>
+              {canHatch ? "HATCH NOW" : `Need ${EGGS_REQUIRED - eggCount} more`}
+            </ThemedText>
+          </>
+        )}
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
+
+const eggStyles = StyleSheet.create({
+  container: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: GameColors.gold + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  info: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+  },
+  count: {
+    fontSize: 14,
+    color: GameColors.gold,
+    fontWeight: "500",
+  },
+  progressContainer: {
+    marginBottom: Spacing.md,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: GameColors.background,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: GameColors.gold,
+    borderRadius: 4,
+  },
+  hatchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: GameColors.gold,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  hatchButtonDisabled: {
+    backgroundColor: GameColors.surface,
+    borderWidth: 1,
+    borderColor: GameColors.textTertiary,
+  },
+  hatchButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GameColors.background,
+  },
+  hatchButtonTextDisabled: {
+    color: GameColors.textSecondary,
+  },
+});
 
 /**
  * Generic Inventory Item Section
@@ -301,6 +465,7 @@ const sectionStyles = StyleSheet.create({
 
 export function ArcadeHomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("Home");
   const [searchQuery, setSearchQuery] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -308,8 +473,10 @@ export function ArcadeHomeScreen() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [showWebBanner, setShowWebBanner] = useState(true);
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
+  const [isHatching, setIsHatching] = useState(false);
   const { wallet, disconnectWallet } = useWallet();
   const { user, logout } = useAuth();
+  const { collectedEggs, hatchEggs, refreshEconomy } = useHunt();
   const { roachy, diamonds, roachyUsdValue, isLoading: balancesLoading } = useTokenBalances(
     wallet.address,
     wallet.connected
@@ -323,10 +490,41 @@ export function ArcadeHomeScreen() {
     getMintableCount,
     getActiveItemTypes,
     getTypeMetadata,
+    refetch: refetchInventory,
   } = useArcadeInventory();
 
   // Get unique item types that exist in inventory for dynamic filters
   const activeItemTypes = getActiveItemTypes();
+
+  // Handle egg hatching from centralized inventory
+  const handleHatch = async () => {
+    setIsHatching(true);
+    try {
+      const result = await hatchEggs();
+      if (result.success && result.creature) {
+        const def = getCreatureDefinition(result.creature.templateId);
+        await refreshEconomy();
+        refetchInventory();
+        if (user?.walletAddress) {
+          queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", user.walletAddress] });
+          queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", user.walletAddress] });
+          queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", user.walletAddress] });
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          "Egg Hatched!",
+          `You got a ${def?.rarity || 'common'} ${def?.name || 'Roachy'}!`,
+          [{ text: "Awesome!" }]
+        );
+      } else {
+        Alert.alert("Hatch Failed", result.error || "Something went wrong");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to hatch eggs");
+    } finally {
+      setIsHatching(false);
+    }
+  };
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -570,6 +768,13 @@ export function ArcadeHomeScreen() {
                 All your items across all games in one place
               </ThemedText>
             </View>
+
+            {/* Egg Hatching Section */}
+            <EggHatchSection 
+              eggCount={collectedEggs} 
+              onHatch={handleHatch}
+              isHatching={isHatching}
+            />
 
             {/* Dynamic Filter Chips - based on what items exist */}
             <View style={styles.inventoryFilters}>
