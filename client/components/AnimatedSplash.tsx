@@ -16,31 +16,13 @@ import { GameColors } from "@/constants/theme";
 
 const { width, height } = Dimensions.get("window");
 
-const MAIN_APP_ASSETS = [
+const HOMEPAGE_ASSETS = [
   require("../../assets/images/roachy-logo.png"),
   require("../../assets/images/icon.png"),
-  require("../../assets/images/roachies/nightstalker.png"),
-  require("../../assets/images/roachies/cosmicking.png"),
-  require("../../assets/images/roachies/warlord.png"),
-  require("../../assets/images/roachies/vikingbug.png"),
-  require("../../assets/images/roachies/sparkroach.png"),
-  require("../../assets/images/roachies/shadowblade.png"),
-  require("../../assets/images/roachies/scuttler.png"),
-  require("../../assets/images/roachies/royalmage.png"),
-  require("../../assets/images/roachies/leafwing.png"),
-  require("../../assets/images/roachies/ironshell.png"),
-  require("../../assets/images/roachies/frostmage.png"),
-  require("../../assets/images/roachies/aviator.png"),
+  require("@assets/roachy-hunt-tile_1765412227066.png"),
+  require("@assets/roachymate-tile_1765412494285.png"),
+  require("@assets/flappy-roachy-tile_1765412683498.png"),
 ];
-
-const FLAPPY_SPRITES = [
-  require("@assets/Untitled_design_1765503061373.png"),
-  require("@assets/Untitled_design_-_8_1765505842312.png"),
-  require("@assets/Untitled_design_-_7_1765505842312.png"),
-  require("@assets/Untitled_design_1765504788923.png"),
-];
-
-const ALL_ASSETS = [...MAIN_APP_ASSETS, ...FLAPPY_SPRITES];
 
 interface AnimatedSplashProps {
   onAnimationComplete: () => void;
@@ -63,10 +45,10 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
     let isMounted = true;
     
     async function preloadAssets() {
-      const total = ALL_ASSETS.length;
+      const total = HOMEPAGE_ASSETS.length;
       let loaded = 0;
       
-      for (const asset of ALL_ASSETS) {
+      for (const asset of HOMEPAGE_ASSETS) {
         try {
           await Image.prefetch(asset);
         } catch (e) {
