@@ -586,7 +586,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
           <Image
-            source={require("@assets/Untitled_design_1765503537516.png")}
+            source={require("@assets/Untitled_design_1765503061373.png")}
             style={styles.roachySprite}
             contentFit="contain"
           />
