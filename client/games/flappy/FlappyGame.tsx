@@ -1130,7 +1130,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
         </View>
         
         {(shieldActive || doublePointsActive || magnetActive) && (
-          <View style={[styles.powerUpIndicators, { top: insets.top + 80 }]}>
+          <View style={[styles.powerUpIndicators, { top: insets.top + 10 }]}>
             <PowerUpIndicator type="shield" timeLeft={shieldTimeLeft} isActive={shieldActive} />
             <PowerUpIndicator type="double" timeLeft={doubleTimeLeft} isActive={doublePointsActive} />
             <PowerUpIndicator type="magnet" timeLeft={magnetTimeLeft} isActive={magnetActive} />
