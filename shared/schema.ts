@@ -547,3 +547,87 @@ export type DailyLoginBonus = typeof dailyLoginBonus.$inferSelect;
 export type InsertDailyLoginBonus = z.infer<typeof insertDailyLoginBonusSchema>;
 export type DailyLoginHistory = typeof dailyLoginHistory.$inferSelect;
 export type InsertDailyLoginHistory = z.infer<typeof insertDailyLoginHistorySchema>;
+
+// ==================== FLAPPY ROACHY TABLES ====================
+
+export const FLAPPY_POWERUP_TYPES = ['shield', 'double', 'magnet'] as const;
+export type FlappyPowerUpType = typeof FLAPPY_POWERUP_TYPES[number];
+
+export const LEADERBOARD_PERIODS = ['daily', 'weekly', 'alltime'] as const;
+export type LeaderboardPeriod = typeof LEADERBOARD_PERIODS[number];
+
+export const flappyScores = pgTable("flappy_scores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  score: integer("score").notNull(),
+  coinsCollected: integer("coins_collected").notNull().default(0),
+  isRanked: boolean("is_ranked").notNull().default(false),
+  diamondEntryFee: integer("diamond_entry_fee").notNull().default(0),
+  playedAt: timestamp("played_at").notNull().default(sql`now()`),
+});
+
+export const flappyLeaderboard = pgTable("flappy_leaderboard", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  displayName: text("display_name"),
+  bestScore: integer("best_score").notNull().default(0),
+  bestRankedScore: integer("best_ranked_score").notNull().default(0),
+  totalGamesPlayed: integer("total_games_played").notNull().default(0),
+  totalRankedGames: integer("total_ranked_games").notNull().default(0),
+  totalCoinsCollected: integer("total_coins_collected").notNull().default(0),
+  dailyBestScore: integer("daily_best_score").notNull().default(0),
+  dailyBestDate: text("daily_best_date"),
+  weeklyBestScore: integer("weekly_best_score").notNull().default(0),
+  weeklyBestDate: text("weekly_best_date"),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const flappyPowerUpInventory = pgTable("flappy_powerup_inventory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  shieldCount: integer("shield_count").notNull().default(0),
+  doubleCount: integer("double_count").notNull().default(0),
+  magnetCount: integer("magnet_count").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const flappyRankedCompetitions = pgTable("flappy_ranked_competitions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  period: text("period").notNull().default('daily'),
+  entryFee: integer("entry_fee").notNull().default(1),
+  prizePool: integer("prize_pool").notNull().default(0),
+  participantCount: integer("participant_count").notNull().default(0),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertFlappyScoreSchema = createInsertSchema(flappyScores).omit({
+  id: true,
+  playedAt: true,
+});
+
+export const insertFlappyLeaderboardSchema = createInsertSchema(flappyLeaderboard).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertFlappyPowerUpInventorySchema = createInsertSchema(flappyPowerUpInventory).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertFlappyRankedCompetitionSchema = createInsertSchema(flappyRankedCompetitions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type FlappyScore = typeof flappyScores.$inferSelect;
+export type InsertFlappyScore = z.infer<typeof insertFlappyScoreSchema>;
+export type FlappyLeaderboard = typeof flappyLeaderboard.$inferSelect;
+export type InsertFlappyLeaderboard = z.infer<typeof insertFlappyLeaderboardSchema>;
+export type FlappyPowerUpInventory = typeof flappyPowerUpInventory.$inferSelect;
+export type InsertFlappyPowerUpInventory = z.infer<typeof insertFlappyPowerUpInventorySchema>;
+export type FlappyRankedCompetition = typeof flappyRankedCompetitions.$inferSelect;
+export type InsertFlappyRankedCompetition = z.infer<typeof insertFlappyRankedCompetitionSchema>;
