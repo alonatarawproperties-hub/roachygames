@@ -31,7 +31,7 @@ type AuthMode = "login" | "register";
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { login, register, loginWithGoogle, isLoading } = useAuth();
+  const { login, register, loginWithGoogle, continueAsGuest, isLoading } = useAuth();
   
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -95,6 +95,21 @@ export function AuthScreen() {
     Haptics.selectionAsync();
     setMode(mode === "login" ? "register" : "login");
     setPassword("");
+  };
+
+  const handleGuestMode = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsSubmitting(true);
+    try {
+      const result = await continueAsGuest();
+      if (!result.success) {
+        Alert.alert("Error", result.error || "Failed to continue as guest");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Something went wrong");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -229,6 +244,15 @@ export function AuthScreen() {
           </View>
         </View>
 
+        <Pressable 
+          style={styles.guestButton} 
+          onPress={handleGuestMode}
+          disabled={isSubmitting}
+        >
+          <Feather name="user" size={18} color={GameColors.textSecondary} />
+          <ThemedText style={styles.guestButtonText}>Continue as Guest</ThemedText>
+        </Pressable>
+
         <ThemedText style={styles.disclaimer}>
           By continuing, you agree to our Terms of Service and Privacy Policy
         </ThemedText>
@@ -353,6 +377,18 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   featureText: {
+    color: GameColors.textSecondary,
+    fontSize: 14,
+  },
+  guestButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  guestButtonText: {
     color: GameColors.textSecondary,
     fontSize: 14,
   },

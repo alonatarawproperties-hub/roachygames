@@ -29,6 +29,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  continueAsGuest: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   linkWallet: (walletAddress: string) => Promise<{ success: boolean; error?: string }>;
   unlinkWallet: () => Promise<{ success: boolean; error?: string }>;
@@ -214,6 +215,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const continueAsGuest = useCallback(async () => {
+    try {
+      const guestUser: AuthUser = {
+        id: `guest_${Date.now()}`,
+        email: null,
+        displayName: "Guest Player",
+        googleId: null,
+        authProvider: "guest",
+        chyBalance: 100,
+        diamondBalance: 0,
+        walletAddress: null,
+        avatarUrl: null,
+      };
+
+      await secureStoreSet(USER_DATA_KEY, JSON.stringify(guestUser));
+      setUser(guestUser);
+      return { success: true };
+    } catch (error: any) {
+      console.error("[Auth] Guest login error:", error);
+      return { success: false, error: error.message || "Failed to continue as guest" };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await Promise.all([
       secureStoreDelete(AUTH_TOKEN_KEY),
@@ -297,6 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         loginWithGoogle,
+        continueAsGuest,
         logout,
         linkWallet,
         unlinkWallet,
