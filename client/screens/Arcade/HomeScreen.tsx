@@ -26,6 +26,7 @@ import {
   NFTGallery,
   WebCTABanner,
 } from "@/components/arcade";
+import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
 import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -668,81 +669,11 @@ export function ArcadeHomeScreen() {
               </ThemedText>
             </View>
 
-            <View style={styles.dailyBonusContainer}>
-              <View style={styles.dailyBonusHeader}>
-                <View style={styles.dailyBonusHeaderLeft}>
-                  <Feather name="calendar" size={20} color={GameColors.gold} />
-                  <ThemedText style={styles.dailyBonusTitle}>Daily Login Bonus</ThemedText>
-                </View>
-                <View style={styles.streakBadge}>
-                  <Feather name="zap" size={14} color={GameColors.gold} />
-                  <ThemedText style={styles.streakText}>1 Day Streak</ThemedText>
-                </View>
-              </View>
-              
-              <View style={styles.dailyRewardsGrid}>
-                {[1, 2, 3, 4, 5, 6, 7].map((day) => {
-                  const isCompleted = day < 1;
-                  const isCurrent = day === 1;
-                  const isLocked = day > 1;
-                  const isDay7 = day === 7;
-                  
-                  return (
-                    <View
-                      key={day}
-                      style={[
-                        styles.dailyRewardCard,
-                        isCurrent && styles.dailyRewardCurrent,
-                        isCompleted && styles.dailyRewardCompleted,
-                        isLocked && styles.dailyRewardLocked,
-                        isDay7 && styles.dailyRewardGrand,
-                      ]}
-                    >
-                      <ThemedText style={[
-                        styles.dayLabel,
-                        isCurrent && styles.dayLabelCurrent,
-                        isCompleted && styles.dayLabelCompleted,
-                      ]}>
-                        {isDay7 ? "Day 7" : `Day ${day}`}
-                      </ThemedText>
-                      
-                      <View style={[
-                        styles.rewardIconContainer,
-                        isCurrent && styles.rewardIconCurrent,
-                        isDay7 && styles.rewardIconGrand,
-                      ]}>
-                        {isCompleted ? (
-                          <Feather name="check" size={24} color={GameColors.success} />
-                        ) : isDay7 ? (
-                          <Feather name="star" size={28} color={GameColors.gold} />
-                        ) : (
-                          <Feather 
-                            name="gift" 
-                            size={24} 
-                            color={isCurrent ? GameColors.gold : GameColors.textSecondary} 
-                          />
-                        )}
-                      </View>
-                      
-                      <ThemedText style={[
-                        styles.rewardAmount,
-                        isCurrent && styles.rewardAmountCurrent,
-                        isDay7 && styles.rewardAmountGrand,
-                      ]}>
-                        {isDay7 ? "50" : `${day * 5}`}
-                      </ThemedText>
-                    </View>
-                  );
-                })}
-              </View>
-              
-              <View style={styles.dailyBonusFooter}>
-                <Feather name="info" size={14} color={GameColors.textSecondary} />
-                <ThemedText style={styles.dailyBonusHint}>
-                  Login daily to claim rewards. Day 7 bonus is 10x!
-                </ThemedText>
-              </View>
-            </View>
+            <DailyBonusCard 
+              walletAddress={wallet.address}
+              isConnected={wallet.connected}
+              onConnectWallet={() => setShowWalletModal(true)}
+            />
 
             <View style={styles.rewardsSection}>
               <EarningsTracker isConnected={wallet.connected} />
