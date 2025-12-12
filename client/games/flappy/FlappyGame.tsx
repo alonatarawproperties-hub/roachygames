@@ -24,6 +24,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { FlappyMenuSheet } from "./FlappyMenuSheet";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -321,12 +322,15 @@ interface PowerUp {
 
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
+type GameMode = "free" | "ranked";
+
 interface FlappyGameProps {
   onExit?: () => void;
-  onScoreSubmit?: (score: number) => void;
+  onScoreSubmit?: (score: number, isRanked: boolean) => void;
+  userId?: string | null;
 }
 
-export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
+export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
   
   const GROUND_HEIGHT = BASE_GROUND_HEIGHT + insets.bottom;
@@ -350,6 +354,14 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const [doubleTimeLeft, setDoubleTimeLeft] = useState(0);
   const [magnetTimeLeft, setMagnetTimeLeft] = useState(0);
   const [wingFrame, setWingFrame] = useState(0);
+  
+  const [showMenu, setShowMenu] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode>("free");
+  const [equippedPowerUps, setEquippedPowerUps] = useState<{
+    shield: boolean;
+    double: boolean;
+    magnet: boolean;
+  }>({ shield: false, double: false, magnet: false });
   
   const shieldEndTimeRef = useRef<number>(0);
   const doubleEndTimeRef = useRef<number>(0);
@@ -524,9 +536,9 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     }
     
     if (onScoreSubmit && finalScore > 0) {
-      onScoreSubmit(finalScore);
+      onScoreSubmit(finalScore, gameMode === "ranked");
     }
-  }, [highScore, onScoreSubmit]);
+  }, [highScore, onScoreSubmit, gameMode]);
   
   const deathLoop = useCallback(() => {
     if (gameStateRef.current !== "dying") return;
@@ -912,6 +924,19 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     gameStateRef.current = "playing";
     setGameState("playing");
     
+    if (equippedPowerUps.shield) {
+      activatePowerUp("shield");
+      setEquippedPowerUps((prev) => ({ ...prev, shield: false }));
+    }
+    if (equippedPowerUps.double) {
+      activatePowerUp("double");
+      setEquippedPowerUps((prev) => ({ ...prev, double: false }));
+    }
+    if (equippedPowerUps.magnet) {
+      activatePowerUp("magnet");
+      setEquippedPowerUps((prev) => ({ ...prev, magnet: false }));
+    }
+    
     pipeTimerRef.current = setInterval(spawnPipe, PIPE_SPAWN_INTERVAL);
     coinTimerRef.current = setInterval(spawnCoin, COIN_SPAWN_INTERVAL);
     powerUpTimerRef.current = setInterval(spawnPowerUp, POWERUP_SPAWN_INTERVAL);
@@ -924,7 +949,7 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     }, 1000);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp]);
   
   const jump = useCallback(() => {
     if (gameState === "idle") {
@@ -1141,7 +1166,9 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
           <View style={styles.overlay}>
             <View style={styles.startCard}>
               <ThemedText style={styles.title}>Flappy Roachy</ThemedText>
-              <ThemedText style={styles.subtitle}>Tap to fly!</ThemedText>
+              <ThemedText style={styles.subtitle}>
+                {gameMode === "ranked" ? "Ranked Mode" : "Free Play"}
+              </ThemedText>
               <View style={styles.instructionRow}>
                 <Feather name="zap" size={20} color={GameColors.gold} />
                 <ThemedText style={styles.instruction}>Collect coins for points</ThemedText>
@@ -1155,6 +1182,14 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
                 <ThemedText style={styles.instruction}>Avoid the pipes!</ThemedText>
               </View>
               <ThemedText style={styles.tapPrompt}>Tap anywhere to start</ThemedText>
+              
+              <Pressable
+                style={styles.menuButton}
+                onPress={() => setShowMenu(true)}
+              >
+                <Feather name="menu" size={18} color="#fff" />
+                <ThemedText style={styles.menuButtonText}>Leaderboards & Backpack</ThemedText>
+              </Pressable>
             </View>
           </View>
         )}
@@ -1178,6 +1213,24 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
       </Pressable>
       
       <ExitButton style={[styles.exitButton, { top: insets.top + 10 }]} onPress={onExit} />
+      
+      <FlappyMenuSheet
+        visible={showMenu}
+        onClose={() => setShowMenu(false)}
+        userId={userId}
+        onPlayRanked={() => {
+          setGameMode("ranked");
+          setShowMenu(false);
+        }}
+        onPlayFree={() => {
+          setGameMode("free");
+          setShowMenu(false);
+        }}
+        onEquipPowerUp={(type) => {
+          setEquippedPowerUps((prev) => ({ ...prev, [type]: true }));
+        }}
+        equippedPowerUps={equippedPowerUps}
+      />
     </View>
   );
 }
@@ -1539,5 +1592,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 600,
+  },
+  menuButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: GameColors.surfaceLight,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  menuButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
