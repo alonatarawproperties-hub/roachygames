@@ -21,7 +21,7 @@ import {
   SolanaTrustBadge,
   EarningsTracker,
   OnboardingFlow,
-  TransactionHistory,
+  ActivityHistory,
   NFTGallery,
   WebCTABanner,
 } from "@/components/arcade";
@@ -842,7 +842,7 @@ export function ArcadeHomeScreen() {
             </View>
 
             <View style={styles.transactionSection}>
-              <TransactionHistory />
+              <ActivityHistory />
             </View>
 
             <View style={styles.webLinksSection}>
