@@ -62,8 +62,19 @@ Games are migrated from web to native React Native components:
 
 ## External Dependencies
 
-### Blockchain Integration
-- **Solana Blockchain:** The underlying blockchain for P2E mechanics and assets.
+### Blockchain Integration (LIVE - Mainnet)
+- **Network:** Solana Mainnet Beta
+- **ROACHY Token:** `BJqV6DGuHY8U8KYpBGHVV74YMjJYHdYMPfb1g7dppump` (SPL Token, 6 decimals)
+- **DIAMOND Token:** `28AUaEftPy8L9bhuFusG84RYynFwjnNCVwT2jkyTz6CA` (Token-2022, 9 decimals)
+- **Price Feed:** DexScreener API for ROACHY price and 24h change
+- **Balance Fetching:** Real on-chain balances via `@solana/web3.js`
+- **Files:**
+  - `client/lib/solana.ts` - Client-side token balance fetching
+  - `server/solana-service.ts` - Server-side balance service
+  - `shared/solana-tokens.ts` - Token mint addresses and config
+- **API Endpoints:**
+  - `GET /api/blockchain/balances/:walletAddress` - Real token balances
+  - `GET /api/blockchain/token-info` - Token metadata
 
 ### Wallet Integration
 - **Direct Deep-Link Protocol (tweetnacl encryption):**
