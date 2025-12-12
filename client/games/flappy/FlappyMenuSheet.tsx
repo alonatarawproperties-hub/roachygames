@@ -404,10 +404,7 @@ function LoadoutTab({
 
   return (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <ThemedText style={styles.sectionTitle}>Power-Ups</ThemedText>
-      <ThemedText style={styles.loadoutDesc}>
-        Equip power-ups before playing to start with an advantage!
-      </ThemedText>
+      <ThemedText style={styles.sectionTitle}>Equip for Next Game</ThemedText>
 
       {isLoading ? (
         <ActivityIndicator color={GameColors.gold} style={{ marginTop: 20 }} />
@@ -425,20 +422,13 @@ function LoadoutTab({
         </View>
       )}
 
-      <View style={styles.tipSection}>
-        <Feather name="info" size={16} color={GameColors.textSecondary} />
-        <ThemedText style={styles.tipText}>
-          Collect power-ups during gameplay or get more at the Marketplace
-        </ThemedText>
-      </View>
-
       <Pressable
         style={styles.marketplaceButton}
         onPress={() => WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`)}
       >
-        <Feather name="shopping-bag" size={18} color={GameColors.gold} />
-        <ThemedText style={styles.marketplaceButtonText}>Visit Marketplace</ThemedText>
-        <Feather name="external-link" size={14} color={GameColors.textSecondary} />
+        <Feather name="shopping-bag" size={16} color={GameColors.gold} />
+        <ThemedText style={styles.marketplaceButtonText}>Get more at Marketplace</ThemedText>
+        <Feather name="chevron-right" size={16} color={GameColors.textSecondary} />
       </Pressable>
     </ScrollView>
   );
@@ -465,38 +455,24 @@ function PowerUpCard({
   onEquip: () => void;
   isEquipping: boolean;
 }) {
-  const getStatus = () => {
-    if (equipped) return { label: "Equipped", color: GameColors.gold, icon: "check-circle" as const };
-    if (count > 0) return { label: "Available", color: "#4ade80", icon: "circle" as const };
-    return { label: "Get More", color: GameColors.textSecondary, icon: "shopping-bag" as const };
-  };
-  
-  const status = getStatus();
-  
   return (
-    <View style={[styles.powerUpCard, { borderColor: equipped ? GameColors.gold : color }]}>
-      <View style={styles.statusBadge}>
-        <Feather name={status.icon} size={12} color={status.color} />
-        <ThemedText style={[styles.statusText, { color: status.color }]}>{status.label}</ThemedText>
-      </View>
-      
+    <View style={[styles.powerUpCard, { borderLeftColor: equipped ? GameColors.gold : color }]}>
       <View style={[styles.powerUpIconContainer, { backgroundColor: color }]}>
         {icon ? (
-          <Feather name={icon as any} size={24} color="#fff" />
+          <Feather name={icon as any} size={20} color="#fff" />
         ) : type === "double" ? (
           <ThemedText style={styles.powerUpDoubleText}>2x</ThemedText>
         ) : (
-          <View style={styles.magnetIconSmall}>
-            <View style={styles.magnetArcSmall} />
-          </View>
+          <Feather name="target" size={20} color="#fff" />
         )}
       </View>
       
-      <ThemedText style={styles.powerUpName}>{name}</ThemedText>
-      <ThemedText style={styles.powerUpDesc}>{description}</ThemedText>
-      
-      <View style={styles.powerUpCountRow}>
-        <ThemedText style={styles.powerUpCount}>Owned: {count}</ThemedText>
+      <View style={styles.powerUpInfo}>
+        <View style={styles.powerUpHeader}>
+          <ThemedText style={styles.powerUpName}>{name}</ThemedText>
+          <ThemedText style={styles.powerUpCount}>{count}</ThemedText>
+        </View>
+        <ThemedText style={styles.powerUpDesc} numberOfLines={1}>{description}</ThemedText>
       </View>
 
       <Pressable
@@ -510,10 +486,12 @@ function PowerUpCard({
       >
         {isEquipping ? (
           <ActivityIndicator size="small" color="#fff" />
+        ) : equipped ? (
+          <Feather name="check" size={16} color={GameColors.gold} />
+        ) : count === 0 ? (
+          <Feather name="shopping-bag" size={16} color={GameColors.textSecondary} />
         ) : (
-          <ThemedText style={[styles.equipButtonText, equipped && { color: GameColors.gold }]}>
-            {equipped ? "Equipped" : count === 0 ? "Get More" : "Equip"}
-          </ThemedText>
+          <Feather name="plus" size={16} color="#000" />
         )}
       </Pressable>
     </View>
@@ -712,88 +690,63 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.lg,
   },
-  loadoutDesc: {
-    fontSize: 14,
-    color: GameColors.textSecondary,
-    marginBottom: Spacing.lg,
-  },
   powerUpGrid: {
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   powerUpCard: {
-    backgroundColor: GameColors.surface,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-    alignItems: "center",
-    position: "relative",
-  },
-  statusBadge: {
-    position: "absolute",
-    top: Spacing.sm,
-    right: Spacing.sm,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "600",
+    backgroundColor: GameColors.surface,
+    padding: Spacing.sm,
+    paddingLeft: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderLeftWidth: 3,
+    gap: Spacing.sm,
   },
   powerUpIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.sm,
   },
   powerUpDoubleText: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: "900",
     color: "#fff",
   },
-  magnetIconSmall: {
-    width: 24,
-    height: 24,
-    alignItems: "center",
+  powerUpInfo: {
+    flex: 1,
   },
-  magnetArcSmall: {
-    width: 20,
-    height: 10,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+  powerUpHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
   },
   powerUpName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: GameColors.text,
-    marginBottom: 4,
-  },
-  powerUpDesc: {
-    fontSize: 12,
-    color: GameColors.textSecondary,
-    textAlign: "center",
-    marginBottom: Spacing.sm,
-  },
-  powerUpCountRow: {
-    marginBottom: Spacing.sm,
   },
   powerUpCount: {
-    fontSize: 14,
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    backgroundColor: GameColors.surfaceLight,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  powerUpDesc: {
+    fontSize: 11,
     color: GameColors.textSecondary,
   },
   equipButton: {
     backgroundColor: GameColors.gold,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.md,
-    minWidth: 100,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
     alignItems: "center",
   },
   equippedButton: {
@@ -803,43 +756,21 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: GameColors.surfaceLight,
-    opacity: 0.5,
-  },
-  equipButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#000",
-  },
-  tipSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    backgroundColor: GameColors.surface,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 13,
-    color: GameColors.textSecondary,
+    opacity: 0.6,
   },
   marketplaceButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: Spacing.sm,
     backgroundColor: GameColors.surface,
-    borderWidth: 1,
-    borderColor: GameColors.gold,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
   },
   marketplaceButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
+    flex: 1,
+    fontSize: 13,
     color: GameColors.gold,
   },
 });
