@@ -179,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Google sign-in not configured" };
       }
 
-      const reversedClientId = clientId.split(".").slice(0, -2).reverse().join(".");
+      const reversedClientId = clientId.split(".").reverse().join(".");
       const redirectUri = Platform.select({
         ios: `${reversedClientId}:/oauthredirect`,
         android: `${reversedClientId}:/oauthredirect`,
