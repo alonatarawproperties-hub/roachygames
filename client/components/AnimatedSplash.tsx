@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Dimensions, Platform } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,17 +16,80 @@ import { GameColors } from "@/constants/theme";
 
 const { width, height } = Dimensions.get("window");
 
+const MAIN_APP_ASSETS = [
+  require("../../assets/images/roachy-logo.png"),
+  require("../../assets/images/icon.png"),
+  require("../../assets/images/roachies/nightstalker.png"),
+  require("../../assets/images/roachies/cosmicking.png"),
+  require("../../assets/images/roachies/warlord.png"),
+  require("../../assets/images/roachies/vikingbug.png"),
+  require("../../assets/images/roachies/sparkroach.png"),
+  require("../../assets/images/roachies/shadowblade.png"),
+  require("../../assets/images/roachies/scuttler.png"),
+  require("../../assets/images/roachies/royalmage.png"),
+  require("../../assets/images/roachies/leafwing.png"),
+  require("../../assets/images/roachies/ironshell.png"),
+  require("../../assets/images/roachies/frostmage.png"),
+  require("../../assets/images/roachies/aviator.png"),
+];
+
+const FLAPPY_SPRITES = [
+  require("@assets/Untitled_design_1765503061373.png"),
+  require("@assets/Untitled_design_-_8_1765505842312.png"),
+  require("@assets/Untitled_design_-_7_1765505842312.png"),
+  require("@assets/Untitled_design_1765504788923.png"),
+];
+
+const ALL_ASSETS = [...MAIN_APP_ASSETS, ...FLAPPY_SPRITES];
+
 interface AnimatedSplashProps {
   onAnimationComplete: () => void;
 }
 
 export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashProps) {
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [animationComplete, setAnimationComplete] = useState(false);
+  
   const logoScale = useSharedValue(0.5);
   const logoOpacity = useSharedValue(0);
   const titleOpacity = useSharedValue(0);
   const titleTranslateY = useSharedValue(30);
   const glowOpacity = useSharedValue(0);
   const particleProgress = useSharedValue(0);
+  const progressBarWidth = useSharedValue(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function preloadAssets() {
+      const total = ALL_ASSETS.length;
+      let loaded = 0;
+      
+      for (const asset of ALL_ASSETS) {
+        try {
+          await Image.prefetch(asset);
+        } catch (e) {
+        }
+        loaded++;
+        if (isMounted) {
+          const progress = (loaded / total) * 100;
+          setLoadProgress(progress);
+          progressBarWidth.value = withTiming(progress, { duration: 150 });
+        }
+      }
+      
+      if (isMounted) {
+        setAssetsLoaded(true);
+      }
+    }
+    
+    preloadAssets();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     logoOpacity.value = withTiming(1, { duration: 600 });
@@ -43,11 +106,20 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
     particleProgress.value = withTiming(1, { duration: 2000, easing: Easing.linear });
 
     const timer = setTimeout(() => {
-      onAnimationComplete();
-    }, 2500);
+      setAnimationComplete(true);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (assetsLoaded && animationComplete) {
+      const exitDelay = setTimeout(() => {
+        onAnimationComplete();
+      }, 300);
+      return () => clearTimeout(exitDelay);
+    }
+  }, [assetsLoaded, animationComplete, onAnimationComplete]);
 
   const logoAnimatedStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
@@ -85,6 +157,10 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
       { translateY: interpolate(particleProgress.value, [0, 1], [120, -180]) },
       { translateX: interpolate(particleProgress.value, [0, 1], [0, 50]) },
     ],
+  }));
+
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${progressBarWidth.value}%`,
   }));
 
   return (
@@ -126,6 +202,15 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
         <Animated.Text style={[styles.subtitle, titleAnimatedStyle]}>
           Play. Earn. Collect.
         </Animated.Text>
+        
+        <Animated.View style={[styles.progressContainer, titleAnimatedStyle]}>
+          <View style={styles.progressBar}>
+            <Animated.View style={[styles.progressFill, progressStyle]} />
+          </View>
+          <Animated.Text style={styles.progressText}>
+            {assetsLoaded ? "Ready!" : `Loading ${Math.round(loadProgress)}%`}
+          </Animated.Text>
+        </Animated.View>
       </View>
 
       <View style={styles.footer}>
@@ -195,6 +280,30 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     letterSpacing: 3,
     textTransform: "uppercase",
+    marginBottom: 32,
+  },
+  progressContainer: {
+    width: "60%",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  progressBar: {
+    width: "100%",
+    height: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: GameColors.gold,
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginTop: 8,
+    letterSpacing: 1,
   },
   footer: {
     position: "absolute",
