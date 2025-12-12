@@ -12,8 +12,9 @@ type WalletProviderType = 'phantom' | 'solflare' | 'backpack';
 
 interface WalletContextType {
   wallet: WalletState;
-  connectWallet: (provider?: WalletProviderType) => Promise<boolean>;
+  connectWallet: (provider?: WalletProviderType) => Promise<string | null>;
   disconnectWallet: () => Promise<void>;
+  signMessage: (message: string) => Promise<string | null>;
   isLoading: boolean;
   openWalletModal: () => void;
   isAppKitReady: boolean;
@@ -59,9 +60,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     console.log('[Wallet] Web wallet connection - use TestFlight app');
   };
 
-  const connectWallet = async (_provider?: WalletProviderType): Promise<boolean> => {
+  const connectWallet = async (_provider?: WalletProviderType): Promise<string | null> => {
     console.log('[Wallet] Web wallet connection - use TestFlight app');
-    return false;
+    return null;
   };
 
   const disconnectWallet = async () => {
@@ -75,12 +76,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     console.log('[Wallet] Disconnected');
   };
 
+  const signMessage = async (_message: string): Promise<string | null> => {
+    console.log('[Wallet] Web message signing - use TestFlight app');
+    return null;
+  };
+
   return (
     <WalletContext.Provider
       value={{
         wallet,
         connectWallet,
         disconnectWallet,
+        signMessage,
         isLoading,
         openWalletModal,
         isAppKitReady: false,

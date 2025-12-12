@@ -4,6 +4,8 @@ import {
   connectWallet as connectToWallet, 
   disconnectWallet as disconnectFromWallet, 
   handleWalletRedirect, 
+  handleSignRedirect,
+  signMessage as walletSignMessage,
   restoreSession, 
   isConnected as checkIsConnected,
   getCurrentWalletAddress,
@@ -21,8 +23,9 @@ interface WalletState {
 
 interface WalletContextType {
   wallet: WalletState;
-  connectWallet: (provider?: WalletProviderType) => Promise<boolean>;
+  connectWallet: (provider?: WalletProviderType) => Promise<string | null>;
   disconnectWallet: () => Promise<void>;
+  signMessage: (message: string) => Promise<string | null>;
   isLoading: boolean;
   openWalletModal: () => void;
   isAppKitReady: boolean;
@@ -78,7 +81,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const handleUrl = async ({ url }: { url: string }) => {
     console.log('[Wallet] Received URL:', url);
     
-    if (url.includes('wallet-connect') || url.includes('encryption_public_key')) {
+    if (url.includes('wallet-sign')) {
+      await handleSignRedirect(url);
+    } else if (url.includes('wallet-connect') || url.includes('encryption_public_key')) {
       const address = await handleWalletRedirect(url);
       if (address) {
         const providerName = getProviderName() || 'Wallet';
@@ -94,7 +99,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const connectWallet = useCallback(async (provider: WalletProviderType = 'phantom'): Promise<boolean> => {
+  const signMessage = useCallback(async (message: string): Promise<string | null> => {
+    if (!wallet.connected) {
+      console.error('[Wallet] Cannot sign - wallet not connected');
+      return null;
+    }
+    return walletSignMessage(message);
+  }, [wallet.connected]);
+
+  const connectWallet = useCallback(async (provider: WalletProviderType = 'phantom'): Promise<string | null> => {
     try {
       setWallet(prev => ({ ...prev, isConnecting: true }));
       const address = await connectToWallet(provider);
@@ -107,14 +120,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           provider: providerName,
           isConnecting: false,
         });
-        return true;
+        return address;
       }
       
-      return false;
+      return null;
     } catch (error) {
       console.error('[Wallet] Connect error:', error);
       setWallet(prev => ({ ...prev, isConnecting: false }));
-      return false;
+      return null;
     }
   }, []);
 
@@ -145,6 +158,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         wallet,
         connectWallet,
         disconnectWallet,
+        signMessage,
         isLoading,
         openWalletModal,
         isAppKitReady: true,

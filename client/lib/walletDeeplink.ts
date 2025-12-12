@@ -52,9 +52,15 @@ interface ConnectResponse {
   session: string;
 }
 
+interface SignMessageResponse {
+  signature: string;
+}
+
 let currentSession: WalletSession | null = null;
 let pendingConnectResolve: ((address: string | null) => void) | null = null;
 let pendingConnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let pendingSignResolve: ((signature: string | null) => void) | null = null;
+let pendingSignTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export async function initSession(): Promise<WalletSession | null> {
   try {
@@ -109,6 +115,16 @@ function decryptPayload(dataBase58: string, nonceBase58: string, sharedSecret: U
     console.error('[Wallet] Decryption error:', error);
     return null;
   }
+}
+
+function encryptPayload(payload: Record<string, unknown>, sharedSecret: Uint8Array): { nonce: string; data: string } {
+  const nonce = nacl.randomBytes(24);
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+  const encrypted = nacl.box.after(payloadBytes, nonce, sharedSecret);
+  return {
+    nonce: bs58.encode(nonce),
+    data: bs58.encode(encrypted),
+  };
 }
 
 function getConnectUrl(provider: WalletProvider, dappPublicKey: string): string {
@@ -180,6 +196,135 @@ export async function connectWallet(provider: WalletProvider): Promise<string | 
 
 export async function disconnectWallet(): Promise<void> {
   await clearSession();
+}
+
+function getSignMessageUrl(provider: WalletProvider): string {
+  const baseUrls: Record<WalletProvider, string> = {
+    phantom: 'https://phantom.app/ul/v1/signMessage',
+    solflare: 'https://solflare.com/ul/v1/signMessage',
+    backpack: 'https://backpack.app/ul/v1/signMessage',
+  };
+  return baseUrls[provider];
+}
+
+export async function signMessage(message: string): Promise<string | null> {
+  if (!currentSession?.publicKey || !currentSession?.session || !currentSession?.sharedSecret) {
+    console.error('[Wallet] No connected session for signing');
+    return null;
+  }
+
+  const sharedSecret = bs58.decode(currentSession.sharedSecret);
+  const messageBytes = new TextEncoder().encode(message);
+  const messageBase58 = bs58.encode(messageBytes);
+
+  const payload = {
+    message: messageBase58,
+    session: currentSession.session,
+    display: 'utf8' as const,
+  };
+
+  const encrypted = encryptPayload(payload, sharedSecret);
+  const redirectUri = Linking.createURL('wallet-sign');
+  
+  const params = new URLSearchParams({
+    dapp_encryption_public_key: currentSession.dappKeyPair.publicKey,
+    nonce: encrypted.nonce,
+    payload: encrypted.data,
+    redirect_link: redirectUri,
+  });
+
+  const signUrl = `${getSignMessageUrl(currentSession.provider)}?${params.toString()}`;
+
+  return new Promise((resolve) => {
+    pendingSignResolve = resolve;
+
+    if (pendingSignTimeout) {
+      clearTimeout(pendingSignTimeout);
+    }
+
+    pendingSignTimeout = setTimeout(() => {
+      if (pendingSignResolve === resolve) {
+        console.log('[Wallet] Sign message timeout');
+        pendingSignResolve = null;
+        pendingSignTimeout = null;
+        resolve(null);
+      }
+    }, 120000);
+
+    console.log('[Wallet] Opening wallet for signing');
+    Linking.openURL(signUrl).catch((error) => {
+      console.error('[Wallet] Failed to open sign URL:', error);
+      if (pendingSignTimeout) {
+        clearTimeout(pendingSignTimeout);
+        pendingSignTimeout = null;
+      }
+      pendingSignResolve = null;
+      resolve(null);
+    });
+  });
+}
+
+export async function handleSignRedirect(url: string): Promise<string | null> {
+  try {
+    console.log('[Wallet] Handling sign redirect URL:', url);
+    
+    const parsedUrl = new URL(url);
+    const params = parsedUrl.searchParams;
+    
+    const errorCode = params.get('errorCode');
+    if (errorCode) {
+      console.error('[Wallet] Sign error from wallet:', errorCode, params.get('errorMessage'));
+      if (pendingSignTimeout) {
+        clearTimeout(pendingSignTimeout);
+        pendingSignTimeout = null;
+      }
+      pendingSignResolve?.(null);
+      pendingSignResolve = null;
+      return null;
+    }
+
+    const data = params.get('data');
+    const nonce = params.get('nonce');
+
+    if (!data || !nonce || !currentSession?.sharedSecret) {
+      console.error('[Wallet] Missing required sign params');
+      return null;
+    }
+
+    const sharedSecret = bs58.decode(currentSession.sharedSecret);
+    const decrypted = decryptPayload(data, nonce, sharedSecret);
+    
+    if (!decrypted) {
+      console.error('[Wallet] Failed to decrypt sign response');
+      return null;
+    }
+
+    console.log('[Wallet] Decrypted sign response:', decrypted);
+    
+    const response = decrypted as unknown as SignMessageResponse;
+    const signature = response.signature;
+
+    if (pendingSignTimeout) {
+      clearTimeout(pendingSignTimeout);
+      pendingSignTimeout = null;
+    }
+
+    if (pendingSignResolve) {
+      pendingSignResolve(signature);
+      pendingSignResolve = null;
+    }
+
+    return signature;
+  } catch (error) {
+    console.error('[Wallet] Handle sign redirect error:', error);
+    if (pendingSignTimeout) {
+      clearTimeout(pendingSignTimeout);
+      pendingSignTimeout = null;
+    }
+    pendingSignResolve?.(null);
+    pendingSignResolve = null;
+    return null;
+  }
 }
 
 function findWalletPublicKeyParam(params: URLSearchParams): { provider: WalletProvider; publicKey: string } | null {

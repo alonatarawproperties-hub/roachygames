@@ -22,6 +22,15 @@ export interface AuthUser {
   avatarUrl: string | null;
 }
 
+interface LinkWalletResult {
+  success: boolean;
+  error?: string;
+  pendingSwitch?: boolean;
+  cooldownEndsAt?: string;
+}
+
+type SignMessageFn = (message: string) => Promise<string | null>;
+
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
@@ -31,7 +40,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   continueAsGuest: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  linkWallet: (walletAddress: string) => Promise<{ success: boolean; error?: string }>;
+  linkWallet: (walletAddress: string, signMessage: SignMessageFn) => Promise<LinkWalletResult>;
   unlinkWallet: () => Promise<{ success: boolean; error?: string }>;
   refreshUser: () => Promise<void>;
   updateBalances: (chy: number, diamonds: number) => void;
@@ -246,25 +255,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const linkWallet = useCallback(async (walletAddress: string) => {
+  const linkWallet = useCallback(async (walletAddress: string, signMessage: SignMessageFn): Promise<LinkWalletResult> => {
     if (!user) {
       return { success: false, error: "Not authenticated" };
     }
 
     try {
-      const response = await apiRequest("POST", "/api/auth/link-wallet", {
+      const checkResponse = await apiRequest("POST", "/api/auth/check-wallet-switch", {
         userId: user.id,
-        walletAddress,
+        newWalletAddress: walletAddress,
       });
 
-      const data = await response.json();
+      const checkData = await checkResponse.json();
 
-      if (!response.ok) {
-        return { success: false, error: data.error || "Failed to link wallet" };
+      if (!checkResponse.ok) {
+        return { success: false, error: checkData.error || "Failed to verify wallet" };
       }
 
-      setUser(data.user);
-      await secureStoreSet(USER_DATA_KEY, JSON.stringify(data.user));
+      if (checkData.hasPendingSwitch) {
+        return { 
+          success: false, 
+          error: checkData.message || "A wallet switch is already in progress",
+          pendingSwitch: true,
+          cooldownEndsAt: checkData.cooldownEndsAt,
+        };
+      }
+
+      const signature = await signMessage(checkData.messageToSign);
+      if (!signature) {
+        return { success: false, error: "Signature cancelled or failed" };
+      }
+
+      const linkResponse = await apiRequest("POST", "/api/auth/link-wallet", {
+        userId: user.id,
+        walletAddress,
+        signature,
+        timestamp: checkData.timestamp,
+      });
+
+      const linkData = await linkResponse.json();
+
+      if (!linkResponse.ok) {
+        return { success: false, error: linkData.error || "Failed to link wallet" };
+      }
+
+      if (linkData.pendingSwitch) {
+        return {
+          success: true,
+          pendingSwitch: true,
+          cooldownEndsAt: linkData.cooldownEndsAt,
+        };
+      }
+
+      setUser(linkData.user);
+      await secureStoreSet(USER_DATA_KEY, JSON.stringify(linkData.user));
       return { success: true };
     } catch (error: any) {
       console.error("[Auth] Link wallet error:", error);

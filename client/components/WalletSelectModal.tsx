@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   Modal,
   Pressable,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/ThemedText';
+import { WalletSwitchWarning } from '@/components/WalletSwitchWarning';
 import { GameColors, Spacing, BorderRadius } from '@/constants/theme';
 import { useWallet, WALLET_PROVIDERS } from '@/context/WalletContext';
+import { useAuth } from '@/context/AuthContext';
 
 type WalletProviderType = 'phantom' | 'solflare' | 'backpack';
 
@@ -29,19 +32,119 @@ interface WalletSelectModalProps {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) {
-  const { connectWallet, wallet } = useWallet();
+  const { connectWallet, wallet, signMessage } = useWallet();
+  const { user, linkWallet } = useAuth();
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const [showSwitchWarning, setShowSwitchWarning] = useState(false);
+  const [pendingConnection, setPendingConnection] = useState<{
+    providerId: string;
+    newAddress: string;
+  } | null>(null);
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
+  const prevWalletAddressRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const processWalletLink = async (newAddress: string) => {
+      if (user?.walletAddress && user.walletAddress !== newAddress) {
+        setPendingConnection({ providerId: wallet.provider || 'phantom', newAddress });
+        setShowSwitchWarning(true);
+        setConnectingProvider(null);
+        setPendingLink(null);
+        return;
+      }
+      
+      if (user) {
+        const result = await linkWallet(newAddress, signMessage);
+        if (!result.success) {
+          Alert.alert('Wallet Link Failed', result.error || 'Could not link wallet to your account');
+        } else if (result.pendingSwitch) {
+          Alert.alert(
+            'Wallet Switch Initiated',
+            `Your wallet switch is pending. It will complete after the 24-hour security cooldown.`
+          );
+        }
+      }
+      
+      setConnectingProvider(null);
+      setPendingLink(null);
+      onClose();
+    };
+
+    if (wallet.connected && wallet.address && pendingLink && wallet.address !== prevWalletAddressRef.current) {
+      prevWalletAddressRef.current = wallet.address;
+      processWalletLink(wallet.address);
+    }
+  }, [wallet.connected, wallet.address, wallet.provider, pendingLink, user, linkWallet, signMessage, onClose]);
 
   const handleConnectWallet = async (providerId: string) => {
     setConnectingProvider(providerId);
+    setPendingLink(providerId);
+    prevWalletAddressRef.current = wallet.address;
+    
     try {
-      const success = await connectWallet(providerId as 'phantom' | 'solflare' | 'backpack');
-      if (success) {
+      const newAddress = await connectWallet(providerId as 'phantom' | 'solflare' | 'backpack');
+      
+      if (newAddress) {
+        if (user?.walletAddress && user.walletAddress !== newAddress) {
+          setPendingConnection({ providerId, newAddress });
+          setShowSwitchWarning(true);
+          setConnectingProvider(null);
+          setPendingLink(null);
+          return;
+        }
+        
+        if (user) {
+          const result = await linkWallet(newAddress, signMessage);
+          if (!result.success) {
+            Alert.alert('Wallet Link Failed', result.error || 'Could not link wallet to your account');
+          } else if (result.pendingSwitch) {
+            Alert.alert(
+              'Wallet Switch Initiated',
+              `Your wallet switch is pending. It will complete after the 24-hour security cooldown.`
+            );
+          }
+        }
+        
+        setConnectingProvider(null);
+        setPendingLink(null);
         onClose();
       }
-    } finally {
+    } catch (error) {
+      console.error('[WalletSelectModal] Connect error:', error);
       setConnectingProvider(null);
     }
+  };
+
+  const handleConfirmSwitch = async () => {
+    if (!pendingConnection || !user) return;
+    
+    setShowSwitchWarning(false);
+    
+    const result = await linkWallet(pendingConnection.newAddress, signMessage);
+    if (result.success && !result.pendingSwitch) {
+      onClose();
+    } else if (result.pendingSwitch) {
+      Alert.alert(
+        'Wallet Switch Initiated', 
+        `Your wallet switch is pending. It will complete after the 24-hour security cooldown.`
+      );
+      onClose();
+    } else {
+      Alert.alert('Wallet Switch Failed', result.error || 'Could not switch wallets');
+    }
+    
+    setPendingConnection(null);
+  };
+
+  const handleCancelSwitch = () => {
+    setShowSwitchWarning(false);
+    setPendingConnection(null);
+  };
+
+  const handleClose = () => {
+    setConnectingProvider(null);
+    setPendingLink(null);
+    onClose();
   };
 
   const getIconColor = (providerId: string) => {
@@ -62,9 +165,9 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <Pressable style={styles.overlay} onPress={handleClose}>
         <Animated.View 
           entering={FadeInDown.springify()}
           style={styles.content}
@@ -74,7 +177,7 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
               <ThemedText type="h4" style={styles.title}>
                 Connect Wallet
               </ThemedText>
-              <Pressable onPress={onClose} style={styles.closeButton}>
+              <Pressable onPress={handleClose} style={styles.closeButton}>
                 <Feather name="x" size={24} color={GameColors.textSecondary} />
               </Pressable>
             </View>
@@ -135,6 +238,18 @@ export function WalletSelectModal({ visible, onClose }: WalletSelectModalProps) 
           </Pressable>
         </Animated.View>
       </Pressable>
+
+      {pendingConnection && user?.walletAddress ? (
+        <WalletSwitchWarning
+          visible={showSwitchWarning}
+          onClose={handleCancelSwitch}
+          onConfirm={handleConfirmSwitch}
+          currentWallet={user.walletAddress}
+          newWallet={pendingConnection.newAddress}
+          cooldownHours={24}
+          isLoading={false}
+        />
+      ) : null}
     </Modal>
   );
 }

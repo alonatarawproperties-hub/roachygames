@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 import { db } from "./db";
-import { users, registerUserSchema, loginUserSchema } from "../shared/schema";
-import { eq } from "drizzle-orm";
+import { users, registerUserSchema, loginUserSchema, walletLinkHistory } from "../shared/schema";
+import { eq, and, desc, gt } from "drizzle-orm";
 
 const router = Router();
 
@@ -272,12 +274,115 @@ router.post("/google", async (req: Request, res: Response) => {
   }
 });
 
+const WALLET_SWITCH_COOLDOWN_HOURS = 24;
+
+function verifySolanaSignature(message: string, signature: string, publicKey: string): boolean {
+  try {
+    const messageBytes = new TextEncoder().encode(message);
+    const signatureBytes = bs58.decode(signature);
+    const publicKeyBytes = bs58.decode(publicKey);
+    
+    return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+  } catch (error) {
+    console.error("[Auth] Signature verification error:", error);
+    return false;
+  }
+}
+
+function getWalletLinkMessage(walletAddress: string, userId: string, timestamp: number): string {
+  return `Link wallet ${walletAddress} to Roachy Games account.\n\nUser ID: ${userId}\nTimestamp: ${timestamp}\n\nThis signature proves you own this wallet.`;
+}
+
+router.post("/check-wallet-switch", async (req: Request, res: Response) => {
+  try {
+    const { userId, newWalletAddress } = req.body;
+
+    if (!userId || !newWalletAddress) {
+      return res.status(400).json({ error: "User ID and wallet address are required" });
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const [existingWallet] = await db.select().from(users)
+      .where(eq(users.walletAddress, newWalletAddress)).limit(1);
+    
+    if (existingWallet && existingWallet.id !== userId) {
+      return res.status(409).json({ 
+        error: "This wallet is already linked to another account",
+        isBlocked: true,
+      });
+    }
+
+    const isSwitch = !!user.walletAddress && user.walletAddress !== newWalletAddress;
+
+    if (isSwitch) {
+      const [pendingSwitch] = await db.select().from(walletLinkHistory)
+        .where(and(
+          eq(walletLinkHistory.userId, userId),
+          eq(walletLinkHistory.status, "pending"),
+          gt(walletLinkHistory.cooldownEndsAt, new Date())
+        ))
+        .orderBy(desc(walletLinkHistory.createdAt))
+        .limit(1);
+
+      if (pendingSwitch) {
+        return res.json({
+          requiresCooldown: true,
+          cooldownEndsAt: pendingSwitch.cooldownEndsAt,
+          pendingWallet: pendingSwitch.newWallet,
+          message: "A wallet switch is already in progress",
+        });
+      }
+    }
+
+    const timestamp = Date.now();
+    const messageToSign = getWalletLinkMessage(newWalletAddress, userId, timestamp);
+
+    return res.json({
+      isSwitch,
+      currentWallet: user.walletAddress,
+      newWallet: newWalletAddress,
+      requiresSignature: true,
+      messageToSign,
+      timestamp,
+      cooldownHours: isSwitch ? WALLET_SWITCH_COOLDOWN_HOURS : 0,
+    });
+  } catch (error) {
+    console.error("[Auth] Check wallet switch error:", error);
+    return res.status(500).json({ error: "Failed to check wallet switch" });
+  }
+});
+
 router.post("/link-wallet", async (req: Request, res: Response) => {
   try {
-    const { userId, walletAddress } = req.body;
+    const { userId, walletAddress, signature, timestamp } = req.body;
 
     if (!userId || !walletAddress) {
       return res.status(400).json({ error: "User ID and wallet address are required" });
+    }
+
+    if (!signature || !timestamp) {
+      return res.status(400).json({ error: "Signature verification is required to link a wallet" });
+    }
+
+    const messageToSign = getWalletLinkMessage(walletAddress, userId, timestamp);
+    const isValidSignature = verifySolanaSignature(messageToSign, signature, walletAddress);
+
+    if (!isValidSignature) {
+      return res.status(401).json({ error: "Invalid signature. Please try again." });
+    }
+
+    const signatureAge = Date.now() - timestamp;
+    if (signatureAge > 5 * 60 * 1000) {
+      return res.status(401).json({ error: "Signature expired. Please try again." });
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
 
     const [existingWallet] = await db.select().from(users)
@@ -289,14 +394,64 @@ router.post("/link-wallet", async (req: Request, res: Response) => {
       });
     }
 
+    const isSwitch = !!user.walletAddress && user.walletAddress !== walletAddress;
+    const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    const userAgent = req.headers["user-agent"] || "unknown";
+
+    if (isSwitch) {
+      const cooldownEndsAt = new Date(Date.now() + WALLET_SWITCH_COOLDOWN_HOURS * 60 * 60 * 1000);
+      
+      await db.insert(walletLinkHistory).values({
+        userId,
+        previousWallet: user.walletAddress,
+        newWallet: walletAddress,
+        action: "switch",
+        signatureVerified: true,
+        ipAddress,
+        userAgent,
+        cooldownEndsAt,
+        status: "pending",
+      });
+
+      console.log(`[Auth] Wallet switch initiated for user ${userId}: ${user.walletAddress?.slice(0, 8)}... -> ${walletAddress.slice(0, 8)}... (cooldown ends: ${cooldownEndsAt.toISOString()})`);
+
+      return res.json({
+        success: true,
+        pendingSwitch: true,
+        cooldownEndsAt,
+        message: `Wallet switch will complete in ${WALLET_SWITCH_COOLDOWN_HOURS} hours`,
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          googleId: user.googleId,
+          authProvider: user.authProvider,
+          chyBalance: user.chyBalance,
+          diamondBalance: user.diamondBalance,
+          walletAddress: user.walletAddress,
+          avatarUrl: user.avatarUrl,
+        },
+      });
+    }
+
+    await db.insert(walletLinkHistory).values({
+      userId,
+      previousWallet: null,
+      newWallet: walletAddress,
+      action: "link",
+      signatureVerified: true,
+      ipAddress,
+      userAgent,
+      cooldownEndsAt: null,
+      status: "completed",
+    });
+
     const [updatedUser] = await db.update(users)
       .set({ walletAddress, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    console.log(`[Auth] Wallet linked for user ${userId}: ${walletAddress.slice(0, 8)}...`);
 
     return res.json({
       success: true,
@@ -315,6 +470,101 @@ router.post("/link-wallet", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[Auth] Link wallet error:", error);
     return res.status(500).json({ error: "Failed to link wallet" });
+  }
+});
+
+router.post("/complete-wallet-switch", async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const [pendingSwitch] = await db.select().from(walletLinkHistory)
+      .where(and(
+        eq(walletLinkHistory.userId, userId),
+        eq(walletLinkHistory.status, "pending")
+      ))
+      .orderBy(desc(walletLinkHistory.createdAt))
+      .limit(1);
+
+    if (!pendingSwitch) {
+      return res.status(404).json({ error: "No pending wallet switch found" });
+    }
+
+    if (pendingSwitch.cooldownEndsAt && pendingSwitch.cooldownEndsAt > new Date()) {
+      return res.status(400).json({ 
+        error: "Cooldown period not complete",
+        cooldownEndsAt: pendingSwitch.cooldownEndsAt,
+      });
+    }
+
+    await db.update(walletLinkHistory)
+      .set({ status: "completed" })
+      .where(eq(walletLinkHistory.id, pendingSwitch.id));
+
+    const [updatedUser] = await db.update(users)
+      .set({ walletAddress: pendingSwitch.newWallet, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log(`[Auth] Wallet switch completed for user ${userId}: ${pendingSwitch.previousWallet?.slice(0, 8)}... -> ${pendingSwitch.newWallet.slice(0, 8)}...`);
+
+    return res.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        displayName: updatedUser.displayName,
+        googleId: updatedUser.googleId,
+        authProvider: updatedUser.authProvider,
+        chyBalance: updatedUser.chyBalance,
+        diamondBalance: updatedUser.diamondBalance,
+        walletAddress: updatedUser.walletAddress,
+        avatarUrl: updatedUser.avatarUrl,
+      },
+    });
+  } catch (error) {
+    console.error("[Auth] Complete wallet switch error:", error);
+    return res.status(500).json({ error: "Failed to complete wallet switch" });
+  }
+});
+
+router.post("/cancel-wallet-switch", async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const [pendingSwitch] = await db.select().from(walletLinkHistory)
+      .where(and(
+        eq(walletLinkHistory.userId, userId),
+        eq(walletLinkHistory.status, "pending")
+      ))
+      .orderBy(desc(walletLinkHistory.createdAt))
+      .limit(1);
+
+    if (!pendingSwitch) {
+      return res.status(404).json({ error: "No pending wallet switch found" });
+    }
+
+    await db.update(walletLinkHistory)
+      .set({ status: "cancelled" })
+      .where(eq(walletLinkHistory.id, pendingSwitch.id));
+
+    console.log(`[Auth] Wallet switch cancelled for user ${userId}`);
+
+    return res.json({ success: true, message: "Wallet switch cancelled" });
+  } catch (error) {
+    console.error("[Auth] Cancel wallet switch error:", error);
+    return res.status(500).json({ error: "Failed to cancel wallet switch" });
   }
 });
 
@@ -365,14 +615,36 @@ router.post("/unlink-wallet", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "User ID is required" });
     }
 
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!user.walletAddress) {
+      return res.status(400).json({ error: "No wallet linked to this account" });
+    }
+
+    const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    const userAgent = req.headers["user-agent"] || "unknown";
+
+    await db.insert(walletLinkHistory).values({
+      userId,
+      previousWallet: user.walletAddress,
+      newWallet: user.walletAddress,
+      action: "unlink",
+      signatureVerified: false,
+      ipAddress,
+      userAgent,
+      cooldownEndsAt: null,
+      status: "completed",
+    });
+
     const [updatedUser] = await db.update(users)
       .set({ walletAddress: null, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    console.log(`[Auth] Wallet unlinked for user ${userId}: ${user.walletAddress.slice(0, 8)}...`);
 
     return res.json({
       success: true,
