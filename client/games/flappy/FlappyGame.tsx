@@ -61,6 +61,123 @@ function ExitButton({ style, onPress }: { style?: any; onPress?: () => void }) {
   );
 }
 
+function PowerUpIndicator({ 
+  type, 
+  timeLeft, 
+  isActive 
+}: { 
+  type: "shield" | "double" | "magnet"; 
+  timeLeft: number; 
+  isActive: boolean;
+}) {
+  const pulseScale = useSharedValue(1);
+  const isExpiring = timeLeft <= 2 && timeLeft > 0;
+  
+  useEffect(() => {
+    if (isExpiring) {
+      pulseScale.value = withRepeat(
+        withTiming(1.2, { duration: 300, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(pulseScale);
+      pulseScale.value = withTiming(1, { duration: 150 });
+    }
+  }, [isExpiring, pulseScale]);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+  
+  if (!isActive) return null;
+  
+  const config = {
+    shield: { bg: "#3B82F6", border: "#1D4ED8", icon: "shield" as const },
+    double: { bg: "#F59E0B", border: "#B45309", icon: null },
+    magnet: { bg: "#EF4444", border: "#B91C1C", icon: null },
+  }[type];
+  
+  return (
+    <Animated.View 
+      style={[
+        powerUpIndicatorStyles.container, 
+        { backgroundColor: config.bg, borderColor: config.border },
+        isExpiring && powerUpIndicatorStyles.expiring,
+        animatedStyle,
+      ]}
+    >
+      <View style={powerUpIndicatorStyles.iconContainer}>
+        {type === "shield" ? (
+          <Feather name="shield" size={16} color="#fff" />
+        ) : type === "double" ? (
+          <ThemedText style={powerUpIndicatorStyles.doubleText}>2x</ThemedText>
+        ) : (
+          <View style={powerUpIndicatorStyles.magnetIcon}>
+            <View style={powerUpIndicatorStyles.magnetTop} />
+            <View style={powerUpIndicatorStyles.magnetBottom} />
+          </View>
+        )}
+      </View>
+      <ThemedText style={powerUpIndicatorStyles.timeText}>{timeLeft}s</ThemedText>
+    </Animated.View>
+  );
+}
+
+const powerUpIndicatorStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 2,
+    marginRight: 8,
+    marginBottom: 6,
+  },
+  expiring: {
+    shadowColor: "#fff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+  },
+  iconContainer: {
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 4,
+  },
+  doubleText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#fff",
+  },
+  magnetIcon: {
+    width: 14,
+    height: 16,
+    justifyContent: "space-between",
+  },
+  magnetTop: {
+    width: 14,
+    height: 6,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+  },
+  magnetBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: 14,
+    height: 8,
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+  },
+});
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const ROACHY_SPRITE_1 = require("@assets/Untitled_design_-_8_1765523477322.png");
@@ -245,7 +362,15 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const [shieldActive, setShieldActive] = useState(false);
   const [doublePointsActive, setDoublePointsActive] = useState(false);
   const [magnetActive, setMagnetActive] = useState(false);
+  const [shieldTimeLeft, setShieldTimeLeft] = useState(0);
+  const [doubleTimeLeft, setDoubleTimeLeft] = useState(0);
+  const [magnetTimeLeft, setMagnetTimeLeft] = useState(0);
   const [wingFrame, setWingFrame] = useState(0);
+  
+  const shieldEndTimeRef = useRef<number>(0);
+  const doubleEndTimeRef = useRef<number>(0);
+  const magnetEndTimeRef = useRef<number>(0);
+  const powerUpCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const ROACHY_FRAMES = [
     ROACHY_SPRITE_1,
@@ -381,6 +506,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
       clearInterval(cloudTimerRef.current);
       cloudTimerRef.current = null;
     }
+    if (powerUpCountdownRef.current) {
+      clearInterval(powerUpCountdownRef.current);
+      powerUpCountdownRef.current = null;
+    }
     cancelAnimation(groundOffset);
   }, [groundOffset]);
   
@@ -390,9 +519,15 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     shieldRef.current = false;
     doublePointsRef.current = false;
     magnetRef.current = false;
+    shieldEndTimeRef.current = 0;
+    doubleEndTimeRef.current = 0;
+    magnetEndTimeRef.current = 0;
     setShieldActive(false);
     setDoublePointsActive(false);
     setMagnetActive(false);
+    setShieldTimeLeft(0);
+    setDoubleTimeLeft(0);
+    setMagnetTimeLeft(0);
   }, [clearAllTimers]);
   
   const showGameOverScreen = useCallback(() => {
@@ -554,37 +689,51 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
   const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
     if (gameStateRef.current !== "playing") return;
     
+    const now = Date.now();
+    
     switch (type) {
       case "shield":
         if (shieldTimerRef.current) clearTimeout(shieldTimerRef.current);
         shieldRef.current = true;
+        shieldEndTimeRef.current = now + 5000;
         setShieldActive(true);
+        setShieldTimeLeft(5);
         shieldTimerRef.current = setTimeout(() => {
           if (gameStateRef.current === "playing") {
             shieldRef.current = false;
+            shieldEndTimeRef.current = 0;
             setShieldActive(false);
+            setShieldTimeLeft(0);
           }
         }, 5000);
         break;
       case "double":
         if (doubleTimerRef.current) clearTimeout(doubleTimerRef.current);
         doublePointsRef.current = true;
+        doubleEndTimeRef.current = now + 10000;
         setDoublePointsActive(true);
+        setDoubleTimeLeft(10);
         doubleTimerRef.current = setTimeout(() => {
           if (gameStateRef.current === "playing") {
             doublePointsRef.current = false;
+            doubleEndTimeRef.current = 0;
             setDoublePointsActive(false);
+            setDoubleTimeLeft(0);
           }
         }, 10000);
         break;
       case "magnet":
         if (magnetTimerRef.current) clearTimeout(magnetTimerRef.current);
         magnetRef.current = true;
+        magnetEndTimeRef.current = now + 8000;
         setMagnetActive(true);
+        setMagnetTimeLeft(8);
         magnetTimerRef.current = setTimeout(() => {
           if (gameStateRef.current === "playing") {
             magnetRef.current = false;
+            magnetEndTimeRef.current = 0;
             setMagnetActive(false);
+            setMagnetTimeLeft(0);
           }
         }, 8000);
         break;
@@ -837,6 +986,38 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
     };
   }, [gameState]);
   
+  useEffect(() => {
+    if (gameState === "playing") {
+      powerUpCountdownRef.current = setInterval(() => {
+        const now = Date.now();
+        if (shieldEndTimeRef.current > 0) {
+          const remaining = Math.max(0, Math.ceil((shieldEndTimeRef.current - now) / 1000));
+          setShieldTimeLeft(remaining);
+        }
+        if (doubleEndTimeRef.current > 0) {
+          const remaining = Math.max(0, Math.ceil((doubleEndTimeRef.current - now) / 1000));
+          setDoubleTimeLeft(remaining);
+        }
+        if (magnetEndTimeRef.current > 0) {
+          const remaining = Math.max(0, Math.ceil((magnetEndTimeRef.current - now) / 1000));
+          setMagnetTimeLeft(remaining);
+        }
+      }, 100);
+    } else {
+      if (powerUpCountdownRef.current) {
+        clearInterval(powerUpCountdownRef.current);
+        powerUpCountdownRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (powerUpCountdownRef.current) {
+        clearInterval(powerUpCountdownRef.current);
+        powerUpCountdownRef.current = null;
+      }
+    };
+  }, [gameState]);
+  
   const birdStyle = useAnimatedStyle(() => ({
     transform: [
       { translateY: birdY.value - BIRD_SIZE / 2 },
@@ -926,11 +1107,19 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
               { left: pu.x - POWERUP_SIZE / 2, top: pu.y - POWERUP_SIZE / 2 },
             ]}
           >
-            <Feather
-              name={pu.type === "shield" ? "shield" : pu.type === "double" ? "x" : "disc"}
-              size={20}
-              color="#fff"
-            />
+            {pu.type === "shield" ? (
+              <Feather name="shield" size={20} color="#fff" />
+            ) : pu.type === "double" ? (
+              <ThemedText style={styles.powerUpDoubleText}>2x</ThemedText>
+            ) : (
+              <View style={styles.magnetIconCollectible}>
+                <View style={styles.magnetArc} />
+                <View style={styles.magnetLegs}>
+                  <View style={styles.magnetLegLeft} />
+                  <View style={styles.magnetLegRight} />
+                </View>
+              </View>
+            )}
           </View>
         ))}
         
@@ -957,22 +1146,10 @@ export function FlappyGame({ onExit, onScoreSubmit }: FlappyGameProps) {
         </View>
         
         {(shieldActive || doublePointsActive || magnetActive) && (
-          <View style={[styles.powerUpIndicators, { top: insets.top + 70 }]}>
-            {shieldActive && (
-              <View style={[styles.indicator, styles.indicatorShield]}>
-                <Feather name="shield" size={14} color="#fff" />
-              </View>
-            )}
-            {doublePointsActive && (
-              <View style={[styles.indicator, styles.indicatorDouble]}>
-                <ThemedText style={styles.indicatorText}>x2</ThemedText>
-              </View>
-            )}
-            {magnetActive && (
-              <View style={[styles.indicator, styles.indicatorMagnet]}>
-                <Feather name="disc" size={14} color="#fff" />
-              </View>
-            )}
+          <View style={[styles.powerUpIndicators, { top: insets.top + 80 }]}>
+            <PowerUpIndicator type="shield" timeLeft={shieldTimeLeft} isActive={shieldActive} />
+            <PowerUpIndicator type="double" timeLeft={doubleTimeLeft} isActive={doublePointsActive} />
+            <PowerUpIndicator type="magnet" timeLeft={magnetTimeLeft} isActive={magnetActive} />
           </View>
         )}
         
@@ -1138,6 +1315,42 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     borderColor: "#B91C1C",
   },
+  powerUpDoubleText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#fff",
+  },
+  magnetIconCollectible: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+  },
+  magnetArc: {
+    width: 18,
+    height: 9,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+  },
+  magnetLegs: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: 18,
+  },
+  magnetLegLeft: {
+    width: 6,
+    height: 10,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+  magnetLegRight: {
+    width: 6,
+    height: 10,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  },
   cloud: {
     position: "absolute",
     flexDirection: "row",
@@ -1223,11 +1436,9 @@ const styles = StyleSheet.create({
   },
   powerUpIndicators: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
+    left: 16,
+    flexDirection: "column",
+    alignItems: "flex-start",
     zIndex: 300,
   },
   indicator: {
