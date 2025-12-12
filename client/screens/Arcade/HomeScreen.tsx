@@ -864,7 +864,7 @@ export function ArcadeHomeScreen() {
               <View style={styles.webLinksRow}>
                 <Pressable 
                   style={styles.webLinkItem}
-                  onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/swap")}
+                  onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/roachyswap")}
                 >
                   <Feather name="repeat" size={18} color={GameColors.textSecondary} />
                   <ThemedText style={styles.webLinkText}>Roachy Swap</ThemedText>
