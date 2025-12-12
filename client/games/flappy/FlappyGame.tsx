@@ -527,6 +527,30 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     setMagnetTimeLeft(0);
   }, [clearAllTimers]);
   
+  const resetToIdle = useCallback(() => {
+    clearAllTimers();
+    
+    pipesRef.current = [];
+    coinsRef.current = [];
+    powerUpsRef.current = [];
+    scoreRef.current = 0;
+    
+    setPipes([]);
+    setCoins([]);
+    setPowerUps([]);
+    setScore(0);
+    setShieldActive(false);
+    setDoublePointsActive(false);
+    setMagnetActive(false);
+    
+    birdY.value = playableHeightRef.current / 2;
+    birdVelocity.current = 0;
+    birdRotation.value = 0;
+    
+    gameStateRef.current = "idle";
+    setGameState("idle");
+  }, [clearAllTimers, birdY, birdRotation]);
+  
   const showGameOverScreen = useCallback(() => {
     gameStateRef.current = "gameover";
     setGameState("gameover");
@@ -539,10 +563,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     if (onScoreSubmit && finalScore > 0) {
       onScoreSubmit(finalScore, gameMode === "ranked");
     }
-    
-    setTimeout(() => {
-      setShowMenu(true);
-    }, 1500);
   }, [highScore, onScoreSubmit, gameMode]);
   
   const deathLoop = useCallback(() => {
@@ -979,12 +999,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
       birdRotation.value = withTiming(-20, { duration: 100 });
       playSound("jump");
     } else if (gameState === "gameover") {
-      startGame();
-      birdVelocity.current = JUMP_STRENGTH;
-      birdRotation.value = withTiming(-20, { duration: 100 });
-      playSound("jump");
+      resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle]);
   
   useEffect(() => {
     return () => {
