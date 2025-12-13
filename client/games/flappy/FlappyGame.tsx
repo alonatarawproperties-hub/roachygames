@@ -342,7 +342,7 @@ type GameMode = "free" | "ranked";
 
 interface FlappyGameProps {
   onExit?: () => void;
-  onScoreSubmit?: (score: number, isRanked: boolean) => void;
+  onScoreSubmit?: (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => void;
   userId?: string | null;
 }
 
@@ -596,9 +596,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     }
     
     if (onScoreSubmit && finalScore > 0) {
-      onScoreSubmit(finalScore, gameMode === "ranked");
+      onScoreSubmit(finalScore, gameMode === "ranked", rankedPeriod);
     }
-  }, [highScore, onScoreSubmit, gameMode]);
+  }, [highScore, onScoreSubmit, gameMode, rankedPeriod]);
   
   const deathLoop = useCallback(() => {
     if (gameStateRef.current !== "dying") return;

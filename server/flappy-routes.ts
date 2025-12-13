@@ -86,7 +86,7 @@ export function registerFlappyRoutes(app: Express) {
 
   app.post("/api/flappy/score", async (req: Request, res: Response) => {
     try {
-      const { userId, score, coinsCollected = 0, isRanked = false, diamondEntryFee = 0 } = req.body;
+      const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, diamondEntryFee = 0 } = req.body;
       
       if (!userId || score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
@@ -160,6 +160,43 @@ export function registerFlappyRoutes(app: Express) {
           weeklyBestScore: score,
           weeklyBestDate: today,
         });
+      }
+      
+      // Update competition entry if this is a ranked game
+      if (isRanked && rankedPeriod) {
+        const periodDate = rankedPeriod === 'daily' ? today : getWeekNumber();
+        
+        // Find the user's entry in the competition
+        const entryResult = await db.select()
+          .from(flappyRankedEntries)
+          .where(and(
+            eq(flappyRankedEntries.userId, userId),
+            eq(flappyRankedEntries.period, rankedPeriod),
+            eq(flappyRankedEntries.periodDate, periodDate)
+          ))
+          .limit(1);
+        
+        if (entryResult.length > 0) {
+          const entry = entryResult[0];
+          // Update best score if this score is higher
+          if (score > entry.bestScore) {
+            await db.update(flappyRankedEntries)
+              .set({ 
+                bestScore: score, 
+                gamesPlayed: entry.gamesPlayed + 1,
+                updatedAt: new Date() 
+              })
+              .where(eq(flappyRankedEntries.id, entry.id));
+          } else {
+            // Just increment games played
+            await db.update(flappyRankedEntries)
+              .set({ 
+                gamesPlayed: entry.gamesPlayed + 1,
+                updatedAt: new Date() 
+              })
+              .where(eq(flappyRankedEntries.id, entry.id));
+          }
+        }
       }
       
       res.json({ success: true });

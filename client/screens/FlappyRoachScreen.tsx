@@ -44,7 +44,7 @@ export function FlappyRoachScreen() {
     navigation.goBack();
   };
 
-  const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean) => {
+  const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => {
     if (!user?.id) {
       console.log("Guest score (not saved):", score);
       return;
@@ -56,14 +56,15 @@ export function FlappyRoachScreen() {
         score,
         coinsCollected: 0,
         isRanked,
-        diamondEntryFee: isRanked ? 1 : 0,
+        rankedPeriod: isRanked ? rankedPeriod : null,
+        diamondEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
       });
       
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/leaderboard", user.id] });
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
       
-      console.log(`Score ${score} submitted (ranked: ${isRanked})`);
+      console.log(`Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
     } catch (error) {
       console.error("Failed to submit score:", error);
     }
