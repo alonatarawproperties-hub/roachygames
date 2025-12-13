@@ -9,7 +9,6 @@ import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-type GameMode = 'casual' | 'ranked' | 'wager';
 type TimeControl = 'bullet' | 'blitz' | 'rapid' | 'classical';
 
 const TIME_CONTROL_INFO: Record<TimeControl, { label: string; time: string; seconds: number }> = {
@@ -17,12 +16,6 @@ const TIME_CONTROL_INFO: Record<TimeControl, { label: string; time: string; seco
   blitz: { label: 'Blitz', time: '5 min', seconds: 300 },
   rapid: { label: 'Rapid', time: '10 min', seconds: 600 },
   classical: { label: 'Classical', time: '30 min', seconds: 1800 },
-};
-
-const GAME_MODE_INFO: Record<GameMode, { label: string; description: string; icon: keyof typeof Feather.glyphMap }> = {
-  casual: { label: 'Casual', description: 'Play for fun, no rating changes', icon: 'coffee' },
-  ranked: { label: 'Ranked', description: 'Compete for rating points', icon: 'trending-up' },
-  wager: { label: 'Wager', description: 'Bet diamonds and win big', icon: 'zap' },
 };
 
 export function ChessLobbyScreen() {
@@ -36,7 +29,6 @@ export function ChessLobbyScreen() {
   }
   const walletAddress = user?.walletAddress || user?.id || guestWalletRef.current;
   
-  const [selectedMode, setSelectedMode] = useState<GameMode>('casual');
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>('rapid');
   
   const { data: ratingData } = useQuery({
@@ -49,10 +41,10 @@ export function ChessLobbyScreen() {
   
   const createDemoMatchMutation = useMutation({
     mutationFn: async () => {
-      console.log('[ChessLobby] Creating demo match...', { walletAddress, gameMode: selectedMode, timeControl: selectedTimeControl });
+      console.log('[ChessLobby] Creating demo match...', { walletAddress, gameMode: 'casual', timeControl: selectedTimeControl });
       const res = await apiRequest('POST', '/api/chess/demo-match', {
         walletAddress,
-        gameMode: selectedMode,
+        gameMode: 'casual',
         timeControl: selectedTimeControl,
       });
       return res.json();
@@ -84,56 +76,17 @@ export function ChessLobbyScreen() {
     },
   });
   
-  const joinMatchmakingMutation = useMutation({
-    mutationFn: async () => {
-      console.log('[ChessLobby] Joining matchmaking...', { walletAddress, gameMode: selectedMode, timeControl: selectedTimeControl });
-      const res = await apiRequest('POST', '/api/chess/matchmaking/join', {
-        walletAddress,
-        gameMode: selectedMode,
-        timeControl: selectedTimeControl,
-        wagerAmount: 0,
-      });
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      console.log('[ChessLobby] Matchmaking response:', data);
-      if (data.matchFound && data.match) {
-        navigation.navigate('ChessGame', {
-          matchId: data.match.id,
-          walletAddress,
-        });
-      } else if (data.success) {
-        navigation.navigate('ChessMatchmaking', {
-          walletAddress,
-          gameMode: selectedMode,
-          timeControl: selectedTimeControl,
-        });
-      } else {
-        const msg = data.message || 'Failed to join matchmaking';
-        if (Platform.OS === 'web') {
-          alert(msg);
-        } else {
-          Alert.alert('Error', msg);
-        }
-      }
-    },
-    onError: (error: any) => {
-      console.error('[ChessLobby] Matchmaking error:', error);
-      const msg = error?.message || 'Failed to join matchmaking';
-      if (Platform.OS === 'web') {
-        alert(msg);
-      } else {
-        Alert.alert('Error', msg);
-      }
-    },
-  });
-  
   const handlePlayBot = () => {
     createDemoMatchMutation.mutate();
   };
   
-  const handleFindMatch = () => {
-    joinMatchmakingMutation.mutate();
+  const handleLockedMode = (modeName: string) => {
+    const msg = `${modeName} mode coming soon! Currently only Play vs Bot is available in this demo.`;
+    if (Platform.OS === 'web') {
+      alert(msg);
+    } else {
+      Alert.alert('Coming Soon', msg);
+    }
   };
   
   return (
@@ -174,32 +127,11 @@ export function ChessLobbyScreen() {
           </View>
         </View>
         
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Game Mode</Text>
-          <View style={styles.modeButtons}>
-            {(Object.keys(GAME_MODE_INFO) as GameMode[]).map((mode) => {
-              const info = GAME_MODE_INFO[mode];
-              const isSelected = selectedMode === mode;
-              return (
-                <Pressable
-                  key={mode}
-                  style={[styles.modeButton, isSelected && styles.modeButtonSelected]}
-                  onPress={() => setSelectedMode(mode)}
-                >
-                  <Feather 
-                    name={info.icon} 
-                    size={20} 
-                    color={isSelected ? GameColors.background : GameColors.textSecondary} 
-                  />
-                  <Text style={[styles.modeButtonText, isSelected && styles.modeButtonTextSelected]}>
-                    {info.label}
-                  </Text>
-                  <Text style={[styles.modeDescription, isSelected && styles.modeDescriptionSelected]}>
-                    {info.description}
-                  </Text>
-                </Pressable>
-              );
-            })}
+        <View style={styles.demoBanner}>
+          <Feather name="cpu" size={20} color={GameColors.primary} />
+          <View style={styles.demoBannerText}>
+            <Text style={styles.demoBannerTitle}>Demo Mode - Play vs Bot</Text>
+            <Text style={styles.demoBannerSubtitle}>Challenge our Magnus-level AI opponent</Text>
           </View>
         </View>
         
@@ -230,32 +162,37 @@ export function ChessLobbyScreen() {
         <View style={styles.playButtons}>
           <Pressable 
             style={[styles.playButton, styles.playButtonPrimary]}
-            onPress={handleFindMatch}
-            disabled={joinMatchmakingMutation.isPending}
-          >
-            <Feather name="users" size={24} color={GameColors.background} />
-            <Text style={styles.playButtonText}>
-              {joinMatchmakingMutation.isPending ? 'Finding...' : 'Find Match'}
-            </Text>
-          </Pressable>
-          
-          <Pressable 
-            style={[styles.playButton, styles.playButtonSecondary]}
             onPress={handlePlayBot}
             disabled={createDemoMatchMutation.isPending}
           >
-            <Feather name="cpu" size={24} color={GameColors.primary} />
-            <Text style={styles.playButtonTextSecondary}>
+            <Feather name="cpu" size={24} color={GameColors.background} />
+            <Text style={styles.playButtonText}>
               {createDemoMatchMutation.isPending ? 'Starting...' : 'Play vs Bot'}
             </Text>
           </Pressable>
           
           <Pressable 
-            style={[styles.playButton, styles.playButtonTournament]}
-            onPress={() => navigation.navigate('TournamentList')}
+            style={[styles.playButton, styles.playButtonLocked]}
+            onPress={() => handleLockedMode('Find Match')}
           >
-            <Feather name="award" size={24} color="#f59e0b" />
-            <Text style={styles.playButtonTextTournament}>Tournaments</Text>
+            <Feather name="lock" size={20} color={GameColors.textSecondary} />
+            <Feather name="users" size={24} color={GameColors.textSecondary} />
+            <Text style={styles.playButtonTextLocked}>Find Match</Text>
+            <View style={styles.comingSoonBadge}>
+              <Text style={styles.comingSoonText}>Coming Soon</Text>
+            </View>
+          </Pressable>
+          
+          <Pressable 
+            style={[styles.playButton, styles.playButtonLocked]}
+            onPress={() => handleLockedMode('Tournaments')}
+          >
+            <Feather name="lock" size={20} color={GameColors.textSecondary} />
+            <Feather name="award" size={24} color={GameColors.textSecondary} />
+            <Text style={styles.playButtonTextLocked}>Tournaments</Text>
+            <View style={styles.comingSoonBadge}>
+              <Text style={styles.comingSoonText}>Coming Soon</Text>
+            </View>
           </Pressable>
         </View>
       </ScrollView>
@@ -356,40 +293,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: GameColors.textPrimary,
   },
-  modeButtons: {
-    gap: Spacing.sm,
-  },
-  modeButton: {
+  demoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: GameColors.surface,
-    padding: Spacing.md,
+    backgroundColor: 'rgba(240, 200, 80, 0.15)',
+    borderWidth: 1,
+    borderColor: GameColors.primary,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    padding: Spacing.md,
     gap: Spacing.md,
   },
-  modeButtonSelected: {
-    backgroundColor: GameColors.primary,
-    borderColor: GameColors.primary,
-  },
-  modeButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: GameColors.textPrimary,
-    minWidth: 65,
-  },
-  modeButtonTextSelected: {
-    color: GameColors.background,
-  },
-  modeDescription: {
-    fontSize: 12,
-    color: GameColors.textSecondary,
+  demoBannerText: {
     flex: 1,
   },
-  modeDescriptionSelected: {
-    color: GameColors.background,
-    opacity: 0.8,
+  demoBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: GameColors.primary,
+  },
+  demoBannerSubtitle: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginTop: 2,
   },
   timeButtons: {
     flexDirection: 'row',
@@ -466,6 +391,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#f59e0b',
+  },
+  playButtonLocked: {
+    backgroundColor: GameColors.surface,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceElevated,
+    opacity: 0.7,
+  },
+  playButtonTextLocked: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: GameColors.textSecondary,
+    flex: 1,
+  },
+  comingSoonBadge: {
+    backgroundColor: GameColors.surfaceElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  comingSoonText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: GameColors.textSecondary,
+    textTransform: 'uppercase',
   },
 });
 
