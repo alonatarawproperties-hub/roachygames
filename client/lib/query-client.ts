@@ -11,9 +11,17 @@ export function getApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // Use domain if provided
+  // For web platform, use relative URLs - Express serves everything on same domain
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    // In web browser - use current origin (Express proxies API on same port)
+    return window.location.origin;
+  }
+
+  // Use domain if provided (for native apps)
   if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+    // Remove :5000 port if present - HTTPS uses 443
+    const domain = process.env.EXPO_PUBLIC_DOMAIN.replace(/:5000$/, '');
+    return `https://${domain}`;
   }
 
   // Development fallback - use local server
