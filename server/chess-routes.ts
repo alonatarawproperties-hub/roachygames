@@ -215,7 +215,7 @@ function evaluatePosition(game: Chess): number {
 function orderMoves(game: Chess) {
   const moves = game.moves({ verbose: true });
   
-  // Score moves for ordering (captures, checks, promotions first)
+  // Fast move ordering - captures and promotions only (no expensive check detection)
   return moves.sort((a, b) => {
     let scoreA = 0;
     let scoreB = 0;
@@ -232,14 +232,9 @@ function orderMoves(game: Chess) {
     if (a.promotion) scoreA += PIECE_VALUES[a.promotion] || 0;
     if (b.promotion) scoreB += PIECE_VALUES[b.promotion] || 0;
     
-    // Check if move gives check
-    const testA = new Chess(game.fen());
-    testA.move(a);
-    if (testA.inCheck()) scoreA += 500;
-    
-    const testB = new Chess(game.fen());
-    testB.move(b);
-    if (testB.inCheck()) scoreB += 500;
+    // Center pawn moves in opening
+    if (a.piece === 'p' && (a.to === 'e4' || a.to === 'd4' || a.to === 'e5' || a.to === 'd5')) scoreA += 50;
+    if (b.piece === 'p' && (b.to === 'e4' || b.to === 'd4' || b.to === 'e5' || b.to === 'd5')) scoreB += 50;
     
     return scoreB - scoreA;
   });
@@ -277,13 +272,13 @@ function minimax(game: Chess, depth: number, alpha: number, beta: number, isMaxi
   }
 }
 
-function makeBotMove(game: Chess): string | null {
+function makeBotMove(game: Chess): { move: string; thinkTimeMs: number } | null {
+  const startTime = Date.now();
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) return null;
   
-  // Strong bot: Depth 3 with good evaluation is challenging but fast
-  // Higher depths cause server timeouts due to JavaScript single-threading
-  const SEARCH_DEPTH = 3;
+  // Depth 2 is fast (~1 second) while still playing reasonably well
+  const SEARCH_DEPTH = 2;
   const isBlack = game.turn() === 'b';
   
   let bestMove = moves[0];
@@ -309,8 +304,15 @@ function makeBotMove(game: Chess): string | null {
     }
   }
   
-  console.log(`[Bot] Selected move: ${bestMove.san} (eval: ${bestEval})`);
-  return bestMove.from + bestMove.to + (bestMove.promotion || '');
+  const thinkTimeMs = Date.now() - startTime;
+  // Add minimum 1-2 seconds "thinking" to feel more human-like
+  const humanizedThinkTime = Math.max(thinkTimeMs, 1000 + Math.random() * 1000);
+  
+  console.log(`[Bot] Selected move: ${bestMove.san} (eval: ${bestEval}, think: ${thinkTimeMs}ms)`);
+  return { 
+    move: bestMove.from + bestMove.to + (bestMove.promotion || ''),
+    thinkTimeMs: humanizedThinkTime
+  };
 }
 
 export function registerChessRoutes(app: Express) {
@@ -561,8 +563,9 @@ export function registerChessRoutes(app: Express) {
         .where(eq(chessMatches.id, matchId));
       
       if (!gameOver && match.isAgainstBot && newTurn === 'black') {
-        const botMoveUci = makeBotMove(game);
-        if (botMoveUci) {
+        const botResult = makeBotMove(game);
+        if (botResult) {
+          const botMoveUci = botResult.move;
           const botFrom = botMoveUci.slice(0, 2);
           const botTo = botMoveUci.slice(2, 4);
           const botPromo = botMoveUci.length > 4 ? botMoveUci[4] : undefined;
@@ -573,6 +576,10 @@ export function registerChessRoutes(app: Express) {
             const botNewFen = game.fen();
             const botNewTurn = game.turn() === 'w' ? 'white' : 'black';
             const botMoveHistory = moveHistory + ',' + botMoveUci;
+            
+            // Deduct bot's think time from its clock (player2 is the bot)
+            const botThinkSeconds = Math.ceil(botResult.thinkTimeMs / 1000);
+            const botNewTime = Math.max(0, newPlayer2Time - botThinkSeconds);
             
             if (game.isGameOver()) {
               gameOver = true;
@@ -589,6 +596,7 @@ export function registerChessRoutes(app: Express) {
                 fen: botNewFen,
                 currentTurn: botNewTurn,
                 moveHistory: botMoveHistory,
+                player2TimeRemaining: botNewTime,
                 ...(gameOver ? {
                   status: 'completed',
                   winnerWallet: winner,
