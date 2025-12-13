@@ -173,19 +173,38 @@ const ROACHY_SPRITE_DEAD = require("@/assets/flappy/roachy-sprite-dead.png");
 const ALL_SPRITES = [ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD];
 
 function GameLoadingSplash({ progress }: { progress: number }) {
-  const pulseScale = useSharedValue(1);
+  const bobY = useSharedValue(0);
+  const rotation = useSharedValue(-5);
+  const [wingFrame, setWingFrame] = useState(0);
   
   useEffect(() => {
-    pulseScale.value = withRepeat(
-      withTiming(1.1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+    bobY.value = withRepeat(
+      withTiming(12, { duration: 600, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
+    
+    rotation.value = withRepeat(
+      withTiming(5, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    
+    const wingInterval = setInterval(() => {
+      setWingFrame(prev => (prev + 1) % 2);
+    }, 120);
+    
+    return () => clearInterval(wingInterval);
   }, []);
   
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
+  const flyStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: bobY.value },
+      { rotate: `${rotation.value}deg` },
+    ],
   }));
+  
+  const currentSprite = wingFrame === 0 ? ROACHY_SPRITE_1 : ROACHY_SPRITE_2;
   
   return (
     <View style={loadingStyles.container}>
@@ -194,9 +213,9 @@ function GameLoadingSplash({ progress }: { progress: number }) {
         style={StyleSheet.absoluteFillObject}
       />
       
-      <Animated.View style={[loadingStyles.iconContainer, pulseStyle]}>
+      <Animated.View style={[loadingStyles.iconContainer, flyStyle]}>
         <Image
-          source={ROACHY_SPRITE_1}
+          source={currentSprite}
           style={loadingStyles.roachyIcon}
           contentFit="contain"
         />
