@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Alert,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,17 +26,26 @@ const GoogleLogo = ({ size = 24 }: { size?: number }) => (
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { continueAsGuest, isLoading } = useAuth();
+  const { continueAsGuest, loginWithGoogle, isLoading } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const handleGoogleAuth = () => {
+  const handleGoogleAuth = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      "Coming Soon",
-      "Google sign-in will be available in the next update. For now, please continue as a guest to try the beta!",
-      [{ text: "OK" }]
-    );
+    setIsGoogleLoading(true);
+    try {
+      const result = await loginWithGoogle();
+      if (!result.success) {
+        if (result.error !== "Sign-in cancelled") {
+          Alert.alert("Sign-in Failed", result.error || "Google sign-in failed. Please try again.");
+        }
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Something went wrong");
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   const handleGuestMode = async () => {
@@ -79,16 +89,18 @@ export function AuthScreen() {
 
         <View style={styles.authContainer}>
           <Pressable
-            style={[styles.authButton, styles.googleButton, styles.disabledButton]}
+            style={[styles.authButton, styles.googleButton, isGoogleLoading && styles.disabledButton]}
             onPress={handleGoogleAuth}
+            disabled={isGoogleLoading || isDisabled}
           >
-            <GoogleLogo size={22} />
+            {isGoogleLoading ? (
+              <ActivityIndicator size="small" color="#333333" />
+            ) : (
+              <GoogleLogo size={22} />
+            )}
             <ThemedText style={styles.googleButtonText}>
-              Continue with Google
+              {isGoogleLoading ? "Signing in..." : "Continue with Google"}
             </ThemedText>
-            <View style={styles.comingSoonBadge}>
-              <Feather name="lock" size={12} color={GameColors.textSecondary} />
-            </View>
           </Pressable>
 
           <View style={styles.divider}>
@@ -189,10 +201,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
-  },
-  comingSoonBadge: {
-    position: "absolute",
-    right: 16,
   },
   divider: {
     flexDirection: "row",
