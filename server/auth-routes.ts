@@ -308,11 +308,11 @@ router.post("/wallet-login", async (req: Request, res: Response) => {
         walletAddress,
         displayName: `Wallet ${shortAddress}`,
         authProvider: "wallet",
-        chyBalance: 100,
-        diamondBalance: 0,
+        chyBalance: 1000000,
+        diamondBalance: 1000,
         lastLoginAt: new Date(),
       }).returning();
-      console.log(`[Auth] New wallet user created: ${walletAddress.slice(0, 8)}...`);
+      console.log(`[Auth] New wallet user created: ${walletAddress.slice(0, 8)}... with 1M ROACHY and 1000 diamonds`);
     } else {
       await db.update(users)
         .set({ lastLoginAt: new Date(), updatedAt: new Date() })
