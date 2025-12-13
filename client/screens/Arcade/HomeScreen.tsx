@@ -37,7 +37,7 @@ import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
 import { useHunt } from "@/context/HuntContext";
 import type { ArcadeInventoryItem, InventoryFilter, InventoryItemType, ItemTypeMetadata } from "@/types/inventory";
 import { ITEM_TYPE_REGISTRY, getItemTypeMetadata } from "@/types/inventory";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import Animated, { 
   FadeInDown, 
   useSharedValue, 
@@ -493,6 +493,13 @@ export function ArcadeHomeScreen() {
     refetch: refetchInventory,
   } = useArcadeInventory();
 
+  // Fetch live player counts for games
+  const { data: playerCountsData } = useQuery<{ success: boolean; counts: Record<string, number> }>({
+    queryKey: ["/api/games/player-counts"],
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+  const playerCounts = playerCountsData?.counts || {};
+
   // Get unique item types that exist in inventory for dynamic filters
   const activeItemTypes = getActiveItemTypes();
 
@@ -729,7 +736,7 @@ export function ArcadeHomeScreen() {
                 <FeaturedGameHero
                   game={featuredGame}
                   onPress={() => handleGamePress(featuredGame.routeName)}
-                  viewerCount={featuredGame.id === "roachy-mate" ? "42 playing" : featuredGame.id === "roachy-hunt" ? "184 hunting" : "Live"}
+                  viewerCount={`${playerCounts[featuredGame.id] || 0} playing`}
                 />
                 <View style={styles.sectionSpacer} />
                 <EarningsTracker />

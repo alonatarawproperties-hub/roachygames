@@ -504,4 +504,42 @@ export function registerChessRoutes(app: Express) {
       res.status(500).json({ success: false, error: "Failed to fetch leaderboard" });
     }
   });
+
+  // Get live player counts for games
+  app.get("/api/games/player-counts", async (req: Request, res: Response) => {
+    try {
+      // Count active chess matches (each match has 2 players, but bot matches have 1)
+      const [activeMatches] = await db.select({ count: sql<number>`count(*)` })
+        .from(chessMatches)
+        .where(eq(chessMatches.status, 'active'));
+      
+      const [botMatches] = await db.select({ count: sql<number>`count(*)` })
+        .from(chessMatches)
+        .where(and(eq(chessMatches.status, 'active'), eq(chessMatches.isAgainstBot, true)));
+      
+      // Count players in matchmaking queue
+      const [queueCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(chessMatchmakingQueue);
+      
+      const humanMatches = Number(activeMatches?.count || 0) - Number(botMatches?.count || 0);
+      const botMatchCount = Number(botMatches?.count || 0);
+      const queuePlayers = Number(queueCount?.count || 0);
+      
+      // Active players = (human matches * 2) + (bot matches * 1) + queue players
+      const chessActivePlayers = (humanMatches * 2) + botMatchCount + queuePlayers;
+      
+      res.json({
+        success: true,
+        counts: {
+          "roachy-mate": chessActivePlayers,
+          "roachy-hunt": 0, // Not tracking yet
+          "flappy-roach": 0,
+          "roachy-battles": 0,
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching player counts:", error);
+      res.status(500).json({ success: false, error: "Failed to fetch player counts" });
+    }
+  });
 }
