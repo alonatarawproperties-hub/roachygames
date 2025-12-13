@@ -184,8 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Use reversed client ID for native OAuth redirect
       // This works in TestFlight/Production builds but NOT in Expo Go
+      // Format: com.googleusercontent.apps.CLIENT_ID:/oauth2redirect/google
       const reversedClientId = clientId.split(".").reverse().join(".");
-      const redirectUri = `${reversedClientId}:/oauthredirect`;
+      const redirectUri = `${reversedClientId}:/oauth2redirect/google`;
 
       console.log("[Auth] Google OAuth redirect URI:", redirectUri);
       console.log("[Auth] Platform:", Platform.OS);
