@@ -3,9 +3,11 @@ import { View, StyleSheet, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { FlappyGame } from "@/games/flappy/FlappyGame";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { useAuth } from "@/context/AuthContext";
 
 export function FlappyRoachScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
@@ -45,7 +47,7 @@ export function FlappyRoachScreen() {
 
   return (
     <View style={styles.container}>
-      <FlappyGame onExit={handleExit} onScoreSubmit={handleScoreSubmit} />
+      <FlappyGame onExit={handleExit} onScoreSubmit={handleScoreSubmit} userId={user?.id} />
     </View>
   );
 }
