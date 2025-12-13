@@ -32,51 +32,6 @@ interface AnimatedSplashProps {
   onAnimationComplete: () => void;
 }
 
-function SolanaLogo({ size = 20 }: { size?: number }) {
-  const barHeight = size * 0.18;
-  const barSpacing = size * 0.08;
-  
-  return (
-    <View style={{ width: size, height: size, justifyContent: "center", alignItems: "center" }}>
-      <LinearGradient
-        colors={["#00FFA3", "#DC1FFF"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          width: size * 0.9,
-          height: barHeight,
-          borderRadius: 2,
-          marginBottom: barSpacing,
-          transform: [{ skewX: "-15deg" }],
-        }}
-      />
-      <LinearGradient
-        colors={["#00FFA3", "#DC1FFF"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          width: size * 0.9,
-          height: barHeight,
-          borderRadius: 2,
-          marginBottom: barSpacing,
-          transform: [{ skewX: "-15deg" }],
-        }}
-      />
-      <LinearGradient
-        colors={["#00FFA3", "#DC1FFF"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          width: size * 0.9,
-          height: barHeight,
-          borderRadius: 2,
-          transform: [{ skewX: "-15deg" }],
-        }}
-      />
-    </View>
-  );
-}
-
 export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashProps) {
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -377,12 +332,8 @@ export default function AnimatedSplash({ onAnimationComplete }: AnimatedSplashPr
 
       <View style={styles.footer}>
         <Animated.View style={[styles.poweredBy, titleAnimatedStyle]}>
-          <SolanaLogo size={22} />
           <Animated.Text style={styles.poweredByText}>
-            Powered by
-          </Animated.Text>
-          <Animated.Text style={styles.solanaText}>
-            Solana
+            Play-to-Earn Arcade
           </Animated.Text>
         </Animated.View>
       </View>
@@ -540,13 +491,6 @@ const styles = StyleSheet.create({
   poweredByText: {
     fontSize: 13,
     color: "rgba(212, 165, 116, 0.7)",
-    letterSpacing: 1,
-    marginLeft: 4,
-  },
-  solanaText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "rgba(212, 165, 116, 0.9)",
     letterSpacing: 1,
   },
   particle: {
