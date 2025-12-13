@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -13,6 +13,7 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { WalletSelectModal } from "@/components/WalletSelectModal";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
@@ -28,10 +29,17 @@ const GoogleLogo = ({ size = 24 }: { size?: number }) => (
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
   const { loginWithGoogle, loginWithWallet, continueAsGuest, isLoading } = useAuth();
-  const { connectWallet, signMessage } = useWallet();
+  const { wallet, signMessage } = useWallet();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [connectingWallet, setConnectingWallet] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [pendingWalletLogin, setPendingWalletLogin] = useState(false);
+
+  useEffect(() => {
+    if (pendingWalletLogin && wallet.connected && wallet.address) {
+      handleWalletLogin(wallet.address);
+    }
+  }, [wallet.connected, wallet.address, pendingWalletLogin]);
 
   const handleGoogleAuth = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -53,17 +61,11 @@ export function AuthScreen() {
     }
   };
 
-  const handleWalletAuth = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConnectingWallet(true);
+  const handleWalletLogin = async (walletAddress: string) => {
+    setIsSubmitting(true);
+    setPendingWalletLogin(false);
 
     try {
-      const walletAddress = await connectWallet("phantom");
-      
-      if (!walletAddress) {
-        return;
-      }
-
       const result = await loginWithWallet(walletAddress, signMessage);
       if (!result.success) {
         if (result.error !== "Wallet signature cancelled") {
@@ -75,7 +77,20 @@ export function AuthScreen() {
     } catch (error: any) {
       Alert.alert("Error", error.message || "Wallet sign-in failed");
     } finally {
-      setConnectingWallet(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConnectWalletPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPendingWalletLogin(true);
+    setShowWalletModal(true);
+  };
+
+  const handleWalletModalClose = () => {
+    setShowWalletModal(false);
+    if (!wallet.connected) {
+      setPendingWalletLogin(false);
     }
   };
 
@@ -94,7 +109,7 @@ export function AuthScreen() {
     }
   };
 
-  const isDisabled = isSubmitting || connectingWallet || isLoading;
+  const isDisabled = isSubmitting || isLoading;
 
   return (
     <ThemedView style={styles.container}>
@@ -138,19 +153,13 @@ export function AuthScreen() {
 
           <Pressable
             style={[styles.authButton, styles.walletButton]}
-            onPress={handleWalletAuth}
+            onPress={handleConnectWalletPress}
             disabled={isDisabled}
           >
-            {connectingWallet ? (
-              <ActivityIndicator color={GameColors.gold} size="small" />
-            ) : (
-              <>
-                <Feather name="credit-card" size={22} color={GameColors.gold} />
-                <ThemedText style={styles.walletButtonText}>
-                  Connect Wallet
-                </ThemedText>
-              </>
-            )}
+            <Feather name="credit-card" size={22} color={GameColors.gold} />
+            <ThemedText style={styles.walletButtonText}>
+              Connect Wallet
+            </ThemedText>
           </Pressable>
 
           <View style={styles.divider}>
@@ -188,6 +197,11 @@ export function AuthScreen() {
           By continuing, you agree to our Terms of Service and Privacy Policy
         </ThemedText>
       </View>
+
+      <WalletSelectModal
+        visible={showWalletModal}
+        onClose={handleWalletModalClose}
+      />
     </ThemedView>
   );
 }
