@@ -55,12 +55,13 @@ export default function RootStackNavigator() {
           component={AuthScreen}
           options={{ headerShown: false, animation: "fade" }}
         />
-      ) : null}
-      <Stack.Screen
-        name="ArcadeHome"
-        component={ArcadeHomeScreen}
-        options={{ headerShown: false }}
-      />
+      ) : (
+        <>
+          <Stack.Screen
+            name="ArcadeHome"
+            component={ArcadeHomeScreen}
+            options={{ headerShown: false }}
+          />
       <Stack.Screen
         name="RoachyHuntStack"
         component={MainTabNavigator}
@@ -131,14 +132,16 @@ export default function RootStackNavigator() {
           animation: "slide_from_right",
         }}
       />
-      <Stack.Screen
-        name="TournamentDetail"
-        component={TournamentDetailScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
+          <Stack.Screen
+            name="TournamentDetail"
+            component={TournamentDetailScreen}
+            options={{
+              headerShown: false,
+              animation: "slide_from_right",
+            }}
+          />
+        </>
+      )}
     </Stack.Navigator>
   );
 }

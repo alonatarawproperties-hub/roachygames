@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator, Image, FlatList, Platform } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -541,30 +541,39 @@ export function ArcadeHomeScreen() {
   const gamesList = GAMES_CATALOG;
 
   const handleLogout = async () => {
-    console.log("[HomeScreen] handleLogout called");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    console.log("[HomeScreen] handleLogout called, Platform:", Platform.OS);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {
+      console.log("[HomeScreen] Haptics not available");
+    }
+    
+    const performLogout = async () => {
+      console.log("[HomeScreen] Logging out...");
+      await logout();
+      console.log("[HomeScreen] Logout complete, resetting navigation...");
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Auth" }],
+        })
+      );
+    };
     
     if (Platform.OS === "web") {
-      const confirmed = window.confirm("Are you sure you want to sign out? Your progress is saved to your account.");
-      if (confirmed) {
-        console.log("[HomeScreen] Logging out...");
-        await logout();
-        console.log("[HomeScreen] Logout complete");
+      if (window.confirm("Are you sure you want to sign out?")) {
+        performLogout();
       }
     } else {
       Alert.alert(
         "Sign Out",
-        "Are you sure you want to sign out? Your progress is saved to your account.",
+        "Are you sure you want to sign out?",
         [
           { text: "Cancel", style: "cancel" },
           { 
             text: "Sign Out", 
             style: "destructive", 
-            onPress: async () => {
-              console.log("[HomeScreen] Logging out...");
-              await logout();
-              console.log("[HomeScreen] Logout complete");
-            }
+            onPress: performLogout
           },
         ]
       );
