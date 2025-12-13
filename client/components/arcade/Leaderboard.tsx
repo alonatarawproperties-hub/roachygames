@@ -10,7 +10,6 @@ interface LeaderboardEntry {
   id: string;
   rank: number;
   username: string;
-  walletShort?: string;
   value: number;
   isCurrentUser?: boolean;
 }
@@ -23,35 +22,35 @@ interface LeaderboardProps {
 }
 
 const PLACEHOLDER_CATCHES: LeaderboardEntry[] = [
-  { id: "1", rank: 1, username: "CryptoHunter", walletShort: "7xKp...3mNq", value: 1247 },
-  { id: "2", rank: 2, username: "RoachKing", walletShort: "9vBr...5tLw", value: 1089 },
-  { id: "3", rank: 3, username: "SolanaSniper", walletShort: "3hFd...8kXy", value: 956 },
-  { id: "4", rank: 4, username: "NFTmaster", walletShort: "2pWz...6jRn", value: 842 },
-  { id: "5", rank: 5, username: "DegenGamer", walletShort: "5cQm...1vAs", value: 756 },
-  { id: "6", rank: 42, username: "You", walletShort: "8dTk...4rBx", value: 45, isCurrentUser: true },
+  { id: "1", rank: 1, username: "RoachHunter", value: 1247 },
+  { id: "2", rank: 2, username: "RoachKing", value: 1089 },
+  { id: "3", rank: 3, username: "ProGamer", value: 956 },
+  { id: "4", rank: 4, username: "BugMaster", value: 842 },
+  { id: "5", rank: 5, username: "TopPlayer", value: 756 },
+  { id: "6", rank: 42, username: "You", value: 45, isCurrentUser: true },
 ];
 
 const PLACEHOLDER_EARNINGS: LeaderboardEntry[] = [
-  { id: "1", rank: 1, username: "WhaleWatcher", walletShort: "6yNp...9mKq", value: 125000 },
-  { id: "2", rank: 2, username: "DiamondHands", walletShort: "1aRt...7sLw", value: 98500 },
-  { id: "3", rank: 3, username: "RoachBoss", walletShort: "4fGd...2kXy", value: 76200 },
-  { id: "4", rank: 4, username: "TokenHoarder", walletShort: "8bWz...3jRn", value: 54800 },
-  { id: "5", rank: 5, username: "CryptoKing", walletShort: "0eQm...5vAs", value: 43200 },
-  { id: "6", rank: 156, username: "You", walletShort: "8dTk...4rBx", value: 2450, isCurrentUser: true },
+  { id: "1", rank: 1, username: "RoachBoss", value: 125000 },
+  { id: "2", rank: 2, username: "ChyMaster", value: 98500 },
+  { id: "3", rank: 3, username: "TopEarner", value: 76200 },
+  { id: "4", rank: 4, username: "CoinCollector", value: 54800 },
+  { id: "5", rank: 5, username: "ArcadeKing", value: 43200 },
+  { id: "6", rank: 156, username: "You", value: 2450, isCurrentUser: true },
 ];
 
 const PLACEHOLDER_STREAKS: LeaderboardEntry[] = [
-  { id: "1", rank: 1, username: "DailyGrinder", walletShort: "2mNp...8yKq", value: 365 },
-  { id: "2", rank: 2, username: "Consistent", walletShort: "7sRt...4aLw", value: 298 },
-  { id: "3", rank: 3, username: "NeverMiss", walletShort: "1kGd...9fXy", value: 245 },
-  { id: "4", rank: 4, username: "StreakMaster", walletShort: "5jWz...2bRn", value: 189 },
-  { id: "5", rank: 5, username: "Dedicated", walletShort: "3vQm...6eAs", value: 156 },
-  { id: "6", rank: 89, username: "You", walletShort: "8dTk...4rBx", value: 7, isCurrentUser: true },
+  { id: "1", rank: 1, username: "DailyGrinder", value: 365 },
+  { id: "2", rank: 2, username: "Consistent", value: 298 },
+  { id: "3", rank: 3, username: "NeverMiss", value: 245 },
+  { id: "4", rank: 4, username: "StreakMaster", value: 189 },
+  { id: "5", rank: 5, username: "Dedicated", value: 156 },
+  { id: "6", rank: 89, username: "You", value: 7, isCurrentUser: true },
 ];
 
 const CATEGORIES: { key: LeaderboardCategory; label: string; icon: keyof typeof Feather.glyphMap; unit: string }[] = [
   { key: "catches", label: "Catches", icon: "target", unit: "" },
-  { key: "earnings", label: "Earnings", icon: "dollar-sign", unit: "RCH" },
+  { key: "earnings", label: "Earnings", icon: "dollar-sign", unit: "CHY" },
   { key: "streaks", label: "Streaks", icon: "zap", unit: "days" },
 ];
 
@@ -117,9 +116,6 @@ export function Leaderboard({
           ]}>
             {item.username}
           </ThemedText>
-          {item.walletShort ? (
-            <ThemedText style={styles.walletText}>{item.walletShort}</ThemedText>
-          ) : null}
         </View>
         <View style={styles.valueContainer}>
           <ThemedText style={[
@@ -290,7 +286,7 @@ const styles = StyleSheet.create({
   currentUsername: {
     color: GameColors.gold,
   },
-  walletText: {
+  playerSubtext: {
     fontSize: 11,
     color: GameColors.textTertiary,
     marginTop: 1,

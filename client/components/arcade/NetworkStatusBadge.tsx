@@ -17,7 +17,7 @@ interface NetworkStatusBadgeProps {
 
 export function NetworkStatusBadge({
   isConnected,
-  networkName = "Solana",
+  networkName = "Network",
   onPress,
 }: NetworkStatusBadgeProps) {
   const pulseOpacity = useSharedValue(1);

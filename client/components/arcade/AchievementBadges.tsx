@@ -25,7 +25,7 @@ const PLACEHOLDER_ACHIEVEMENTS: Achievement[] = [
   { id: "2", title: "Collector", description: "Collect 10 different Roachies", icon: "archive", unlocked: true, rarity: "common" },
   { id: "3", title: "Hunter Pro", description: "Catch 100 Roachies", icon: "award", unlocked: false, progress: 45, maxProgress: 100, rarity: "rare" },
   { id: "4", title: "Egg Master", description: "Hatch 50 eggs", icon: "sun", unlocked: false, progress: 12, maxProgress: 50, rarity: "rare" },
-  { id: "5", title: "Crypto King", description: "Earn 10,000 RCH", icon: "dollar-sign", unlocked: false, progress: 2450, maxProgress: 10000, rarity: "epic" },
+  { id: "5", title: "Coin Master", description: "Earn 10,000 Chy Coins", icon: "dollar-sign", unlocked: false, progress: 2450, maxProgress: 10000, rarity: "epic" },
   { id: "6", title: "Legend", description: "Catch a Legendary Roachy", icon: "star", unlocked: false, rarity: "legendary" },
 ];
 

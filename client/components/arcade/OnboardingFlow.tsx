@@ -26,8 +26,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     id: "welcome",
     icon: "zap",
     title: "Welcome to Roachy Games",
-    description: "The ultimate crypto arcade where you hunt, collect, and earn on Solana.",
-    highlight: "Play-to-Earn Gaming",
+    description: "The ultimate arcade where you hunt, collect, and earn rewards with your Roachies.",
+    highlight: "Adventure Gaming",
   },
   {
     id: "hunt",
@@ -46,16 +46,9 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: "earn",
     icon: "dollar-sign",
-    title: "Earn RCH Tokens",
-    description: "Catch Roachies, complete daily challenges, and climb the leaderboard to earn RCH tokens.",
-    highlight: "Real Crypto Rewards",
-  },
-  {
-    id: "wallet",
-    icon: "credit-card",
-    title: "Connect Your Wallet",
-    description: "Link your Phantom, Solflare, or Backpack wallet to track earnings and trade on the marketplace.",
-    highlight: "Solana Powered",
+    title: "Earn Chy Coins",
+    description: "Catch Roachies, complete daily challenges, and climb the leaderboard to earn Chy Coins.",
+    highlight: "In-Game Rewards",
   },
 ];
 

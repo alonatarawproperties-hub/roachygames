@@ -29,7 +29,7 @@ const PLACEHOLDER_EVENTS: GameEvent[] = [
     description: "Defeat the Trash Titan for epic rewards",
     type: "raid",
     startTime: new Date(Date.now() + 1000 * 60 * 30),
-    rewards: "500 RCH + Epic Egg",
+    rewards: "500 CHY + Epic Egg",
     participants: 847,
     isLive: true,
   },
@@ -48,7 +48,7 @@ const PLACEHOLDER_EVENTS: GameEvent[] = [
     description: "Top hunters compete for prizes",
     type: "tournament",
     startTime: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    rewards: "10,000 RCH Prize Pool",
+    rewards: "10,000 CHY Prize Pool",
     participants: 2341,
   },
   {
@@ -65,7 +65,7 @@ const PLACEHOLDER_EVENTS: GameEvent[] = [
     description: "Limited edition holiday Roachies",
     type: "special",
     startTime: new Date(Date.now() + 1000 * 60 * 60 * 72),
-    rewards: "Exclusive Holiday NFTs",
+    rewards: "Exclusive Holiday Roachies",
   },
 ];
 

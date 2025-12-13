@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
-type ActivityType = "catch" | "reward" | "hatch" | "trade" | "stake";
+type ActivityType = "catch" | "reward" | "hatch" | "trade" | "bonus";
 
 interface ActivityItem {
   id: string;
@@ -21,11 +21,11 @@ interface ActivityHistoryProps {
 }
 
 const PLACEHOLDER_ACTIVITIES: ActivityItem[] = [
-  { id: "1", type: "catch", title: "Caught Roachy", subtitle: "Common Tank", amount: "+5 RCH", timestamp: "2m ago" },
-  { id: "2", type: "reward", title: "Daily Bonus", subtitle: "Login streak: 7 days", amount: "+50 RCH", timestamp: "1h ago" },
-  { id: "3", type: "hatch", title: "Egg Hatched", subtitle: "Rare Mage revealed!", amount: "+25 RCH", timestamp: "3h ago" },
-  { id: "4", type: "catch", title: "Caught Roachy", subtitle: "Uncommon Assassin", amount: "+10 RCH", timestamp: "5h ago" },
-  { id: "5", type: "stake", title: "Staking Reward", subtitle: "Weekly distribution", amount: "+120 RCH", timestamp: "1d ago" },
+  { id: "1", type: "catch", title: "Caught Roachy", subtitle: "Common Tank", amount: "+5 CHY", timestamp: "2m ago" },
+  { id: "2", type: "reward", title: "Daily Bonus", subtitle: "Login streak: 7 days", amount: "+50 CHY", timestamp: "1h ago" },
+  { id: "3", type: "hatch", title: "Egg Hatched", subtitle: "Rare Mage revealed!", amount: "+25 CHY", timestamp: "3h ago" },
+  { id: "4", type: "catch", title: "Caught Roachy", subtitle: "Uncommon Assassin", amount: "+10 CHY", timestamp: "5h ago" },
+  { id: "5", type: "reward", title: "Play Bonus", subtitle: "Weekly activity", amount: "+120 CHY", timestamp: "1d ago" },
 ];
 
 const getActivityIcon = (type: ActivityType): keyof typeof Feather.glyphMap => {
@@ -34,7 +34,7 @@ const getActivityIcon = (type: ActivityType): keyof typeof Feather.glyphMap => {
     case "reward": return "gift";
     case "hatch": return "sun";
     case "trade": return "repeat";
-    case "stake": return "lock";
+    case "bonus": return "star";
     default: return "activity";
   }
 };
@@ -45,7 +45,7 @@ const getActivityColor = (type: ActivityType): string => {
     case "reward": return GameColors.gold;
     case "hatch": return "#8B5CF6";
     case "trade": return "#06B6D4";
-    case "stake": return "#F59E0B";
+    case "bonus": return "#F59E0B";
     default: return GameColors.textSecondary;
   }
 };

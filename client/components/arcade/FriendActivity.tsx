@@ -11,13 +11,13 @@ interface Friend {
   avatar?: string;
   isOnline: boolean;
   lastActivity?: {
-    type: "hunting" | "raiding" | "trading" | "staking" | "idle";
+    type: "hunting" | "raiding" | "trading" | "idle";
     details?: string;
     timestamp: Date;
   };
   stats?: {
     catches: number;
-    rchEarned: number;
+    chyEarned: number;
   };
 }
 
@@ -31,14 +31,14 @@ interface FriendActivityProps {
 const PLACEHOLDER_FRIENDS: Friend[] = [
   {
     id: "1",
-    name: "CryptoHunter",
+    name: "RoachHunter",
     isOnline: true,
     lastActivity: {
       type: "hunting",
       details: "Central Park",
       timestamp: new Date(),
     },
-    stats: { catches: 156, rchEarned: 2450 },
+    stats: { catches: 156, chyEarned: 2450 },
   },
   {
     id: "2",
@@ -49,29 +49,28 @@ const PLACEHOLDER_FRIENDS: Friend[] = [
       details: "Trash Titan Boss",
       timestamp: new Date(),
     },
-    stats: { catches: 342, rchEarned: 5120 },
+    stats: { catches: 342, chyEarned: 5120 },
   },
   {
     id: "3",
-    name: "NFTCollector",
+    name: "TopCollector",
     isOnline: true,
     lastActivity: {
       type: "trading",
-      details: "Listed 2 NFTs",
+      details: "Traded 2 Roachies",
       timestamp: new Date(Date.now() - 1000 * 60 * 5),
     },
-    stats: { catches: 89, rchEarned: 1800 },
+    stats: { catches: 89, chyEarned: 1800 },
   },
   {
     id: "4",
-    name: "SolanaFan",
+    name: "ProPlayer",
     isOnline: false,
     lastActivity: {
-      type: "staking",
-      details: "500 RCH staked",
+      type: "idle",
       timestamp: new Date(Date.now() - 1000 * 60 * 30),
     },
-    stats: { catches: 234, rchEarned: 3200 },
+    stats: { catches: 234, chyEarned: 3200 },
   },
   {
     id: "5",
@@ -81,7 +80,7 @@ const PLACEHOLDER_FRIENDS: Friend[] = [
       type: "idle",
       timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
     },
-    stats: { catches: 67, rchEarned: 890 },
+    stats: { catches: 67, chyEarned: 890 },
   },
 ];
 
@@ -89,7 +88,6 @@ const ACTIVITY_CONFIG: Record<string, { icon: keyof typeof Feather.glyphMap; col
   hunting: { icon: "map-pin", color: "#22C55E", label: "Hunting" },
   raiding: { icon: "target", color: "#EF4444", label: "Raiding" },
   trading: { icon: "repeat", color: "#8B5CF6", label: "Trading" },
-  staking: { icon: "lock", color: "#06B6D4", label: "Staking" },
   idle: { icon: "clock", color: GameColors.textSecondary, label: "Idle" },
 };
 
@@ -129,7 +127,7 @@ export function FriendActivity({
         </View>
         <View style={styles.emptyState}>
           <Feather name="user-plus" size={32} color={GameColors.textSecondary} />
-          <ThemedText style={styles.emptyText}>Connect wallet to see friends</ThemedText>
+          <ThemedText style={styles.emptyText}>Sign in to see friends</ThemedText>
         </View>
       </Card>
     );

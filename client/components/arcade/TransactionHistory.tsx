@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Linking } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
@@ -7,13 +7,12 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface Transaction {
   id: string;
-  type: "send" | "receive" | "swap" | "mint" | "stake" | "unstake";
+  type: "earned" | "spent" | "bonus";
   amount: string;
   token: string;
   timestamp: Date;
-  txHash: string;
-  txHashDisplay: string;
-  status: "confirmed" | "pending" | "failed";
+  description: string;
+  status: "confirmed" | "pending";
 }
 
 interface TransactionHistoryProps {
@@ -25,70 +24,59 @@ interface TransactionHistoryProps {
 const PLACEHOLDER_TRANSACTIONS: Transaction[] = [
   {
     id: "1",
-    type: "receive",
-    amount: "+25.00",
-    token: "RCH",
+    type: "bonus",
+    amount: "+25",
+    token: "CHY",
     timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    txHash: "5KQwVxRtP2mNjY7cKfL8bHqZ3wE9sD1aG4vC6uI0oX8jNmXa",
-    txHashDisplay: "5KQwV...8jNmX",
+    description: "Daily Bonus",
     status: "confirmed",
   },
   {
     id: "2",
-    type: "swap",
-    amount: "100.00",
-    token: "RCH → SOL",
+    type: "earned",
+    amount: "+100",
+    token: "CHY",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    txHash: "3mPqRxStU5wNkY8dLgH7cIjV4zE2sF1bC0vD9uO6pX9vLwKb",
-    txHashDisplay: "3mPqR...9vLwK",
+    description: "Catch Reward",
     status: "confirmed",
   },
   {
     id: "3",
-    type: "mint",
-    amount: "1",
-    token: "Roachy NFT",
+    type: "earned",
+    amount: "+50",
+    token: "CHY",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    txHash: "7nXzYqWtS4uMkJ9eFgH6bIcV3aD1sC0zB8vE5pO2rX2bQpTc",
-    txHashDisplay: "7nXzY...2bQpT",
+    description: "Egg Hatched",
     status: "confirmed",
   },
   {
     id: "4",
-    type: "stake",
-    amount: "500.00",
-    token: "RCH",
+    type: "bonus",
+    amount: "+500",
+    token: "CHY",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48),
-    txHash: "9kLmNoPqR1sTuV2wXyZ3aB4cD5eF6gH7iJ8kL9mN4cRsWde",
-    txHashDisplay: "9kLmN...4cRsW",
+    description: "Weekly Bonus",
     status: "confirmed",
   },
   {
     id: "5",
-    type: "receive",
-    amount: "+10.50",
-    token: "RCH",
+    type: "earned",
+    amount: "+10",
+    token: "CHY",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72),
-    txHash: "2jHgFkLmN3oPqR4sTuV5wXyZ6aB7cD8eF9gH0iJ6dTuVfgh",
-    txHashDisplay: "2jHgF...6dTuV",
+    description: "Play Bonus",
     status: "pending",
   },
 ];
 
 const getTypeIcon = (type: Transaction["type"]): keyof typeof Feather.glyphMap => {
   switch (type) {
-    case "receive":
+    case "earned":
       return "arrow-down-left";
-    case "send":
+    case "spent":
       return "arrow-up-right";
-    case "swap":
-      return "repeat";
-    case "mint":
-      return "plus-circle";
-    case "stake":
-      return "lock";
-    case "unstake":
-      return "unlock";
+    case "bonus":
+      return "gift";
     default:
       return "circle";
   }
@@ -96,18 +84,12 @@ const getTypeIcon = (type: Transaction["type"]): keyof typeof Feather.glyphMap =
 
 const getTypeColor = (type: Transaction["type"]): string => {
   switch (type) {
-    case "receive":
+    case "earned":
       return GameColors.success;
-    case "send":
+    case "spent":
       return "#EF4444";
-    case "swap":
-      return "#8B5CF6";
-    case "mint":
+    case "bonus":
       return GameColors.gold;
-    case "stake":
-      return "#06B6D4";
-    case "unstake":
-      return "#F97316";
     default:
       return GameColors.textSecondary;
   }
@@ -125,12 +107,6 @@ const formatTime = (date: Date): string => {
   return `${diffDays}d ago`;
 };
 
-const openExplorer = (txHash: string) => {
-  if (txHash && txHash.length >= 44) {
-    Linking.openURL(`https://solscan.io/tx/${txHash}`);
-  }
-};
-
 export function TransactionHistory({
   transactions = PLACEHOLDER_TRANSACTIONS,
   maxItems = 5,
@@ -143,7 +119,7 @@ export function TransactionHistory({
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Feather name="list" size={18} color={GameColors.gold} />
-          <ThemedText style={styles.title}>Transactions</ThemedText>
+          <ThemedText style={styles.title}>Reward History</ThemedText>
         </View>
         {onViewAll ? (
           <Pressable onPress={onViewAll} style={styles.viewAllButton}>
@@ -155,11 +131,7 @@ export function TransactionHistory({
 
       <View style={styles.transactionsList}>
         {displayTransactions.map((tx) => (
-          <Pressable
-            key={tx.id}
-            style={styles.transactionItem}
-            onPress={() => openExplorer(tx.txHash)}
-          >
+          <View key={tx.id} style={styles.transactionItem}>
             <View style={[styles.iconContainer, { backgroundColor: getTypeColor(tx.type) + "20" }]}>
               <Feather name={getTypeIcon(tx.type)} size={16} color={getTypeColor(tx.type)} />
             </View>
@@ -167,12 +139,12 @@ export function TransactionHistory({
             <View style={styles.transactionDetails}>
               <View style={styles.transactionMain}>
                 <ThemedText style={styles.transactionType}>
-                  {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
+                  {tx.description}
                 </ThemedText>
                 <ThemedText
                   style={[
                     styles.transactionAmount,
-                    tx.type === "receive" && styles.positiveAmount,
+                    tx.type !== "spent" && styles.positiveAmount,
                   ]}
                 >
                   {tx.amount} {tx.token}
@@ -180,10 +152,6 @@ export function TransactionHistory({
               </View>
               <View style={styles.transactionMeta}>
                 <ThemedText style={styles.timestamp}>{formatTime(tx.timestamp)}</ThemedText>
-                <View style={styles.txHashContainer}>
-                  <ThemedText style={styles.txHash}>{tx.txHashDisplay}</ThemedText>
-                  <Feather name="external-link" size={10} color={GameColors.textSecondary} />
-                </View>
               </View>
             </View>
 
@@ -192,13 +160,13 @@ export function TransactionHistory({
                 <ThemedText style={styles.pendingText}>Pending</ThemedText>
               </View>
             ) : null}
-          </Pressable>
+          </View>
         ))}
       </View>
 
-      <View style={styles.explorerNote}>
+      <View style={styles.infoNote}>
         <Feather name="info" size={12} color={GameColors.textSecondary} />
-        <ThemedText style={styles.noteText}>Tap any transaction to view on Solscan</ThemedText>
+        <ThemedText style={styles.noteText}>Earn Chy Coins by playing games and completing challenges</ThemedText>
       </View>
     </Card>
   );
@@ -282,16 +250,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: GameColors.textSecondary,
   },
-  txHashContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  txHash: {
-    fontSize: 10,
-    color: GameColors.textSecondary,
-    fontFamily: "monospace",
-  },
   pendingBadge: {
     backgroundColor: GameColors.gold + "20",
     paddingHorizontal: Spacing.sm,
@@ -303,7 +261,7 @@ const styles = StyleSheet.create({
     color: GameColors.gold,
     fontWeight: "600",
   },
-  explorerNote: {
+  infoNote: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,

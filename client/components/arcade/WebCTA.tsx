@@ -7,29 +7,29 @@ import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
 interface WebCTAProps {
-  variant?: "swap" | "stake" | "marketplace" | "full";
+  variant?: "rewards" | "play" | "marketplace" | "full";
   customUrl?: string;
   customTitle?: string;
   customSubtitle?: string;
 }
 
 const CTA_CONFIGS = {
-  swap: {
-    title: "Swap Tokens",
-    subtitle: "Exchange RCH on roachy.games",
-    icon: "repeat" as keyof typeof Feather.glyphMap,
-    url: "https://roachy.games/swap",
+  rewards: {
+    title: "Claim Rewards",
+    subtitle: "Visit roachy.games",
+    icon: "gift" as keyof typeof Feather.glyphMap,
+    url: "https://roachy.games",
     gradient: ["#8B5CF6", "#6366F1"],
   },
-  stake: {
-    title: "Stake RCH",
-    subtitle: "Earn rewards on roachy.games",
+  play: {
+    title: "Play More",
+    subtitle: "Visit roachy.games",
     icon: "trending-up" as keyof typeof Feather.glyphMap,
-    url: "https://roachy.games/stake",
+    url: "https://roachy.games",
     gradient: ["#22C55E", "#16A34A"],
   },
   marketplace: {
-    title: "NFT Marketplace",
+    title: "Marketplace",
     subtitle: "Trade Roachies on roachy.games",
     icon: "shopping-bag" as keyof typeof Feather.glyphMap,
     url: "https://roachy.games/marketplace",
@@ -44,7 +44,7 @@ const CTA_CONFIGS = {
   },
 };
 
-export function WebCTA({ variant = "swap", customUrl, customTitle, customSubtitle }: WebCTAProps) {
+export function WebCTA({ variant = "rewards", customUrl, customTitle, customSubtitle }: WebCTAProps) {
   const config = CTA_CONFIGS[variant];
 
   const handlePress = async () => {
@@ -79,11 +79,11 @@ export function WebCTA({ variant = "swap", customUrl, customTitle, customSubtitl
 }
 
 interface WebCTACompactProps {
-  variant?: "swap" | "stake" | "marketplace";
+  variant?: "rewards" | "play" | "marketplace";
   onPress?: () => void;
 }
 
-export function WebCTACompact({ variant = "swap", onPress }: WebCTACompactProps) {
+export function WebCTACompact({ variant = "rewards", onPress }: WebCTACompactProps) {
   const config = CTA_CONFIGS[variant];
 
   const handlePress = async () => {
@@ -135,7 +135,7 @@ export function WebCTABanner({ onDismiss }: WebCTABannerProps) {
           </View>
           <View style={styles.bannerTextContainer}>
             <ThemedText style={styles.bannerTitle}>Trade on Web</ThemedText>
-            <ThemedText style={styles.bannerSubtitle}>Swap, stake, and trade NFTs</ThemedText>
+            <ThemedText style={styles.bannerSubtitle}>Claim rewards and explore more</ThemedText>
           </View>
           <Pressable style={styles.bannerButton} onPress={handlePress}>
             <ThemedText style={styles.bannerButtonText}>Open</ThemedText>

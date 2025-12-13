@@ -5,7 +5,6 @@ export { GameListItem } from "./GameListItem";
 export { ArcadeTabBar } from "./ArcadeTabBar";
 export { TokenBalanceCard } from "./TokenBalanceCard";
 export { NetworkStatusBadge } from "./NetworkStatusBadge";
-export { SolanaTrustBadge } from "./SolanaTrustBadge";
 export { ActivityHistory } from "./ActivityHistory";
 export { EarningsTracker } from "./EarningsTracker";
 export { AchievementBadges } from "./AchievementBadges";
