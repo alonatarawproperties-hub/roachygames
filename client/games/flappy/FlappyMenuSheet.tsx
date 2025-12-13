@@ -152,65 +152,64 @@ export function FlappyMenuSheet({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <Animated.View
           entering={SlideInDown.springify().damping(15)}
           style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}
         >
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <View style={styles.header}>
-              <View style={styles.handle} />
-            </View>
-            
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <Feather name="x" size={24} color={GameColors.textSecondary} />
-            </Pressable>
-
-            <View style={styles.tabs}>
-              <TabButton
-                label="Leaderboards"
-                icon="award"
-                active={activeTab === "leaderboards"}
-                onPress={() => setActiveTab("leaderboards")}
-              />
-              <TabButton
-                label="Loadout"
-                icon="briefcase"
-                active={activeTab === "loadout"}
-                onPress={() => setActiveTab("loadout")}
-              />
-            </View>
-
-            <View style={styles.content}>
-              {activeTab === "leaderboards" ? (
-                <LeaderboardsTab
-                  leaderboard={leaderboardData?.leaderboard || []}
-                  isLoading={leaderboardLoading}
-                  rankedStatus={rankedStatus}
-                  userStats={userStats?.stats}
-                  userId={userId}
-                  diamondBalance={diamondData?.diamondBalance ?? 0}
-                  onPlayFree={() => {
-                    onPlayFree();
-                    onClose();
-                  }}
-                  onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
-                  isEntering={enterRankedMutation.isPending}
-                  entryError={enterRankedMutation.error?.message}
-                />
-              ) : (
-                <LoadoutTab
-                  inventory={inventoryData?.inventory}
-                  isLoading={inventoryLoading}
-                  equippedPowerUps={equippedPowerUps}
-                  onEquip={handleEquipToggle}
-                  isEquipping={false}
-                />
-              )}
-            </View>
+          <View style={styles.header}>
+            <View style={styles.handle} />
+          </View>
+          
+          <Pressable style={styles.closeButton} onPress={onClose}>
+            <Feather name="x" size={24} color={GameColors.textSecondary} />
           </Pressable>
+
+          <View style={styles.tabs}>
+            <TabButton
+              label="Leaderboards"
+              icon="award"
+              active={activeTab === "leaderboards"}
+              onPress={() => setActiveTab("leaderboards")}
+            />
+            <TabButton
+              label="Loadout"
+              icon="briefcase"
+              active={activeTab === "loadout"}
+              onPress={() => setActiveTab("loadout")}
+            />
+          </View>
+
+          <View style={styles.content}>
+            {activeTab === "leaderboards" ? (
+              <LeaderboardsTab
+                leaderboard={leaderboardData?.leaderboard || []}
+                isLoading={leaderboardLoading}
+                rankedStatus={rankedStatus}
+                userStats={userStats?.stats}
+                userId={userId}
+                diamondBalance={diamondData?.diamondBalance ?? 0}
+                onPlayFree={() => {
+                  onPlayFree();
+                  onClose();
+                }}
+                onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
+                isEntering={enterRankedMutation.isPending}
+                entryError={enterRankedMutation.error?.message}
+              />
+            ) : (
+              <LoadoutTab
+                inventory={inventoryData?.inventory}
+                isLoading={inventoryLoading}
+                equippedPowerUps={equippedPowerUps}
+                onEquip={handleEquipToggle}
+                isEquipping={false}
+              />
+            )}
+          </View>
         </Animated.View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
