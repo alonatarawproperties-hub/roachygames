@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator, Image, FlatList } from "react-native";
+import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator, Image, FlatList, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -540,25 +540,35 @@ export function ArcadeHomeScreen() {
   const featuredGame = GAMES_CATALOG[0];
   const gamesList = GAMES_CATALOG;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log("[HomeScreen] handleLogout called");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out? Your progress is saved to your account.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Sign Out", 
-          style: "destructive", 
-          onPress: async () => {
-            console.log("[HomeScreen] Logging out...");
-            await logout();
-            console.log("[HomeScreen] Logout complete");
-          }
-        },
-      ]
-    );
+    
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("Are you sure you want to sign out? Your progress is saved to your account.");
+      if (confirmed) {
+        console.log("[HomeScreen] Logging out...");
+        await logout();
+        console.log("[HomeScreen] Logout complete");
+      }
+    } else {
+      Alert.alert(
+        "Sign Out",
+        "Are you sure you want to sign out? Your progress is saved to your account.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Sign Out", 
+            style: "destructive", 
+            onPress: async () => {
+              console.log("[HomeScreen] Logging out...");
+              await logout();
+              console.log("[HomeScreen] Logout complete");
+            }
+          },
+        ]
+      );
+    }
   };
 
   const getUserDisplayName = (): string => {
