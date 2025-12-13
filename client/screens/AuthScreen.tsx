@@ -18,6 +18,8 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
 
+const DEV_WALLET_ADDRESS = "8LgfzMdcXbxhNkURkLuhVcdxJzVw9w7yeVRof1wSPeJW";
+
 const GoogleLogo = ({ size = 24 }: { size?: number }) => (
   <Image
     source={{ uri: "https://www.google.com/favicon.ico" }}
@@ -28,7 +30,7 @@ const GoogleLogo = ({ size = 24 }: { size?: number }) => (
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { loginWithGoogle, loginWithWallet, continueAsGuest, isLoading } = useAuth();
+  const { loginWithGoogle, loginWithWallet, devLogin, continueAsGuest, isLoading } = useAuth();
   const { wallet, signMessage } = useWallet();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,6 +103,23 @@ export function AuthScreen() {
     }
   };
 
+  const handleDevLogin = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsSubmitting(true);
+    try {
+      const result = await devLogin(DEV_WALLET_ADDRESS);
+      if (!result.success) {
+        Alert.alert("Error", result.error || "Dev login failed");
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Dev login failed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const isDisabled = isSubmitting || isLoading;
 
   return (
@@ -165,6 +184,15 @@ export function AuthScreen() {
           >
             <Feather name="user" size={18} color={GameColors.textSecondary} />
             <ThemedText style={styles.guestButtonText}>Continue as Guest</ThemedText>
+          </Pressable>
+
+          <Pressable 
+            style={[styles.authButton, styles.devButton]} 
+            onPress={handleDevLogin}
+            disabled={isDisabled}
+          >
+            <Feather name="terminal" size={22} color="#00FF00" />
+            <ThemedText style={styles.devButtonText}>Dev Login</ThemedText>
           </Pressable>
         </View>
 
@@ -294,6 +322,16 @@ const styles = StyleSheet.create({
   guestButtonText: {
     color: GameColors.textSecondary,
     fontSize: 14,
+  },
+  devButton: {
+    backgroundColor: "rgba(0, 255, 0, 0.1)",
+    borderWidth: 1,
+    borderColor: "#00FF00",
+  },
+  devButtonText: {
+    color: "#00FF00",
+    fontSize: 16,
+    fontWeight: "600",
   },
   features: {
     gap: Spacing.md,
