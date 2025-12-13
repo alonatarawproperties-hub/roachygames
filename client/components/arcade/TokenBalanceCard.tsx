@@ -1,20 +1,14 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Platform, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as WebBrowser from "expo-web-browser";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-
-export const TOKEN_MINTS = {
-  ROACHY: "BJqV6DGuHY8U8KYpBGHVV74YMjJYHdYMPfb1g7dppump",
-  DIAMONDS: "28AUaEftPy8L9bhuFusG84RYynFwjnNCVwT2jkyTz6CA",
-};
+import { getMarketplaceUrl } from "@/lib/query-client";
 
 interface TokenBalanceCardProps {
-  roachyBalance: number;
-  diamondsBalance: number;
-  roachyUsdValue: number;
-  diamondsUsdValue: number;
+  chyCoinsBalance: number;
   onPress?: () => void;
   isConnected: boolean;
   isLoading?: boolean;
@@ -22,25 +16,21 @@ interface TokenBalanceCardProps {
 }
 
 export function TokenBalanceCard({
-  roachyBalance = 0,
-  diamondsBalance = 0,
-  roachyUsdValue = 0,
-  diamondsUsdValue = 0,
+  chyCoinsBalance = 0,
   onPress,
   isConnected,
   isLoading = false,
   isGuest = false,
 }: TokenBalanceCardProps) {
-  const totalUsdValue = roachyUsdValue + diamondsUsdValue;
 
-  const formatNumber = (num: number, decimals: number = 2) => {
+  const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toFixed(decimals);
+    return num.toLocaleString();
   };
 
-  const formatUsd = (value: number) => {
-    return `$${formatNumber(value, 2)}`;
+  const handleClaimOnWeb = async () => {
+    await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
   };
 
   if (isGuest) {
@@ -58,7 +48,7 @@ export function TokenBalanceCard({
           </View>
           <View style={styles.notConnectedText}>
             <ThemedText style={styles.connectTitle}>Playing as Guest</ThemedText>
-            <ThemedText style={styles.connectSubtitle}>Sign in to earn crypto rewards</ThemedText>
+            <ThemedText style={styles.connectSubtitle}>Sign in to earn Chy Coins</ThemedText>
           </View>
           <Feather name="chevron-right" size={20} color={GameColors.textTertiary} />
         </View>
@@ -77,11 +67,11 @@ export function TokenBalanceCard({
         />
         <View style={styles.notConnectedContent}>
           <View style={styles.iconCircle}>
-            <Feather name="credit-card" size={24} color={GameColors.textTertiary} />
+            <Feather name="user" size={24} color={GameColors.textTertiary} />
           </View>
           <View style={styles.notConnectedText}>
-            <ThemedText style={styles.connectTitle}>Connect Wallet</ThemedText>
-            <ThemedText style={styles.connectSubtitle}>View your token balance</ThemedText>
+            <ThemedText style={styles.connectTitle}>Sign In</ThemedText>
+            <ThemedText style={styles.connectSubtitle}>Track your Chy Coins balance</ThemedText>
           </View>
           <Feather name="chevron-right" size={20} color={GameColors.textTertiary} />
         </View>
@@ -100,44 +90,30 @@ export function TokenBalanceCard({
       
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>Your Balance</ThemedText>
-        <ThemedText style={styles.totalValue}>{formatUsd(totalUsdValue)}</ThemedText>
       </View>
 
-      <View style={styles.tokensRow}>
-        <View style={styles.tokenItem}>
-          <View style={[styles.tokenIcon, styles.roachyIcon]}>
-            <ThemedText style={styles.roachySymbolText}>R</ThemedText>
-          </View>
-          <View style={styles.tokenInfo}>
-            {isLoading ? (
-              <ActivityIndicator size="small" color={GameColors.gold} />
-            ) : (
-              <>
-                <ThemedText style={styles.tokenBalance}>{formatNumber(roachyBalance, 0)} ROACHY</ThemedText>
-                <ThemedText style={styles.tokenUsd}>{formatUsd(roachyUsdValue)}</ThemedText>
-              </>
-            )}
+      <View style={styles.balanceSection}>
+        <View style={styles.coinIconContainer}>
+          <View style={styles.coinIcon}>
+            <ThemedText style={styles.coinSymbol}>C</ThemedText>
           </View>
         </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.tokenItem}>
-          <View style={[styles.tokenIcon, styles.diamondsIcon]}>
-            <ThemedText style={styles.diamondsSymbolText}>D</ThemedText>
-          </View>
-          <View style={styles.tokenInfo}>
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#00D4FF" />
-            ) : (
-              <>
-                <ThemedText style={styles.tokenBalance}>{formatNumber(diamondsBalance, 0)} DIAMONDS</ThemedText>
-                <ThemedText style={styles.tokenUsd}>{formatUsd(diamondsUsdValue)}</ThemedText>
-              </>
-            )}
-          </View>
+        <View style={styles.balanceInfo}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={GameColors.gold} />
+          ) : (
+            <>
+              <ThemedText style={styles.balanceValue}>{formatNumber(chyCoinsBalance)}</ThemedText>
+              <ThemedText style={styles.balanceLabel}>Chy Coins</ThemedText>
+            </>
+          )}
         </View>
       </View>
+
+      <Pressable style={styles.claimButton} onPress={handleClaimOnWeb}>
+        <Feather name="external-link" size={16} color={GameColors.gold} />
+        <ThemedText style={styles.claimButtonText}>Claim Rewards on Web</ThemedText>
+      </Pressable>
     </View>
   );
 }
@@ -163,67 +139,62 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GameColors.textSecondary,
   },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: GameColors.gold,
-  },
-  tokensRow: {
+  balanceSection: {
     flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
     gap: Spacing.md,
   },
-  tokenItem: {
-    flex: 1,
-    flexDirection: "row",
+  coinIconContainer: {
     alignItems: "center",
-    gap: Spacing.sm,
+    justifyContent: "center",
   },
-  tokenIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  coinIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: GameColors.gold + "20",
+    borderWidth: 2,
+    borderColor: GameColors.gold + "40",
     justifyContent: "center",
     alignItems: "center",
   },
-  roachyIcon: {
-    backgroundColor: GameColors.gold + "20",
-    borderWidth: 1,
-    borderColor: GameColors.gold + "40",
-  },
-  diamondsIcon: {
-    backgroundColor: "#00D4FF20",
-    borderWidth: 1,
-    borderColor: "#00D4FF40",
-  },
-  roachySymbolText: {
-    fontSize: 16,
+  coinSymbol: {
+    fontSize: 24,
     fontWeight: "800",
     color: GameColors.gold,
   },
-  diamondsSymbolText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#00D4FF",
-  },
-  tokenInfo: {
+  balanceInfo: {
     flex: 1,
   },
-  tokenBalance: {
-    fontSize: 14,
+  balanceValue: {
+    fontSize: 32,
     fontWeight: "700",
     color: GameColors.textPrimary,
   },
-  tokenUsd: {
-    fontSize: 12,
-    color: GameColors.textSecondary,
+  balanceLabel: {
+    fontSize: 14,
+    color: GameColors.gold,
     marginTop: 2,
   },
-  divider: {
-    width: 1,
-    backgroundColor: GameColors.surfaceGlow,
-    marginVertical: 4,
+  claimButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: GameColors.gold + "15",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
+  },
+  claimButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.gold,
   },
   notConnectedContent: {
     flexDirection: "row",

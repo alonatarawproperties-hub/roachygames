@@ -16,15 +16,15 @@ import { GameColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 interface DailyBonusCardProps {
-  walletAddress: string | null;
+  userId: string | null;
   isConnected: boolean;
   isGuest?: boolean;
-  onConnectWallet: () => void;
+  onSignIn: () => void;
 }
 
 interface DailyReward {
   day: number;
-  diamonds: number;
+  coins: number;
   claimed: boolean;
   isToday: boolean;
 }
@@ -37,7 +37,7 @@ interface DailyBonusData {
   nextStreakDay: number;
   weeklyRewards: DailyReward[];
   totalClaims: number;
-  totalDiamondsFromBonus: number;
+  totalCoinsFromBonus: number;
 }
 
 async function getDeviceFingerprint(): Promise<string | null> {
@@ -56,7 +56,7 @@ async function getDeviceFingerprint(): Promise<string | null> {
   }
 }
 
-export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, onConnectWallet }: DailyBonusCardProps) {
+export function DailyBonusCard({ userId, isConnected, isGuest = false, onSignIn }: DailyBonusCardProps) {
   const queryClient = useQueryClient();
   const [claimingDay, setClaimingDay] = useState<number | null>(null);
   const [deviceFingerprint, setDeviceFingerprint] = useState<string | null>(null);
@@ -69,14 +69,14 @@ export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, on
   }, []);
   
   const { data: bonusData, isLoading } = useQuery<DailyBonusData>({
-    queryKey: ["/api/daily-bonus", walletAddress],
-    enabled: !!walletAddress && isConnected,
+    queryKey: ["/api/daily-bonus", userId],
+    enabled: !!userId && isConnected && !isGuest,
   });
   
   const claimMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/daily-bonus/claim", { 
-        walletAddress,
+        userId,
         deviceFingerprint,
       });
       return response.json();
@@ -94,12 +94,12 @@ export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, on
         withTiming(0, { duration: 800 })
       );
       
-      queryClient.invalidateQueries({ queryKey: ["/api/daily-bonus", walletAddress] });
-      queryClient.invalidateQueries({ queryKey: ["/api/economy", walletAddress] });
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-bonus", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user", userId] });
       
       Alert.alert(
         "Bonus Claimed!",
-        `You received ${data.diamondsAwarded} Diamond${data.diamondsAwarded > 1 ? 's' : ''}!\n\nStreak: ${data.newStreak} day${data.newStreak > 1 ? 's' : ''}\nTotal Diamonds: ${data.totalDiamonds}`,
+        `You received ${data.coinsAwarded} Chy Coin${data.coinsAwarded > 1 ? 's' : ''}!\n\nStreak: ${data.newStreak} day${data.newStreak > 1 ? 's' : ''}\nTotal Chy Coins: ${data.totalCoins}`,
         [{ text: "Awesome!", style: "default" }]
       );
       setClaimingDay(null);
@@ -123,8 +123,8 @@ export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, on
   });
 
   const handleClaimPress = (day: number) => {
-    if (!isConnected) {
-      onConnectWallet();
+    if (!isConnected || isGuest) {
+      onSignIn();
       return;
     }
     
@@ -151,19 +151,19 @@ export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, on
   }));
 
   const defaultRewards: DailyReward[] = [
-    { day: 1, diamonds: 1, claimed: false, isToday: true },
-    { day: 2, diamonds: 1, claimed: false, isToday: false },
-    { day: 3, diamonds: 1, claimed: false, isToday: false },
-    { day: 4, diamonds: 2, claimed: false, isToday: false },
-    { day: 5, diamonds: 2, claimed: false, isToday: false },
-    { day: 6, diamonds: 2, claimed: false, isToday: false },
-    { day: 7, diamonds: 3, claimed: false, isToday: false },
+    { day: 1, coins: 1, claimed: false, isToday: true },
+    { day: 2, coins: 1, claimed: false, isToday: false },
+    { day: 3, coins: 1, claimed: false, isToday: false },
+    { day: 4, coins: 2, claimed: false, isToday: false },
+    { day: 5, coins: 2, claimed: false, isToday: false },
+    { day: 6, coins: 2, claimed: false, isToday: false },
+    { day: 7, coins: 3, claimed: false, isToday: false },
   ];
 
   const rewards = bonusData?.weeklyRewards || defaultRewards;
   const currentStreak = bonusData?.currentStreak || 0;
   const canClaim = bonusData?.canClaim ?? true;
-  const weeklyTotal = rewards.reduce((sum, r) => sum + r.diamonds, 0);
+  const weeklyTotal = rewards.reduce((sum, r) => sum + r.coins, 0);
 
   return (
     <View style={styles.container}>
@@ -232,18 +232,16 @@ export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, on
                 )}
               </Animated.View>
               
-              <View style={styles.diamondRow}>
-                <Feather 
-                  name="octagon" 
-                  size={12} 
-                  color={isToday ? "#60A5FA" : isDay7 ? "#60A5FA" : GameColors.textSecondary} 
-                />
+              <View style={styles.coinRow}>
+                <View style={styles.smallCoinIcon}>
+                  <ThemedText style={styles.smallCoinText}>C</ThemedText>
+                </View>
                 <ThemedText style={[
                   styles.rewardAmount,
                   isToday && styles.rewardAmountToday,
                   isDay7 && styles.rewardAmountGrand,
                 ]}>
-                  {reward.diamonds}
+                  {reward.coins}
                 </ThemedText>
               </View>
               
@@ -265,16 +263,16 @@ export function DailyBonusCard({ walletAddress, isConnected, isGuest = false, on
         <Feather name="info" size={14} color={GameColors.textSecondary} />
         <ThemedText style={styles.footerText}>
           {canClaim 
-            ? "Tap today's reward to claim! Weekly total: " + weeklyTotal + " Diamonds"
+            ? "Tap today's reward to claim! Weekly total: " + weeklyTotal + " Chy Coins"
             : "Come back tomorrow for your next bonus!"}
         </ThemedText>
       </View>
       
-      {!isConnected && (
-        <Pressable style={styles.connectOverlay} onPress={onConnectWallet}>
+      {(!isConnected || isGuest) && (
+        <Pressable style={styles.connectOverlay} onPress={onSignIn}>
           <View style={styles.connectContent}>
             <Feather name="lock" size={24} color={GameColors.gold} />
-            <ThemedText style={styles.connectText}>Connect Wallet to Claim</ThemedText>
+            <ThemedText style={styles.connectText}>Sign In to Claim Bonuses</ThemedText>
           </View>
         </Pressable>
       )}
@@ -350,8 +348,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   rewardCardGrand: {
-    backgroundColor: "rgba(96, 165, 250, 0.1)",
-    borderColor: "rgba(96, 165, 250, 0.3)",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderColor: "rgba(245, 158, 11, 0.3)",
   },
   dayLabel: {
     fontSize: 10,
@@ -378,12 +376,25 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 158, 11, 0.2)",
   },
   iconContainerGrand: {
-    backgroundColor: "rgba(96, 165, 250, 0.2)",
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
   },
-  diamondRow: {
+  coinRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
+  },
+  smallCoinIcon: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: GameColors.gold + "30",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  smallCoinText: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: GameColors.gold,
   },
   rewardAmount: {
     fontSize: 14,
@@ -394,7 +405,7 @@ const styles = StyleSheet.create({
     color: GameColors.gold,
   },
   rewardAmountGrand: {
-    color: "#60A5FA",
+    color: GameColors.gold,
   },
   claimBadge: {
     position: "absolute",

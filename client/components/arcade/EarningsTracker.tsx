@@ -19,7 +19,7 @@ export function EarningsTracker() {
 
   const { data: earnings, isLoading } = useQuery<EarningsData>({
     queryKey: ["/api/earnings", user?.id],
-    enabled: isAuthenticated && !isGuest && !!user?.id && !!user?.walletAddress,
+    enabled: isAuthenticated && !isGuest && !!user?.id,
     refetchInterval: 60000,
   });
 
@@ -36,7 +36,7 @@ export function EarningsTracker() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Feather name="trending-up" size={18} color={GameColors.gold} />
-            <ThemedText style={styles.headerTitle}>Earnings</ThemedText>
+            <ThemedText style={styles.headerTitle}>Chy Coins Earned</ThemedText>
           </View>
         </View>
         <View style={styles.disconnectedContent}>
@@ -47,18 +47,18 @@ export function EarningsTracker() {
     );
   }
 
-  if (!isAuthenticated || !user?.walletAddress) {
+  if (!isAuthenticated) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Feather name="trending-up" size={18} color={GameColors.gold} />
-            <ThemedText style={styles.headerTitle}>Earnings</ThemedText>
+            <ThemedText style={styles.headerTitle}>Chy Coins Earned</ThemedText>
           </View>
         </View>
         <View style={styles.disconnectedContent}>
           <Feather name="lock" size={24} color={GameColors.textTertiary} />
-          <ThemedText style={styles.disconnectedText}>Connect wallet to track earnings</ThemedText>
+          <ThemedText style={styles.disconnectedText}>Sign in to track earnings</ThemedText>
         </View>
       </View>
     );
@@ -70,7 +70,7 @@ export function EarningsTracker() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Feather name="trending-up" size={18} color={GameColors.gold} />
-            <ThemedText style={styles.headerTitle}>Earnings</ThemedText>
+            <ThemedText style={styles.headerTitle}>Chy Coins Earned</ThemedText>
           </View>
         </View>
         <View style={styles.loadingContent}>
@@ -87,7 +87,7 @@ export function EarningsTracker() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Feather name="trending-up" size={18} color={GameColors.gold} />
-          <ThemedText style={styles.headerTitle}>Earnings</ThemedText>
+          <ThemedText style={styles.headerTitle}>Chy Coins Earned</ThemedText>
         </View>
         <View style={styles.liveIndicator}>
           <View style={styles.liveDot} />
@@ -100,8 +100,8 @@ export function EarningsTracker() {
           <ThemedText style={styles.statLabel}>Today</ThemedText>
           <View style={styles.statValueRow}>
             <ThemedText style={styles.statValue}>{formatNumber(earningsData.today)}</ThemedText>
-            <View style={styles.diamondIcon}>
-              <Feather name="hexagon" size={12} color="#00D9FF" />
+            <View style={styles.coinIcon}>
+              <ThemedText style={styles.coinIconText}>C</ThemedText>
             </View>
           </View>
           {earningsData.todayChange !== undefined && earningsData.todayChange > 0 ? (
@@ -118,8 +118,8 @@ export function EarningsTracker() {
           <ThemedText style={styles.statLabel}>This Week</ThemedText>
           <View style={styles.statValueRow}>
             <ThemedText style={styles.statValue}>{formatNumber(earningsData.week)}</ThemedText>
-            <View style={styles.diamondIcon}>
-              <Feather name="hexagon" size={12} color="#00D9FF" />
+            <View style={styles.coinIcon}>
+              <ThemedText style={styles.coinIconText}>C</ThemedText>
             </View>
           </View>
           {earningsData.weekChange !== undefined && earningsData.weekChange > 0 ? (
@@ -136,8 +136,8 @@ export function EarningsTracker() {
           <ThemedText style={styles.statLabel}>All Time</ThemedText>
           <View style={styles.statValueRow}>
             <ThemedText style={[styles.statValue, styles.allTimeValue]}>{formatNumber(earningsData.allTime)}</ThemedText>
-            <View style={styles.diamondIcon}>
-              <Feather name="hexagon" size={12} color="#00D9FF" />
+            <View style={styles.coinIcon}>
+              <ThemedText style={styles.coinIconText}>C</ThemedText>
             </View>
           </View>
         </View>
@@ -219,8 +219,18 @@ const styles = StyleSheet.create({
   allTimeValue: {
     color: GameColors.gold,
   },
-  diamondIcon: {
-    marginTop: 2,
+  coinIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: GameColors.gold + "30",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  coinIconText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: GameColors.gold,
   },
   changeRow: {
     flexDirection: "row",
