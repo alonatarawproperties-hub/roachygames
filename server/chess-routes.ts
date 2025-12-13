@@ -281,9 +281,9 @@ function makeBotMove(game: Chess): string | null {
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) return null;
   
-  // Magnus-level: Deep search with alpha-beta pruning
-  // Depth 5-6 is very strong, comparable to grandmaster play
-  const SEARCH_DEPTH = 5;
+  // Strong bot: Depth 3 with good evaluation is challenging but fast
+  // Higher depths cause server timeouts due to JavaScript single-threading
+  const SEARCH_DEPTH = 3;
   const isBlack = game.turn() === 'b';
   
   let bestMove = moves[0];
