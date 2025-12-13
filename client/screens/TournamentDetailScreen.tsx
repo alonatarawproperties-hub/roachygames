@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
+import { useAuth } from "@/context/AuthContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RouteParams = {
@@ -14,8 +15,6 @@ type RouteParams = {
     tournamentId: string;
   };
 };
-
-const MOCK_WALLET = 'demo_player_' + Math.random().toString(36).slice(2, 8);
 
 interface TournamentMatch {
   id: string;
@@ -68,6 +67,9 @@ export function TournamentDetailScreen() {
   const route = useRoute<RouteProp<RouteParams, 'TournamentDetail'>>();
   const insets = useSafeAreaInsets();
   const { tournamentId } = route.params;
+  const { user } = useAuth();
+  
+  const walletAddress = user?.walletAddress || user?.id || 'guest_' + Date.now();
   
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['/api/tournaments', tournamentId],
@@ -80,8 +82,8 @@ export function TournamentDetailScreen() {
   const matches: TournamentMatch[] = data?.matches || [];
   
   const isRegistered = useMemo(() => 
-    participants.some(p => p.walletAddress === MOCK_WALLET),
-    [participants]
+    participants.some(p => p.walletAddress === walletAddress),
+    [participants, walletAddress]
   );
   
   const canJoin = tournament?.status === 'registering' || tournament?.status === 'scheduled';
@@ -90,7 +92,7 @@ export function TournamentDetailScreen() {
   const joinMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', `/api/tournaments/${tournamentId}/join`, {
-        walletAddress: MOCK_WALLET,
+        walletAddress,
       });
       return res.json();
     },
@@ -110,7 +112,7 @@ export function TournamentDetailScreen() {
   const leaveMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', `/api/tournaments/${tournamentId}/leave`, {
-        walletAddress: MOCK_WALLET,
+        walletAddress,
       });
       return res.json();
     },
@@ -261,7 +263,7 @@ export function TournamentDetailScreen() {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Prize Pool</Text>
               <View style={styles.prizeValue}>
-                <Feather name="diamond" size={18} color={GameColors.primary} />
+                <Feather name="hexagon" size={18} color={GameColors.primary} />
                 <Text style={styles.infoValueLarge}>{tournament.prizePool}</Text>
               </View>
             </View>

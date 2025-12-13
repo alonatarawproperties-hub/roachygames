@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
+import { useAuth } from "@/context/AuthContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type GameMode = 'casual' | 'ranked' | 'wager';
@@ -24,18 +25,19 @@ const GAME_MODE_INFO: Record<GameMode, { label: string; description: string; ico
   wager: { label: 'Wager', description: 'Bet diamonds and win big', icon: 'zap' },
 };
 
-const MOCK_WALLET = 'demo_player_' + Math.random().toString(36).slice(2, 8);
-
 export function ChessLobbyScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  
+  const walletAddress = user?.walletAddress || user?.id || 'guest_' + Date.now();
   
   const [selectedMode, setSelectedMode] = useState<GameMode>('casual');
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>('rapid');
   
   const { data: ratingData } = useQuery({
-    queryKey: ['/api/chess/rating', MOCK_WALLET],
-    queryFn: () => fetch(new URL(`/api/chess/rating/${MOCK_WALLET}`, getApiUrl()).toString()).then(r => r.json()),
+    queryKey: ['/api/chess/rating', walletAddress],
+    queryFn: () => fetch(new URL(`/api/chess/rating/${walletAddress}`, getApiUrl()).toString()).then(r => r.json()),
   });
   
   const rating = ratingData?.rating?.rating || 1200;
@@ -44,7 +46,7 @@ export function ChessLobbyScreen() {
   const createDemoMatchMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', '/api/chess/demo-match', {
-        walletAddress: MOCK_WALLET,
+        walletAddress,
         gameMode: selectedMode,
         timeControl: selectedTimeControl,
       });
@@ -54,7 +56,7 @@ export function ChessLobbyScreen() {
       if (data.success && data.match) {
         navigation.navigate('ChessGame', {
           matchId: data.match.id,
-          walletAddress: MOCK_WALLET,
+          walletAddress,
         });
       }
     },
@@ -63,7 +65,7 @@ export function ChessLobbyScreen() {
   const joinMatchmakingMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', '/api/chess/matchmaking/join', {
-        walletAddress: MOCK_WALLET,
+        walletAddress,
         gameMode: selectedMode,
         timeControl: selectedTimeControl,
         wagerAmount: 0,
@@ -74,11 +76,11 @@ export function ChessLobbyScreen() {
       if (data.matchFound && data.match) {
         navigation.navigate('ChessGame', {
           matchId: data.match.id,
-          walletAddress: MOCK_WALLET,
+          walletAddress,
         });
       } else {
         navigation.navigate('ChessMatchmaking', {
-          walletAddress: MOCK_WALLET,
+          walletAddress,
           gameMode: selectedMode,
           timeControl: selectedTimeControl,
         });
