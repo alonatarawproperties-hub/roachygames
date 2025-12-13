@@ -1,5 +1,6 @@
 import { ImageSourcePropType } from "react-native";
 
+const RoachyMateLogo = require("@/assets/roachy-mate-logo.png");
 const RoachyHuntLogo = require("@/assets/roachy-hunt-logo.png");
 const FlappyRoachLogo = require("@/assets/flappy-roach-logo.png");
 const RoachyBattlesLogo = require("@/assets/roachy-battles-logo.png");
@@ -25,6 +26,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     title: "Roachy Mate",
     tagline: "Chess with Roachies!",
     description: "Play chess against AI or friends with your Roachies as chess pieces. Master strategy and outsmart your opponents!",
+    coverImage: RoachyMateLogo,
     iconName: "grid",
     routeName: "RoachyMateStack",
     isLocked: false,
