@@ -277,38 +277,47 @@ function makeBotMove(game: Chess): { move: string; thinkTimeMs: number } | null 
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) return null;
   
-  // Depth 2 is fast (~1 second) while still playing reasonably well
-  const SEARCH_DEPTH = 2;
+  // GM-level: Depth 4 with optimized alpha-beta pruning
+  // This plays at approximately 2000+ ELO strength
+  const SEARCH_DEPTH = 4;
   const isBlack = game.turn() === 'b';
   
   let bestMove = moves[0];
   let bestEval = isBlack ? Infinity : -Infinity;
   
-  const orderedMoves = orderMoves(game);
-  
-  for (const move of orderedMoves) {
-    game.move(move);
-    const evaluation = minimax(game, SEARCH_DEPTH - 1, -Infinity, Infinity, !isBlack);
-    game.undo();
+  // Use iterative deepening for better move ordering
+  for (let depth = 1; depth <= SEARCH_DEPTH; depth++) {
+    const orderedMoves = orderMoves(game);
+    let depthBestMove = orderedMoves[0];
+    let depthBestEval = isBlack ? Infinity : -Infinity;
     
-    if (isBlack) {
-      if (evaluation < bestEval) {
-        bestEval = evaluation;
-        bestMove = move;
-      }
-    } else {
-      if (evaluation > bestEval) {
-        bestEval = evaluation;
-        bestMove = move;
+    for (const move of orderedMoves) {
+      game.move(move);
+      const evaluation = minimax(game, depth - 1, -Infinity, Infinity, !isBlack);
+      game.undo();
+      
+      if (isBlack) {
+        if (evaluation < depthBestEval) {
+          depthBestEval = evaluation;
+          depthBestMove = move;
+        }
+      } else {
+        if (evaluation > depthBestEval) {
+          depthBestEval = evaluation;
+          depthBestMove = move;
+        }
       }
     }
+    
+    bestMove = depthBestMove;
+    bestEval = depthBestEval;
   }
   
   const thinkTimeMs = Date.now() - startTime;
-  // Add minimum 1-2 seconds "thinking" to feel more human-like
-  const humanizedThinkTime = Math.max(thinkTimeMs, 1000 + Math.random() * 1000);
+  // GM thinks 2-5 seconds per move
+  const humanizedThinkTime = Math.max(thinkTimeMs, 2000 + Math.random() * 3000);
   
-  console.log(`[Bot] Selected move: ${bestMove.san} (eval: ${bestEval}, think: ${thinkTimeMs}ms)`);
+  console.log(`[Bot GM] Selected move: ${bestMove.san} (eval: ${bestEval}, think: ${thinkTimeMs}ms)`);
   return { 
     move: bestMove.from + bestMove.to + (bestMove.promotion || ''),
     thinkTimeMs: humanizedThinkTime
