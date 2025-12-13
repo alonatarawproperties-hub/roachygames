@@ -182,12 +182,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Google sign-in not configured" };
       }
 
+      // Use reversed client ID for native OAuth redirect
+      // This works in TestFlight/Production builds but NOT in Expo Go
       const reversedClientId = clientId.split(".").reverse().join(".");
-      const redirectUri = Platform.select({
-        ios: `${reversedClientId}:/oauthredirect`,
-        android: `${reversedClientId}:/oauthredirect`,
-        default: AuthSession.makeRedirectUri({ scheme: "roachy-games", path: "auth" }),
-      });
+      const redirectUri = `${reversedClientId}:/oauthredirect`;
+
+      console.log("[Auth] Google OAuth redirect URI:", redirectUri);
+      console.log("[Auth] Platform:", Platform.OS);
 
       const request = new AuthSession.AuthRequest({
         clientId,
