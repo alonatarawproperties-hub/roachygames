@@ -11,17 +11,27 @@ export function getApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // For web platform, use relative URLs - Express serves everything on same domain
+  // For web platform in development, Metro serves the web app on port 8081 (external 80)
+  // but API requests need to go to Express on port 5000 (external 5000)
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    // In web browser - use current origin (Express proxies API on same port)
-    return window.location.origin;
+    const hostname = window.location.hostname;
+    
+    // In development (localhost), Express API is on port 5000
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+    
+    // On Replit, Express is on external port 5000
+    // Access it via https://hostname:5000 or the port-specific domain
+    // Replit port 5000 is accessible via the same domain with :5000 suffix
+    return `https://${hostname}:5000`;
   }
 
   // Use domain if provided (for native apps)
   if (process.env.EXPO_PUBLIC_DOMAIN) {
-    // Remove :5000 port if present - HTTPS uses 443
+    // EXPO_PUBLIC_DOMAIN is set to "domain:5000" - use it directly with https
     const domain = process.env.EXPO_PUBLIC_DOMAIN.replace(/:5000$/, '');
-    return `https://${domain}`;
+    return `https://${domain}:5000`;
   }
 
   // Development fallback - use local server
