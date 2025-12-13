@@ -1,13 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback } from "react";
 import { View, StyleSheet, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { FlappyGame } from "@/games/flappy/FlappyGame";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useAuth } from "@/context/AuthContext";
+import { apiRequest } from "@/lib/query-client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function FlappyRoachScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let isMounted = true;
@@ -41,9 +44,30 @@ export function FlappyRoachScreen() {
     navigation.goBack();
   };
 
-  const handleScoreSubmit = (score: number) => {
-    console.log("Flappy Roach score:", score);
-  };
+  const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean) => {
+    if (!user?.id) {
+      console.log("Guest score (not saved):", score);
+      return;
+    }
+    
+    try {
+      await apiRequest("POST", "/api/flappy/score", {
+        userId: user.id,
+        score,
+        coinsCollected: 0,
+        isRanked,
+        diamondEntryFee: isRanked ? 1 : 0,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/flappy/leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/flappy/leaderboard", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
+      
+      console.log(`Score ${score} submitted (ranked: ${isRanked})`);
+    } catch (error) {
+      console.error("Failed to submit score:", error);
+    }
+  }, [user?.id, queryClient]);
 
   return (
     <View style={styles.container}>
