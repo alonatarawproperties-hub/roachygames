@@ -8,6 +8,23 @@ Roachy Games is an arcade platform for play-to-earn (P2E) games featuring Roachi
 - Bundle identifiers kept as "com.cryptocreatures.app"
 - Future: Wallet connection and NFT minting via marketplace dApp
 
+## Authentication System (Simplified - Build 107)
+Login screen has **3 options only**:
+1. **Sign in with Google** - OAuth via `expo-auth-session`
+2. **Connect Wallet** - Authenticates via Phantom/Solflare wallet signature
+3. **Continue as Guest** - Play without account, restricted wallet features
+
+**Guest User Restrictions:**
+- Cannot connect wallet, earn crypto, or claim daily bonuses
+- TokenBalanceCard, EarningsTracker, DailyBonusCard, NFTGallery all show "Sign In Required"
+- Wallet buttons show alert with option to sign in (logs out and returns to login)
+
+**Wallet-Based Authentication:**
+- Endpoint: `POST /api/auth/wallet-login`
+- Signs message with wallet private key, server verifies signature
+- Creates new user or logs in existing wallet user
+- `authProvider: "wallet"` for wallet-authenticated users
+
 ## System Architecture
 
 ### High-Level Design
