@@ -729,7 +729,7 @@ export function ArcadeHomeScreen() {
                 <FeaturedGameHero
                   game={featuredGame}
                   onPress={() => handleGamePress(featuredGame.routeName)}
-                  viewerCount="184 hunting"
+                  viewerCount={featuredGame.id === "roachy-mate" ? "42 playing" : featuredGame.id === "roachy-hunt" ? "184 hunting" : "Live"}
                 />
                 <View style={styles.sectionSpacer} />
                 <EarningsTracker />
