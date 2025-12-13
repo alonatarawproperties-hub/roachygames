@@ -1057,32 +1057,37 @@ export function ArcadeHomeScreen() {
             <View style={styles.webLinksSection}>
               <ThemedText style={styles.sectionTitle}>Web App</ThemedText>
               <Pressable 
-                style={styles.marketplaceButton}
-                onPress={() => Alert.alert("Coming Soon", "Marketplace will open in browser")}
+                style={[styles.marketplaceButton, styles.disabledLink]}
+                onPress={() => Alert.alert("Coming Soon", "Marketplace will be available in a future update!")}
               >
                 <View style={styles.marketplaceIcon}>
-                  <Feather name="shopping-bag" size={24} color={GameColors.gold} />
+                  <Feather name="shopping-bag" size={24} color={GameColors.textTertiary} />
                 </View>
                 <View style={styles.marketplaceInfo}>
-                  <ThemedText style={styles.marketplaceTitle}>Open Marketplace</ThemedText>
+                  <ThemedText style={[styles.marketplaceTitle, styles.disabledText]}>Open Marketplace</ThemedText>
                   <ThemedText style={styles.marketplaceSubtitle}>Trade Roachies and items</ThemedText>
                 </View>
-                <Feather name="external-link" size={20} color={GameColors.gold} />
+                <View style={styles.comingSoonBadge}>
+                  <Feather name="lock" size={12} color={GameColors.textTertiary} />
+                  <ThemedText style={styles.comingSoonText}>Soon</ThemedText>
+                </View>
               </Pressable>
               <View style={styles.webLinksRow}>
                 <Pressable 
-                  style={styles.webLinkItem}
-                  onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/roachyswap")}
+                  style={[styles.webLinkItem, styles.disabledLink]}
+                  onPress={() => Alert.alert("Coming Soon", "Roachy Swap will be available in a future update!")}
                 >
-                  <Feather name="repeat" size={18} color={GameColors.textSecondary} />
-                  <ThemedText style={styles.webLinkText}>Roachy Swap</ThemedText>
+                  <Feather name="repeat" size={18} color={GameColors.textTertiary} />
+                  <ThemedText style={[styles.webLinkText, styles.disabledText]}>Roachy Swap</ThemedText>
+                  <Feather name="lock" size={12} color={GameColors.textTertiary} style={{ marginLeft: 4 }} />
                 </Pressable>
                 <Pressable 
-                  style={styles.webLinkItem}
-                  onPress={() => WebBrowser.openBrowserAsync("https://roachy.games/staking")}
+                  style={[styles.webLinkItem, styles.disabledLink]}
+                  onPress={() => Alert.alert("Coming Soon", "Staking will be available in a future update!")}
                 >
-                  <Feather name="lock" size={18} color={GameColors.textSecondary} />
-                  <ThemedText style={styles.webLinkText}>Staking</ThemedText>
+                  <Feather name="lock" size={18} color={GameColors.textTertiary} />
+                  <ThemedText style={[styles.webLinkText, styles.disabledText]}>Staking</ThemedText>
+                  <Feather name="lock" size={12} color={GameColors.textTertiary} style={{ marginLeft: 4 }} />
                 </Pressable>
               </View>
             </View>
@@ -1640,6 +1645,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: GameColors.textSecondary,
+  },
+  disabledLink: {
+    opacity: 0.6,
+  },
+  disabledText: {
+    color: GameColors.textTertiary,
+  },
+  comingSoonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GameColors.surfaceLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  comingSoonText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: GameColors.textTertiary,
   },
   rewardsHint: {
     fontSize: 13,
