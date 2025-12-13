@@ -631,35 +631,21 @@ export function ArcadeHomeScreen() {
     navigation.navigate(routeName);
   };
 
-  const showGuestWalletAlert = () => {
+  const showComingSoonAlert = () => {
     Alert.alert(
-      "Sign In Required",
-      "Create an account or sign in to connect your wallet and earn crypto rewards.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Sign In", onPress: () => logout() },
-      ]
+      "Coming Soon",
+      "Wallet connection will be available in the next update. Stay tuned!",
+      [{ text: "OK" }]
     );
   };
 
+  const showGuestWalletAlert = () => {
+    showComingSoonAlert();
+  };
+
   const handleWalletPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isGuest) {
-      showGuestWalletAlert();
-      return;
-    }
-    if (wallet.connected) {
-      Alert.alert(
-        "Wallet Connected",
-        `Connected to ${wallet.address?.substring(0, 6)}...${wallet.address?.substring(wallet.address.length - 4)}`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Disconnect", style: "destructive", onPress: disconnectWallet },
-        ]
-      );
-    } else {
-      setShowWalletModal(true);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    showComingSoonAlert();
   };
 
   const handleNotificationPress = () => {

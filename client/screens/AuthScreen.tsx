@@ -41,24 +41,13 @@ export function AuthScreen() {
     }
   }, [wallet.connected, wallet.address, pendingWalletLogin]);
 
-  const handleGoogleAuth = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsSubmitting(true);
-
-    try {
-      const result = await loginWithGoogle();
-      if (!result.success) {
-        if (result.error !== "Sign-in cancelled") {
-          Alert.alert("Error", result.error || "Google sign-in failed");
-        }
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Google sign-in failed");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleGoogleAuth = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      "Coming Soon",
+      "Google sign-in will be available in the next update. For now, please continue as a guest to try the beta!",
+      [{ text: "OK" }]
+    );
   };
 
   const handleWalletLogin = async (walletAddress: string) => {
@@ -82,9 +71,12 @@ export function AuthScreen() {
   };
 
   const handleConnectWalletPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setPendingWalletLogin(true);
-    setShowWalletModal(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      "Coming Soon",
+      "Wallet connection will be available in the next update. For now, please continue as a guest to try the beta!",
+      [{ text: "OK" }]
+    );
   };
 
   const handleWalletModalClose = () => {
@@ -135,31 +127,29 @@ export function AuthScreen() {
 
         <View style={styles.authContainer}>
           <Pressable
-            style={[styles.authButton, styles.googleButton]}
+            style={[styles.authButton, styles.googleButton, styles.disabledButton]}
             onPress={handleGoogleAuth}
-            disabled={isDisabled}
           >
-            {isSubmitting ? (
-              <ActivityIndicator color="#333" size="small" />
-            ) : (
-              <>
-                <GoogleLogo size={22} />
-                <ThemedText style={styles.googleButtonText}>
-                  Continue with Google
-                </ThemedText>
-              </>
-            )}
+            <GoogleLogo size={22} />
+            <ThemedText style={styles.googleButtonText}>
+              Continue with Google
+            </ThemedText>
+            <View style={styles.comingSoonBadge}>
+              <Feather name="lock" size={12} color={GameColors.textSecondary} />
+            </View>
           </Pressable>
 
           <Pressable
-            style={[styles.authButton, styles.walletButton]}
+            style={[styles.authButton, styles.walletButton, styles.disabledButton]}
             onPress={handleConnectWalletPress}
-            disabled={isDisabled}
           >
             <Feather name="credit-card" size={22} color={GameColors.gold} />
             <ThemedText style={styles.walletButtonText}>
               Connect Wallet
             </ThemedText>
+            <View style={styles.comingSoonBadge}>
+              <Feather name="lock" size={12} color={GameColors.gold} />
+            </View>
           </Pressable>
 
           <View style={styles.divider}>
@@ -271,6 +261,13 @@ const styles = StyleSheet.create({
     color: GameColors.gold,
     fontSize: 16,
     fontWeight: "600",
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  comingSoonBadge: {
+    position: "absolute",
+    right: 16,
   },
   divider: {
     flexDirection: "row",
