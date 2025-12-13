@@ -19,9 +19,7 @@ interface ArcadeHeaderProps {
   showSearch?: boolean;
   searchValue?: string;
   onSearchChange?: (text: string) => void;
-  onWalletPress?: () => void;
   onNotificationPress?: () => void;
-  walletConnected?: boolean;
 }
 
 function AnimatedButton({
@@ -72,9 +70,7 @@ export function ArcadeHeader({
   showSearch = true,
   searchValue = "",
   onSearchChange,
-  onWalletPress,
   onNotificationPress,
-  walletConnected = false,
 }: ArcadeHeaderProps) {
   const insets = useSafeAreaInsets();
 
@@ -89,19 +85,6 @@ export function ArcadeHeader({
         </View>
 
         <View style={styles.actions}>
-          <AnimatedButton
-            style={[
-              styles.actionButton,
-              walletConnected && styles.walletConnected,
-            ]}
-            onPress={onWalletPress}
-          >
-            {walletConnected ? (
-              <View style={styles.walletConnectedDot} />
-            ) : null}
-            <Feather name="credit-card" size={18} color={walletConnected ? GameColors.secondary : GameColors.gold} />
-          </AnimatedButton>
-
           <AnimatedButton
             style={styles.actionButton}
             onPress={onNotificationPress}
@@ -192,20 +175,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: GameColors.surfaceGlow,
-  },
-  walletConnected: {
-    borderColor: GameColors.secondary,
-    borderWidth: 2,
-  },
-  walletConnectedDot: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: GameColors.secondary,
-    zIndex: 1,
   },
   notificationDot: {
     position: "absolute",
