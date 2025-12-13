@@ -382,6 +382,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
   
   const [showMenu, setShowMenu] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>("free");
+  const [rankedPeriod, setRankedPeriod] = useState<'daily' | 'weekly' | null>(null);
   const [equippedPowerUps, setEquippedPowerUps] = useState<{
     shield: boolean;
     double: boolean;
@@ -1240,7 +1241,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
             <View style={styles.startCard}>
               <ThemedText style={styles.title}>Flappy Roachy</ThemedText>
               <ThemedText style={styles.subtitle}>
-                {gameMode === "ranked" ? "Ranked Mode" : "Free Play"}
+                {gameMode === "ranked" 
+                  ? (rankedPeriod === 'daily' ? "Daily Challenge" : "Weekly Championship")
+                  : "Free Play"}
               </ThemedText>
               <View style={styles.instructionRow}>
                 <Feather name="zap" size={20} color={GameColors.gold} />
@@ -1291,12 +1294,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
         visible={showMenu}
         onClose={() => setShowMenu(false)}
         userId={userId}
-        onPlayRanked={() => {
+        onPlayRanked={(period: 'daily' | 'weekly') => {
           setGameMode("ranked");
+          setRankedPeriod(period);
           setShowMenu(false);
         }}
         onPlayFree={() => {
           setGameMode("free");
+          setRankedPeriod(null);
           setShowMenu(false);
         }}
         onEquipPowerUp={(type) => {

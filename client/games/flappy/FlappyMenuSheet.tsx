@@ -81,7 +81,7 @@ interface FlappyMenuSheetProps {
   visible: boolean;
   onClose: () => void;
   userId: string | null;
-  onPlayRanked: () => void;
+  onPlayRanked: (period: 'daily' | 'weekly') => void;
   onPlayFree: () => void;
   onEquipPowerUp: (type: "shield" | "double" | "magnet") => void;
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
@@ -129,13 +129,11 @@ export function FlappyMenuSheet({
     mutationFn: async (period: 'daily' | 'weekly') => {
       return apiRequest("POST", "/api/flappy/ranked/enter", { userId, period });
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, period: 'daily' | 'weekly') => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user", userId, "diamonds"] });
-      if (!data.alreadyJoined) {
-        onPlayRanked();
-        onClose();
-      }
+      onPlayRanked(period);
+      onClose();
     },
     onError: (error: any) => {
       console.log("Ranked entry failed:", error.message || "Not enough diamonds");
