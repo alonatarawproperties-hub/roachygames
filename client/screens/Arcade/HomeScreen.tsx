@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: 100,
+    paddingBottom: 160,
   },
   gamesList: {
     marginTop: Spacing.sm,
