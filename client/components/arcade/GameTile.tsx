@@ -23,9 +23,9 @@ interface GameTileProps {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CATEGORY_COLORS: Record<string, string> = {
-  hunt: "#22C55E",
+  strategy: "#8B5CF6",
   battle: "#EF4444",
-  puzzle: "#8B5CF6",
+  arcade: "#F59200",
   adventure: "#06B6D4",
 };
 

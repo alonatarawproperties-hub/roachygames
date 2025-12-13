@@ -20,22 +20,22 @@ interface GameListItemProps {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  hunt: { bg: "#00FF8820", text: "#00FF88", border: "#00FF8840" },
+  strategy: { bg: "#9D4EDD20", text: "#9D4EDD", border: "#9D4EDD40" },
   battle: { bg: "#FF336620", text: "#FF3366", border: "#FF336640" },
-  puzzle: { bg: "#9D4EDD20", text: "#9D4EDD", border: "#9D4EDD40" },
+  arcade: { bg: "#F5920020", text: "#F59200", border: "#F5920040" },
   adventure: { bg: "#00D9FF20", text: "#00D9FF", border: "#00D9FF40" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  hunt: "Adventure",
-  battle: "Strategy",
-  puzzle: "Puzzle",
-  adventure: "Fantasy",
+  strategy: "Strategy",
+  battle: "Battle",
+  arcade: "Arcade",
+  adventure: "Adventure",
 };
 
 export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItemProps) {
   const scale = useSharedValue(1);
-  const categoryStyle = CATEGORY_COLORS[game.category] || CATEGORY_COLORS.hunt;
+  const categoryStyle = CATEGORY_COLORS[game.category] || CATEGORY_COLORS.adventure;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

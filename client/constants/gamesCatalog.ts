@@ -14,7 +14,7 @@ export interface GameEntry {
   routeName: string;
   isLocked: boolean;
   isComingSoon: boolean;
-  category: "hunt" | "battle" | "puzzle" | "adventure";
+  category: "strategy" | "battle" | "arcade" | "adventure";
   playerCount: string;
   rewards: string[];
 }
@@ -29,7 +29,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     routeName: "RoachyMateStack",
     isLocked: false,
     isComingSoon: false,
-    category: "puzzle",
+    category: "strategy",
     playerCount: "Solo & 1v1",
     rewards: ["Chess Rankings", "Strategy Badges", "Daily Challenges"],
   },
@@ -57,7 +57,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     routeName: "FlappyRoachStack",
     isLocked: true,
     isComingSoon: true,
-    category: "adventure",
+    category: "arcade",
     playerCount: "Solo",
     rewards: ["Coins", "High Scores", "Power-ups"],
   },
