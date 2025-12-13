@@ -5,12 +5,11 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
+import { getMarketplaceUrl } from "@/lib/query-client";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { WalletSelectModal } from "@/components/WalletSelectModal";
 import { Button } from "@/components/Button";
 import {
   ArcadeHeader,
@@ -18,21 +17,16 @@ import {
   GameListItem,
   ArcadeTabBar,
   TokenBalanceCard,
-  NetworkStatusBadge,
-  SolanaTrustBadge,
   EarningsTracker,
   OnboardingFlow,
   ActivityHistory,
-  NFTGallery,
   WebCTABanner,
 } from "@/components/arcade";
 import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
 import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { useWallet } from "../../context/WalletContext";
 import { useAuth } from "@/context/AuthContext";
-import { useTokenBalances } from "@/hooks/useTokenBalances";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
 import { useHunt } from "@/context/HuntContext";
 import type { ArcadeInventoryItem, InventoryFilter, InventoryItemType, ItemTypeMetadata } from "@/types/inventory";
@@ -292,11 +286,6 @@ function InventoryItemSection({
                         </View>
                       )}
                       
-                      {item.blockchain.isMintable ? (
-                        <View style={sectionStyles.nftBadge}>
-                          <Feather name="star" size={10} color="#FFD700" />
-                        </View>
-                      ) : null}
                       
                       {item.status === "incubating" && item.progress ? (
                         <View style={sectionStyles.progressBadge}>
@@ -468,19 +457,12 @@ export function ArcadeHomeScreen() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("Home");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [showWebBanner, setShowWebBanner] = useState(true);
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const [isHatching, setIsHatching] = useState(false);
-  const { wallet, disconnectWallet } = useWallet();
   const { user, logout, isGuest } = useAuth();
   const { collectedEggs, hatchEggs, refreshEconomy } = useHunt();
-  const { roachy, diamonds, roachyUsdValue, isLoading: balancesLoading } = useTokenBalances(
-    wallet.address,
-    wallet.connected
-  );
   const {
     items: inventoryItems,
     isLoading: isLoadingInventory,
@@ -512,10 +494,10 @@ export function ArcadeHomeScreen() {
         const def = getCreatureDefinition(result.creature.templateId);
         await refreshEconomy();
         refetchInventory();
-        if (user?.walletAddress) {
-          queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", user.walletAddress] });
-          queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", user.walletAddress] });
-          queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", user.walletAddress] });
+        if (user?.id) {
+          queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", user.id] });
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
@@ -558,29 +540,6 @@ export function ArcadeHomeScreen() {
   const featuredGame = GAMES_CATALOG[0];
   const gamesList = GAMES_CATALOG;
 
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
-  };
-
-  const getProviderName = () => {
-    if (!wallet.provider) return '';
-    return 'WalletConnect';
-  };
-
-  const handleCopyAddress = async () => {
-    if (wallet.address) {
-      await Clipboard.setStringAsync(wallet.address);
-      setCopied(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleDisconnectWallet = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    disconnectWallet();
-  };
-
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
@@ -592,7 +551,6 @@ export function ArcadeHomeScreen() {
           text: "Sign Out", 
           style: "destructive", 
           onPress: async () => {
-            disconnectWallet();
             await logout();
           }
         },
@@ -603,21 +561,18 @@ export function ArcadeHomeScreen() {
   const getUserDisplayName = (): string => {
     if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split("@")[0];
-    if (wallet.connected && wallet.address) return truncateAddress(wallet.address);
     return "Guest Player";
   };
 
   const getAccountType = (): string => {
     if (user?.authProvider === "google" || user?.googleId) return "Google Account";
     if (user?.authProvider === "email" || user?.email) return "Email Account";
-    if (wallet.connected) return getProviderName() + " Wallet";
     return "Guest";
   };
 
   const getAccountIcon = (): keyof typeof Feather.glyphMap => {
     if (user?.authProvider === "google" || user?.googleId) return "globe";
     if (user?.authProvider === "email" || user?.email) return "mail";
-    if (wallet.connected) return "credit-card";
     return "user";
   };
 
@@ -631,21 +586,12 @@ export function ArcadeHomeScreen() {
     navigation.navigate(routeName);
   };
 
-  const showComingSoonAlert = () => {
+  const showGuestSignInAlert = () => {
     Alert.alert(
-      "Coming Soon",
-      "Wallet connection will be available in the next update. Stay tuned!",
+      "Sign In Required",
+      "Sign in with your account to access all features and track your progress.",
       [{ text: "OK" }]
     );
-  };
-
-  const showGuestWalletAlert = () => {
-    showComingSoonAlert();
-  };
-
-  const handleWalletPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    showComingSoonAlert();
   };
 
   const handleNotificationPress = () => {
@@ -688,9 +634,7 @@ export function ArcadeHomeScreen() {
       <ArcadeHeader
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        onWalletPress={handleWalletPress}
         onNotificationPress={handleNotificationPress}
-        walletConnected={wallet.connected}
       />
 
       <ScrollView
@@ -703,21 +647,17 @@ export function ArcadeHomeScreen() {
             {activeTab === "Home" && (
               <>
                 <TokenBalanceCard
-                  roachyBalance={roachy}
-                  diamondsBalance={diamonds}
-                  roachyUsdValue={roachyUsdValue}
-                  diamondsUsdValue={0}
-                  isConnected={wallet.connected}
-                  isLoading={balancesLoading}
+                  chyCoinsBalance={user?.chyBalance || 0}
+                  isConnected={!!user && !isGuest}
+                  isLoading={false}
                   isGuest={isGuest}
-                  onPress={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
+                  onPress={() => isGuest ? showGuestSignInAlert() : undefined}
                 />
                 <View style={styles.livePlayersRow}>
                   <View style={styles.livePlayersBadge}>
                     <View style={styles.livePlayersDot} />
                     <ThemedText style={styles.livePlayersText}>247 players online</ThemedText>
                   </View>
-                  <NetworkStatusBadge isConnected={true} networkName="Solana" />
                 </View>
                 <FeaturedGameHero
                   game={featuredGame}
@@ -762,7 +702,6 @@ export function ArcadeHomeScreen() {
                 <View style={styles.moreSection}>
                   <ThemedText style={styles.moreText}>More games coming soon</ThemedText>
                 </View>
-                <SolanaTrustBadge variant="minimal" />
               </>
             )}
           </>
@@ -819,12 +758,6 @@ export function ArcadeHomeScreen() {
                   <ThemedText style={styles.statLabel}>{typeMeta.pluralLabel}</ThemedText>
                 </View>
               ))}
-              {getMintableCount() > 0 ? (
-                <View style={styles.statBox}>
-                  <ThemedText style={styles.statNumber}>{getMintableCount()}</ThemedText>
-                  <ThemedText style={styles.statLabel}>NFT-Ready</ThemedText>
-                </View>
-              ) : null}
             </View>
 
             {isLoadingInventory ? (
@@ -894,38 +827,8 @@ export function ArcadeHomeScreen() {
                     );
                   })}
 
-                {/* NFT minting section - always show if there are mintable items */}
-                {getMintableCount() > 0 && inventoryFilter === "all" ? (
-                  <View style={styles.inventorySection}>
-                    <View style={styles.sectionHeader}>
-                      <Feather name="hexagon" size={18} color={GameColors.gold} />
-                      <ThemedText style={styles.sectionTitle}>Ready to Mint</ThemedText>
-                    </View>
-                    <View style={styles.nftInfo}>
-                      <ThemedText style={styles.nftInfoText}>
-                        {getMintableCount()} items ready to mint as NFTs
-                      </ThemedText>
-                      <Button
-                        onPress={() => {
-                          if (isGuest) {
-                            showGuestWalletAlert();
-                          } else if (wallet.connected) {
-                            Alert.alert("Coming Soon", "NFT minting coming soon!");
-                          } else {
-                            setShowWalletModal(true);
-                          }
-                        }}
-                        style={styles.mintButton}
-                      >
-                        {isGuest ? "Sign In" : wallet.connected ? "Mint NFTs" : "Connect Wallet"}
-                      </Button>
-                    </View>
-                  </View>
-                ) : null}
               </>
             )}
-
-            <SolanaTrustBadge variant="minimal" />
           </View>
         )}
 
@@ -940,10 +843,10 @@ export function ArcadeHomeScreen() {
             </View>
 
             <DailyBonusCard 
-              walletAddress={wallet.address}
-              isConnected={wallet.connected}
+              userId={user?.id}
+              isConnected={!!user && !isGuest}
               isGuest={isGuest}
-              onConnectWallet={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
+              onSignIn={showGuestSignInAlert}
             />
 
             <View style={styles.rewardsSection}>
@@ -972,7 +875,6 @@ export function ArcadeHomeScreen() {
               </View>
             </View>
 
-            <SolanaTrustBadge variant="minimal" />
           </View>
         )}
 
@@ -991,63 +893,30 @@ export function ArcadeHomeScreen() {
               </View>
             </View>
 
-            <View style={styles.walletSection}>
-              <ThemedText style={styles.sectionTitle}>Wallet</ThemedText>
-              <View style={styles.walletCard}>
-                {wallet.connected && wallet.address ? (
-                  <>
-                    <View style={styles.walletConnected}>
-                      <View style={styles.walletStatus}>
-                        <View style={styles.walletDot} />
-                        <ThemedText style={styles.walletStatusText}>Connected</ThemedText>
-                      </View>
-                      <Pressable onPress={handleDisconnectWallet}>
-                        <Feather name="log-out" size={20} color={GameColors.textSecondary} />
-                      </Pressable>
-                    </View>
-                    <Pressable style={styles.addressContainer} onPress={handleCopyAddress}>
-                      <ThemedText style={styles.addressLabel}>Solana Address</ThemedText>
-                      <View style={styles.addressRow}>
-                        <ThemedText style={styles.address}>{truncateAddress(wallet.address)}</ThemedText>
-                        <Feather name={copied ? "check" : "copy"} size={16} color={copied ? GameColors.success : GameColors.textSecondary} />
-                      </View>
-                    </Pressable>
-                  </>
-                ) : (
-                  <View style={styles.walletNotConnected}>
-                    <View style={styles.walletIcon}>
-                      <Feather name={isGuest ? "user" : "credit-card"} size={32} color={GameColors.textSecondary} />
-                    </View>
-                    <ThemedText style={styles.walletTitle}>
-                      {isGuest ? "Playing as Guest" : "Connect Your Wallet"}
-                    </ThemedText>
-                    <ThemedText style={styles.walletDescription}>
-                      {isGuest ? "Sign in to connect a wallet and earn real crypto" : "Connect a Solana wallet to mint creatures as NFTs"}
-                    </ThemedText>
-                    <Button
-                      onPress={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
-                      disabled={wallet.isConnecting}
-                      style={styles.connectButton}
-                    >
-                      {wallet.isConnecting ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : isGuest ? (
-                        "Sign In"
-                      ) : (
-                        "Connect Wallet"
-                      )}
-                    </Button>
+            <View style={styles.rewardsSection}>
+              <ThemedText style={styles.sectionTitle}>Rewards</ThemedText>
+              <Pressable 
+                style={styles.rewardsCard}
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
+                }}
+              >
+                <View style={styles.rewardsCardContent}>
+                  <View style={styles.rewardsCardIcon}>
+                    <Feather name="gift" size={32} color={GameColors.gold} />
                   </View>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.nftSection}>
-              <NFTGallery
-                isConnected={wallet.connected}
-                isGuest={isGuest}
-                onConnectWallet={() => isGuest ? showGuestWalletAlert() : setShowWalletModal(true)}
-              />
+                  <View style={styles.rewardsCardInfo}>
+                    <ThemedText style={styles.rewardsCardTitle}>
+                      Claim Rewards on Web
+                    </ThemedText>
+                    <ThemedText style={styles.rewardsCardDescription}>
+                      Visit roachy.games to claim your rewards
+                    </ThemedText>
+                  </View>
+                  <Feather name="external-link" size={24} color={GameColors.gold} />
+                </View>
+              </Pressable>
             </View>
 
             <View style={styles.transactionSection}>
@@ -1072,24 +941,6 @@ export function ArcadeHomeScreen() {
                   <ThemedText style={styles.comingSoonText}>Soon</ThemedText>
                 </View>
               </Pressable>
-              <View style={styles.webLinksRow}>
-                <Pressable 
-                  style={[styles.webLinkItem, styles.disabledLink]}
-                  onPress={() => Alert.alert("Coming Soon", "Roachy Swap will be available in a future update!")}
-                >
-                  <Feather name="repeat" size={18} color={GameColors.textTertiary} />
-                  <ThemedText style={[styles.webLinkText, styles.disabledText]}>Roachy Swap</ThemedText>
-                  <Feather name="lock" size={12} color={GameColors.textTertiary} style={{ marginLeft: 4 }} />
-                </Pressable>
-                <Pressable 
-                  style={[styles.webLinkItem, styles.disabledLink]}
-                  onPress={() => Alert.alert("Coming Soon", "Staking will be available in a future update!")}
-                >
-                  <Feather name="lock" size={18} color={GameColors.textTertiary} />
-                  <ThemedText style={[styles.webLinkText, styles.disabledText]}>Staking</ThemedText>
-                  <Feather name="lock" size={12} color={GameColors.textTertiary} style={{ marginLeft: 4 }} />
-                </Pressable>
-              </View>
             </View>
 
             <View style={styles.settingsSection}>
@@ -1121,17 +972,11 @@ export function ArcadeHomeScreen() {
               </Pressable>
             </View>
 
-            <SolanaTrustBadge variant="full" />
           </View>
         )}
       </ScrollView>
 
       <ArcadeTabBar activeTab={activeTab} onTabPress={setActiveTab} />
-
-      <WalletSelectModal
-        visible={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-      />
     </ThemedView>
   );
 }
@@ -1248,6 +1093,38 @@ const styles = StyleSheet.create({
   },
   rewardsSection: {
     marginBottom: Spacing.xl,
+  },
+  rewardsCard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+  },
+  rewardsCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  rewardsCardIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: GameColors.gold + "20",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  rewardsCardInfo: {
+    flex: 1,
+  },
+  rewardsCardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  rewardsCardDescription: {
+    fontSize: 13,
+    color: GameColors.textSecondary,
+    lineHeight: 18,
   },
   dailyBonusContainer: {
     backgroundColor: GameColors.surface,

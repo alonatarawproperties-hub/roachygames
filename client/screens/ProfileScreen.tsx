@@ -1,34 +1,29 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   Image,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import { getMarketplaceUrl } from "@/lib/query-client";
 import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
-import { Button } from "@/components/Button";
-import { WalletSelectModal } from "@/components/WalletSelectModal";
 import { Leaderboard, AchievementBadges, ActivityHistory, FriendActivity, EventsCalendar } from "@/components/arcade";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
-import { useWallet } from "@/context/WalletContext";
+import { useAuth } from "@/context/AuthContext";
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES } from "@/constants/creatures";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -67,32 +62,11 @@ export default function ProfileScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { state, addEggs } = useGame();
-  const { wallet, disconnectWallet } = useWallet();
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { user, isGuest } = useAuth();
 
   const rarestCreature = state.playerStats.rarestCatch
     ? getCreatureDefinition(state.playerStats.rarestCatch)
     : null;
-
-  const handleConnectWallet = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShowWalletModal(true);
-  };
-
-  const handleDisconnectWallet = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    disconnectWallet();
-  };
-
-  const handleCopyAddress = async () => {
-    if (wallet.address) {
-      await Clipboard.setStringAsync(wallet.address);
-      setCopied(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   const handleAddEggs = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -104,13 +78,15 @@ export default function ProfileScreen() {
     await WebBrowser.openBrowserAsync(getMarketplaceUrl());
   };
 
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  const handleClaimRewards = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
   };
 
-  const getProviderName = () => {
-    if (!wallet.provider) return '';
-    return 'WalletConnect';
+  const getUserDisplayName = () => {
+    if (user?.displayName) return user.displayName;
+    if (user?.email) return user.email.split("@")[0];
+    return isGuest ? "Guest Player" : "Trainer";
   };
 
   return (
@@ -136,10 +112,10 @@ export default function ProfileScreen() {
           </View>
         </View>
         <ThemedText type="h3" style={styles.username}>
-          Trainer
+          {getUserDisplayName()}
         </ThemedText>
         <ThemedText style={styles.subtitle}>
-          Crypto Creature Hunter
+          Roachy Creature Hunter
         </ThemedText>
       </Animated.View>
 
@@ -152,10 +128,10 @@ export default function ProfileScreen() {
           index={0}
         />
         <StatCard
-          icon="hexagon"
-          label="NFTs"
-          value={state.wallet.nftBalance}
-          color={GameColors.secondary}
+          icon="award"
+          label="Chy Coins"
+          value={user?.chyBalance || 0}
+          color={GameColors.gold}
           index={1}
         />
         <StatCard
@@ -210,73 +186,24 @@ export default function ProfileScreen() {
         style={styles.section}
       >
         <ThemedText type="h4" style={styles.sectionTitle}>
-          Wallet
+          Rewards
         </ThemedText>
-        <View style={styles.walletCard}>
-          {wallet.connected && wallet.address ? (
-            <>
-              <View style={styles.walletConnected}>
-                <View style={styles.walletStatus}>
-                  <View style={styles.walletDot} />
-                  <ThemedText style={styles.walletStatusText}>
-                    {getProviderName()} Connected
-                  </ThemedText>
-                </View>
-                <Pressable onPress={handleDisconnectWallet}>
-                  <Feather
-                    name="log-out"
-                    size={20}
-                    color={GameColors.textSecondary}
-                  />
-                </Pressable>
-              </View>
-              <Pressable
-                style={styles.addressContainer}
-                onPress={handleCopyAddress}
-              >
-                <ThemedText style={styles.addressLabel}>Solana Address</ThemedText>
-                <View style={styles.addressRow}>
-                  <ThemedText style={styles.address}>
-                    {truncateAddress(wallet.address)}
-                  </ThemedText>
-                  <Feather
-                    name={copied ? "check" : "copy"}
-                    size={16}
-                    color={copied ? "#4ECDC4" : GameColors.textSecondary}
-                  />
-                </View>
-              </Pressable>
-            </>
-          ) : (
-            <View style={styles.walletNotConnected}>
-              <View style={styles.walletIcon}>
-                <Feather name="credit-card" size={32} color={GameColors.textSecondary} />
-              </View>
-              <ThemedText style={styles.walletTitle}>
-                Connect Your Wallet
-              </ThemedText>
-              <ThemedText style={styles.walletDescription}>
-                Connect a Solana wallet to mint your creatures as NFTs and prove ownership.
-              </ThemedText>
-              <Button
-                onPress={handleConnectWallet}
-                disabled={wallet.isConnecting}
-                style={styles.connectButton}
-              >
-                {wallet.isConnecting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  "Connect Wallet"
-                )}
-              </Button>
+        <Pressable style={styles.walletCard} onPress={handleClaimRewards}>
+          <View style={styles.rewardsContent}>
+            <View style={styles.rewardsIcon}>
+              <Feather name="gift" size={32} color={GameColors.gold} />
             </View>
-          )}
-        </View>
-
-        <WalletSelectModal 
-          visible={showWalletModal}
-          onClose={() => setShowWalletModal(false)}
-        />
+            <View style={styles.rewardsInfo}>
+              <ThemedText style={styles.rewardsTitle}>
+                Claim Rewards on Web
+              </ThemedText>
+              <ThemedText style={styles.rewardsDescription}>
+                Visit roachy.games to claim your rewards
+              </ThemedText>
+            </View>
+            <Feather name="external-link" size={24} color={GameColors.gold} />
+          </View>
+        </Pressable>
       </Animated.View>
 
       <Animated.View
@@ -375,7 +302,7 @@ export default function ProfileScreen() {
         <ThemedText type="h4" style={styles.sectionTitle}>
           Friends
         </ThemedText>
-        <FriendActivity isConnected={wallet.connected} />
+        <FriendActivity isConnected={!!user && !isGuest} />
       </Animated.View>
     </ScrollView>
   );
@@ -512,73 +439,32 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
   },
-  walletConnected: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  walletStatus: {
+  rewardsContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
   },
-  walletDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#4ECDC4",
-  },
-  walletStatusText: {
-    color: "#4ECDC4",
-    fontWeight: "600",
-  },
-  addressContainer: {
-    backgroundColor: GameColors.surfaceLight,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-  },
-  addressLabel: {
-    fontSize: 12,
-    color: GameColors.textSecondary,
-    marginBottom: 4,
-  },
-  addressRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  address: {
-    fontFamily: "monospace",
-    color: GameColors.textPrimary,
-  },
-  walletNotConnected: {
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-  },
-  walletIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: GameColors.surfaceLight,
+  rewardsIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: GameColors.gold + "20",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginRight: Spacing.md,
   },
-  walletTitle: {
-    fontSize: 18,
+  rewardsInfo: {
+    flex: 1,
+  },
+  rewardsTitle: {
+    fontSize: 16,
     fontWeight: "600",
     color: GameColors.textPrimary,
     marginBottom: Spacing.xs,
   },
-  walletDescription: {
-    textAlign: "center",
+  rewardsDescription: {
+    fontSize: 13,
     color: GameColors.textSecondary,
-    marginBottom: Spacing.lg,
-    lineHeight: 20,
-  },
-  connectButton: {
-    width: "100%",
+    lineHeight: 18,
   },
   resourceCard: {
     backgroundColor: GameColors.surface,

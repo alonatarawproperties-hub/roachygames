@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,10 +12,8 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { WalletSelectModal } from "@/components/WalletSelectModal";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@/context/WalletContext";
 
 const DEV_WALLET_ADDRESS = "8LgfzMdcXbxhNkURkLuhVcdxJzVw9w7yeVRof1wSPeJW";
 
@@ -30,18 +27,9 @@ const GoogleLogo = ({ size = 24 }: { size?: number }) => (
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { loginWithGoogle, loginWithWallet, devLogin, continueAsGuest, isLoading } = useAuth();
-  const { wallet, signMessage } = useWallet();
+  const { devLogin, continueAsGuest, isLoading } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [pendingWalletLogin, setPendingWalletLogin] = useState(false);
-
-  useEffect(() => {
-    if (pendingWalletLogin && wallet.connected && wallet.address) {
-      handleWalletLogin(wallet.address);
-    }
-  }, [wallet.connected, wallet.address, pendingWalletLogin]);
 
   const handleGoogleAuth = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -50,42 +38,6 @@ export function AuthScreen() {
       "Google sign-in will be available in the next update. For now, please continue as a guest to try the beta!",
       [{ text: "OK" }]
     );
-  };
-
-  const handleWalletLogin = async (walletAddress: string) => {
-    setIsSubmitting(true);
-    setPendingWalletLogin(false);
-
-    try {
-      const result = await loginWithWallet(walletAddress, signMessage);
-      if (!result.success) {
-        if (result.error !== "Wallet signature cancelled") {
-          Alert.alert("Error", result.error || "Wallet sign-in failed");
-        }
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Wallet sign-in failed");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleConnectWalletPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      "Coming Soon",
-      "Wallet connection will be available in the next update. For now, please continue as a guest to try the beta!",
-      [{ text: "OK" }]
-    );
-  };
-
-  const handleWalletModalClose = () => {
-    setShowWalletModal(false);
-    if (!wallet.connected) {
-      setPendingWalletLogin(false);
-    }
   };
 
   const handleGuestMode = async () => {
@@ -140,7 +92,7 @@ export function AuthScreen() {
           </View>
           <ThemedText style={styles.title}>Roachy Games</ThemedText>
           <ThemedText style={styles.subtitle}>
-            Play-to-Earn Arcade on Solana
+            Play Games, Earn Rewards
           </ThemedText>
         </View>
 
@@ -155,19 +107,6 @@ export function AuthScreen() {
             </ThemedText>
             <View style={styles.comingSoonBadge}>
               <Feather name="lock" size={12} color={GameColors.textSecondary} />
-            </View>
-          </Pressable>
-
-          <Pressable
-            style={[styles.authButton, styles.walletButton, styles.disabledButton]}
-            onPress={handleConnectWalletPress}
-          >
-            <Feather name="credit-card" size={22} color={GameColors.gold} />
-            <ThemedText style={styles.walletButtonText}>
-              Connect Wallet
-            </ThemedText>
-            <View style={styles.comingSoonBadge}>
-              <Feather name="lock" size={12} color={GameColors.gold} />
             </View>
           </Pressable>
 
@@ -203,11 +142,11 @@ export function AuthScreen() {
           </View>
           <View style={styles.featureItem}>
             <Feather name="award" size={24} color={GameColors.gold} />
-            <ThemedText style={styles.featureText}>Earn CHY Points</ThemedText>
+            <ThemedText style={styles.featureText}>Earn Chy Coins</ThemedText>
           </View>
           <View style={styles.featureItem}>
-            <Feather name="zap" size={24} color={GameColors.gold} />
-            <ThemedText style={styles.featureText}>Earn Real Crypto Rewards</ThemedText>
+            <Feather name="gift" size={24} color={GameColors.gold} />
+            <ThemedText style={styles.featureText}>Claim Rewards on Web</ThemedText>
           </View>
         </View>
 
@@ -216,10 +155,6 @@ export function AuthScreen() {
         </ThemedText>
       </View>
 
-      <WalletSelectModal
-        visible={showWalletModal}
-        onClose={handleWalletModalClose}
-      />
     </ThemedView>
   );
 }
@@ -277,16 +212,6 @@ const styles = StyleSheet.create({
   },
   googleButtonText: {
     color: "#333333",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  walletButton: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    borderWidth: 1,
-    borderColor: GameColors.gold,
-  },
-  walletButtonText: {
-    color: GameColors.gold,
     fontSize: 16,
     fontWeight: "600",
   },
