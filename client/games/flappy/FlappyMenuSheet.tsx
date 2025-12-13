@@ -338,10 +338,13 @@ function CompetitionCard({
       </View>
       
       {hasJoined ? (
-        <View style={styles.joinedBadge}>
-          <Feather name="check-circle" size={16} color={GameColors.gold} />
-          <ThemedText style={styles.joinedText}>Already Joined</ThemedText>
-        </View>
+        <Pressable 
+          style={styles.playNowButton} 
+          onPress={(e) => { e.stopPropagation(); onEnter(); }}
+        >
+          <Feather name="play" size={16} color="#000" />
+          <ThemedText style={styles.playNowButtonText}>Play Now</ThemedText>
+        </Pressable>
       ) : (
         <Pressable
           style={[styles.enterButton, !canEnter && styles.disabledButton]}
@@ -980,6 +983,20 @@ const styles = StyleSheet.create({
   },
   highlightValue: {
     color: GameColors.gold,
+  },
+  playNowButton: {
+    backgroundColor: GameColors.gold,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  playNowButtonText: {
+    color: "#000",
+    fontWeight: "700",
+    fontSize: 14,
   },
   competitionHeader: {
     flexDirection: "row",
