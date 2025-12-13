@@ -84,9 +84,12 @@ export default function ProfileScreen() {
   };
 
   const getUserDisplayName = () => {
-    if (user?.displayName) return user.displayName;
+    // Don't show wallet addresses - check for wallet pattern
+    if (user?.displayName && !user.displayName.toLowerCase().includes('wallet')) {
+      return user.displayName;
+    }
     if (user?.email) return user.email.split("@")[0];
-    return isGuest ? "Guest Player" : "Trainer";
+    return isGuest ? "Guest Player" : "Roachy Trainer";
   };
 
   return (
