@@ -280,6 +280,60 @@ function getWalletLoginMessage(walletAddress: string, timestamp: number): string
   return `Sign in to Roachy Games with wallet ${walletAddress}.\n\nTimestamp: ${timestamp}\n\nThis signature proves you own this wallet.`;
 }
 
+router.post("/dev-wallet-login", async (req: Request, res: Response) => {
+  try {
+    const { walletAddress } = req.body;
+
+    if (!walletAddress) {
+      return res.status(400).json({ error: "Wallet address is required" });
+    }
+
+    let [user] = await db.select().from(users).where(eq(users.walletAddress, walletAddress)).limit(1);
+
+    if (!user) {
+      const shortAddress = walletAddress.slice(0, 4) + "..." + walletAddress.slice(-4);
+      [user] = await db.insert(users).values({
+        walletAddress,
+        displayName: `Wallet ${shortAddress}`,
+        authProvider: "wallet",
+        chyBalance: 1000000,
+        diamondBalance: 1000,
+        lastLoginAt: new Date(),
+      }).returning();
+      console.log(`[Auth] DEV: New wallet user created: ${walletAddress.slice(0, 8)}... with 1M ROACHY and 1000 diamonds`);
+    } else {
+      await db.update(users)
+        .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+      console.log(`[Auth] DEV: Wallet user logged in: ${walletAddress.slice(0, 8)}...`);
+    }
+
+    const token = generateToken({
+      userId: user.id,
+      authProvider: "wallet",
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        googleId: user.googleId,
+        authProvider: user.authProvider,
+        chyBalance: user.chyBalance,
+        diamondBalance: user.diamondBalance,
+        walletAddress: user.walletAddress,
+        avatarUrl: user.avatarUrl,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error("[Auth] Dev wallet login error:", error);
+    return res.status(500).json({ error: "Dev wallet login failed" });
+  }
+});
+
 router.post("/wallet-login", async (req: Request, res: Response) => {
   try {
     const { walletAddress, signature, timestamp } = req.body;
