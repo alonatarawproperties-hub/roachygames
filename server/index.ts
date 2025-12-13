@@ -21,17 +21,32 @@ function setupCors(app: express.Application) {
 
     if (process.env.REPLIT_DEV_DOMAIN) {
       origins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+      // Also add .repl.co variant for embedded preview
+      const replCoVariant = process.env.REPLIT_DEV_DOMAIN.replace('.replit.dev', '.repl.co');
+      origins.add(`https://${replCoVariant}`);
     }
 
     if (process.env.REPLIT_DOMAINS) {
       process.env.REPLIT_DOMAINS.split(",").forEach((d) => {
         origins.add(`https://${d.trim()}`);
+        // Also add .repl.co variant
+        const replCoVariant = d.trim().replace('.replit.dev', '.repl.co');
+        origins.add(`https://${replCoVariant}`);
       });
     }
 
     const origin = req.header("origin");
 
-    if (origin && origins.has(origin)) {
+    // Allow Replit origins (both .replit.dev and .repl.co)
+    const isReplitOrigin = origin && (
+      origins.has(origin) ||
+      origin.includes('.replit.dev') ||
+      origin.includes('.repl.co') ||
+      origin.includes('riker.replit.dev') ||
+      origin.includes('riker.repl.co')
+    );
+
+    if (isReplitOrigin) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
