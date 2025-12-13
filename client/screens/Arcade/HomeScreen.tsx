@@ -559,7 +559,10 @@ export function ArcadeHomeScreen() {
   };
 
   const getUserDisplayName = (): string => {
-    if (user?.displayName) return user.displayName;
+    // Don't show wallet addresses
+    if (user?.displayName && !user.displayName.toLowerCase().includes('wallet')) {
+      return user.displayName;
+    }
     if (user?.email) return user.email.split("@")[0];
     return "Guest Player";
   };
