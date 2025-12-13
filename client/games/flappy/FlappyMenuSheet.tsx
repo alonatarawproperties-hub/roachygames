@@ -37,10 +37,13 @@ interface PowerUpInventory {
 interface CompetitionInfo {
   entryFee: number;
   participants: number;
+  prizePool: number;
   topScore: number;
   endsIn: number;
   hasJoined: boolean;
   periodDate: string;
+  userScore: number;
+  userRank: number;
 }
 
 interface RankedStatusResponse {
@@ -260,38 +263,52 @@ function CompetitionCard({
   icon,
   entryFee,
   participants,
-  topScore,
+  prizePool,
   endsIn,
   hasJoined,
   canEnter,
   diamondBalance,
   userId,
   isEntering,
+  isSelected,
   onEnter,
+  onSelect,
 }: {
   title: string;
   icon: keyof typeof Feather.glyphMap;
   entryFee: number;
   participants: number;
-  topScore: number;
+  prizePool: number;
   endsIn: number;
   hasJoined: boolean;
   canEnter: boolean;
   diamondBalance: number;
   userId: string | null;
   isEntering: boolean;
+  isSelected: boolean;
   onEnter: () => void;
+  onSelect: () => void;
 }) {
   const hasEnoughDiamonds = diamondBalance >= entryFee;
   
   return (
-    <View style={[styles.competitionCard, hasJoined && styles.joinedCard]}>
+    <Pressable 
+      onPress={onSelect}
+      style={[
+        styles.competitionCard, 
+        hasJoined && styles.joinedCard,
+        isSelected && styles.selectedCard
+      ]}
+    >
       <View style={styles.competitionHeader}>
         <View style={styles.competitionTitleRow}>
-          <View style={[styles.competitionIcon, hasJoined && styles.joinedIcon]}>
-            <Feather name={icon} size={18} color={hasJoined ? GameColors.gold : GameColors.diamond} />
+          <View style={[styles.competitionIcon, hasJoined && styles.joinedIcon, isSelected && styles.selectedIcon]}>
+            <Feather name={icon} size={18} color={isSelected ? GameColors.gold : (hasJoined ? GameColors.gold : GameColors.diamond)} />
           </View>
           <ThemedText style={styles.competitionTitle}>{title}</ThemedText>
+          {isSelected ? (
+            <Feather name="chevron-down" size={16} color={GameColors.gold} style={{ marginLeft: 4 }} />
+          ) : null}
         </View>
         <View style={styles.countdownBadge}>
           <Feather name="clock" size={12} color={GameColors.textSecondary} />
@@ -305,8 +322,11 @@ function CompetitionCard({
           <ThemedText style={styles.statItemLabel}>Players</ThemedText>
         </View>
         <View style={styles.statItem}>
-          <ThemedText style={styles.statItemValue}>{topScore}</ThemedText>
-          <ThemedText style={styles.statItemLabel}>Top Score</ThemedText>
+          <View style={styles.entryFeeDisplay}>
+            <Feather name="hexagon" size={14} color={GameColors.diamond} />
+            <ThemedText style={styles.statItemValue}>{prizePool}</ThemedText>
+          </View>
+          <ThemedText style={styles.statItemLabel}>Prize Pool</ThemedText>
         </View>
         <View style={styles.statItem}>
           <View style={styles.entryFeeDisplay}>
@@ -325,7 +345,7 @@ function CompetitionCard({
       ) : (
         <Pressable
           style={[styles.enterButton, !canEnter && styles.disabledButton]}
-          onPress={onEnter}
+          onPress={(e) => { e.stopPropagation(); onEnter(); }}
           disabled={!canEnter}
         >
           {isEntering ? (
@@ -341,7 +361,7 @@ function CompetitionCard({
           )}
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -368,11 +388,23 @@ function LeaderboardsTab({
   isEntering: boolean;
   entryError?: string;
 }) {
+  const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly' | null>(null);
+  
   const daily = rankedStatus?.daily;
   const weekly = rankedStatus?.weekly;
   
   const canEnterDaily = userId && diamondBalance >= (daily?.entryFee || 1) && !isEntering && !daily?.hasJoined;
   const canEnterWeekly = userId && diamondBalance >= (weekly?.entryFee || 3) && !isEntering && !weekly?.hasJoined;
+
+  const selectedInfo = selectedCompetition === 'daily' ? daily : selectedCompetition === 'weekly' ? weekly : null;
+  
+  const calculatePrize = (rank: number, prizePool: number, participants: number): number => {
+    if (rank === 0 || participants === 0) return 0;
+    if (rank === 1) return Math.floor(prizePool * 0.5);
+    if (rank === 2) return Math.floor(prizePool * 0.3);
+    if (rank === 3) return Math.floor(prizePool * 0.15);
+    return 0;
+  };
 
   return (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
@@ -403,20 +435,23 @@ function LeaderboardsTab({
         </Pressable>
 
         <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Ranked Competitions</ThemedText>
+        <ThemedText style={styles.competitionHint}>Tap a competition to see your stats</ThemedText>
         
         <CompetitionCard
           title="Daily Challenge"
           icon="sun"
           entryFee={daily?.entryFee || 1}
           participants={daily?.participants || 0}
-          topScore={daily?.topScore || 0}
+          prizePool={daily?.prizePool || 0}
           endsIn={daily?.endsIn || 0}
           hasJoined={daily?.hasJoined || false}
           canEnter={!!canEnterDaily}
           diamondBalance={diamondBalance}
           userId={userId}
           isEntering={isEntering}
+          isSelected={selectedCompetition === 'daily'}
           onEnter={() => onPlayRanked('daily')}
+          onSelect={() => setSelectedCompetition(selectedCompetition === 'daily' ? null : 'daily')}
         />
         
         <CompetitionCard
@@ -424,14 +459,16 @@ function LeaderboardsTab({
           icon="calendar"
           entryFee={weekly?.entryFee || 3}
           participants={weekly?.participants || 0}
-          topScore={weekly?.topScore || 0}
+          prizePool={weekly?.prizePool || 0}
           endsIn={weekly?.endsIn || 0}
           hasJoined={weekly?.hasJoined || false}
           canEnter={!!canEnterWeekly}
           diamondBalance={diamondBalance}
           userId={userId}
           isEntering={isEntering}
+          isSelected={selectedCompetition === 'weekly'}
           onEnter={() => onPlayRanked('weekly')}
+          onSelect={() => setSelectedCompetition(selectedCompetition === 'weekly' ? null : 'weekly')}
         />
         
         {entryError ? (
@@ -439,9 +476,59 @@ function LeaderboardsTab({
         ) : null}
       </View>
 
-      {userStats && (
+      {selectedInfo && selectedInfo.hasJoined ? (
         <View style={styles.statsSection}>
-          <ThemedText style={styles.sectionTitle}>Your Stats</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            Your {selectedCompetition === 'daily' ? 'Daily' : 'Weekly'} Stats
+          </ThemedText>
+          <View style={styles.statsGrid}>
+            <StatBox label="Your Score" value={selectedInfo.userScore || 0} />
+            <StatBox label="Your Rank" value={selectedInfo.userRank ? `#${selectedInfo.userRank}` : "-"} />
+            <StatBox label="Prize Pool" value={selectedInfo.prizePool || 0} icon="hexagon" />
+            <StatBox 
+              label="Your Prize" 
+              value={calculatePrize(selectedInfo.userRank, selectedInfo.prizePool, selectedInfo.participants)} 
+              icon="hexagon"
+              highlight={selectedInfo.userRank > 0 && selectedInfo.userRank <= 3}
+            />
+          </View>
+          <View style={styles.prizeBreakdown}>
+            <ThemedText style={styles.prizeBreakdownTitle}>Prize Distribution</ThemedText>
+            <View style={styles.prizeRow}>
+              <ThemedText style={styles.prizeRankText}>1st Place</ThemedText>
+              <View style={styles.prizeValueRow}>
+                <Feather name="hexagon" size={12} color={GameColors.diamond} />
+                <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.5)}</ThemedText>
+              </View>
+            </View>
+            <View style={styles.prizeRow}>
+              <ThemedText style={styles.prizeRankText}>2nd Place</ThemedText>
+              <View style={styles.prizeValueRow}>
+                <Feather name="hexagon" size={12} color={GameColors.diamond} />
+                <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.3)}</ThemedText>
+              </View>
+            </View>
+            <View style={styles.prizeRow}>
+              <ThemedText style={styles.prizeRankText}>3rd Place</ThemedText>
+              <View style={styles.prizeValueRow}>
+                <Feather name="hexagon" size={12} color={GameColors.diamond} />
+                <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.15)}</ThemedText>
+              </View>
+            </View>
+          </View>
+        </View>
+      ) : selectedInfo && !selectedInfo.hasJoined ? (
+        <View style={styles.statsSection}>
+          <ThemedText style={styles.sectionTitle}>
+            {selectedCompetition === 'daily' ? 'Daily' : 'Weekly'} Competition
+          </ThemedText>
+          <ThemedText style={styles.notJoinedText}>
+            Join this competition to see your stats and compete for prizes!
+          </ThemedText>
+        </View>
+      ) : userStats ? (
+        <View style={styles.statsSection}>
+          <ThemedText style={styles.sectionTitle}>Your Overall Stats</ThemedText>
           <View style={styles.statsGrid}>
             <StatBox label="Best Score" value={userStats.bestScore || 0} />
             <StatBox label="Ranked Best" value={userStats.bestRankedScore || 0} />
@@ -449,7 +536,7 @@ function LeaderboardsTab({
             <StatBox label="Global Rank" value={userStats.rank ? `#${userStats.rank}` : "-"} />
           </View>
         </View>
-      )}
+      ) : null}
 
       <View style={styles.leaderboardSection}>
         <ThemedText style={styles.sectionTitle}>Top Players</ThemedText>
@@ -473,10 +560,13 @@ function LeaderboardsTab({
   );
 }
 
-function StatBox({ label, value }: { label: string; value: string | number }) {
+function StatBox({ label, value, icon, highlight }: { label: string; value: string | number; icon?: string; highlight?: boolean }) {
   return (
-    <View style={styles.statBox}>
-      <ThemedText style={styles.statValue}>{value}</ThemedText>
+    <View style={[styles.statBox, highlight && styles.highlightBox]}>
+      <View style={styles.statValueRow}>
+        {icon ? <Feather name={icon as any} size={14} color={highlight ? GameColors.gold : GameColors.diamond} /> : null}
+        <ThemedText style={[styles.statValue, highlight && styles.highlightValue]}>{value}</ThemedText>
+      </View>
       <ThemedText style={styles.statLabel}>{label}</ThemedText>
     </View>
   );
@@ -825,6 +915,71 @@ const styles = StyleSheet.create({
   joinedCard: {
     borderColor: GameColors.gold,
     backgroundColor: "rgba(255, 215, 0, 0.05)",
+  },
+  selectedCard: {
+    borderColor: GameColors.gold,
+    borderWidth: 2,
+    backgroundColor: "rgba(255, 215, 0, 0.08)",
+  },
+  selectedIcon: {
+    backgroundColor: "rgba(255, 215, 0, 0.2)",
+  },
+  competitionHint: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.sm,
+    marginTop: -Spacing.xs,
+  },
+  notJoinedText: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    textAlign: "center",
+    paddingVertical: Spacing.md,
+  },
+  prizeBreakdown: {
+    marginTop: Spacing.md,
+    backgroundColor: GameColors.surfaceLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+  },
+  prizeBreakdownTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.text,
+    marginBottom: Spacing.sm,
+  },
+  prizeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  prizeRankText: {
+    fontSize: 13,
+    color: GameColors.textSecondary,
+  },
+  prizeValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  prizeValueText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GameColors.diamond,
+  },
+  statValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  highlightBox: {
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+  },
+  highlightValue: {
+    color: GameColors.gold,
   },
   competitionHeader: {
     flexDirection: "row",

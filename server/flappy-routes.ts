@@ -395,6 +395,10 @@ export function registerFlappyRoutes(app: Express) {
       
       let hasJoinedDaily = false;
       let hasJoinedWeekly = false;
+      let userDailyScore = 0;
+      let userDailyRank = 0;
+      let userWeeklyScore = 0;
+      let userWeeklyRank = 0;
       
       if (userId && typeof userId === 'string') {
         const dailyEntry = await db.select()
@@ -417,25 +421,60 @@ export function registerFlappyRoutes(app: Express) {
         
         hasJoinedDaily = dailyEntry.length > 0;
         hasJoinedWeekly = weeklyEntry.length > 0;
+        
+        if (hasJoinedDaily && dailyEntry[0]) {
+          userDailyScore = dailyEntry[0].bestScore;
+          const dailyRankResult = await db.select({ count: sql<number>`count(*)` })
+            .from(flappyRankedEntries)
+            .where(and(
+              eq(flappyRankedEntries.period, 'daily'),
+              eq(flappyRankedEntries.periodDate, today),
+              sql`${flappyRankedEntries.bestScore} > ${userDailyScore}`
+            ));
+          userDailyRank = Number(dailyRankResult[0]?.count || 0) + 1;
+        }
+        
+        if (hasJoinedWeekly && weeklyEntry[0]) {
+          userWeeklyScore = weeklyEntry[0].bestScore;
+          const weeklyRankResult = await db.select({ count: sql<number>`count(*)` })
+            .from(flappyRankedEntries)
+            .where(and(
+              eq(flappyRankedEntries.period, 'weekly'),
+              eq(flappyRankedEntries.periodDate, weekNumber),
+              sql`${flappyRankedEntries.bestScore} > ${userWeeklyScore}`
+            ));
+          userWeeklyRank = Number(weeklyRankResult[0]?.count || 0) + 1;
+        }
       }
+      
+      const dailyParticipantCount = Number(dailyParticipants[0]?.count || 0);
+      const weeklyParticipantCount = Number(weeklyParticipants[0]?.count || 0);
+      const dailyPrizePool = dailyParticipantCount * 1;
+      const weeklyPrizePool = weeklyParticipantCount * 3;
       
       res.json({
         success: true,
         daily: {
           entryFee: 1,
-          participants: Number(dailyParticipants[0]?.count || 0),
+          participants: dailyParticipantCount,
+          prizePool: dailyPrizePool,
           topScore: dailyTopScore[0]?.bestScore || 0,
           endsIn: getTimeUntilMidnight(),
           hasJoined: hasJoinedDaily,
           periodDate: today,
+          userScore: userDailyScore,
+          userRank: userDailyRank,
         },
         weekly: {
           entryFee: 3,
-          participants: Number(weeklyParticipants[0]?.count || 0),
+          participants: weeklyParticipantCount,
+          prizePool: weeklyPrizePool,
           topScore: weeklyTopScore[0]?.bestScore || 0,
           endsIn: getTimeUntilWeekEnd(),
           hasJoined: hasJoinedWeekly,
           periodDate: weekNumber,
+          userScore: userWeeklyScore,
+          userRank: userWeeklyRank,
         },
       });
     } catch (error) {
