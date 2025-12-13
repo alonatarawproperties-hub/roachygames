@@ -29,9 +29,7 @@
       "channel": "production",
       "ios": {
         "resourceClass": "large",
-        "image": "macos-sonoma-14.6-xcode-16.0",
-        "autoSubmit": true,
-        "submitProfile": "production"
+        "image": "macos-sonoma-14.6-xcode-16.0"
       },
       "android": {
         "buildType": "apk"
