@@ -611,11 +611,13 @@ export function ArcadeHomeScreen() {
     navigation.navigate(routeName);
   };
 
-  const showGuestSignInAlert = () => {
-    Alert.alert(
-      "Sign In Required",
-      "Sign in with your account to access all features and track your progress.",
-      [{ text: "OK" }]
+  const handleGuestSignIn = async () => {
+    await logout();
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "Auth" }],
+      })
     );
   };
 
@@ -676,7 +678,7 @@ export function ArcadeHomeScreen() {
                   isConnected={!!user && !isGuest}
                   isLoading={false}
                   isGuest={isGuest}
-                  onPress={() => isGuest ? showGuestSignInAlert() : undefined}
+                  onPress={isGuest ? handleGuestSignIn : undefined}
                 />
                 <View style={styles.livePlayersRow}>
                   <View style={styles.livePlayersBadge}>
@@ -868,10 +870,10 @@ export function ArcadeHomeScreen() {
             </View>
 
             <DailyBonusCard 
-              userId={user?.id}
+              userId={user?.id ?? null}
               isConnected={!!user && !isGuest}
               isGuest={isGuest}
-              onSignIn={showGuestSignInAlert}
+              onSignIn={handleGuestSignIn}
             />
 
             <View style={styles.rewardsSection}>
