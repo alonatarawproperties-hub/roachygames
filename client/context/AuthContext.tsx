@@ -273,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         googleId: null,
         authProvider: "guest",
         chyBalance: 0,
-        diamondBalance: 1000,
+        diamondBalance: 0,
         walletAddress: null,
         avatarUrl: null,
       };
