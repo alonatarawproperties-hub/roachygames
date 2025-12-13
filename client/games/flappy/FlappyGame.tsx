@@ -2,10 +2,10 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
-  Dimensions,
   Pressable,
   Platform,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
@@ -164,8 +164,6 @@ const powerUpIndicatorStyles = StyleSheet.create({
   },
 });
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 const ROACHY_SPRITE_1 = require("@/assets/flappy/roachy-sprite-1.png");
 const ROACHY_SPRITE_2 = require("@/assets/flappy/roachy-sprite-2.png");
 const ROACHY_SPRITE_DEAD = require("@/assets/flappy/roachy-sprite-dead.png");
@@ -286,7 +284,6 @@ const loadingStyles = StyleSheet.create({
   },
 });
 
-const GAME_WIDTH = SCREEN_WIDTH;
 const BASE_GROUND_HEIGHT = 80;
 
 const GRAVITY = 0.6;
@@ -294,11 +291,10 @@ const JUMP_STRENGTH = -12;
 const MAX_FALL_SPEED = 15;
 const PIPE_SPEED = 4;
 const PIPE_SPAWN_INTERVAL = 2800;
-const GAP_SIZE = 200;
-const PIPE_WIDTH = 70;
+const BASE_GAP_SIZE = 200;
+const BASE_PIPE_WIDTH = 70;
 
 const BIRD_SIZE = 50;
-const BIRD_X = GAME_WIDTH * 0.2;
 
 const COIN_SIZE = 35;
 const COIN_SPAWN_INTERVAL = 2500;
@@ -352,10 +348,19 @@ interface FlappyGameProps {
 
 export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
+  // Use portrait dimensions - always use the smaller value as width
+  const GAME_WIDTH = Math.min(screenWidth, screenHeight);
+  const GAME_HEIGHT = Math.max(screenWidth, screenHeight);
   const GROUND_HEIGHT = BASE_GROUND_HEIGHT + insets.bottom;
-  const GAME_HEIGHT = SCREEN_HEIGHT;
   const PLAYABLE_HEIGHT = GAME_HEIGHT - GROUND_HEIGHT;
+  
+  // Scale game elements based on screen size (base is 390px width)
+  const scale = GAME_WIDTH / 390;
+  const GAP_SIZE = Math.max(160, BASE_GAP_SIZE * scale);
+  const PIPE_WIDTH = Math.max(50, BASE_PIPE_WIDTH * scale);
+  const BIRD_X = GAME_WIDTH * 0.2;
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -461,6 +466,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
   
   const playableHeightRef = useRef(PLAYABLE_HEIGHT);
   playableHeightRef.current = PLAYABLE_HEIGHT;
+  
+  // Refs for dynamic game dimensions (used in callbacks)
+  const gameWidthRef = useRef(GAME_WIDTH);
+  gameWidthRef.current = GAME_WIDTH;
+  const pipeWidthRef = useRef(PIPE_WIDTH);
+  pipeWidthRef.current = PIPE_WIDTH;
+  const gapSizeRef = useRef(GAP_SIZE);
+  gapSizeRef.current = GAP_SIZE;
+  const birdXRef = useRef(BIRD_X);
+  birdXRef.current = BIRD_X;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -651,12 +666,12 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     if (gameStateRef.current !== "playing") return;
     
     const minHeight = 80;
-    const maxHeight = playableHeightRef.current - GAP_SIZE - minHeight - 50;
+    const maxHeight = playableHeightRef.current - gapSizeRef.current - minHeight - 50;
     const topHeight = Math.floor(Math.random() * (maxHeight - minHeight)) + minHeight;
     
     const newPipe: Pipe = {
       id: pipeIdRef.current++,
-      x: GAME_WIDTH,
+      x: gameWidthRef.current,
       topHeight,
       passed: false,
     };
@@ -675,7 +690,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     
     const newCoin: Coin = {
       id: coinIdRef.current++,
-      x: GAME_WIDTH,
+      x: gameWidthRef.current,
       y,
       value,
       collected: false,
@@ -696,7 +711,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     
     const newPowerUp: PowerUp = {
       id: powerUpIdRef.current++,
-      x: GAME_WIDTH,
+      x: gameWidthRef.current,
       y,
       type,
       collected: false,
@@ -716,7 +731,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     
     const newCloud: Cloud = {
       id: cloudIdRef.current++,
-      x: GAME_WIDTH + 100,
+      x: gameWidthRef.current + 100,
       y,
       size,
       opacity,
@@ -814,7 +829,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
       let newY = coin.y;
       
       if (magnetRef.current && !coin.collected) {
-        const dx = BIRD_X - coin.x;
+        const dx = birdXRef.current - coin.x;
         const dy = birdY.value - coin.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
@@ -832,18 +847,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
       x: pu.x - PIPE_SPEED,
     }));
     
-    const birdLeft = BIRD_X - BIRD_SIZE / 2 + 10;
-    const birdRight = BIRD_X + BIRD_SIZE / 2 - 10;
+    const currentBirdX = birdXRef.current;
+    const currentPipeWidth = pipeWidthRef.current;
+    const currentGapSize = gapSizeRef.current;
+    
+    const birdLeft = currentBirdX - BIRD_SIZE / 2 + 10;
+    const birdRight = currentBirdX + BIRD_SIZE / 2 - 10;
     const birdTop = birdY.value - BIRD_SIZE / 2 + 10;
     const birdBottom = birdY.value + BIRD_SIZE / 2 - 10;
     
     if (!shieldRef.current) {
       for (const pipe of pipesRef.current) {
         const pipeLeft = pipe.x;
-        const pipeRight = pipe.x + PIPE_WIDTH;
+        const pipeRight = pipe.x + currentPipeWidth;
         
         if (birdRight > pipeLeft && birdLeft < pipeRight) {
-          if (birdTop < pipe.topHeight || birdBottom > pipe.topHeight + GAP_SIZE) {
+          if (birdTop < pipe.topHeight || birdBottom > pipe.topHeight + currentGapSize) {
             runOnJS(gameOver)();
             return;
           }
@@ -852,7 +871,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
     }
     
     pipesRef.current = pipesRef.current.map((pipe) => {
-      if (!pipe.passed && pipe.x + PIPE_WIDTH < BIRD_X) {
+      if (!pipe.passed && pipe.x + currentPipeWidth < currentBirdX) {
         scoreRef.current += 1;
         runOnJS(setScore)(scoreRef.current);
         return { ...pipe, passed: true };
@@ -904,7 +923,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
       return pu;
     });
     
-    pipesRef.current = pipesRef.current.filter((pipe) => pipe.x > -PIPE_WIDTH);
+    pipesRef.current = pipesRef.current.filter((pipe) => pipe.x > -currentPipeWidth);
     coinsRef.current = coinsRef.current.filter((coin) => !coin.collected && coin.x > -COIN_SIZE);
     powerUpsRef.current = powerUpsRef.current.filter((pu) => !pu.collected && pu.x > -POWERUP_SIZE);
     
@@ -938,7 +957,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
       const sizes: Array<"small" | "medium" | "large"> = ["small", "medium", "large"];
       initialClouds.push({
         id: cloudIdRef.current++,
-        x: Math.random() * GAME_WIDTH,
+        x: Math.random() * gameWidthRef.current,
         y: 60 + Math.random() * (playableHeightRef.current * 0.4),
         size: sizes[Math.floor(Math.random() * sizes.length)],
         opacity: 0.4 + Math.random() * 0.4,
@@ -1123,10 +1142,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
               style={[
                 styles.pipe,
                 styles.pipeTop,
-                { left: pipe.x, height: pipe.topHeight },
+                { left: pipe.x, height: pipe.topHeight, width: PIPE_WIDTH },
               ]}
             >
-              <View style={styles.pipeCapTop} />
+              <View style={[styles.pipeCapTop, { width: PIPE_WIDTH + 12 }]} />
               <View style={styles.pipeHighlight} />
             </View>
             <View
@@ -1137,10 +1156,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
                   left: pipe.x,
                   top: pipe.topHeight + GAP_SIZE,
                   height: PLAYABLE_HEIGHT - pipe.topHeight - GAP_SIZE,
+                  width: PIPE_WIDTH,
                 },
               ]}
             >
-              <View style={styles.pipeCapBottom} />
+              <View style={[styles.pipeCapBottom, { width: PIPE_WIDTH + 12 }]} />
               <View style={styles.pipeHighlight} />
             </View>
           </React.Fragment>
@@ -1326,7 +1346,6 @@ const styles = StyleSheet.create({
   },
   pipe: {
     position: "absolute",
-    width: PIPE_WIDTH,
     backgroundColor: "#73bf2e",
     borderWidth: 3,
     borderColor: "#2d5016",
@@ -1340,7 +1359,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -3,
     left: -6,
-    width: PIPE_WIDTH + 12,
     height: 26,
     backgroundColor: "#73bf2e",
     borderWidth: 3,
@@ -1351,7 +1369,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -3,
     left: -6,
-    width: PIPE_WIDTH + 12,
     height: 26,
     backgroundColor: "#73bf2e",
     borderWidth: 3,
@@ -1505,7 +1522,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 15,
     left: 0,
-    width: GAME_WIDTH * 2,
+    width: "200%", // Dynamic width applied inline
     height: "100%",
     backgroundColor: "#DED895",
   },
