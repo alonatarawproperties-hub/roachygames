@@ -183,16 +183,14 @@ export function registerFlappyRoutes(app: Express) {
             await db.update(flappyRankedEntries)
               .set({ 
                 bestScore: score, 
-                gamesPlayed: entry.gamesPlayed + 1,
-                updatedAt: new Date() 
+                gamesPlayed: entry.gamesPlayed + 1
               })
               .where(eq(flappyRankedEntries.id, entry.id));
           } else {
             // Just increment games played
             await db.update(flappyRankedEntries)
               .set({ 
-                gamesPlayed: entry.gamesPlayed + 1,
-                updatedAt: new Date() 
+                gamesPlayed: entry.gamesPlayed + 1
               })
               .where(eq(flappyRankedEntries.id, entry.id));
           }

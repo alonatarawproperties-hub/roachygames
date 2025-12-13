@@ -52,13 +52,6 @@ interface RankedStatusResponse {
   weekly: CompetitionInfo;
 }
 
-interface UserStats {
-  bestScore: number;
-  bestRankedScore: number;
-  totalGamesPlayed: number;
-  totalRankedGames: number;
-  rank: number | null;
-}
 
 const GameColors = {
   background: "#0a0a0a",
@@ -115,10 +108,6 @@ export function FlappyMenuSheet({
     enabled: visible && activeTab === "leaderboards",
   });
 
-  const { data: userStats } = useQuery<{ success: boolean; stats: UserStats }>({
-    queryKey: ["/api/flappy/leaderboard", userId],
-    enabled: visible && !!userId,
-  });
 
   const { data: diamondData } = useQuery<{ success: boolean; diamondBalance: number }>({
     queryKey: ["/api/user", userId, "diamonds"],
@@ -188,7 +177,6 @@ export function FlappyMenuSheet({
                 leaderboard={leaderboardData?.leaderboard || []}
                 isLoading={leaderboardLoading}
                 rankedStatus={rankedStatus}
-                userStats={userStats?.stats}
                 userId={userId}
                 diamondBalance={diamondData?.diamondBalance ?? 0}
                 onPlayFree={() => {
@@ -370,7 +358,6 @@ function LeaderboardsTab({
   leaderboard,
   isLoading,
   rankedStatus,
-  userStats,
   userId,
   diamondBalance,
   onPlayFree,
@@ -381,7 +368,6 @@ function LeaderboardsTab({
   leaderboard: any[];
   isLoading: boolean;
   rankedStatus: RankedStatusResponse | undefined;
-  userStats: any;
   userId: string | null;
   diamondBalance: number;
   onPlayFree: () => void;
@@ -526,16 +512,6 @@ function LeaderboardsTab({
           <ThemedText style={styles.notJoinedText}>
             Join this competition to see your stats and compete for prizes!
           </ThemedText>
-        </View>
-      ) : userStats ? (
-        <View style={styles.statsSection}>
-          <ThemedText style={styles.sectionTitle}>Your Overall Stats</ThemedText>
-          <View style={styles.statsGrid}>
-            <StatBox label="Best Score" value={userStats.bestScore || 0} />
-            <StatBox label="Ranked Best" value={userStats.bestRankedScore || 0} />
-            <StatBox label="Games Played" value={userStats.totalGamesPlayed || 0} />
-            <StatBox label="Global Rank" value={userStats.rank ? `#${userStats.rank}` : "-"} />
-          </View>
         </View>
       ) : null}
 
