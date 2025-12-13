@@ -59,8 +59,8 @@ const GameColors = {
   surfaceLight: "#252542",
   gold: "#FFD700",
   goldDark: "#B8860B",
-  diamond: "#00D4FF",
-  diamondDark: "#0099CC",
+  chyCoin: "#FFD700",
+  chyCoinDark: "#B8860B",
   shield: "#3B82F6",
   double: "#F59E0B",
   magnet: "#EF4444",
@@ -125,7 +125,7 @@ export function FlappyMenuSheet({
       onClose();
     },
     onError: (error: any) => {
-      console.log("Ranked entry failed:", error.message || "Not enough diamonds");
+      console.log("Ranked entry failed:", error.message || "Not enough Chy Coins");
     },
   });
 
@@ -309,14 +309,14 @@ function CompetitionCard({
         </View>
         <View style={styles.statItem}>
           <View style={styles.entryFeeDisplay}>
-            <Feather name="hexagon" size={14} color={GameColors.diamond} />
+            <ThemedText style={styles.coinIcon}>C</ThemedText>
             <ThemedText style={styles.statItemValue}>{prizePool}</ThemedText>
           </View>
           <ThemedText style={styles.statItemLabel}>Prize Pool</ThemedText>
         </View>
         <View style={styles.statItem}>
           <View style={styles.entryFeeDisplay}>
-            <Feather name="hexagon" size={14} color={GameColors.diamond} />
+            <ThemedText style={styles.coinIcon}>C</ThemedText>
             <ThemedText style={styles.statItemValue}>{entryFee}</ThemedText>
           </View>
           <ThemedText style={styles.statItemLabel}>Entry Fee</ThemedText>
@@ -398,9 +398,9 @@ function LeaderboardsTab({
       {userId ? (
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
-            <Feather name="hexagon" size={20} color={GameColors.diamond} />
+            <ThemedText style={styles.coinSymbol}>C</ThemedText>
             <ThemedText style={styles.balanceValue}>{diamondBalance}</ThemedText>
-            <ThemedText style={styles.balanceLabel}>Diamonds</ThemedText>
+            <ThemedText style={styles.balanceLabel}>Chy Coins</ThemedText>
           </View>
         </View>
       ) : null}
@@ -484,21 +484,21 @@ function LeaderboardsTab({
             <View style={styles.prizeRow}>
               <ThemedText style={styles.prizeRankText}>1st Place</ThemedText>
               <View style={styles.prizeValueRow}>
-                <Feather name="hexagon" size={12} color={GameColors.diamond} />
+                <ThemedText style={styles.coinIconSmall}>C</ThemedText>
                 <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.5)}</ThemedText>
               </View>
             </View>
             <View style={styles.prizeRow}>
               <ThemedText style={styles.prizeRankText}>2nd Place</ThemedText>
               <View style={styles.prizeValueRow}>
-                <Feather name="hexagon" size={12} color={GameColors.diamond} />
+                <ThemedText style={styles.coinIconSmall}>C</ThemedText>
                 <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.3)}</ThemedText>
               </View>
             </View>
             <View style={styles.prizeRow}>
               <ThemedText style={styles.prizeRankText}>3rd Place</ThemedText>
               <View style={styles.prizeValueRow}>
-                <Feather name="hexagon" size={12} color={GameColors.diamond} />
+                <ThemedText style={styles.coinIconSmall}>C</ThemedText>
                 <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.15)}</ThemedText>
               </View>
             </View>
@@ -859,11 +859,26 @@ const styles = StyleSheet.create({
   balanceValue: {
     fontSize: 24,
     fontWeight: "700",
-    color: GameColors.diamond,
+    color: GameColors.gold,
   },
   balanceLabel: {
     fontSize: 14,
     color: GameColors.textSecondary,
+  },
+  coinSymbol: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: GameColors.gold,
+  },
+  coinIcon: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: GameColors.gold,
+  },
+  coinIconSmall: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: GameColors.gold,
   },
   disabledCard: {
     opacity: 0.6,
