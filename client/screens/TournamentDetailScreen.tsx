@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl, Alert, Platform } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -69,7 +69,11 @@ export function TournamentDetailScreen() {
   const { tournamentId } = route.params;
   const { user } = useAuth();
   
-  const walletAddress = user?.walletAddress || user?.id || 'guest_' + Date.now();
+  const guestWalletRef = useRef<string | null>(null);
+  if (!guestWalletRef.current) {
+    guestWalletRef.current = 'guest_' + Date.now();
+  }
+  const walletAddress = user?.walletAddress || user?.id || guestWalletRef.current;
   
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['/api/tournaments', tournamentId],

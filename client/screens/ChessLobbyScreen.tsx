@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +30,11 @@ export function ChessLobbyScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   
-  const walletAddress = user?.walletAddress || user?.id || 'guest_' + Date.now();
+  const guestWalletRef = useRef<string | null>(null);
+  if (!guestWalletRef.current) {
+    guestWalletRef.current = 'guest_' + Date.now();
+  }
+  const walletAddress = user?.walletAddress || user?.id || guestWalletRef.current;
   
   const [selectedMode, setSelectedMode] = useState<GameMode>('casual');
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>('rapid');
