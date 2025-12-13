@@ -541,6 +541,7 @@ export function ArcadeHomeScreen() {
   const gamesList = GAMES_CATALOG;
 
   const handleLogout = () => {
+    console.log("[HomeScreen] handleLogout called");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Sign Out",
@@ -551,7 +552,9 @@ export function ArcadeHomeScreen() {
           text: "Sign Out", 
           style: "destructive", 
           onPress: async () => {
+            console.log("[HomeScreen] Logging out...");
             await logout();
+            console.log("[HomeScreen] Logout complete");
           }
         },
       ]
