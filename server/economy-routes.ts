@@ -507,4 +507,63 @@ export function registerEconomyRoutes(app: Express) {
       res.status(500).json({ error: "Failed to fetch earnings" });
     }
   });
+
+  app.post("/api/dev/give-diamonds", async (req, res) => {
+    try {
+      const { userId, amount = 500 } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId required" });
+      }
+      
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const newBalance = user.diamondBalance + amount;
+      
+      await db.update(users)
+        .set({ diamondBalance: newBalance, updatedAt: sql`now()` })
+        .where(eq(users.id, userId));
+      
+      console.log(`[Dev] Gave ${amount} diamonds to user ${userId}. New balance: ${newBalance}`);
+      
+      res.json({ 
+        success: true, 
+        previousBalance: user.diamondBalance,
+        added: amount,
+        newBalance 
+      });
+    } catch (error) {
+      console.error("[Dev] Error giving diamonds:", error);
+      res.status(500).json({ error: "Failed to give diamonds" });
+    }
+  });
+
+  app.get("/api/user/:userId/diamonds", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json({ 
+        success: true, 
+        userId,
+        diamondBalance: user.diamondBalance 
+      });
+    } catch (error) {
+      console.error("[Economy] Error fetching diamond balance:", error);
+      res.status(500).json({ error: "Failed to fetch diamond balance" });
+    }
+  });
 }

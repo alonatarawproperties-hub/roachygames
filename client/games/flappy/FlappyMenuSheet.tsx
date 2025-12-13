@@ -109,14 +109,23 @@ export function FlappyMenuSheet({
     enabled: visible && !!userId,
   });
 
+  const { data: diamondData } = useQuery<{ success: boolean; diamondBalance: number }>({
+    queryKey: ["/api/user", userId, "diamonds"],
+    enabled: visible && !!userId,
+  });
+
   const enterRankedMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/flappy/ranked/enter", { userId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user", userId, "diamonds"] });
       onPlayRanked();
       onClose();
+    },
+    onError: (error: any) => {
+      console.log("Ranked entry failed:", error.message || "Not enough diamonds");
     },
   });
 
@@ -170,12 +179,14 @@ export function FlappyMenuSheet({
                   rankedStatus={rankedStatus}
                   userStats={userStats?.stats}
                   userId={userId}
+                  diamondBalance={diamondData?.diamondBalance ?? 0}
                   onPlayFree={() => {
                     onPlayFree();
                     onClose();
                   }}
                   onPlayRanked={() => enterRankedMutation.mutate()}
                   isEntering={enterRankedMutation.isPending}
+                  entryError={enterRankedMutation.error?.message}
                 />
               ) : (
                 <LoadoutTab
@@ -230,21 +241,39 @@ function LeaderboardsTab({
   rankedStatus,
   userStats,
   userId,
+  diamondBalance,
   onPlayFree,
   onPlayRanked,
   isEntering,
+  entryError,
 }: {
   leaderboard: any[];
   isLoading: boolean;
   rankedStatus: any;
   userStats: any;
   userId: string | null;
+  diamondBalance: number;
   onPlayFree: () => void;
   onPlayRanked: () => void;
   isEntering: boolean;
+  entryError?: string;
 }) {
+  const entryFee = rankedStatus?.entryFee || 1;
+  const hasEnoughDiamonds = diamondBalance >= entryFee;
+  const canEnterRanked = userId && hasEnoughDiamonds && !isEntering;
+
   return (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+      {userId ? (
+        <View style={styles.balanceCard}>
+          <View style={styles.balanceRow}>
+            <Feather name="hexagon" size={20} color={GameColors.diamond} />
+            <ThemedText style={styles.balanceValue}>{diamondBalance}</ThemedText>
+            <ThemedText style={styles.balanceLabel}>Diamonds</ThemedText>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.playModeSection}>
         <ThemedText style={styles.sectionTitle}>Play Mode</ThemedText>
         
@@ -262,24 +291,36 @@ function LeaderboardsTab({
         </Pressable>
 
         <Pressable
-          style={[styles.playModeCard, styles.rankedCard]}
+          style={[
+            styles.playModeCard,
+            styles.rankedCard,
+            !canEnterRanked && styles.disabledCard,
+          ]}
           onPress={onPlayRanked}
-          disabled={isEntering || !userId}
+          disabled={!canEnterRanked}
         >
           <View style={[styles.playModeIcon, styles.rankedIcon]}>
-            <Feather name="zap" size={24} color={GameColors.diamond} />
+            <Feather name="zap" size={24} color={canEnterRanked ? GameColors.diamond : GameColors.textSecondary} />
           </View>
           <View style={styles.playModeInfo}>
-            <ThemedText style={styles.playModeTitle}>Ranked Competition</ThemedText>
+            <ThemedText style={[styles.playModeTitle, !canEnterRanked && styles.disabledText]}>
+              Ranked Competition
+            </ThemedText>
             <View style={styles.entryFeeRow}>
-              <Feather name="hexagon" size={14} color={GameColors.diamond} />
-              <ThemedText style={styles.entryFeeText}>
-                {rankedStatus?.entryFee || 1} Diamond Entry
+              <Feather name="hexagon" size={14} color={hasEnoughDiamonds ? GameColors.diamond : "#ff4444"} />
+              <ThemedText style={[styles.entryFeeText, !hasEnoughDiamonds && { color: "#ff4444" }]}>
+                {entryFee} Diamond Entry
               </ThemedText>
             </View>
-            <ThemedText style={styles.playModeDesc}>
-              {rankedStatus?.participants || 0} players today
-            </ThemedText>
+            {!userId ? (
+              <ThemedText style={styles.warningText}>Sign in to play ranked</ThemedText>
+            ) : !hasEnoughDiamonds ? (
+              <ThemedText style={styles.warningText}>Need {entryFee - diamondBalance} more diamonds</ThemedText>
+            ) : (
+              <ThemedText style={styles.playModeDesc}>
+                {rankedStatus?.participants || 0} players today
+              </ThemedText>
+            )}
           </View>
           {isEntering ? (
             <ActivityIndicator color={GameColors.diamond} />
@@ -287,6 +328,9 @@ function LeaderboardsTab({
             <Feather name="chevron-right" size={20} color={GameColors.textSecondary} />
           )}
         </Pressable>
+        {entryError ? (
+          <ThemedText style={styles.errorText}>{entryError}</ThemedText>
+        ) : null}
       </View>
 
       {userStats && (
@@ -627,6 +671,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: GameColors.diamond,
     fontWeight: "500",
+  },
+  balanceCard: {
+    backgroundColor: GameColors.surface,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  balanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  balanceValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: GameColors.diamond,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+  },
+  disabledCard: {
+    opacity: 0.6,
+    borderColor: GameColors.surfaceLight,
+  },
+  disabledText: {
+    color: GameColors.textSecondary,
+  },
+  warningText: {
+    fontSize: 12,
+    color: "#ff8844",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#ff4444",
+    marginTop: Spacing.xs,
   },
   statsSection: {
     marginBottom: Spacing.xl,
