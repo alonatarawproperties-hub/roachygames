@@ -141,10 +141,11 @@ export function FlappyMenuSheet({
           <Pressable onPress={(e) => e.stopPropagation()}>
             <View style={styles.header}>
               <View style={styles.handle} />
-              <Pressable style={styles.closeButton} onPress={onClose}>
-                <Feather name="x" size={24} color={GameColors.textSecondary} />
-              </Pressable>
             </View>
+            
+            <Pressable style={styles.closeButton} onPress={onClose}>
+              <Feather name="x" size={24} color={GameColors.textSecondary} />
+            </Pressable>
 
             <View style={styles.tabs}>
               <TabButton
@@ -513,8 +514,8 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   handle: {
     width: 40,
@@ -524,9 +525,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: "absolute",
-    right: Spacing.lg,
-    top: Spacing.sm,
-    padding: Spacing.xs,
+    right: Spacing.md,
+    top: Spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: GameColors.surfaceLight,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
   },
   tabs: {
     flexDirection: "row",
