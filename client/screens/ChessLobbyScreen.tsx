@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, StyleSheet, Pressable, Text, ScrollView } from "react-native";
+import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -49,6 +49,7 @@ export function ChessLobbyScreen() {
   
   const createDemoMatchMutation = useMutation({
     mutationFn: async () => {
+      console.log('[ChessLobby] Creating demo match...', { walletAddress, gameMode: selectedMode, timeControl: selectedTimeControl });
       const res = await apiRequest('POST', '/api/chess/demo-match', {
         walletAddress,
         gameMode: selectedMode,
@@ -57,17 +58,35 @@ export function ChessLobbyScreen() {
       return res.json();
     },
     onSuccess: (data: any) => {
+      console.log('[ChessLobby] Demo match response:', data);
       if (data.success && data.match) {
         navigation.navigate('ChessGame', {
           matchId: data.match.id,
           walletAddress,
         });
+      } else {
+        const msg = data.message || 'Failed to create match';
+        if (Platform.OS === 'web') {
+          alert(msg);
+        } else {
+          Alert.alert('Error', msg);
+        }
+      }
+    },
+    onError: (error: any) => {
+      console.error('[ChessLobby] Demo match error:', error);
+      const msg = error?.message || 'Failed to create match';
+      if (Platform.OS === 'web') {
+        alert(msg);
+      } else {
+        Alert.alert('Error', msg);
       }
     },
   });
   
   const joinMatchmakingMutation = useMutation({
     mutationFn: async () => {
+      console.log('[ChessLobby] Joining matchmaking...', { walletAddress, gameMode: selectedMode, timeControl: selectedTimeControl });
       const res = await apiRequest('POST', '/api/chess/matchmaking/join', {
         walletAddress,
         gameMode: selectedMode,
@@ -77,17 +96,34 @@ export function ChessLobbyScreen() {
       return res.json();
     },
     onSuccess: (data: any) => {
+      console.log('[ChessLobby] Matchmaking response:', data);
       if (data.matchFound && data.match) {
         navigation.navigate('ChessGame', {
           matchId: data.match.id,
           walletAddress,
         });
-      } else {
+      } else if (data.success) {
         navigation.navigate('ChessMatchmaking', {
           walletAddress,
           gameMode: selectedMode,
           timeControl: selectedTimeControl,
         });
+      } else {
+        const msg = data.message || 'Failed to join matchmaking';
+        if (Platform.OS === 'web') {
+          alert(msg);
+        } else {
+          Alert.alert('Error', msg);
+        }
+      }
+    },
+    onError: (error: any) => {
+      console.error('[ChessLobby] Matchmaking error:', error);
+      const msg = error?.message || 'Failed to join matchmaking';
+      if (Platform.OS === 'web') {
+        alert(msg);
+      } else {
+        Alert.alert('Error', msg);
       }
     },
   });
