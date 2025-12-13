@@ -274,24 +274,30 @@ function minimax(game: Chess, depth: number, alpha: number, beta: number, isMaxi
 
 function makeBotMove(game: Chess): { move: string; thinkTimeMs: number } | null {
   const startTime = Date.now();
+  const MAX_THINK_TIME_MS = 3000; // Max 3 seconds per move
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) return null;
   
-  // GM-level: Depth 4 with optimized alpha-beta pruning
-  // This plays at approximately 2000+ ELO strength
-  const SEARCH_DEPTH = 4;
   const isBlack = game.turn() === 'b';
+  const orderedMoves = orderMoves(game);
   
-  let bestMove = moves[0];
+  let bestMove = orderedMoves[0];
   let bestEval = isBlack ? Infinity : -Infinity;
   
-  // Use iterative deepening for better move ordering
-  for (let depth = 1; depth <= SEARCH_DEPTH; depth++) {
-    const orderedMoves = orderMoves(game);
+  // Iterative deepening with time limit - stops when time runs out
+  for (let depth = 1; depth <= 5; depth++) {
+    const depthStartTime = Date.now();
     let depthBestMove = orderedMoves[0];
     let depthBestEval = isBlack ? Infinity : -Infinity;
+    let completedDepth = true;
     
     for (const move of orderedMoves) {
+      // Check time limit before each move evaluation
+      if (Date.now() - startTime > MAX_THINK_TIME_MS) {
+        completedDepth = false;
+        break;
+      }
+      
       game.move(move);
       const evaluation = minimax(game, depth - 1, -Infinity, Infinity, !isBlack);
       game.undo();
@@ -309,13 +315,22 @@ function makeBotMove(game: Chess): { move: string; thinkTimeMs: number } | null 
       }
     }
     
-    bestMove = depthBestMove;
-    bestEval = depthBestEval;
+    // Only update best move if we completed this depth
+    if (completedDepth) {
+      bestMove = depthBestMove;
+      bestEval = depthBestEval;
+    }
+    
+    // Stop if we're out of time
+    if (Date.now() - startTime > MAX_THINK_TIME_MS) {
+      console.log(`[Bot GM] Time limit reached at depth ${depth}`);
+      break;
+    }
   }
   
   const thinkTimeMs = Date.now() - startTime;
-  // GM thinks 2-5 seconds per move
-  const humanizedThinkTime = Math.max(thinkTimeMs, 2000 + Math.random() * 3000);
+  // Minimum 2-3 seconds to feel like thinking
+  const humanizedThinkTime = Math.max(thinkTimeMs, 2000 + Math.random() * 1000);
   
   console.log(`[Bot GM] Selected move: ${bestMove.san} (eval: ${bestEval}, think: ${thinkTimeMs}ms)`);
   return { 
