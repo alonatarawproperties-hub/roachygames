@@ -10,6 +10,16 @@ WebBrowser.maybeCompleteAuthSession();
 const AUTH_TOKEN_KEY = "roachy_auth_token";
 const USER_DATA_KEY = "roachy_user_data";
 
+// Google OAuth Client ID
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+
+// Google OAuth discovery document
+const discovery = {
+  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenEndpoint: "https://oauth2.googleapis.com/token",
+  revocationEndpoint: "https://oauth2.googleapis.com/revoke",
+};
+
 export interface AuthUser {
   id: string;
   email: string | null;
@@ -50,12 +60,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const discovery = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
-  revocationEndpoint: "https://oauth2.googleapis.com/revoke",
-};
 
 async function secureStoreGet(key: string): Promise<string | null> {
   if (Platform.OS === "web") {
@@ -176,23 +180,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = useCallback(async () => {
     try {
-      const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
-      
-      if (!clientId) {
+      if (!GOOGLE_CLIENT_ID) {
         return { success: false, error: "Google sign-in not configured" };
       }
 
-      // Use reversed client ID for native OAuth redirect
-      // This works in TestFlight/Production builds but NOT in Expo Go
-      // Format: com.googleusercontent.apps.CLIENT_ID:/oauth2redirect/google
-      const reversedClientId = clientId.split(".").reverse().join(".");
-      const redirectUri = `${reversedClientId}:/oauth2redirect/google`;
+      console.log("[Auth] Starting Google OAuth, Platform:", Platform.OS);
+
+      // For iOS native builds, use the reversed client ID as the URL scheme
+      // Format: com.googleusercontent.apps.CLIENT_ID:/
+      const reversedClientId = GOOGLE_CLIENT_ID.split(".").reverse().join(".");
+      const redirectUri = `${reversedClientId}:/`;
 
       console.log("[Auth] Google OAuth redirect URI:", redirectUri);
-      console.log("[Auth] Platform:", Platform.OS);
 
       const request = new AuthSession.AuthRequest({
-        clientId,
+        clientId: GOOGLE_CLIENT_ID,
         scopes: ["openid", "profile", "email"],
         redirectUri,
         responseType: AuthSession.ResponseType.IdToken,
@@ -200,6 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const result = await request.promptAsync(discovery);
+
+      console.log("[Auth] Google OAuth result:", result.type);
 
       if (result.type === "success" && result.params?.id_token) {
         const response = await apiRequest("POST", "/api/auth/google", {
@@ -221,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: true };
       }
 
-      if (result.type === "cancel") {
+      if (result.type === "cancel" || result.type === "dismiss") {
         return { success: false, error: "Sign-in cancelled" };
       }
 
