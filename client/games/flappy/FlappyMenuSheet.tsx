@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -34,11 +34,19 @@ interface PowerUpInventory {
   magnetCount: number;
 }
 
-interface RankedStatus {
+interface CompetitionInfo {
   entryFee: number;
   participants: number;
   topScore: number;
   endsIn: number;
+  hasJoined: boolean;
+  periodDate: string;
+}
+
+interface RankedStatusResponse {
+  success: boolean;
+  daily: CompetitionInfo;
+  weekly: CompetitionInfo;
 }
 
 interface UserStats {
@@ -99,8 +107,8 @@ export function FlappyMenuSheet({
     enabled: visible && activeTab === "loadout" && !!userId,
   });
 
-  const { data: rankedStatus } = useQuery<{ success: boolean } & RankedStatus>({
-    queryKey: ["/api/flappy/ranked/status"],
+  const { data: rankedStatus } = useQuery<RankedStatusResponse>({
+    queryKey: [`/api/flappy/ranked/status?userId=${userId || ''}`],
     enabled: visible && activeTab === "leaderboards",
   });
 
@@ -115,14 +123,16 @@ export function FlappyMenuSheet({
   });
 
   const enterRankedMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("POST", "/api/flappy/ranked/enter", { userId });
+    mutationFn: async (period: 'daily' | 'weekly') => {
+      return apiRequest("POST", "/api/flappy/ranked/enter", { userId, period });
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user", userId, "diamonds"] });
-      onPlayRanked();
-      onClose();
+      if (!data.alreadyJoined) {
+        onPlayRanked();
+        onClose();
+      }
     },
     onError: (error: any) => {
       console.log("Ranked entry failed:", error.message || "Not enough diamonds");
@@ -184,7 +194,7 @@ export function FlappyMenuSheet({
                     onPlayFree();
                     onClose();
                   }}
-                  onPlayRanked={() => enterRankedMutation.mutate()}
+                  onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
                   isEntering={enterRankedMutation.isPending}
                   entryError={enterRankedMutation.error?.message}
                 />
@@ -235,6 +245,107 @@ function TabButton({
   );
 }
 
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "Ended";
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  return `${hours}h ${minutes}m`;
+}
+
+function CompetitionCard({
+  title,
+  icon,
+  entryFee,
+  participants,
+  topScore,
+  endsIn,
+  hasJoined,
+  canEnter,
+  diamondBalance,
+  userId,
+  isEntering,
+  onEnter,
+}: {
+  title: string;
+  icon: keyof typeof Feather.glyphMap;
+  entryFee: number;
+  participants: number;
+  topScore: number;
+  endsIn: number;
+  hasJoined: boolean;
+  canEnter: boolean;
+  diamondBalance: number;
+  userId: string | null;
+  isEntering: boolean;
+  onEnter: () => void;
+}) {
+  const hasEnoughDiamonds = diamondBalance >= entryFee;
+  
+  return (
+    <View style={[styles.competitionCard, hasJoined && styles.joinedCard]}>
+      <View style={styles.competitionHeader}>
+        <View style={styles.competitionTitleRow}>
+          <View style={[styles.competitionIcon, hasJoined && styles.joinedIcon]}>
+            <Feather name={icon} size={18} color={hasJoined ? GameColors.gold : GameColors.diamond} />
+          </View>
+          <ThemedText style={styles.competitionTitle}>{title}</ThemedText>
+        </View>
+        <View style={styles.countdownBadge}>
+          <Feather name="clock" size={12} color={GameColors.textSecondary} />
+          <ThemedText style={styles.countdownText}>{formatCountdown(endsIn)}</ThemedText>
+        </View>
+      </View>
+      
+      <View style={styles.competitionStats}>
+        <View style={styles.statItem}>
+          <ThemedText style={styles.statItemValue}>{participants}</ThemedText>
+          <ThemedText style={styles.statItemLabel}>Players</ThemedText>
+        </View>
+        <View style={styles.statItem}>
+          <ThemedText style={styles.statItemValue}>{topScore}</ThemedText>
+          <ThemedText style={styles.statItemLabel}>Top Score</ThemedText>
+        </View>
+        <View style={styles.statItem}>
+          <View style={styles.entryFeeDisplay}>
+            <Feather name="hexagon" size={14} color={GameColors.diamond} />
+            <ThemedText style={styles.statItemValue}>{entryFee}</ThemedText>
+          </View>
+          <ThemedText style={styles.statItemLabel}>Entry Fee</ThemedText>
+        </View>
+      </View>
+      
+      {hasJoined ? (
+        <View style={styles.joinedBadge}>
+          <Feather name="check-circle" size={16} color={GameColors.gold} />
+          <ThemedText style={styles.joinedText}>Already Joined</ThemedText>
+        </View>
+      ) : (
+        <Pressable
+          style={[styles.enterButton, !canEnter && styles.disabledButton]}
+          onPress={onEnter}
+          disabled={!canEnter}
+        >
+          {isEntering ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : !userId ? (
+            <ThemedText style={styles.enterButtonText}>Sign in to join</ThemedText>
+          ) : !hasEnoughDiamonds ? (
+            <ThemedText style={[styles.enterButtonText, { color: GameColors.textSecondary }]}>
+              Need {entryFee - diamondBalance} more
+            </ThemedText>
+          ) : (
+            <ThemedText style={styles.enterButtonText}>Enter Competition</ThemedText>
+          )}
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 function LeaderboardsTab({
   leaderboard,
   isLoading,
@@ -249,18 +360,20 @@ function LeaderboardsTab({
 }: {
   leaderboard: any[];
   isLoading: boolean;
-  rankedStatus: any;
+  rankedStatus: RankedStatusResponse | undefined;
   userStats: any;
   userId: string | null;
   diamondBalance: number;
   onPlayFree: () => void;
-  onPlayRanked: () => void;
+  onPlayRanked: (period: 'daily' | 'weekly') => void;
   isEntering: boolean;
   entryError?: string;
 }) {
-  const entryFee = rankedStatus?.entryFee || 1;
-  const hasEnoughDiamonds = diamondBalance >= entryFee;
-  const canEnterRanked = userId && hasEnoughDiamonds && !isEntering;
+  const daily = rankedStatus?.daily;
+  const weekly = rankedStatus?.weekly;
+  
+  const canEnterDaily = userId && diamondBalance >= (daily?.entryFee || 1) && !isEntering && !daily?.hasJoined;
+  const canEnterWeekly = userId && diamondBalance >= (weekly?.entryFee || 3) && !isEntering && !weekly?.hasJoined;
 
   return (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
@@ -290,44 +403,38 @@ function LeaderboardsTab({
           <Feather name="chevron-right" size={20} color={GameColors.textSecondary} />
         </Pressable>
 
-        <Pressable
-          style={[
-            styles.playModeCard,
-            styles.rankedCard,
-            !canEnterRanked && styles.disabledCard,
-          ]}
-          onPress={onPlayRanked}
-          disabled={!canEnterRanked}
-        >
-          <View style={[styles.playModeIcon, styles.rankedIcon]}>
-            <Feather name="zap" size={24} color={canEnterRanked ? GameColors.diamond : GameColors.textSecondary} />
-          </View>
-          <View style={styles.playModeInfo}>
-            <ThemedText style={[styles.playModeTitle, !canEnterRanked && styles.disabledText]}>
-              Ranked Competition
-            </ThemedText>
-            <View style={styles.entryFeeRow}>
-              <Feather name="hexagon" size={14} color={hasEnoughDiamonds ? GameColors.diamond : "#ff4444"} />
-              <ThemedText style={[styles.entryFeeText, !hasEnoughDiamonds && { color: "#ff4444" }]}>
-                {entryFee} Diamond Entry
-              </ThemedText>
-            </View>
-            {!userId ? (
-              <ThemedText style={styles.warningText}>Sign in to play ranked</ThemedText>
-            ) : !hasEnoughDiamonds ? (
-              <ThemedText style={styles.warningText}>Need {entryFee - diamondBalance} more diamonds</ThemedText>
-            ) : (
-              <ThemedText style={styles.playModeDesc}>
-                {rankedStatus?.participants || 0} players today
-              </ThemedText>
-            )}
-          </View>
-          {isEntering ? (
-            <ActivityIndicator color={GameColors.diamond} />
-          ) : (
-            <Feather name="chevron-right" size={20} color={GameColors.textSecondary} />
-          )}
-        </Pressable>
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Ranked Competitions</ThemedText>
+        
+        <CompetitionCard
+          title="Daily Challenge"
+          icon="sun"
+          entryFee={daily?.entryFee || 1}
+          participants={daily?.participants || 0}
+          topScore={daily?.topScore || 0}
+          endsIn={daily?.endsIn || 0}
+          hasJoined={daily?.hasJoined || false}
+          canEnter={!!canEnterDaily}
+          diamondBalance={diamondBalance}
+          userId={userId}
+          isEntering={isEntering}
+          onEnter={() => onPlayRanked('daily')}
+        />
+        
+        <CompetitionCard
+          title="Weekly Championship"
+          icon="calendar"
+          entryFee={weekly?.entryFee || 3}
+          participants={weekly?.participants || 0}
+          topScore={weekly?.topScore || 0}
+          endsIn={weekly?.endsIn || 0}
+          hasJoined={weekly?.hasJoined || false}
+          canEnter={!!canEnterWeekly}
+          diamondBalance={diamondBalance}
+          userId={userId}
+          isEntering={isEntering}
+          onEnter={() => onPlayRanked('weekly')}
+        />
+        
         {entryError ? (
           <ThemedText style={styles.errorText}>{entryError}</ThemedText>
         ) : null}
@@ -708,6 +815,110 @@ const styles = StyleSheet.create({
     color: "#ff4444",
     marginTop: Spacing.xs,
   },
+  competitionCard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceLight,
+  },
+  joinedCard: {
+    borderColor: GameColors.gold,
+    backgroundColor: "rgba(255, 215, 0, 0.05)",
+  },
+  competitionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  competitionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  competitionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0, 212, 255, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  joinedIcon: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+  },
+  competitionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.text,
+  },
+  countdownBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GameColors.surfaceLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  countdownText: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+  },
+  competitionStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: Spacing.md,
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statItemValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.text,
+  },
+  statItemLabel: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+    marginTop: 2,
+  },
+  entryFeeDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  joinedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  joinedText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.gold,
+  },
+  enterButton: {
+    backgroundColor: GameColors.diamond,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabledButton: {
+    backgroundColor: GameColors.surfaceLight,
+  },
+  enterButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000",
+  },
   statsSection: {
     marginBottom: Spacing.xl,
   },
@@ -841,10 +1052,6 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.surfaceLight,
     borderWidth: 1,
     borderColor: GameColors.gold,
-  },
-  disabledButton: {
-    backgroundColor: GameColors.surfaceLight,
-    opacity: 0.6,
   },
   marketplaceButton: {
     flexDirection: "row",

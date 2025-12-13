@@ -654,6 +654,18 @@ export const flappyRankedCompetitions = pgTable("flappy_ranked_competitions", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const flappyRankedEntries = pgTable("flappy_ranked_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  competitionId: varchar("competition_id"),
+  period: text("period").notNull(),
+  periodDate: text("period_date").notNull(),
+  entryFee: integer("entry_fee").notNull().default(1),
+  bestScore: integer("best_score").notNull().default(0),
+  gamesPlayed: integer("games_played").notNull().default(0),
+  enteredAt: timestamp("entered_at").notNull().default(sql`now()`),
+});
+
 export const insertFlappyScoreSchema = createInsertSchema(flappyScores).omit({
   id: true,
   playedAt: true,
@@ -674,6 +686,11 @@ export const insertFlappyRankedCompetitionSchema = createInsertSchema(flappyRank
   createdAt: true,
 });
 
+export const insertFlappyRankedEntrySchema = createInsertSchema(flappyRankedEntries).omit({
+  id: true,
+  enteredAt: true,
+});
+
 export type FlappyScore = typeof flappyScores.$inferSelect;
 export type InsertFlappyScore = z.infer<typeof insertFlappyScoreSchema>;
 export type FlappyLeaderboard = typeof flappyLeaderboard.$inferSelect;
@@ -682,3 +699,5 @@ export type FlappyPowerUpInventory = typeof flappyPowerUpInventory.$inferSelect;
 export type InsertFlappyPowerUpInventory = z.infer<typeof insertFlappyPowerUpInventorySchema>;
 export type FlappyRankedCompetition = typeof flappyRankedCompetitions.$inferSelect;
 export type InsertFlappyRankedCompetition = z.infer<typeof insertFlappyRankedCompetitionSchema>;
+export type FlappyRankedEntry = typeof flappyRankedEntries.$inferSelect;
+export type InsertFlappyRankedEntry = z.infer<typeof insertFlappyRankedEntrySchema>;

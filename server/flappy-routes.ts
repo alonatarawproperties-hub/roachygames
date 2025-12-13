@@ -5,6 +5,7 @@ import {
   flappyLeaderboard,
   flappyPowerUpInventory,
   flappyRankedCompetitions,
+  flappyRankedEntries,
   users,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
@@ -284,13 +285,37 @@ export function registerFlappyRoutes(app: Express) {
 
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
-      const { userId } = req.body;
+      const { userId, period = 'daily' } = req.body;
       
       if (!userId) {
         return res.status(400).json({ success: false, error: "Missing userId" });
       }
       
-      const ENTRY_FEE = 1;
+      if (period !== 'daily' && period !== 'weekly') {
+        return res.status(400).json({ success: false, error: "Invalid period" });
+      }
+      
+      const ENTRY_FEE = period === 'daily' ? 1 : 3;
+      const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
+      
+      const existingEntry = await db.select()
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.userId, userId),
+          eq(flappyRankedEntries.period, period),
+          eq(flappyRankedEntries.periodDate, periodDate)
+        ))
+        .limit(1);
+      
+      if (existingEntry.length > 0) {
+        return res.json({ 
+          success: true, 
+          alreadyJoined: true,
+          entryId: existingEntry[0].id,
+          period,
+          periodDate,
+        });
+      }
       
       const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       
@@ -302,38 +327,116 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Not enough diamonds" });
       }
       
+      const [newEntry] = await db.insert(flappyRankedEntries).values({
+        userId,
+        period,
+        periodDate,
+        entryFee: ENTRY_FEE,
+        bestScore: 0,
+        gamesPlayed: 0,
+      }).returning();
+      
       await db.update(users)
         .set({ diamondBalance: user[0].diamondBalance - ENTRY_FEE })
         .where(eq(users.id, userId));
       
-      res.json({ success: true, entryFee: ENTRY_FEE, newBalance: user[0].diamondBalance - ENTRY_FEE });
+      res.json({ 
+        success: true, 
+        alreadyJoined: false,
+        entryFee: ENTRY_FEE, 
+        newBalance: user[0].diamondBalance - ENTRY_FEE,
+        entryId: newEntry.id,
+        period,
+        periodDate,
+      });
     } catch (error) {
       console.error("Ranked entry error:", error);
       res.status(500).json({ success: false, error: "Failed to enter ranked" });
     }
   });
 
-  app.get("/api/flappy/ranked/status", async (_req: Request, res: Response) => {
+  app.get("/api/flappy/ranked/status", async (req: Request, res: Response) => {
     try {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
+      const { userId } = req.query;
+      const today = getTodayDate();
+      const weekNumber = getWeekNumber();
       
       const dailyParticipants = await db.select({ count: sql<number>`count(*)` })
-        .from(flappyLeaderboard)
-        .where(eq(flappyLeaderboard.dailyBestDate, today));
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.period, 'daily'),
+          eq(flappyRankedEntries.periodDate, today)
+        ));
+      
+      const weeklyParticipants = await db.select({ count: sql<number>`count(*)` })
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.period, 'weekly'),
+          eq(flappyRankedEntries.periodDate, weekNumber)
+        ));
       
       const dailyTopScore = await db.select()
-        .from(flappyLeaderboard)
-        .where(eq(flappyLeaderboard.dailyBestDate, today))
-        .orderBy(desc(flappyLeaderboard.dailyBestScore))
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.period, 'daily'),
+          eq(flappyRankedEntries.periodDate, today)
+        ))
+        .orderBy(desc(flappyRankedEntries.bestScore))
         .limit(1);
+      
+      const weeklyTopScore = await db.select()
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.period, 'weekly'),
+          eq(flappyRankedEntries.periodDate, weekNumber)
+        ))
+        .orderBy(desc(flappyRankedEntries.bestScore))
+        .limit(1);
+      
+      let hasJoinedDaily = false;
+      let hasJoinedWeekly = false;
+      
+      if (userId && typeof userId === 'string') {
+        const dailyEntry = await db.select()
+          .from(flappyRankedEntries)
+          .where(and(
+            eq(flappyRankedEntries.userId, userId),
+            eq(flappyRankedEntries.period, 'daily'),
+            eq(flappyRankedEntries.periodDate, today)
+          ))
+          .limit(1);
+        
+        const weeklyEntry = await db.select()
+          .from(flappyRankedEntries)
+          .where(and(
+            eq(flappyRankedEntries.userId, userId),
+            eq(flappyRankedEntries.period, 'weekly'),
+            eq(flappyRankedEntries.periodDate, weekNumber)
+          ))
+          .limit(1);
+        
+        hasJoinedDaily = dailyEntry.length > 0;
+        hasJoinedWeekly = weeklyEntry.length > 0;
+      }
       
       res.json({
         success: true,
-        entryFee: 1,
-        participants: Number(dailyParticipants[0]?.count || 0),
-        topScore: dailyTopScore[0]?.dailyBestScore || 0,
-        endsIn: getTimeUntilMidnight(),
+        daily: {
+          entryFee: 1,
+          participants: Number(dailyParticipants[0]?.count || 0),
+          topScore: dailyTopScore[0]?.bestScore || 0,
+          endsIn: getTimeUntilMidnight(),
+          hasJoined: hasJoinedDaily,
+          periodDate: today,
+        },
+        weekly: {
+          entryFee: 3,
+          participants: Number(weeklyParticipants[0]?.count || 0),
+          topScore: weeklyTopScore[0]?.bestScore || 0,
+          endsIn: getTimeUntilWeekEnd(),
+          hasJoined: hasJoinedWeekly,
+          periodDate: weekNumber,
+        },
       });
     } catch (error) {
       console.error("Ranked status error:", error);
@@ -350,10 +453,33 @@ function getWeekStart(): string {
   return weekStart.toISOString().split('T')[0];
 }
 
+function getTodayDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getWeekNumber(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const startOfYear = new Date(year, 0, 1);
+  const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+  const week = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+  return `${year}-W${week.toString().padStart(2, '0')}`;
+}
+
 function getTimeUntilMidnight(): number {
   const now = new Date();
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
   return tomorrow.getTime() - now.getTime();
+}
+
+function getTimeUntilWeekEnd(): number {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilMonday = day === 0 ? 1 : 8 - day;
+  const nextMonday = new Date(now);
+  nextMonday.setDate(now.getDate() + daysUntilMonday);
+  nextMonday.setHours(0, 0, 0, 0);
+  return nextMonday.getTime() - now.getTime();
 }
