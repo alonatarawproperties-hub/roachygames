@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +24,8 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+
+const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -372,14 +375,14 @@ function CompetitionCard({
         </View>
         <View style={styles.statItem}>
           <View style={styles.entryFeeDisplay}>
-            <ThemedText style={styles.coinIcon}>C</ThemedText>
+            <Image source={ChyCoinIcon} style={styles.coinIconImage} contentFit="contain" />
             <ThemedText style={styles.statItemValue}>{prizePool}</ThemedText>
           </View>
           <ThemedText style={styles.statItemLabel}>Prize Pool</ThemedText>
         </View>
         <View style={styles.statItem}>
           <View style={styles.entryFeeDisplay}>
-            <ThemedText style={styles.coinIcon}>C</ThemedText>
+            <Image source={ChyCoinIcon} style={styles.coinIconImage} contentFit="contain" />
             <ThemedText style={styles.statItemValue}>{entryFee}</ThemedText>
           </View>
           <ThemedText style={styles.statItemLabel}>Entry Fee</ThemedText>
@@ -465,7 +468,7 @@ function LeaderboardsTab({
       {userId ? (
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
-            <ThemedText style={styles.coinSymbol}>C</ThemedText>
+            <Image source={ChyCoinIcon} style={styles.coinSymbolImage} contentFit="contain" />
             <ThemedText style={styles.balanceValue}>{diamondBalance}</ThemedText>
             <ThemedText style={styles.balanceLabel}>Chy Coins</ThemedText>
           </View>
@@ -551,21 +554,21 @@ function LeaderboardsTab({
             <View style={styles.prizeRow}>
               <ThemedText style={styles.prizeRankText}>1st Place</ThemedText>
               <View style={styles.prizeValueRow}>
-                <ThemedText style={styles.coinIconSmall}>C</ThemedText>
+                <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
                 <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.5)}</ThemedText>
               </View>
             </View>
             <View style={styles.prizeRow}>
               <ThemedText style={styles.prizeRankText}>2nd Place</ThemedText>
               <View style={styles.prizeValueRow}>
-                <ThemedText style={styles.coinIconSmall}>C</ThemedText>
+                <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
                 <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.3)}</ThemedText>
               </View>
             </View>
             <View style={styles.prizeRow}>
               <ThemedText style={styles.prizeRankText}>3rd Place</ThemedText>
               <View style={styles.prizeValueRow}>
-                <ThemedText style={styles.coinIconSmall}>C</ThemedText>
+                <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
                 <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.15)}</ThemedText>
               </View>
             </View>
@@ -962,6 +965,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: GameColors.gold,
+  },
+  coinSymbolImage: {
+    width: 24,
+    height: 24,
+  },
+  coinIconImage: {
+    width: 18,
+    height: 18,
+  },
+  coinIconSmallImage: {
+    width: 14,
+    height: 14,
   },
   disabledCard: {
     opacity: 0.6,
