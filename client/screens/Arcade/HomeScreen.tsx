@@ -1150,7 +1150,7 @@ export function ArcadeHomeScreen() {
                                 {item.isNFT ? <PremiumNFTBadge /> : null}
                                 {item.isEquipped ? (
                                   <View style={styles.equippedBadge}>
-                                    <Feather name="check" size={12} color="#fff" />
+                                    <ThemedText style={styles.equippedBadgeText}>Equipped</ThemedText>
                                   </View>
                                 ) : null}
                               </Pressable>
@@ -2159,13 +2159,20 @@ const styles = StyleSheet.create({
   equippedBadge: {
     position: "absolute",
     bottom: Spacing.xs,
+    left: Spacing.xs,
     right: Spacing.xs,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     backgroundColor: GameColors.gold,
     justifyContent: "center",
     alignItems: "center",
+  },
+  equippedBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1A1A0F",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   creaturesGrid: {
     flexDirection: "row",
