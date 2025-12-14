@@ -5,18 +5,6 @@ interface WebappBalances {
   chy: number;
 }
 
-interface TradeResult {
-  success: boolean;
-  trade?: {
-    chySpent?: number;
-    roachySpent?: number;
-    diamondsReceived: number;
-  };
-  newBalances?: WebappBalances;
-  newDiamondBalance?: number;
-  error?: string;
-}
-
 interface PowerupPurchaseResult {
   success: boolean;
   purchase?: {
@@ -26,11 +14,6 @@ interface PowerupPurchaseResult {
   };
   newDiamondBalance?: number;
   error?: string;
-}
-
-interface ExchangeRates {
-  chyToDiamond: number;
-  roachyToDiamond: number;
 }
 
 interface OAuthExchangeResult {
@@ -44,17 +27,6 @@ interface OAuthExchangeResult {
     chyBalance: number;
   };
   error?: string;
-}
-
-export async function getExchangeRates(): Promise<ExchangeRates> {
-  try {
-    const response = await apiRequest("GET", "/api/webapp/exchange-rates");
-    const result = await response.json();
-    return result.rates;
-  } catch (error) {
-    console.error("[WebappAPI] Get exchange rates failed:", error);
-    throw error;
-  }
 }
 
 export async function exchangeOAuthUser(
@@ -112,44 +84,6 @@ export async function getUserDiamonds(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to get diamonds",
-    };
-  }
-}
-
-export async function tradeChyToDiamonds(
-  userId: string,
-  chyAmount: number
-): Promise<TradeResult> {
-  try {
-    const response = await apiRequest("POST", "/api/webapp/trades/chy-to-diamonds", {
-      userId,
-      chyAmount,
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("[WebappAPI] CHY trade failed:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Trade failed",
-    };
-  }
-}
-
-export async function tradeRoachyToDiamonds(
-  userId: string,
-  roachyAmount: number
-): Promise<TradeResult> {
-  try {
-    const response = await apiRequest("POST", "/api/webapp/trades/roachy-to-diamonds", {
-      userId,
-      roachyAmount,
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("[WebappAPI] ROACHY trade failed:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Trade failed",
     };
   }
 }

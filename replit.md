@@ -187,16 +187,21 @@ All webapp API calls are routed through the backend to protect the `MOBILE_APP_S
 - **Response sanitization**: All non-OK responses are sanitized to `{ success: false, error: string }` only
 
 ### Features
-1. **Token Trading**: Swap CHY/ROACHY tokens for Diamonds via TradingScreen
+1. **Token Trading**: Opens roachy.games/trade in browser (NO in-app trading for legal compliance)
 2. **Powerup Shop**: Purchase game powerups with Diamonds via PowerupShopScreen
-3. **Balance Sync**: Real-time diamond/CHY balances from webapp
+3. **Balance Sync**: Real-time diamond/CHY balances from webapp (30s stale, 60s refetch)
 4. **OAuth Sync**: Google OAuth users synced with webapp on login
 
+### IMPORTANT: Trading Restrictions
+- Token trading/conversions are handled ONLY on the webapp (roachy.games)
+- Mobile app TradingScreen is informational only - shows balances and redirects to website
+- This is for legal compliance - no token trading functionality in the mobile app
+
 ### Files
-- `client/lib/webapp-api.ts` - Client API functions (calls backend, not webapp directly)
+- `client/lib/webapp-api.ts` - Client API functions (balance fetch, powerup purchase, OAuth sync)
 - `client/hooks/useWebappBalances.ts` - React Query hook for balance fetching
 - `server/webapp-routes.ts` - Secure proxy with response sanitization
-- `client/screens/TradingScreen.tsx` - Token exchange UI
+- `client/screens/TradingScreen.tsx` - Info screen with redirect to webapp for trading
 - `client/screens/PowerupShopScreen.tsx` - Powerup purchase UI
 
 ### Rewards Distribution

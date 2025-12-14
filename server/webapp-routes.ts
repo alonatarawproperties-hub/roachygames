@@ -62,11 +62,6 @@ async function webappRequest(
 export function registerWebappRoutes(app: Express) {
   const router = Router();
 
-  router.get("/exchange-rates", async (req: Request, res: Response) => {
-    const result = await webappRequest("GET", "/api/web/exchange-rates");
-    res.status(result.status).json(result.data);
-  });
-
   router.post("/oauth/exchange", async (req: Request, res: Response) => {
     const { googleId, email, displayName } = req.body;
     if (!googleId || !email) {
@@ -85,24 +80,6 @@ export function registerWebappRoutes(app: Express) {
   router.get("/users/:userId/diamonds", async (req: Request, res: Response) => {
     const { userId } = req.params;
     const result = await webappRequest("GET", `/api/web/users/${userId}/diamonds`);
-    res.status(result.status).json(result.data);
-  });
-
-  router.post("/trades/chy-to-diamonds", async (req: Request, res: Response) => {
-    const { userId, chyAmount } = req.body;
-    if (!userId || chyAmount === undefined) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    const result = await webappRequest("POST", "/api/web/trades/chy-to-diamonds", { userId, chyAmount });
-    res.status(result.status).json(result.data);
-  });
-
-  router.post("/trades/roachy-to-diamonds", async (req: Request, res: Response) => {
-    const { userId, roachyAmount } = req.body;
-    if (!userId || roachyAmount === undefined) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    const result = await webappRequest("POST", "/api/web/trades/roachy-to-diamonds", { userId, roachyAmount });
     res.status(result.status).json(result.data);
   });
 
