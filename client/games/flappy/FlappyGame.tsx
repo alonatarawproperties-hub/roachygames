@@ -109,19 +109,11 @@ function PowerUpIndicator({
         animatedStyle,
       ]}
     >
-      {type === "shield" ? (
-        <Feather name="shield" size={18} color="#fff" />
-      ) : type === "double" ? (
-        <ThemedText style={powerUpIndicatorStyles.doubleText}>2x</ThemedText>
-      ) : (
-        <View style={powerUpIndicatorStyles.magnetIcon}>
-          <View style={powerUpIndicatorStyles.magnetArc} />
-          <View style={powerUpIndicatorStyles.magnetLegs}>
-            <View style={powerUpIndicatorStyles.magnetLeg} />
-            <View style={powerUpIndicatorStyles.magnetLeg} />
-          </View>
-        </View>
-      )}
+      <Image
+        source={type === "shield" ? POWERUP_SHIELD : type === "double" ? POWERUP_DOUBLE : POWERUP_MAGNET}
+        style={powerUpIndicatorStyles.powerUpIcon}
+        contentFit="contain"
+      />
     </Animated.View>
   );
 }
@@ -142,34 +134,9 @@ const powerUpIndicatorStyles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 10,
   },
-  doubleText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#fff",
-  },
-  magnetIcon: {
-    width: 16,
-    height: 18,
-    alignItems: "center",
-  },
-  magnetArc: {
-    width: 14,
-    height: 7,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-  },
-  magnetLegs: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: 14,
-  },
-  magnetLeg: {
-    width: 5,
-    height: 8,
-    backgroundColor: "#fff",
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
+  powerUpIcon: {
+    width: 28,
+    height: 28,
   },
 });
 
@@ -185,6 +152,10 @@ const ROACHY_KING_DEAD = require("@/assets/flappy/roachy-king-dead.png");
 const ROACHY_QUEEN_1 = require("@/assets/flappy/roachy-queen-1.png");
 const ROACHY_QUEEN_2 = require("@/assets/flappy/roachy-queen-2.png");
 const ROACHY_QUEEN_DEAD = require("@/assets/flappy/roachy-queen-3.png");
+
+const POWERUP_SHIELD = require("@/assets/powerup-shield.png");
+const POWERUP_DOUBLE = require("@/assets/powerup-double.png");
+const POWERUP_MAGNET = require("@/assets/powerup-magnet.png");
 
 export type RoachySkin = "default" | "rainbow" | "king" | "queen";
 
@@ -1240,25 +1211,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
             key={pu.id}
             style={[
               styles.powerUp,
-              pu.type === "shield" && styles.powerUpShield,
-              pu.type === "double" && styles.powerUpDouble,
-              pu.type === "magnet" && styles.powerUpMagnet,
               { left: pu.x - POWERUP_SIZE / 2, top: pu.y - POWERUP_SIZE / 2 },
             ]}
           >
-            {pu.type === "shield" ? (
-              <Feather name="shield" size={20} color="#fff" />
-            ) : pu.type === "double" ? (
-              <ThemedText style={styles.powerUpDoubleText}>2x</ThemedText>
-            ) : (
-              <View style={styles.magnetIconCollectible}>
-                <View style={styles.magnetArc} />
-                <View style={styles.magnetLegs}>
-                  <View style={styles.magnetLegLeft} />
-                  <View style={styles.magnetLegRight} />
-                </View>
-              </View>
-            )}
+            <Image
+              source={pu.type === "shield" ? POWERUP_SHIELD : pu.type === "double" ? POWERUP_DOUBLE : POWERUP_MAGNET}
+              style={styles.powerUpImage}
+              contentFit="contain"
+            />
           </View>
         ))}
         
@@ -1486,59 +1446,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: POWERUP_SIZE,
     height: POWERUP_SIZE,
-    borderRadius: POWERUP_SIZE / 2,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 60,
-    borderWidth: 3,
   },
-  powerUpShield: {
-    backgroundColor: "#3B82F6",
-    borderColor: "#1D4ED8",
-  },
-  powerUpDouble: {
-    backgroundColor: "#F59E0B",
-    borderColor: "#B45309",
-  },
-  powerUpMagnet: {
-    backgroundColor: "#EF4444",
-    borderColor: "#B91C1C",
-  },
-  powerUpDoubleText: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#fff",
-  },
-  magnetIconCollectible: {
-    width: 22,
-    height: 22,
-    alignItems: "center",
-  },
-  magnetArc: {
-    width: 18,
-    height: 9,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-  },
-  magnetLegs: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: 18,
-  },
-  magnetLegLeft: {
-    width: 6,
-    height: 10,
-    backgroundColor: "#fff",
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-  },
-  magnetLegRight: {
-    width: 6,
-    height: 10,
-    backgroundColor: "#fff",
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
+  powerUpImage: {
+    width: POWERUP_SIZE,
+    height: POWERUP_SIZE,
   },
   cloud: {
     position: "absolute",
