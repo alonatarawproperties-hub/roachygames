@@ -7,12 +7,15 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
+import { Image as ExpoImage } from "expo-image";
 
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useHunt, CaughtCreature as HuntCaughtCreature } from "@/context/HuntContext";
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES, CreatureRarity } from "@/constants/creatures";
 import { InventoryStackParamList } from "@/navigation/InventoryStackNavigator";
+import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
+import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
 
 type NavigationProp = NativeStackNavigationProp<InventoryStackParamList>;
 
@@ -87,16 +90,58 @@ function SectionHeader({ title, badge }: { title: string; badge?: string }) {
   );
 }
 
+function FlappySkinCard({
+  skinId,
+  skin,
+  isEquipped,
+  onEquip,
+  index,
+  disabled,
+}: {
+  skinId: RoachySkin;
+  skin: typeof FLAPPY_SKINS.default;
+  isEquipped: boolean;
+  onEquip: () => void;
+  index: number;
+  disabled?: boolean;
+}) {
+  return (
+    <Animated.View entering={FadeIn.delay(index * 50)}>
+      <Pressable
+        style={[styles.skinCard, !disabled && isEquipped && styles.skinCardEquipped, disabled && styles.skinCardDisabled]}
+        onPress={disabled ? undefined : onEquip}
+        disabled={disabled}
+      >
+        <ExpoImage source={skin.frames[1]} style={styles.skinImage} contentFit="contain" />
+        <ThemedText style={styles.skinName}>{skin.name}</ThemedText>
+        {skin.isNFT ? (
+          <View style={styles.nftBadge}>
+            <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
+          </View>
+        ) : null}
+        {!disabled && isEquipped ? (
+          <View style={styles.equippedBadge}>
+            <Feather name="check" size={12} color="#fff" />
+          </View>
+        ) : null}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function InventoryScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { collection, collectedEggs } = useHunt();
+  const { equippedSkin, setEquippedSkin, isLoading: skinLoading } = useFlappySkin();
 
   const navigateToCreature = useCallback((uniqueId: string) => {
     navigation.navigate("CreatureDetail", { uniqueId });
   }, [navigation]);
+
+  const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
 
   return (
     <View style={styles.container}>
@@ -152,6 +197,25 @@ export default function InventoryScreen() {
             </View>
             <Feather name="chevron-right" size={20} color={GameColors.textSecondary} />
           </Pressable>
+        </Animated.View>
+
+        {/* Flappy Roachy Skins */}
+        <Animated.View entering={FadeInDown.delay(150)}>
+          <SectionHeader title="Flappy Skins" badge={`${skinEntries.length}`} />
+          <View style={styles.skinsRow}>
+            {skinEntries.map(([skinId, skin], index) => (
+              <View key={skinId} style={styles.skinItemWrapper}>
+                <FlappySkinCard
+                  skinId={skinId}
+                  skin={skin}
+                  isEquipped={equippedSkin === skinId}
+                  onEquip={() => setEquippedSkin(skinId)}
+                  index={index}
+                  disabled={skinLoading}
+                />
+              </View>
+            ))}
+          </View>
         </Animated.View>
 
         {/* Collection Grid */}
@@ -353,5 +417,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: GameColors.background,
+  },
+  skinsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -Spacing.xs,
+    marginBottom: Spacing.lg,
+  },
+  skinItemWrapper: {
+    width: "50%",
+    padding: Spacing.xs,
+  },
+  skinCard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    alignItems: "center",
+    position: "relative",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  skinCardEquipped: {
+    borderColor: GameColors.gold,
+    backgroundColor: GameColors.gold + "15",
+  },
+  skinCardDisabled: {
+    opacity: 0.5,
+  },
+  skinImage: {
+    width: 70,
+    height: 70,
+    marginBottom: Spacing.sm,
+  },
+  skinName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    textAlign: "center",
+  },
+  nftBadge: {
+    position: "absolute",
+    top: Spacing.xs,
+    left: Spacing.xs,
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  nftBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  equippedBadge: {
+    position: "absolute",
+    bottom: Spacing.xs,
+    right: Spacing.xs,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: GameColors.gold,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

@@ -16,6 +16,7 @@ import { GameProvider } from "@/context/GameContext";
 import { HuntProvider } from "@/context/HuntContext";
 import { WalletProvider } from "@/context/WalletContext";
 import { ArcadeInventoryProvider } from "@/context/ArcadeInventoryContext";
+import { FlappySkinProvider } from "@/context/FlappySkinContext";
 import { AuthProvider } from "@/context/AuthContext";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { AppKitWrapper } from "@/components/AppKitWrapper";
@@ -70,9 +71,11 @@ export default function App() {
                     <GameProvider>
                       <HuntProvider>
                         <ArcadeInventoryProvider>
-                          <NavigationContainer>
-                            <RootStackNavigator />
-                          </NavigationContainer>
+                          <FlappySkinProvider>
+                            <NavigationContainer>
+                              <RootStackNavigator />
+                            </NavigationContainer>
+                          </FlappySkinProvider>
                         </ArcadeInventoryProvider>
                       </HuntProvider>
                     </GameProvider>
