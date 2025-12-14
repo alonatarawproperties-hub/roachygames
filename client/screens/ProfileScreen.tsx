@@ -16,6 +16,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMarketplaceUrl, apiRequest } from "@/lib/query-client";
 import Animated, {
   FadeInDown,
@@ -24,6 +25,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Leaderboard, AchievementBadges, ActivityHistory, FriendActivity, EventsCalendar } from "@/components/arcade";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGame } from "@/context/GameContext";
@@ -70,7 +72,31 @@ export default function ProfileScreen() {
   
   const [usernameModalVisible, setUsernameModalVisible] = useState(false);
   const [newUsername, setNewUsername] = useState("");
-  const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const updateUsernameMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const response = await apiRequest("POST", "/api/auth/update-username", {
+        userId: user!.id,
+        newUsername: username,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update username");
+      return data.user;
+    },
+    onSuccess: (updatedUser) => {
+      updateUser(updatedUser);
+      queryClient.invalidateQueries({ queryKey: ['/api/auth'] });
+      setUsernameModalVisible(false);
+      setUsernameError(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (error: Error) => {
+      setUsernameError(error.message);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    },
+  });
 
   const rarestCreature = state.playerStats.rarestCatch
     ? getCreatureDefinition(state.playerStats.rarestCatch)
@@ -97,36 +123,15 @@ export default function ProfileScreen() {
       return;
     }
     setNewUsername(user?.displayName || "");
+    setUsernameError(null);
     setUsernameModalVisible(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleUpdateUsername = async () => {
+  const handleUpdateUsername = () => {
     if (!user || !newUsername.trim()) return;
-    
-    setIsUpdatingUsername(true);
-    try {
-      const response = await apiRequest("POST", "/api/auth/update-username", {
-        userId: user.id,
-        newUsername: newUsername.trim(),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        Alert.alert("Cannot Change Username", data.error || "Failed to update username");
-        return;
-      }
-      
-      await updateUser(data.user);
-      setUsernameModalVisible(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Your username has been updated!");
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to update username");
-    } finally {
-      setIsUpdatingUsername(false);
-    }
+    setUsernameError(null);
+    updateUsernameMutation.mutate(newUsername.trim());
   };
 
   const getUserDisplayName = () => {
@@ -182,45 +187,57 @@ export default function ProfileScreen() {
         onRequestClose={() => setUsernameModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ThemedText type="h4" style={styles.modalTitle}>Edit Username</ThemedText>
-            <ThemedText style={styles.modalSubtitle}>
-              Choose a username (3-20 characters, letters, numbers, and underscores only)
-            </ThemedText>
-            <TextInput
-              style={styles.usernameInput}
-              value={newUsername}
-              onChangeText={setNewUsername}
-              placeholder="Enter username"
-              placeholderTextColor={GameColors.textSecondary}
-              maxLength={20}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <ThemedText style={styles.cooldownNote}>
-              You can change your username once every 7 days
-            </ThemedText>
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={styles.cancelButton}
-                onPress={() => setUsernameModalVisible(false)}
-                disabled={isUpdatingUsername}
-              >
-                <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-              </Pressable>
-              <Pressable
-                style={[styles.saveButton, isUpdatingUsername && styles.buttonDisabled]}
-                onPress={handleUpdateUsername}
-                disabled={isUpdatingUsername || newUsername.trim().length < 3}
-              >
-                {isUpdatingUsername ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <ThemedText style={styles.saveButtonText}>Save</ThemedText>
-                )}
-              </Pressable>
+          <KeyboardAwareScrollViewCompat
+            contentContainerStyle={styles.modalScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.modalContent}>
+              <ThemedText type="h4" style={styles.modalTitle}>Edit Username</ThemedText>
+              <ThemedText style={styles.modalSubtitle}>
+                Choose a username (3-20 characters, letters, numbers, and underscores only)
+              </ThemedText>
+              <TextInput
+                style={[styles.usernameInput, usernameError ? styles.inputError : null]}
+                value={newUsername}
+                onChangeText={(text) => {
+                  setNewUsername(text);
+                  setUsernameError(null);
+                }}
+                placeholder="Enter username"
+                placeholderTextColor={GameColors.textSecondary}
+                maxLength={20}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {usernameError ? (
+                <ThemedText style={styles.errorText}>{usernameError}</ThemedText>
+              ) : (
+                <ThemedText style={styles.cooldownNote}>
+                  You can change your username once every 7 days
+                </ThemedText>
+              )}
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={styles.cancelButton}
+                  onPress={() => setUsernameModalVisible(false)}
+                  disabled={updateUsernameMutation.isPending}
+                >
+                  <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[styles.saveButton, (updateUsernameMutation.isPending || newUsername.trim().length < 3) && styles.buttonDisabled]}
+                  onPress={handleUpdateUsername}
+                  disabled={updateUsernameMutation.isPending || newUsername.trim().length < 3}
+                >
+                  {updateUsernameMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <ThemedText style={styles.saveButtonText}>Save</ThemedText>
+                  )}
+                </Pressable>
+              </View>
             </View>
-          </View>
+          </KeyboardAwareScrollViewCompat>
         </View>
       </Modal>
 
@@ -619,12 +636,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.lg,
   },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    width: "100%",
+  },
   modalContent: {
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
     width: "100%",
     maxWidth: 360,
+    alignSelf: "center",
   },
   modalTitle: {
     color: GameColors.textPrimary,
@@ -645,6 +668,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: GameColors.primary + "40",
+  },
+  inputError: {
+    borderColor: "#FF4444",
+  },
+  errorText: {
+    color: "#FF4444",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   cooldownNote: {
     color: GameColors.textSecondary,
