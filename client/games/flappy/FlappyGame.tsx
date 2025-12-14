@@ -350,11 +350,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const PIPE_WIDTH = Math.max(50, BASE_PIPE_WIDTH * scale);
   const BIRD_X = GAME_WIDTH * 0.2;
   
-  // Scale pipe speed and spawn interval to maintain consistent difficulty across screen sizes
-  // Speed scales with screen width so travel time stays consistent
+  // Scale pipe speed based on screen width so gameplay feels consistent
   const PIPE_SPEED = Math.max(3, Math.min(8, BASE_PIPE_SPEED * Math.pow(scale, 0.7)));
-  // Spawn interval scales proportionally to keep pipes spaced consistently relative to screen width
-  const PIPE_SPAWN_INTERVAL = Math.round(BASE_PIPE_SPAWN_INTERVAL * scale);
+  
+  // Calculate spawn interval to maintain consistent visual gap between pipes
+  // Target gap: ~1.6 screen widths between consecutive pipes (relative spacing)
+  // Gap in pixels = PIPE_SPEED * (interval_ms / 16.67)
+  // Solving for interval: interval = (target_gap_pixels) * 16.67 / PIPE_SPEED
+  const TARGET_GAP_SCREENS = 1.6; // How many screen widths between pipes
+  const targetGapPixels = TARGET_GAP_SCREENS * GAME_WIDTH;
+  const PIPE_SPAWN_INTERVAL = Math.round((targetGapPixels / PIPE_SPEED) * 16.67);
   
   // Handle layout changes to get accurate dimensions
   const handleLayout = useCallback((event: any) => {
