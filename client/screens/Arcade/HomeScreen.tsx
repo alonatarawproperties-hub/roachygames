@@ -611,8 +611,10 @@ export function ArcadeHomeScreen() {
   const [showWebBanner, setShowWebBanner] = useState(true);
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>("all");
   const [isHatching, setIsHatching] = useState(false);
+  const [selectedGameTab, setSelectedGameTab] = useState<string | null>(null);
   const { user, logout, isGuest } = useAuth();
-  const { collectedEggs, hatchEggs, refreshEconomy } = useHunt();
+  const { collectedEggs, hatchEggs, refreshEconomy, collection: huntCollection } = useHunt();
+  const { equippedSkin, setEquippedSkin, isLoading: isSkinLoading } = useFlappySkin();
   const {
     items: inventoryItems,
     isLoading: isLoadingInventory,
@@ -634,6 +636,72 @@ export function ArcadeHomeScreen() {
 
   // Get unique item types that exist in inventory for dynamic filters
   const activeItemTypes = getActiveItemTypes();
+
+  // Build game inventories for game-based tabs
+  const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const gameInventories = [
+    {
+      id: "flappy-roach",
+      name: "Flappy Roachy",
+      icon: "wind" as keyof typeof Feather.glyphMap,
+      route: "FlappyTab",
+      categories: [
+        {
+          id: "skins",
+          name: "Skins",
+          icon: "feather" as keyof typeof Feather.glyphMap,
+          items: skinEntries.map(([skinId, skin]) => ({
+            id: skinId,
+            name: skin.name,
+            image: skin.frames[1],
+            isNFT: skin.isNFT,
+            isEquipped: !isSkinLoading && equippedSkin === skinId,
+          })),
+        },
+      ],
+      totalItems: skinEntries.length,
+    },
+    {
+      id: "roachy-hunt",
+      name: "Roachy Hunt",
+      icon: "map-pin" as keyof typeof Feather.glyphMap,
+      route: "HuntTab",
+      categories: [
+        {
+          id: "creatures",
+          name: "Creatures",
+          icon: "hexagon" as keyof typeof Feather.glyphMap,
+          items: huntCollection.map((creature) => {
+            const rarityColors: Record<string, string> = {
+              common: "#9CA3AF",
+              uncommon: "#22C55E",
+              rare: "#3B82F6",
+              epic: "#A855F7",
+              legendary: "#F59E0B",
+            };
+            return {
+              id: creature.id,
+              name: creature.name,
+              rarity: creature.rarity,
+              level: creature.level,
+              color: rarityColors[creature.rarity] || GameColors.gold,
+            };
+          }),
+        },
+        {
+          id: "eggs",
+          name: "Eggs",
+          icon: "gift" as keyof typeof Feather.glyphMap,
+          items: collectedEggs > 0 ? [{ id: "collected-eggs", name: `${collectedEggs} Eggs`, count: collectedEggs }] : [],
+        },
+      ],
+      totalItems: huntCollection.length + (collectedEggs > 0 ? 1 : 0),
+    },
+  ].filter(game => game.totalItems > 0 || game.id === "flappy-roach"); // Always show Flappy (has skins)
+
+  // Auto-select first game if none selected
+  const effectiveGameTab = selectedGameTab || (gameInventories.length > 0 ? gameInventories[0].id : null);
+  const selectedGame = gameInventories.find(g => g.id === effectiveGameTab);
 
   // Handle egg hatching from centralized inventory
   const handleHatch = async () => {
@@ -890,75 +958,160 @@ export function ArcadeHomeScreen() {
               <Feather name="briefcase" size={48} color={GameColors.gold} />
               <ThemedText style={styles.inventoryTitle}>Your Collection</ThemedText>
               <ThemedText style={styles.inventorySubtitle}>
-                All your items across all games in one place
+                Items organized by game
               </ThemedText>
             </View>
 
-            {/* Egg Hatching Section */}
-            <EggHatchSection 
-              eggCount={collectedEggs} 
-              onHatch={handleHatch}
-              isHatching={isHatching}
-            />
+            {/* Game Tabs - Horizontal selector */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.gameTabsContainer}
+              contentContainerStyle={styles.gameTabsContent}
+            >
+              {gameInventories.map((game) => {
+                const isActive = effectiveGameTab === game.id;
+                return (
+                  <Pressable
+                    key={game.id}
+                    style={[styles.gameTab, isActive && styles.gameTabActive]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedGameTab(game.id);
+                    }}
+                  >
+                    <Feather 
+                      name={game.icon} 
+                      size={20} 
+                      color={isActive ? GameColors.background : GameColors.textSecondary} 
+                    />
+                    <ThemedText style={[styles.gameTabText, isActive && styles.gameTabTextActive]}>
+                      {game.name}
+                    </ThemedText>
+                    <View style={[styles.gameTabBadge, isActive && styles.gameTabBadgeActive]}>
+                      <ThemedText style={[styles.gameTabBadgeText, isActive && styles.gameTabBadgeTextActive]}>
+                        {game.totalItems}
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-            {/* Flappy Roachy Skins */}
-            <FlappySkinsSection />
+            {/* Selected Game Categories */}
+            {selectedGame ? (
+              <View style={styles.gameCategoriesContainer}>
+                {/* Egg Hatching - Show when Roachy Hunt is selected and has eggs */}
+                {selectedGame.id === "roachy-hunt" && collectedEggs > 0 ? (
+                  <EggHatchSection 
+                    eggCount={collectedEggs} 
+                    onHatch={handleHatch}
+                    isHatching={isHatching}
+                  />
+                ) : null}
 
-            {/* Dynamic Filter Chips - based on what items exist */}
-            <View style={styles.inventoryFilters}>
-              <AnimatedFilterChip
-                label="All"
-                icon="grid"
-                isActive={inventoryFilter === "all"}
-                onPress={() => setInventoryFilter("all")}
-                count={inventoryItems.length}
-              />
-              
-              {/* Dynamically render filter chips for each item type present */}
-              {activeItemTypes.map((typeMeta) => (
-                <AnimatedFilterChip
-                  key={typeMeta.type}
-                  label={typeMeta.pluralLabel}
-                  icon={typeMeta.icon as keyof typeof Feather.glyphMap}
-                  isActive={inventoryFilter === typeMeta.type}
-                  onPress={() => setInventoryFilter(typeMeta.type)}
-                />
-              ))}
-            </View>
+                {selectedGame.categories.map((category) => (
+                  <View key={category.id} style={styles.categorySection}>
+                    <View style={styles.categoryHeader}>
+                      <Feather name={category.icon} size={18} color={GameColors.gold} />
+                      <ThemedText style={styles.categoryTitle}>{category.name}</ThemedText>
+                      <ThemedText style={styles.categoryCount}>({category.items.length})</ThemedText>
+                    </View>
 
-            {/* Dynamic Stats - shows counts for whatever types exist */}
-            <View style={styles.inventoryStats}>
-              <View style={styles.statBox}>
-                <ThemedText style={styles.statNumber}>{inventoryItems.length}</ThemedText>
-                <ThemedText style={styles.statLabel}>Total Items</ThemedText>
+                    {category.items.length > 0 ? (
+                      <View style={styles.categoryItems}>
+                        {category.id === "skins" ? (
+                          /* Flappy Skins with equip functionality */
+                          <View style={styles.skinsGrid}>
+                            {category.items.map((item: any) => (
+                              <Pressable
+                                key={item.id}
+                                style={[
+                                  styles.skinCard,
+                                  item.isEquipped && styles.skinCardEquipped,
+                                  isSkinLoading && styles.skinCardDisabled,
+                                ]}
+                                onPress={() => {
+                                  if (!isSkinLoading) {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    setEquippedSkin(item.id as RoachySkin);
+                                  }
+                                }}
+                                disabled={isSkinLoading}
+                              >
+                                <ExpoImage source={item.image} style={styles.skinImage} contentFit="contain" />
+                                <ThemedText style={styles.skinName}>{item.name}</ThemedText>
+                                {item.isNFT ? (
+                                  <View style={styles.nftBadge}>
+                                    <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
+                                  </View>
+                                ) : null}
+                                {item.isEquipped ? (
+                                  <View style={styles.equippedBadge}>
+                                    <Feather name="check" size={12} color="#fff" />
+                                  </View>
+                                ) : null}
+                              </Pressable>
+                            ))}
+                          </View>
+                        ) : category.id === "creatures" ? (
+                          /* Creature cards */
+                          <View style={styles.creaturesGrid}>
+                            {category.items.map((item: any) => (
+                              <Pressable
+                                key={item.id}
+                                style={styles.creatureCard}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  handleGamePress("HuntTab");
+                                }}
+                              >
+                                <View style={[styles.creatureGlow, { backgroundColor: item.color }]} />
+                                <View style={styles.creatureIconContainer}>
+                                  <Feather name="hexagon" size={32} color={item.color} />
+                                </View>
+                                <View style={[styles.rarityDot, { backgroundColor: item.color }]} />
+                                <ThemedText style={styles.creatureName} numberOfLines={1}>{item.name}</ThemedText>
+                                <ThemedText style={styles.creatureLevel}>Lv.{item.level}</ThemedText>
+                              </Pressable>
+                            ))}
+                          </View>
+                        ) : category.id === "eggs" ? (
+                          /* Eggs display */
+                          <View style={styles.eggsInfo}>
+                            <ThemedText style={styles.eggsText}>
+                              {collectedEggs} eggs collected
+                            </ThemedText>
+                            <ThemedText style={styles.eggsHint}>
+                              Collect 10 to hatch a creature
+                            </ThemedText>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : (
+                      <View style={styles.categoryEmpty}>
+                        <Feather name="inbox" size={32} color={GameColors.textTertiary} />
+                        <ThemedText style={styles.categoryEmptyText}>
+                          No {category.name.toLowerCase()} yet
+                        </ThemedText>
+                        <Button
+                          onPress={() => handleGamePress(selectedGame.route)}
+                          style={styles.playGameButton}
+                        >
+                          Play {selectedGame.name}
+                        </Button>
+                      </View>
+                    )}
+                  </View>
+                ))}
               </View>
-              {activeItemTypes.slice(0, 2).map((typeMeta) => (
-                <View key={typeMeta.type} style={styles.statBox}>
-                  <ThemedText style={styles.statNumber}>{getCountByType(typeMeta.type)}</ThemedText>
-                  <ThemedText style={styles.statLabel}>{typeMeta.pluralLabel}</ThemedText>
-                </View>
-              ))}
-            </View>
-
-            {isLoadingInventory ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={GameColors.gold} />
-                <ThemedText style={styles.loadingText}>Loading collection...</ThemedText>
-              </View>
-            ) : inventoryItems.length === 0 ? (
-              /* Empty state when no items at all */
+            ) : (
               <View style={styles.emptyInventory}>
                 <Feather name="inbox" size={48} color={GameColors.textTertiary} />
-                <ThemedText style={styles.emptyText}>No items yet</ThemedText>
+                <ThemedText style={styles.emptyText}>No games with items yet</ThemedText>
                 <ThemedText style={styles.emptyHint}>
-                  Play games to collect creatures, eggs, badges, and more
+                  Play games to start collecting
                 </ThemedText>
-                <View style={styles.eggHintContainer}>
-                  <Feather name="gift" size={16} color={GameColors.gold} />
-                  <ThemedText style={styles.eggHintText}>
-                    Collect 10 eggs in Roachy Hunt to hatch a creature
-                  </ThemedText>
-                </View>
                 <Button
                   onPress={() => handleGamePress("HuntTab")}
                   style={styles.playButton}
@@ -966,48 +1119,6 @@ export function ArcadeHomeScreen() {
                   Start Playing
                 </Button>
               </View>
-            ) : (
-              /* Dynamic sections - render one for each active item type */
-              <>
-                {activeItemTypes
-                  .filter((typeMeta) => 
-                    inventoryFilter === "all" || inventoryFilter === typeMeta.type
-                  )
-                  .map((typeMeta) => {
-                    const items = getFilteredItems(typeMeta.type);
-                    if (items.length === 0 && inventoryFilter !== "all") return null;
-                    
-                    return (
-                      <InventoryItemSection
-                        key={typeMeta.type}
-                        title={typeMeta.pluralLabel}
-                        icon={typeMeta.icon as keyof typeof Feather.glyphMap}
-                        items={items}
-                        getGameInfo={getGameInfo}
-                        onItemPress={(item) => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          if (item.actions?.[0]?.route) {
-                            const route = item.actions[0].route;
-                            const routeMap: Record<string, string> = {
-                              "roachy-hunt": "HuntTab",
-                              "roachy-battles": "BattlesTab",
-                              "flappy-roach": "FlappyTab",
-                              "roachy-mate": "MateTab",
-                            };
-                            navigation.navigate(routeMap[route.gameId] || route.gameId, {
-                              screen: route.screen,
-                              params: route.params,
-                            });
-                          }
-                        }}
-                        emptyMessage={typeMeta.emptyMessage}
-                        emptyHint={typeMeta.emptyHint}
-                        onPlayPress={() => handleGamePress("HuntTab")}
-                      />
-                    );
-                  })}
-
-              </>
             )}
           </View>
         )}
@@ -1816,6 +1927,176 @@ const styles = StyleSheet.create({
     color: GameColors.gold,
   },
   statLabel: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  gameTabsContainer: {
+    marginBottom: Spacing.lg,
+  },
+  gameTabsContent: {
+    paddingHorizontal: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  gameTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceGlow,
+  },
+  gameTabActive: {
+    backgroundColor: GameColors.gold,
+    borderColor: GameColors.gold,
+  },
+  gameTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.textSecondary,
+  },
+  gameTabTextActive: {
+    color: GameColors.background,
+  },
+  gameTabBadge: {
+    backgroundColor: GameColors.surfaceGlow,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  gameTabBadgeActive: {
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  gameTabBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: GameColors.textSecondary,
+  },
+  gameTabBadgeTextActive: {
+    color: GameColors.background,
+  },
+  gameCategoriesContainer: {
+    gap: Spacing.lg,
+  },
+  categorySection: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceGlow,
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  categoryCount: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+  },
+  categoryItems: {},
+  categoryEmpty: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  categoryEmptyText: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  playGameButton: {
+    paddingHorizontal: Spacing.xl,
+  },
+  skinsGrid: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  skinCard: {
+    flex: 1,
+    backgroundColor: GameColors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: "center",
+    position: "relative",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  skinCardEquipped: {
+    borderColor: GameColors.gold,
+    backgroundColor: GameColors.gold + "15",
+  },
+  skinCardDisabled: {
+    opacity: 0.5,
+  },
+  skinImage: {
+    width: 60,
+    height: 60,
+    marginBottom: Spacing.sm,
+  },
+  skinName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    textAlign: "center",
+  },
+  nftBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  equippedBadge: {
+    position: "absolute",
+    bottom: Spacing.xs,
+    right: Spacing.xs,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: GameColors.gold,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  creaturesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  creatureIconContainer: {
+    width: 48,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  creatureName: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    textAlign: "center",
+  },
+  creatureLevel: {
+    fontSize: 9,
+    color: GameColors.textSecondary,
+  },
+  eggsInfo: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+  },
+  eggsText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.gold,
+  },
+  eggsHint: {
     fontSize: 12,
     color: GameColors.textSecondary,
     marginTop: Spacing.xs,
