@@ -26,6 +26,9 @@ import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
+const PowerUpShieldIcon = require("@/assets/powerup-shield.png");
+const PowerUpDoubleIcon = require("@/assets/powerup-double.png");
+const PowerUpMagnetIcon = require("@/assets/powerup-magnet.png");
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -749,14 +752,12 @@ function PowerUpCard({
 }) {
   return (
     <View style={[styles.powerUpCard, { borderLeftColor: equipped ? GameColors.gold : color }]}>
-      <View style={[styles.powerUpIconContainer, { backgroundColor: color }]}>
-        {icon ? (
-          <Feather name={icon as any} size={20} color="#fff" />
-        ) : type === "double" ? (
-          <ThemedText style={styles.powerUpDoubleText}>2x</ThemedText>
-        ) : (
-          <Feather name="target" size={20} color="#fff" />
-        )}
+      <View style={styles.powerUpIconContainer}>
+        <Image 
+          source={type === "shield" ? PowerUpShieldIcon : type === "double" ? PowerUpDoubleIcon : PowerUpMagnetIcon} 
+          style={styles.powerUpIconImage} 
+          contentFit="contain" 
+        />
       </View>
       
       <View style={styles.powerUpInfo}>
@@ -1266,6 +1267,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+  },
+  powerUpIconImage: {
+    width: 36,
+    height: 36,
   },
   powerUpDoubleText: {
     fontSize: 14,
