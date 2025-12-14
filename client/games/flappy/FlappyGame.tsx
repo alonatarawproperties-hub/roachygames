@@ -327,7 +327,7 @@ const BIRD_VISUAL_SIZE = 100;
 const COIN_SIZE = 35;
 const COIN_SPAWN_INTERVAL = 2500;
 
-const POWERUP_SIZE = 40;
+const POWERUP_SIZE = 50;
 const POWERUP_SPAWN_INTERVAL = 12000;
 
 const CLOUD_SPEED = 1.5;
@@ -1214,6 +1214,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
               { left: pu.x - POWERUP_SIZE / 2, top: pu.y - POWERUP_SIZE / 2 },
             ]}
           >
+            <View style={styles.powerUpAura} />
             <Image
               source={pu.type === "shield" ? POWERUP_SHIELD : pu.type === "double" ? POWERUP_DOUBLE : POWERUP_MAGNET}
               style={styles.powerUpImage}
@@ -1449,6 +1450,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 60,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  powerUpAura: {
+    position: "absolute",
+    width: POWERUP_SIZE + 16,
+    height: POWERUP_SIZE + 16,
+    borderRadius: (POWERUP_SIZE + 16) / 2,
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
+    top: -8,
+    left: -8,
   },
   powerUpImage: {
     width: POWERUP_SIZE,
