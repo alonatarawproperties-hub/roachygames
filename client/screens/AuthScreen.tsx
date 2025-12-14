@@ -228,13 +228,14 @@ function PrimaryButton({
       style={[primaryButtonStyles.container, animatedStyle, glowStyle, disabled && primaryButtonStyles.disabled]}
     >
       <LinearGradient
-        colors={["#FFFFFF", "#F5F5F5"]}
+        colors={["#FFFFFF", "#FFF8E7", "#FFFAF0"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={primaryButtonStyles.gradient}
       >
+        <View style={primaryButtonStyles.innerGlow} />
         {loading ? (
-          <ActivityIndicator size="small" color="#333333" />
+          <ActivityIndicator size="small" color={GameColors.gold} />
         ) : (
           icon
         )}
@@ -248,12 +249,14 @@ const primaryButtonStyles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
-    shadowColor: "#FFFFFF",
+    shadowColor: GameColors.gold,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 12,
     minHeight: 56,
+    borderWidth: 2,
+    borderColor: "rgba(255, 215, 0, 0.4)",
   },
   gradient: {
     flexDirection: "row",
@@ -263,12 +266,21 @@ const primaryButtonStyles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     gap: 12,
     minHeight: 56,
+    position: "relative",
+  },
+  innerGlow: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
   },
   text: {
     color: "#1A1A1A",
     fontSize: 17,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   disabled: {
     opacity: 0.5,
