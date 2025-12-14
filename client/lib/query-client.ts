@@ -5,6 +5,8 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
  * Uses the deployed Replit app's server for game features
  * @returns {string} The API base URL
  */
+const PRODUCTION_API_URL = "https://roachy-games-mobile--alon0x144.replit.app";
+
 export function getApiUrl(): string {
   // Use explicitly set API URL if provided
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -34,8 +36,13 @@ export function getApiUrl(): string {
     return `https://${domain}:5000`;
   }
 
+  // PRODUCTION FALLBACK: For native iOS/Android builds without env vars
+  // This ensures TestFlight/App Store builds always use the correct API
+  if (process.env.APP_ENV === 'production' || !__DEV__) {
+    return PRODUCTION_API_URL;
+  }
+
   // Development fallback - use local server
-  // In development, Express runs alongside Expo
   return "http://localhost:5000";
 }
 
