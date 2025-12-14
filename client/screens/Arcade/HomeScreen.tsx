@@ -38,7 +38,9 @@ import Animated, {
   useAnimatedStyle, 
   withSequence, 
   withTiming, 
-  withSpring 
+  withSpring,
+  withRepeat,
+  Easing,
 } from "react-native-reanimated";
 import { getCreatureDefinition } from "@/constants/creatures";
 import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
@@ -49,6 +51,110 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EGGS_REQUIRED = 10;
 
 const ONBOARDING_KEY = "@roachy_games_onboarding_complete";
+
+/**
+ * Premium NFT Badge with gold crest design and shimmer animation
+ */
+function PremiumNFTBadge() {
+  const shimmerPosition = useSharedValue(0);
+
+  useEffect(() => {
+    shimmerPosition.value = withRepeat(
+      withTiming(1, { duration: 2500, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, []);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    opacity: 0.3 + shimmerPosition.value * 0.4,
+    transform: [
+      { translateX: -20 + shimmerPosition.value * 40 },
+      { skewX: '-20deg' },
+    ],
+  }));
+
+  return (
+    <View style={nftBadgeStyles.container}>
+      <LinearGradient
+        colors={['#C9941F', '#FFD700', '#E8B923', '#C9941F']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={nftBadgeStyles.gradient}
+      >
+        <View style={nftBadgeStyles.innerBorder}>
+          <Animated.View style={[nftBadgeStyles.shimmer, shimmerStyle]} />
+          <View style={nftBadgeStyles.iconRow}>
+            <Feather name="star" size={8} color="#1A1A0F" style={nftBadgeStyles.star} />
+            <ThemedText style={nftBadgeStyles.text}>NFT</ThemedText>
+          </View>
+        </View>
+      </LinearGradient>
+      <View style={nftBadgeStyles.glow} />
+    </View>
+  );
+}
+
+const nftBadgeStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    zIndex: 10,
+  },
+  gradient: {
+    borderRadius: 6,
+    padding: 1.5,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  innerBorder: {
+    backgroundColor: 'rgba(26, 26, 15, 0.85)',
+    borderRadius: 4.5,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  shimmer: {
+    position: 'absolute',
+    top: -10,
+    bottom: -10,
+    width: 12,
+    backgroundColor: 'rgba(255, 215, 0, 0.5)',
+  },
+  iconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  star: {
+    opacity: 0.9,
+  },
+  text: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFD700',
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(255, 215, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
+  glow: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    bottom: -4,
+    left: -4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    zIndex: -1,
+  },
+});
 
 /**
  * Egg Hatching Section for centralized inventory
@@ -1041,11 +1147,7 @@ export function ArcadeHomeScreen() {
                               >
                                 <ExpoImage source={item.image} style={styles.skinImage} contentFit="contain" />
                                 <ThemedText style={styles.skinName}>{item.name}</ThemedText>
-                                {item.isNFT ? (
-                                  <View style={styles.nftBadge}>
-                                    <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
-                                  </View>
-                                ) : null}
+                                {item.isNFT ? <PremiumNFTBadge /> : null}
                                 {item.isEquipped ? (
                                   <View style={styles.equippedBadge}>
                                     <Feather name="check" size={12} color="#fff" />
