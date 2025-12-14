@@ -295,6 +295,7 @@ const BASE_GAP_SIZE = 200;
 const BASE_PIPE_WIDTH = 70;
 
 const BIRD_SIZE = 50;
+const BIRD_VISUAL_SIZE = 40;
 
 const COIN_SIZE = 35;
 const COIN_SPAWN_INTERVAL = 2500;
