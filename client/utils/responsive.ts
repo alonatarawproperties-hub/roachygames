@@ -1,9 +1,12 @@
 import { Dimensions, PixelRatio, useWindowDimensions } from "react-native";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 const BASE_WIDTH = 375;
 const BASE_HEIGHT = 812;
+
+function getScreenDimensions() {
+  const { width, height } = Dimensions.get("window");
+  return { width, height };
+}
 
 export type Breakpoint = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -48,28 +51,44 @@ export function useResponsive() {
   };
 }
 
-export function scaleWidth(size: number): number {
-  const scale = SCREEN_WIDTH / BASE_WIDTH;
+export function scaleWidth(size: number, width?: number): number {
+  const screenWidth = width ?? getScreenDimensions().width;
+  const scale = screenWidth / BASE_WIDTH;
   const newSize = size * scale;
   return Math.round(PixelRatio.roundToNearestPixel(newSize));
 }
 
-export function scaleHeight(size: number): number {
-  const scale = SCREEN_HEIGHT / BASE_HEIGHT;
+export function scaleHeight(size: number, height?: number): number {
+  const screenHeight = height ?? getScreenDimensions().height;
+  const scale = screenHeight / BASE_HEIGHT;
   const newSize = size * scale;
   return Math.round(PixelRatio.roundToNearestPixel(newSize));
 }
 
-export function scaleFont(size: number, factor: number = 0.5): number {
-  const scale = SCREEN_WIDTH / BASE_WIDTH;
+export function scaleFont(size: number, factor: number = 0.5, width?: number): number {
+  const screenWidth = width ?? getScreenDimensions().width;
+  const scale = screenWidth / BASE_WIDTH;
   const newSize = size + (scale - 1) * size * factor;
   const clampedSize = Math.max(size * 0.8, Math.min(newSize, size * 1.3));
   return Math.round(PixelRatio.roundToNearestPixel(clampedSize));
 }
 
-export function moderateScale(size: number, factor: number = 0.5): number {
-  const scale = SCREEN_WIDTH / BASE_WIDTH;
+export function moderateScale(size: number, factor: number = 0.5, width?: number): number {
+  const screenWidth = width ?? getScreenDimensions().width;
+  const scale = screenWidth / BASE_WIDTH;
   return Math.round(size + (scale - 1) * size * factor);
+}
+
+export function useScale() {
+  const { width, height } = useWindowDimensions();
+  
+  return {
+    scaleWidth: (size: number) => scaleWidth(size, width),
+    scaleHeight: (size: number) => scaleHeight(size, height),
+    scaleFont: (size: number, factor: number = 0.5) => scaleFont(size, factor, width),
+    moderateScale: (size: number, factor: number = 0.5) => moderateScale(size, factor, width),
+    scale: (size: number, factor: number = 0.5) => moderateScale(size, factor, width),
+  };
 }
 
 export function getResponsiveValue<T>(
@@ -122,15 +141,15 @@ export function ensureMinTouchTarget(size: number): number {
   return Math.max(size, MIN_TOUCH_TARGET);
 }
 
-export const responsive = {
-  wp: (percentage: number): number => {
-    return Math.round((SCREEN_WIDTH * percentage) / 100);
-  },
-  hp: (percentage: number): number => {
-    return Math.round((SCREEN_HEIGHT * percentage) / 100);
-  },
-  isSmallDevice: SCREEN_WIDTH < 360,
-  isLargeDevice: SCREEN_WIDTH >= 768,
-  screenWidth: SCREEN_WIDTH,
-  screenHeight: SCREEN_HEIGHT,
-};
+export function useResponsiveHelpers() {
+  const { width, height } = useWindowDimensions();
+  
+  return {
+    wp: (percentage: number): number => Math.round((width * percentage) / 100),
+    hp: (percentage: number): number => Math.round((height * percentage) / 100),
+    isSmallDevice: width < 360,
+    isLargeDevice: width >= 768,
+    screenWidth: width,
+    screenHeight: height,
+  };
+}
