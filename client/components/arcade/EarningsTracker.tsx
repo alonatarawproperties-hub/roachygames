@@ -1,8 +1,11 @@
 import React from "react";
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
+
+const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 
@@ -100,9 +103,7 @@ export function EarningsTracker() {
           <ThemedText style={styles.statLabel}>Today</ThemedText>
           <View style={styles.statValueRow}>
             <ThemedText style={styles.statValue}>{formatNumber(earningsData.today)}</ThemedText>
-            <View style={styles.coinIcon}>
-              <ThemedText style={styles.coinIconText}>C</ThemedText>
-            </View>
+            <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
           </View>
           {earningsData.todayChange !== undefined && earningsData.todayChange > 0 ? (
             <View style={styles.changeRow}>
@@ -118,9 +119,7 @@ export function EarningsTracker() {
           <ThemedText style={styles.statLabel}>This Week</ThemedText>
           <View style={styles.statValueRow}>
             <ThemedText style={styles.statValue}>{formatNumber(earningsData.week)}</ThemedText>
-            <View style={styles.coinIcon}>
-              <ThemedText style={styles.coinIconText}>C</ThemedText>
-            </View>
+            <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
           </View>
           {earningsData.weekChange !== undefined && earningsData.weekChange > 0 ? (
             <View style={styles.changeRow}>
@@ -136,9 +135,7 @@ export function EarningsTracker() {
           <ThemedText style={styles.statLabel}>All Time</ThemedText>
           <View style={styles.statValueRow}>
             <ThemedText style={[styles.statValue, styles.allTimeValue]}>{formatNumber(earningsData.allTime)}</ThemedText>
-            <View style={styles.coinIcon}>
-              <ThemedText style={styles.coinIconText}>C</ThemedText>
-            </View>
+            <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
           </View>
         </View>
       </View>
@@ -222,15 +219,6 @@ const styles = StyleSheet.create({
   coinIcon: {
     width: 18,
     height: 18,
-    borderRadius: 9,
-    backgroundColor: GameColors.gold + "30",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  coinIconText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: GameColors.gold,
   },
   changeRow: {
     flexDirection: "row",

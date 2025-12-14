@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, StyleSheet, Pressable, Alert, ActivityIndicator, Platform } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as Application from "expo-application";
 import Animated, {
@@ -14,6 +15,8 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+
+const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 
 interface DailyBonusCardProps {
   userId: string | null;
@@ -233,9 +236,7 @@ export function DailyBonusCard({ userId, isConnected, isGuest = false, onSignIn 
               </Animated.View>
               
               <View style={styles.coinRow}>
-                <View style={styles.smallCoinIcon}>
-                  <ThemedText style={styles.smallCoinText}>C</ThemedText>
-                </View>
+                <Image source={ChyCoinIcon} style={styles.smallCoinIcon} contentFit="contain" />
                 <ThemedText style={[
                   styles.rewardAmount,
                   isToday && styles.rewardAmountToday,
@@ -386,15 +387,6 @@ const styles = StyleSheet.create({
   smallCoinIcon: {
     width: 14,
     height: 14,
-    borderRadius: 7,
-    backgroundColor: GameColors.gold + "30",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  smallCoinText: {
-    fontSize: 8,
-    fontWeight: "800",
-    color: GameColors.gold,
   },
   rewardAmount: {
     fontSize: 14,
