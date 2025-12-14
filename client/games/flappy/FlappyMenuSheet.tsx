@@ -61,6 +61,7 @@ const GameColors = {
   goldDark: "#B8860B",
   chyCoin: "#FFD700",
   chyCoinDark: "#B8860B",
+  diamond: "#FFD700",
   shield: "#3B82F6",
   double: "#F59E0B",
   magnet: "#EF4444",
@@ -394,7 +395,11 @@ function LeaderboardsTab({
   };
 
   return (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.tabContent} 
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       {userId ? (
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
@@ -621,7 +626,11 @@ function LoadoutTab({
   ];
 
   return (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.tabContent} 
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <ThemedText style={styles.sectionTitle}>Equip for Next Game</ThemedText>
 
       {isLoading ? (
@@ -784,9 +793,15 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    overflow: "hidden",
   },
   tabContent: {
+    flex: 1,
     paddingHorizontal: Spacing.lg,
+  },
+  scrollContent: {
+    paddingBottom: Spacing["2xl"],
+    flexGrow: 1,
   },
   sectionTitle: {
     fontSize: 18,
