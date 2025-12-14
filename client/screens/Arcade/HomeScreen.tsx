@@ -347,18 +347,20 @@ function FlappySkinsSection() {
               onPress={() => !isLoading && setEquippedSkin(skinId)}
               disabled={isLoading}
             >
+              <View style={flappyStyles.cardHeader}>
+                {skin.isNFT ? (
+                  <View style={flappyStyles.nftBadge}>
+                    <ThemedText style={flappyStyles.nftBadgeText}>NFT</ThemedText>
+                  </View>
+                ) : <View style={flappyStyles.nftBadgePlaceholder} />}
+              </View>
               <ExpoImage source={skin.frames[1]} style={[flappyStyles.skinImage, { width: imageSize, height: imageSize }]} contentFit="contain" />
-              <ThemedText style={flappyStyles.skinName} numberOfLines={2}>{skin.name}</ThemedText>
-              {skin.isNFT ? (
-                <View style={flappyStyles.nftBadge}>
-                  <ThemedText style={flappyStyles.nftBadgeText}>NFT</ThemedText>
-                </View>
-              ) : null}
+              <ThemedText style={flappyStyles.skinName} numberOfLines={1}>{skin.name}</ThemedText>
               {isEquipped ? (
                 <View style={flappyStyles.equippedBadge}>
                   <ThemedText style={flappyStyles.equippedBadgeText}>EQUIPPED</ThemedText>
                 </View>
-              ) : null}
+              ) : <View style={flappyStyles.equippedPlaceholder} />}
             </Pressable>
           );
         })}
@@ -410,14 +412,12 @@ const flappyStyles = StyleSheet.create({
   skinCard: {
     backgroundColor: GameColors.background,
     borderRadius: BorderRadius.md,
-    paddingTop: getResponsiveSize(24),
-    paddingBottom: getResponsiveSize(32),
-    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
     alignItems: "center",
-    position: "relative",
     borderWidth: 2,
     borderColor: "transparent",
-    minHeight: getResponsiveSize(140),
   },
   skinCardEquipped: {
     borderColor: GameColors.gold,
@@ -426,50 +426,52 @@ const flappyStyles = StyleSheet.create({
   skinCardDisabled: {
     opacity: 0.5,
   },
+  cardHeader: {
+    width: "100%",
+    height: 20,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginBottom: Spacing.xs,
+  },
   skinImage: {
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   skinName: {
-    fontSize: getResponsiveSize(11),
+    fontSize: 11,
     fontWeight: "600",
     color: GameColors.textPrimary,
     textAlign: "center",
-    lineHeight: getResponsiveSize(14),
-    paddingHorizontal: 2,
+    marginBottom: Spacing.xs,
   },
   nftBadge: {
-    position: "absolute",
-    top: getResponsiveSize(6),
-    right: getResponsiveSize(6),
     backgroundColor: "#8B5CF6",
-    paddingHorizontal: getResponsiveSize(8),
-    paddingVertical: getResponsiveSize(3),
-    borderRadius: 6,
-    zIndex: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  nftBadgePlaceholder: {
+    height: 16,
   },
   nftBadgeText: {
-    fontSize: getResponsiveSize(9),
+    fontSize: 9,
     fontWeight: "700",
     color: "#fff",
   },
   equippedBadge: {
-    position: "absolute",
-    bottom: getResponsiveSize(8),
-    left: 0,
-    right: 0,
     backgroundColor: GameColors.gold,
-    paddingVertical: getResponsiveSize(4),
-    borderBottomLeftRadius: BorderRadius.md - 2,
-    borderBottomRightRadius: BorderRadius.md - 2,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    marginTop: Spacing.xs,
+  },
+  equippedPlaceholder: {
+    height: 24,
   },
   equippedBadgeText: {
-    fontSize: getResponsiveSize(9),
+    fontSize: 9,
     fontWeight: "700",
     color: "#1A1A0F",
-    letterSpacing: 1,
-    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 });
 
