@@ -188,9 +188,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[Auth] Starting Google OAuth with PKCE, Platform:", Platform.OS);
 
       // For iOS native builds, use the reversed client ID as the URL scheme
+      // The redirect URI must include a path for iOS to properly handle the callback
       const reversedClientId = GOOGLE_CLIENT_ID.split(".").reverse().join(".");
       const redirectUri = AuthSession.makeRedirectUri({
-        native: `${reversedClientId}:/`,
+        native: `${reversedClientId}:/oauth2redirect/google`,
       });
 
       console.log("[Auth] Google OAuth redirect URI:", redirectUri);
@@ -206,7 +207,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const result = await request.promptAsync(discovery);
 
-      console.log("[Auth] Google OAuth result:", result.type);
+      console.log("[Auth] Google OAuth result type:", result.type);
+      if (result.type === "success" || result.type === "error") {
+        console.log("[Auth] Google OAuth result params:", JSON.stringify(result.params || {}));
+      }
+      
+      if (result.type === "error") {
+        console.error("[Auth] Google OAuth error:", result.params);
+        const errorMsg = result.params?.error_description || result.params?.error || "Google sign-in error";
+        return { success: false, error: errorMsg };
+      }
 
       if (result.type === "success" && result.params?.code) {
         // Exchange authorization code for tokens on the server
