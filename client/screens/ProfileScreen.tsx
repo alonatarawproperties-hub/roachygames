@@ -404,7 +404,7 @@ export default function ProfileScreen() {
         <ThemedText type="h4" style={styles.sectionTitle}>
           Recent Activity
         </ThemedText>
-        <ActivityHistory />
+        <ActivityHistory userId={user?.id} />
       </Animated.View>
 
       <Animated.View

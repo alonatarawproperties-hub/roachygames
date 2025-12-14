@@ -1,10 +1,11 @@
 import React from "react";
-import { View, StyleSheet, FlatList } from "react-native";
+import { View, StyleSheet, FlatList, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { useQuery } from "@tanstack/react-query";
 
-type ActivityType = "catch" | "reward" | "hatch" | "trade" | "bonus";
+type ActivityType = "catch" | "reward" | "hatch" | "trade" | "bonus" | "game" | "competition";
 
 interface ActivityItem {
   id: string;
@@ -16,17 +17,9 @@ interface ActivityItem {
 }
 
 interface ActivityHistoryProps {
-  activities?: ActivityItem[];
+  userId?: string | null;
   limit?: number;
 }
-
-const PLACEHOLDER_ACTIVITIES: ActivityItem[] = [
-  { id: "1", type: "catch", title: "Caught Roachy", subtitle: "Common Tank", amount: "+5 CHY", timestamp: "2m ago" },
-  { id: "2", type: "reward", title: "Daily Bonus", subtitle: "Login streak: 7 days", amount: "+50 CHY", timestamp: "1h ago" },
-  { id: "3", type: "hatch", title: "Egg Hatched", subtitle: "Rare Mage revealed!", amount: "+25 CHY", timestamp: "3h ago" },
-  { id: "4", type: "catch", title: "Caught Roachy", subtitle: "Uncommon Assassin", amount: "+10 CHY", timestamp: "5h ago" },
-  { id: "5", type: "reward", title: "Play Bonus", subtitle: "Weekly activity", amount: "+120 CHY", timestamp: "1d ago" },
-];
 
 const getActivityIcon = (type: ActivityType): keyof typeof Feather.glyphMap => {
   switch (type) {
@@ -35,6 +28,8 @@ const getActivityIcon = (type: ActivityType): keyof typeof Feather.glyphMap => {
     case "hatch": return "sun";
     case "trade": return "repeat";
     case "bonus": return "star";
+    case "game": return "play";
+    case "competition": return "award";
     default: return "activity";
   }
 };
@@ -46,12 +41,19 @@ const getActivityColor = (type: ActivityType): string => {
     case "hatch": return "#8B5CF6";
     case "trade": return "#06B6D4";
     case "bonus": return "#F59E0B";
+    case "game": return "#10B981";
+    case "competition": return "#EF4444";
     default: return GameColors.textSecondary;
   }
 };
 
-export function ActivityHistory({ activities = PLACEHOLDER_ACTIVITIES, limit = 5 }: ActivityHistoryProps) {
-  const displayActivities = activities.slice(0, limit);
+export function ActivityHistory({ userId, limit = 5 }: ActivityHistoryProps) {
+  const { data, isLoading } = useQuery<{ success: boolean; activities: ActivityItem[] }>({
+    queryKey: [`/api/user/${userId}/activity?limit=${limit}`],
+    enabled: !!userId,
+  });
+
+  const activities = data?.activities || [];
 
   const renderItem = ({ item }: { item: ActivityItem }) => {
     const iconColor = getActivityColor(item.type);
@@ -75,19 +77,46 @@ export function ActivityHistory({ activities = PLACEHOLDER_ACTIVITIES, limit = 5
     );
   };
 
+  if (!userId) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <ThemedText style={styles.headerTitle}>Recent Activity</ThemedText>
+          <Feather name="clock" size={16} color={GameColors.textSecondary} />
+        </View>
+        <View style={styles.emptyState}>
+          <Feather name="user" size={24} color={GameColors.textTertiary} />
+          <ThemedText style={styles.emptyText}>Sign in to see your activity</ThemedText>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>Recent Activity</ThemedText>
         <Feather name="clock" size={16} color={GameColors.textSecondary} />
       </View>
-      <FlatList
-        data={displayActivities}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="small" color={GameColors.gold} />
+        </View>
+      ) : activities.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="inbox" size={24} color={GameColors.textTertiary} />
+          <ThemedText style={styles.emptyText}>No activity yet</ThemedText>
+          <ThemedText style={styles.emptySubtext}>Play games and collect rewards to see activity here</ThemedText>
+        </View>
+      ) : (
+        <FlatList
+          data={activities}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+      )}
     </View>
   );
 }
@@ -153,5 +182,24 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: GameColors.surfaceGlow,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: GameColors.textTertiary,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  loadingState: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
   },
 });
