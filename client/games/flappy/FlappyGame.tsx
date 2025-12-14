@@ -266,10 +266,11 @@ const BASE_GROUND_HEIGHT = 80;
 const GRAVITY = 0.6;
 const JUMP_STRENGTH = -12;
 const MAX_FALL_SPEED = 15;
-const PIPE_SPEED = 4;
-const PIPE_SPAWN_INTERVAL = 2800;
+const BASE_PIPE_SPEED = 4;
+const BASE_PIPE_SPAWN_INTERVAL = 2800;
 const BASE_GAP_SIZE = 200;
 const BASE_PIPE_WIDTH = 70;
+const BASE_SCREEN_WIDTH = 390;
 
 const BIRD_SIZE = 50;
 const BIRD_VISUAL_SIZE = 100;
@@ -343,11 +344,17 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const PLAYABLE_HEIGHT = GAME_HEIGHT - GROUND_HEIGHT;
   
   // Scale game elements based on screen size (base is 390px width)
-  const scale = GAME_WIDTH / 390;
+  const scale = GAME_WIDTH / BASE_SCREEN_WIDTH;
   // Cap gap size between 160-220 to maintain difficulty on tablets
   const GAP_SIZE = Math.min(220, Math.max(160, BASE_GAP_SIZE * Math.min(scale, 1.1)));
   const PIPE_WIDTH = Math.max(50, BASE_PIPE_WIDTH * scale);
   const BIRD_X = GAME_WIDTH * 0.2;
+  
+  // Scale pipe speed and spawn interval to maintain consistent difficulty across screen sizes
+  // Speed scales with screen width so travel time stays consistent
+  const PIPE_SPEED = Math.max(3, Math.min(8, BASE_PIPE_SPEED * Math.pow(scale, 0.7)));
+  // Spawn interval scales proportionally to keep pipes spaced consistently relative to screen width
+  const PIPE_SPAWN_INTERVAL = Math.round(BASE_PIPE_SPAWN_INTERVAL * scale);
   
   // Handle layout changes to get accurate dimensions
   const handleLayout = useCallback((event: any) => {
@@ -473,6 +480,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   gapSizeRef.current = GAP_SIZE;
   const birdXRef = useRef(BIRD_X);
   birdXRef.current = BIRD_X;
+  const pipeSpeedRef = useRef(PIPE_SPEED);
+  pipeSpeedRef.current = PIPE_SPEED;
+  const pipeSpawnIntervalRef = useRef(PIPE_SPAWN_INTERVAL);
+  pipeSpawnIntervalRef.current = PIPE_SPAWN_INTERVAL;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -816,13 +827,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       return;
     }
     
+    const currentPipeSpeed = pipeSpeedRef.current;
+    
     pipesRef.current = pipesRef.current.map((pipe) => ({
       ...pipe,
-      x: pipe.x - PIPE_SPEED,
+      x: pipe.x - currentPipeSpeed,
     }));
     
     coinsRef.current = coinsRef.current.map((coin) => {
-      let newX = coin.x - PIPE_SPEED;
+      let newX = coin.x - currentPipeSpeed;
       let newY = coin.y;
       
       if (magnetRef.current && !coin.collected) {
@@ -841,7 +854,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     powerUpsRef.current = powerUpsRef.current.map((pu) => ({
       ...pu,
-      x: pu.x - PIPE_SPEED,
+      x: pu.x - currentPipeSpeed,
     }));
     
     const currentBirdX = birdXRef.current;
@@ -1007,7 +1020,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       setEquippedPowerUps((prev) => ({ ...prev, magnet: false }));
     }
     
-    pipeTimerRef.current = setInterval(spawnPipe, PIPE_SPAWN_INTERVAL);
+    pipeTimerRef.current = setInterval(spawnPipe, pipeSpawnIntervalRef.current);
     coinTimerRef.current = setInterval(spawnCoin, COIN_SPAWN_INTERVAL);
     powerUpTimerRef.current = setInterval(spawnPowerUp, POWERUP_SPAWN_INTERVAL);
     cloudTimerRef.current = setInterval(spawnCloud, CLOUD_SPAWN_INTERVAL);
