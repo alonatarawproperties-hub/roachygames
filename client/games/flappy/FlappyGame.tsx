@@ -1234,6 +1234,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_VISUAL_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
           <Image
+            key={`${skin}-${wingFrame}-${gameState === "dying" || gameState === "gameover" ? "dead" : "alive"}`}
             source={
               gameState === "dying" || gameState === "gameover"
                 ? ROACHY_DEAD
