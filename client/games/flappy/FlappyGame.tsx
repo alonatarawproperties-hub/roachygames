@@ -115,8 +115,11 @@ function PowerUpIndicator({
         <ThemedText style={powerUpIndicatorStyles.doubleText}>2x</ThemedText>
       ) : (
         <View style={powerUpIndicatorStyles.magnetIcon}>
-          <View style={powerUpIndicatorStyles.magnetTop} />
-          <View style={powerUpIndicatorStyles.magnetBottom} />
+          <View style={powerUpIndicatorStyles.magnetArc} />
+          <View style={powerUpIndicatorStyles.magnetLegs}>
+            <View style={powerUpIndicatorStyles.magnetLeg} />
+            <View style={powerUpIndicatorStyles.magnetLeg} />
+          </View>
         </View>
       )}
     </Animated.View>
@@ -145,22 +148,28 @@ const powerUpIndicatorStyles = StyleSheet.create({
     color: "#fff",
   },
   magnetIcon: {
-    width: 14,
-    height: 16,
-    justifyContent: "space-between",
+    width: 16,
+    height: 18,
+    alignItems: "center",
   },
-  magnetTop: {
+  magnetArc: {
     width: 14,
-    height: 6,
+    height: 7,
     backgroundColor: "#fff",
     borderTopLeftRadius: 7,
     borderTopRightRadius: 7,
   },
-  magnetBottom: {
+  magnetLegs: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: 14,
+  },
+  magnetLeg: {
+    width: 5,
     height: 8,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
   },
 });
 
