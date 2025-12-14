@@ -329,9 +329,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
+  // Track actual layout dimensions for accurate sizing on tablets
+  const [layoutDimensions, setLayoutDimensions] = useState<{ width: number; height: number } | null>(null);
+  
+  // Use layout dimensions if available, otherwise fall back to window dimensions
+  const actualWidth = layoutDimensions?.width ?? screenWidth;
+  const actualHeight = layoutDimensions?.height ?? screenHeight;
+  
   // Use portrait dimensions - always use the smaller value as width
-  const GAME_WIDTH = Math.min(screenWidth, screenHeight);
-  const GAME_HEIGHT = Math.max(screenWidth, screenHeight);
+  const GAME_WIDTH = Math.min(actualWidth, actualHeight);
+  const GAME_HEIGHT = Math.max(actualWidth, actualHeight);
   const GROUND_HEIGHT = BASE_GROUND_HEIGHT + insets.bottom;
   const PLAYABLE_HEIGHT = GAME_HEIGHT - GROUND_HEIGHT;
   
@@ -341,6 +348,12 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const GAP_SIZE = Math.min(220, Math.max(160, BASE_GAP_SIZE * Math.min(scale, 1.1)));
   const PIPE_WIDTH = Math.max(50, BASE_PIPE_WIDTH * scale);
   const BIRD_X = GAME_WIDTH * 0.2;
+  
+  // Handle layout changes to get accurate dimensions
+  const handleLayout = useCallback((event: any) => {
+    const { width, height } = event.nativeEvent.layout;
+    setLayoutDimensions({ width, height });
+  }, []);
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -1099,7 +1112,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   }
   
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={handleLayout}>
       <Pressable style={styles.gameArea} onPress={jump}>
         <View style={styles.sky} />
         
