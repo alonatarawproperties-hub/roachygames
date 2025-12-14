@@ -46,6 +46,7 @@ import { getCreatureDefinition } from "@/constants/creatures";
 import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
 import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
 import { Image as ExpoImage } from "expo-image";
+import { useWebappBalances } from "@/hooks/useWebappBalances";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EGGS_REQUIRED = 10;
@@ -155,6 +156,42 @@ const nftBadgeStyles = StyleSheet.create({
     zIndex: -1,
   },
 });
+
+/**
+ * Token Balance Card with webapp balances integration
+ */
+function TokenBalanceCardWithWebapp() {
+  const { user, isGuest, logout } = useAuth();
+  const { diamonds, chy, isLoading } = useWebappBalances();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+
+  const handleGuestSignIn = () => {
+    Alert.alert(
+      "Sign In Required",
+      "Sign in to track your CHY and Diamond balances.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign In",
+          onPress: () => {
+            logout();
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <TokenBalanceCard
+      chyCoinsBalance={user?.chyBalance || chy || 0}
+      diamondBalance={diamonds}
+      isConnected={!!user && !isGuest}
+      isLoading={isLoading}
+      isGuest={isGuest}
+      onPress={isGuest ? handleGuestSignIn : undefined}
+    />
+  );
+}
 
 /**
  * Egg Hatching Section for centralized inventory
@@ -1019,13 +1056,7 @@ export function ArcadeHomeScreen() {
           <>
             {activeTab === "Home" && (
               <>
-                <TokenBalanceCard
-                  chyCoinsBalance={user?.chyBalance || 0}
-                  isConnected={!!user && !isGuest}
-                  isLoading={false}
-                  isGuest={isGuest}
-                  onPress={isGuest ? handleGuestSignIn : undefined}
-                />
+                <TokenBalanceCardWithWebapp />
                 <View style={styles.livePlayersRow}>
                   <View style={styles.livePlayersBadge}>
                     <View style={styles.livePlayersDot} />

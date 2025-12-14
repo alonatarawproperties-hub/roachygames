@@ -9,9 +9,11 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getMarketplaceUrl } from "@/lib/query-client";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
+const DiamondIcon = require("@/assets/diamond-icon.png");
 
 interface TokenBalanceCardProps {
   chyCoinsBalance: number;
+  diamondBalance?: number;
   onPress?: () => void;
   isConnected: boolean;
   isLoading?: boolean;
@@ -20,6 +22,7 @@ interface TokenBalanceCardProps {
 
 export function TokenBalanceCard({
   chyCoinsBalance = 0,
+  diamondBalance = 0,
   onPress,
   isConnected,
   isLoading = false,
@@ -95,18 +98,32 @@ export function TokenBalanceCard({
         <ThemedText style={styles.headerTitle}>Your Balance</ThemedText>
       </View>
 
-      <View style={styles.balanceSection}>
-        <View style={styles.coinIconContainer}>
-          <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
-        </View>
-        <View style={styles.balanceInfo}>
+      <View style={styles.balancesRow}>
+        <View style={styles.balanceItem}>
+          <View style={styles.coinIconContainer}>
+            <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
+          </View>
           {isLoading ? (
             <ActivityIndicator size="small" color={GameColors.gold} />
           ) : (
-            <>
+            <View style={styles.balanceInfo}>
               <ThemedText style={styles.balanceValue}>{formatNumber(chyCoinsBalance)}</ThemedText>
-              <ThemedText style={styles.balanceLabel}>Chy Coins</ThemedText>
-            </>
+              <ThemedText style={styles.balanceLabel}>CHY</ThemedText>
+            </View>
+          )}
+        </View>
+        <View style={styles.balanceDivider} />
+        <View style={styles.balanceItem}>
+          <View style={styles.coinIconContainer}>
+            <Image source={DiamondIcon} style={styles.coinIcon} contentFit="contain" />
+          </View>
+          {isLoading ? (
+            <ActivityIndicator size="small" color={GameColors.info} />
+          ) : (
+            <View style={styles.balanceInfo}>
+              <ThemedText style={styles.balanceValueDiamond}>{formatNumber(diamondBalance)}</ThemedText>
+              <ThemedText style={styles.balanceLabelDiamond}>Diamonds</ThemedText>
+            </View>
           )}
         </View>
       </View>
@@ -140,32 +157,54 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GameColors.textSecondary,
   },
-  balanceSection: {
+  balancesRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
+    justifyContent: "space-around",
+    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
-    gap: Spacing.md,
+  },
+  balanceItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  balanceDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: GameColors.surfaceGlow,
   },
   coinIconContainer: {
     alignItems: "center",
     justifyContent: "center",
   },
   coinIcon: {
-    width: 56,
-    height: 56,
+    width: 40,
+    height: 40,
   },
   balanceInfo: {
-    flex: 1,
+    alignItems: "flex-start",
   },
   balanceValue: {
-    fontSize: 32,
+    fontSize: 22,
     fontWeight: "700",
     color: GameColors.textPrimary,
   },
+  balanceValueDiamond: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: GameColors.info,
+  },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: GameColors.gold,
+    marginTop: 2,
+  },
+  balanceLabelDiamond: {
+    fontSize: 12,
+    color: GameColors.info,
     marginTop: 2,
   },
   claimButton: {

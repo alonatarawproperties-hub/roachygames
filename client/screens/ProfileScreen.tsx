@@ -13,11 +13,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMarketplaceUrl, apiRequest } from "@/lib/query-client";
+import { ProfileStackParamList } from "@/navigation/ProfileStackNavigator";
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -67,6 +70,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NativeStackNavigationProp<ProfileStackParamList>>();
   const { state, addEggs } = useGame();
   const { user, isGuest, updateUser } = useAuth();
   
@@ -115,6 +119,16 @@ export default function ProfileScreen() {
   const handleClaimRewards = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
+  };
+
+  const handleOpenTrading = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate("Trading");
+  };
+
+  const handleOpenPowerupShop = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate("PowerupShop");
   };
 
   const handleOpenUsernameModal = () => {
@@ -355,6 +369,49 @@ export default function ProfileScreen() {
             />
           </View>
         </Pressable>
+        <View style={{ height: Spacing.md }} />
+        <Pressable style={styles.resourceCard} onPress={handleOpenTrading}>
+          <View style={styles.resourceRow}>
+            <View style={[styles.resourceIcon, { backgroundColor: GameColors.gold + "20" }]}>
+              <Feather name="repeat" size={24} color={GameColors.gold} />
+            </View>
+            <View style={styles.resourceInfo}>
+              <ThemedText style={styles.resourceTitle}>
+                Trade Tokens
+              </ThemedText>
+              <ThemedText style={styles.resourceDescription}>
+                Exchange CHY and ROACHY for Diamonds
+              </ThemedText>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={24}
+              color={GameColors.textSecondary}
+            />
+          </View>
+        </Pressable>
+        <View style={{ height: Spacing.md }} />
+        <Pressable style={styles.resourceCard} onPress={handleOpenPowerupShop}>
+          <View style={styles.resourceRow}>
+            <View style={[styles.resourceIcon, { backgroundColor: GameColors.info + "20" }]}>
+              <Feather name="zap" size={24} color={GameColors.info} />
+            </View>
+            <View style={styles.resourceInfo}>
+              <ThemedText style={styles.resourceTitle}>
+                Powerup Shop
+              </ThemedText>
+              <ThemedText style={styles.resourceDescription}>
+                Buy boosts with your Diamonds
+              </ThemedText>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={24}
+              color={GameColors.textSecondary}
+            />
+          </View>
+        </Pressable>
+        <View style={{ height: Spacing.md }} />
         <Pressable style={styles.resourceCard} onPress={handleAddEggs}>
           <View style={styles.resourceRow}>
             <View style={styles.resourceIcon}>

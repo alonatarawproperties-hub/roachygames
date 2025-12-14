@@ -25,11 +25,11 @@ import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius, GlowStyles } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useWebappBalances } from "@/hooks/useWebappBalances";
 import {
   getExchangeRates,
   tradeChyToDiamonds,
   tradeRoachyToDiamonds,
-  getUserBalances,
 } from "@/lib/webapp-api";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
@@ -48,32 +48,25 @@ export default function TradingScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { user, isGuest, updateBalances } = useAuth();
+  const { diamonds, chy, isLoading: isLoadingBalances, invalidateBalances } = useWebappBalances();
 
   const [selectedTrade, setSelectedTrade] = useState<TradeType>("chy");
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [rates, setRates] = useState<ExchangeRates | null>(null);
-  const [balances, setBalances] = useState<{ diamonds: number; chy: number } | null>(null);
   const [isLoadingRates, setIsLoadingRates] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, [user?.id]);
+    loadRates();
+  }, []);
 
-  const loadData = async () => {
+  const loadRates = async () => {
     setIsLoadingRates(true);
     try {
-      const [ratesResult, balancesResult] = await Promise.all([
-        getExchangeRates(),
-        user?.id ? getUserBalances(user.id) : Promise.resolve({ success: false, balances: undefined, error: undefined }),
-      ]);
-      
+      const ratesResult = await getExchangeRates();
       setRates(ratesResult);
-      if (balancesResult.success && balancesResult.balances) {
-        setBalances(balancesResult.balances);
-      }
     } catch (error) {
-      console.error("Failed to load trading data:", error);
+      console.error("Failed to load exchange rates:", error);
     } finally {
       setIsLoadingRates(false);
     }
@@ -137,16 +130,22 @@ export default function TradingScreen() {
         const received = result.trade?.diamondsReceived || diamondsToReceive;
         Alert.alert(
           "Trade Successful!",
-          `You received ${received} Diamond${received !== 1 ? "s" : ""}!`,
-          [{ text: "OK", onPress: loadData }]
+          `You received ${received} Diamond${received !== 1 ? "s" : ""}!`
         );
         
         setAmount("");
         
+        // Update balances from response if available, otherwise invalidate to refetch
         if (result.newBalances) {
-          setBalances(result.newBalances);
           updateBalances(result.newBalances.chy, result.newBalances.diamonds);
+        } else if (typeof result.newDiamondBalance === "number") {
+          // Partial update - only diamonds changed, keep CHY estimate
+          const estimatedChy = selectedTrade === "chy" ? chy - numAmount : chy;
+          updateBalances(estimatedChy, result.newDiamondBalance);
         }
+        
+        // Always invalidate to ensure fresh data on next render
+        invalidateBalances();
       } else {
         Alert.alert("Trade Failed", result.error || "Please try again.");
       }
@@ -159,10 +158,8 @@ export default function TradingScreen() {
   };
 
   const handleSetMax = () => {
-    if (balances) {
-      if (selectedTrade === "chy") {
-        setAmount(balances.chy.toString());
-      }
+    if (selectedTrade === "chy" && chy > 0) {
+      setAmount(chy.toString());
     }
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -244,27 +241,29 @@ export default function TradingScreen() {
             </View>
           </Animated.View>
 
-          {balances && (
-            <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.balanceCard}>
-              <ThemedText style={styles.balanceTitle}>Your Balances</ThemedText>
+          <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.balanceCard}>
+            <ThemedText style={styles.balanceTitle}>Your Balances</ThemedText>
+            {isLoadingBalances ? (
+              <ActivityIndicator size="small" color={GameColors.gold} style={{ marginVertical: Spacing.lg }} />
+            ) : (
               <View style={styles.balanceRow}>
                 <View style={styles.balanceItem}>
                   <Image source={ChyCoinIcon} style={styles.balanceIcon} contentFit="contain" />
                   <ThemedText style={styles.balanceValue}>
-                    {balances.chy.toLocaleString()}
+                    {chy.toLocaleString()}
                   </ThemedText>
                   <ThemedText style={styles.balanceLabel}>CHY</ThemedText>
                 </View>
                 <View style={styles.balanceItem}>
                   <Image source={DiamondIcon} style={styles.balanceIcon} contentFit="contain" />
                   <ThemedText style={styles.balanceValue}>
-                    {balances.diamonds.toLocaleString()}
+                    {diamonds.toLocaleString()}
                   </ThemedText>
                   <ThemedText style={styles.balanceLabel}>Diamonds</ThemedText>
                 </View>
               </View>
-            </Animated.View>
-          )}
+            )}
+          </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.tradeSection}>
             <ThemedText style={styles.sectionTitle}>Select Token to Trade</ThemedText>
@@ -300,7 +299,7 @@ export default function TradingScreen() {
                   placeholderTextColor={GameColors.textTertiary}
                   keyboardType="numeric"
                 />
-                {selectedTrade === "chy" && balances && (
+                {selectedTrade === "chy" && chy > 0 && (
                   <Pressable style={styles.maxButton} onPress={handleSetMax}>
                     <ThemedText style={styles.maxButtonText}>MAX</ThemedText>
                   </Pressable>

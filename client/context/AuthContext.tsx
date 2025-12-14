@@ -249,6 +249,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ).then((webappResult) => {
             if (webappResult.success) {
               console.log("[Auth] Synced user with webapp");
+              // Update balances from webapp if available
+              if (webappResult.user) {
+                updateBalances(webappResult.user.chyBalance, webappResult.user.diamondBalance);
+              }
             } else {
               console.warn("[Auth] Webapp sync failed:", webappResult.error);
             }

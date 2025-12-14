@@ -1,4 +1,4 @@
-const WEBAPP_URL = process.env.EXPO_PUBLIC_WEBAPP_URL || "https://roachy.games";
+import { getApiUrl, apiRequest } from "./query-client";
 
 interface WebappBalances {
   diamonds: number;
@@ -46,49 +46,15 @@ interface OAuthExchangeResult {
   error?: string;
 }
 
-async function webappRequest<T>(
-  method: string,
-  endpoint: string,
-  data?: unknown,
-  requiresAuth: boolean = true
-): Promise<T> {
-  const url = `${WEBAPP_URL}${endpoint}`;
-  
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  
-  if (requiresAuth) {
-    const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
-    if (!secret) {
-      throw new Error("Mobile app secret not configured");
-    }
-    headers["X-API-Secret"] = secret;
-  }
-  
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-  });
-  
-  const result = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(result.error || `Request failed: ${response.status}`);
-  }
-  
-  return result;
-}
-
 export async function getExchangeRates(): Promise<ExchangeRates> {
-  const result = await webappRequest<{ rates: ExchangeRates }>(
-    "GET",
-    "/api/web/exchange-rates",
-    undefined,
-    false
-  );
-  return result.rates;
+  try {
+    const response = await apiRequest("GET", "/api/webapp/exchange-rates");
+    const result = await response.json();
+    return result.rates;
+  } catch (error) {
+    console.error("[WebappAPI] Get exchange rates failed:", error);
+    throw error;
+  }
 }
 
 export async function exchangeOAuthUser(
@@ -97,17 +63,17 @@ export async function exchangeOAuthUser(
   displayName: string
 ): Promise<OAuthExchangeResult> {
   try {
-    const result = await webappRequest<OAuthExchangeResult>(
-      "POST",
-      "/api/web/oauth/exchange",
-      { googleId, email, displayName }
-    );
-    return result;
+    const response = await apiRequest("POST", "/api/webapp/oauth/exchange", {
+      googleId,
+      email,
+      displayName,
+    });
+    return await response.json();
   } catch (error) {
     console.error("[WebappAPI] OAuth exchange failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "OAuth exchange failed" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "OAuth exchange failed",
     };
   }
 }
@@ -116,16 +82,17 @@ export async function getUserBalances(
   userId: string
 ): Promise<{ success: boolean; balances?: WebappBalances; error?: string }> {
   try {
-    const result = await webappRequest<{ balances: WebappBalances }>(
+    const response = await apiRequest(
       "GET",
-      `/api/web/users/${userId}/balances`
+      `/api/webapp/users/${userId}/balances`
     );
+    const result = await response.json();
     return { success: true, balances: result.balances };
   } catch (error) {
     console.error("[WebappAPI] Get balances failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to get balances" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get balances",
     };
   }
 }
@@ -134,16 +101,17 @@ export async function getUserDiamonds(
   userId: string
 ): Promise<{ success: boolean; diamonds?: number; error?: string }> {
   try {
-    const result = await webappRequest<{ diamonds: number }>(
+    const response = await apiRequest(
       "GET",
-      `/api/web/users/${userId}/diamonds`
+      `/api/webapp/users/${userId}/diamonds`
     );
+    const result = await response.json();
     return { success: true, diamonds: result.diamonds };
   } catch (error) {
     console.error("[WebappAPI] Get diamonds failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to get diamonds" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get diamonds",
     };
   }
 }
@@ -153,17 +121,16 @@ export async function tradeChyToDiamonds(
   chyAmount: number
 ): Promise<TradeResult> {
   try {
-    const result = await webappRequest<TradeResult>(
-      "POST",
-      "/api/web/trades/chy-to-diamonds",
-      { userId, chyAmount }
-    );
-    return result;
+    const response = await apiRequest("POST", "/api/webapp/trades/chy-to-diamonds", {
+      userId,
+      chyAmount,
+    });
+    return await response.json();
   } catch (error) {
     console.error("[WebappAPI] CHY trade failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Trade failed" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Trade failed",
     };
   }
 }
@@ -173,17 +140,16 @@ export async function tradeRoachyToDiamonds(
   roachyAmount: number
 ): Promise<TradeResult> {
   try {
-    const result = await webappRequest<TradeResult>(
-      "POST",
-      "/api/web/trades/roachy-to-diamonds",
-      { userId, roachyAmount }
-    );
-    return result;
+    const response = await apiRequest("POST", "/api/webapp/trades/roachy-to-diamonds", {
+      userId,
+      roachyAmount,
+    });
+    return await response.json();
   } catch (error) {
     console.error("[WebappAPI] ROACHY trade failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Trade failed" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Trade failed",
     };
   }
 }
@@ -195,17 +161,18 @@ export async function purchasePowerup(
   quantity: number = 1
 ): Promise<PowerupPurchaseResult> {
   try {
-    const result = await webappRequest<PowerupPurchaseResult>(
-      "POST",
-      "/api/web/powerups/purchase",
-      { userId, powerupType, diamondCost, quantity }
-    );
-    return result;
+    const response = await apiRequest("POST", "/api/webapp/powerups/purchase", {
+      userId,
+      powerupType,
+      diamondCost,
+      quantity,
+    });
+    return await response.json();
   } catch (error) {
     console.error("[WebappAPI] Powerup purchase failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Purchase failed" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Purchase failed",
     };
   }
 }
@@ -217,17 +184,17 @@ export async function linkWallet(
   message?: string
 ): Promise<{ success: boolean; walletAddress?: string; error?: string }> {
   try {
-    const result = await webappRequest<{ success: boolean; walletAddress: string }>(
+    const response = await apiRequest(
       "POST",
-      `/api/web/users/${userId}/link-wallet`,
+      `/api/webapp/users/${userId}/link-wallet`,
       { walletAddress, signature, message }
     );
-    return result;
+    return await response.json();
   } catch (error) {
     console.error("[WebappAPI] Link wallet failed:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to link wallet" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to link wallet",
     };
   }
 }
