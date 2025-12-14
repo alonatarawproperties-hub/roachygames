@@ -1233,16 +1233,29 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_VISUAL_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
-          <Image
-            key={`${skin}-${wingFrame}-${gameState === "dying" || gameState === "gameover" ? "dead" : "alive"}`}
-            source={
-              gameState === "dying" || gameState === "gameover"
-                ? ROACHY_DEAD
-                : ROACHY_FRAMES[wingFrame]
-            }
-            style={styles.roachySprite}
-            contentFit="contain"
-          />
+          {gameState === "dying" || gameState === "gameover" ? (
+            <Image
+              source={ROACHY_DEAD}
+              style={styles.roachySprite}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <View style={styles.roachySprite}>
+              <Image
+                source={ROACHY_FRAMES[0]}
+                style={[styles.roachySpriteAbsolute, { opacity: wingFrame === 0 ? 1 : 0 }]}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+              <Image
+                source={ROACHY_FRAMES[1]}
+                style={[styles.roachySpriteAbsolute, { opacity: wingFrame === 1 ? 1 : 0 }]}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            </View>
+          )}
         </Animated.View>
         
         <View style={[styles.ground, { height: GROUND_HEIGHT }]}>
@@ -1363,6 +1376,13 @@ const styles = StyleSheet.create({
     height: BIRD_VISUAL_SIZE + 20,
     marginTop: -10,
     marginLeft: -10,
+  },
+  roachySpriteAbsolute: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: BIRD_VISUAL_SIZE + 20,
+    height: BIRD_VISUAL_SIZE + 20,
   },
   shieldAura: {
     position: "absolute",
