@@ -4,6 +4,7 @@ import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { exchangeOAuthUser } from "@/lib/webapp-api";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -238,6 +239,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
 
         setUser(data.user);
+        
+        // Sync with webapp (roachy.games) in the background
+        if (data.user.googleId && data.user.email) {
+          exchangeOAuthUser(
+            data.user.googleId,
+            data.user.email,
+            data.user.displayName || data.user.email.split("@")[0]
+          ).then((webappResult) => {
+            if (webappResult.success) {
+              console.log("[Auth] Synced user with webapp");
+            } else {
+              console.warn("[Auth] Webapp sync failed:", webappResult.error);
+            }
+          }).catch((err) => {
+            console.warn("[Auth] Webapp sync error:", err);
+          });
+        }
+        
         return { success: true };
       }
 
