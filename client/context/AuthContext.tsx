@@ -184,30 +184,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Google sign-in not configured" };
       }
 
-      console.log("[Auth] Starting Google OAuth, Platform:", Platform.OS);
+      console.log("[Auth] Starting Google OAuth with PKCE, Platform:", Platform.OS);
 
       // For iOS native builds, use the reversed client ID as the URL scheme
-      // Format: com.googleusercontent.apps.CLIENT_ID:/
       const reversedClientId = GOOGLE_CLIENT_ID.split(".").reverse().join(".");
-      const redirectUri = `${reversedClientId}:/`;
+      const redirectUri = AuthSession.makeRedirectUri({
+        native: `${reversedClientId}:/`,
+      });
 
       console.log("[Auth] Google OAuth redirect URI:", redirectUri);
 
+      // Use authorization code flow with PKCE (required for iOS native clients)
       const request = new AuthSession.AuthRequest({
         clientId: GOOGLE_CLIENT_ID,
         scopes: ["openid", "profile", "email"],
         redirectUri,
-        responseType: AuthSession.ResponseType.IdToken,
-        usePKCE: false,
+        responseType: AuthSession.ResponseType.Code,
+        usePKCE: true,
       });
 
       const result = await request.promptAsync(discovery);
 
       console.log("[Auth] Google OAuth result:", result.type);
 
-      if (result.type === "success" && result.params?.id_token) {
-        const response = await apiRequest("POST", "/api/auth/google", {
-          idToken: result.params.id_token,
+      if (result.type === "success" && result.params?.code) {
+        // Exchange authorization code for tokens on the server
+        const response = await apiRequest("POST", "/api/auth/google-code", {
+          code: result.params.code,
+          codeVerifier: request.codeVerifier,
+          redirectUri,
         });
 
         const data = await response.json();

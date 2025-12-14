@@ -195,6 +195,120 @@ async function verifyGoogleToken(idToken: string): Promise<{
   }
 }
 
+// Exchange authorization code for tokens (PKCE flow for native iOS)
+router.post("/google-code", async (req: Request, res: Response) => {
+  try {
+    const { code, codeVerifier, redirectUri } = req.body;
+
+    if (!code || !codeVerifier || !redirectUri) {
+      return res.status(400).json({ error: "Authorization code, code verifier, and redirect URI are required" });
+    }
+
+    const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).json({ error: "Google OAuth not configured" });
+    }
+
+    // Exchange authorization code for tokens
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        code_verifier: codeVerifier,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json();
+      console.error("[Auth] Google token exchange failed:", errorData);
+      return res.status(401).json({ error: "Failed to exchange authorization code" });
+    }
+
+    const tokens = await tokenResponse.json();
+    const idToken = tokens.id_token;
+
+    if (!idToken) {
+      return res.status(401).json({ error: "No ID token received from Google" });
+    }
+
+    const tokenInfo = await verifyGoogleToken(idToken);
+    if (!tokenInfo) {
+      return res.status(401).json({ error: "Invalid or expired Google token" });
+    }
+
+    const verifiedGoogleId = tokenInfo.sub;
+    const verifiedEmail = tokenInfo.email;
+    const verifiedDisplayName = tokenInfo.name;
+    const verifiedAvatarUrl = tokenInfo.picture;
+
+    let [user] = await db.select().from(users).where(eq(users.googleId, verifiedGoogleId)).limit(1);
+
+    if (!user) {
+      const [existingEmailUser] = await db.select().from(users).where(eq(users.email, verifiedEmail)).limit(1);
+      
+      if (existingEmailUser) {
+        [user] = await db.update(users)
+          .set({ 
+            googleId: verifiedGoogleId, 
+            avatarUrl: verifiedAvatarUrl || existingEmailUser.avatarUrl,
+            displayName: verifiedDisplayName || existingEmailUser.displayName,
+            lastLoginAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, existingEmailUser.id))
+          .returning();
+      } else {
+        [user] = await db.insert(users).values({
+          email: verifiedEmail,
+          googleId: verifiedGoogleId,
+          displayName: verifiedDisplayName || verifiedEmail.split("@")[0],
+          avatarUrl: verifiedAvatarUrl,
+          authProvider: "google",
+          chyBalance: 100,
+          diamondBalance: 0,
+          lastLoginAt: new Date(),
+        }).returning();
+      }
+    } else {
+      await db.update(users)
+        .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    }
+
+    const token = generateToken({
+      userId: user.id,
+      email: user.email || undefined,
+      authProvider: user.authProvider,
+    });
+
+    console.log(`[Auth] Google PKCE login successful for: ${verifiedEmail}`);
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        googleId: user.googleId,
+        authProvider: user.authProvider,
+        chyBalance: user.chyBalance,
+        diamondBalance: user.diamondBalance,
+        walletAddress: user.walletAddress,
+        avatarUrl: user.avatarUrl,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error("[Auth] Google PKCE auth error:", error);
+    return res.status(500).json({ error: "Google authentication failed" });
+  }
+});
+
+// Legacy endpoint for ID token (web/Expo Go)
 router.post("/google", async (req: Request, res: Response) => {
   try {
     const { idToken } = req.body;
