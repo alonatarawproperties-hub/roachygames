@@ -169,6 +169,7 @@ const ROACHY_SPRITE_2 = require("@/assets/flappy/roachy-sprite-2.png");
 const ROACHY_SPRITE_DEAD = require("@/assets/flappy/roachy-sprite-dead.png");
 const ROACHY_RAINBOW_1 = require("@/assets/flappy/roachy-rainbow-1.png");
 const ROACHY_RAINBOW_2 = require("@/assets/flappy/roachy-rainbow-2.png");
+const ROACHY_RAINBOW_DEAD = require("@/assets/flappy/roachy-rainbow-dead.png");
 
 export type RoachySkin = "default" | "rainbow";
 
@@ -184,14 +185,14 @@ export const FLAPPY_SKINS = {
     id: "rainbow" as const,
     name: "Rainbow Wings",
     frames: [ROACHY_RAINBOW_1, ROACHY_RAINBOW_2],
-    dead: ROACHY_SPRITE_DEAD,
+    dead: ROACHY_RAINBOW_DEAD,
     isNFT: true,
   },
 };
 
 const ALL_SPRITES = [
   ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD,
-  ROACHY_RAINBOW_1, ROACHY_RAINBOW_2,
+  ROACHY_RAINBOW_1, ROACHY_RAINBOW_2, ROACHY_RAINBOW_DEAD,
 ];
 
 function GameLoadingSplash({ progress }: { progress: number }) {
