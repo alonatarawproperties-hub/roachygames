@@ -6,6 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  Dimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
@@ -13,10 +14,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Animated, {
   SlideInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface LeaderboardEntry {
   id: string;
@@ -81,6 +89,10 @@ interface FlappyMenuSheetProps {
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
 }
 
+const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.5;
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
+const SNAP_THRESHOLD = 50;
+
 export function FlappyMenuSheet({
   visible,
   onClose,
@@ -93,6 +105,51 @@ export function FlappyMenuSheet({
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>("leaderboards");
   const queryClient = useQueryClient();
+  
+  const sheetHeight = useSharedValue(COLLAPSED_HEIGHT);
+  const startHeight = useSharedValue(COLLAPSED_HEIGHT);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+      setIsExpanded(false);
+    }
+  }, [visible]);
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      startHeight.value = sheetHeight.value;
+    })
+    .onUpdate((event) => {
+      const newHeight = startHeight.value - event.translationY;
+      sheetHeight.value = Math.min(
+        EXPANDED_HEIGHT,
+        Math.max(COLLAPSED_HEIGHT * 0.8, newHeight)
+      );
+    })
+    .onEnd((event) => {
+      const velocity = event.velocityY;
+      const currentHeight = sheetHeight.value;
+      
+      if (velocity < -500 || (currentHeight > COLLAPSED_HEIGHT + SNAP_THRESHOLD && velocity > -200)) {
+        sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+        runOnJS(setIsExpanded)(true);
+      } else if (velocity > 500 || currentHeight < COLLAPSED_HEIGHT - 20) {
+        sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+        runOnJS(setIsExpanded)(false);
+      } else if (currentHeight > (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2) {
+        sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+        runOnJS(setIsExpanded)(true);
+      } else {
+        sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+        runOnJS(setIsExpanded)(false);
+      }
+    });
+
+  const animatedSheetStyle = useAnimatedStyle(() => ({
+    height: sheetHeight.value,
+  }));
 
   const { data: leaderboardData, isLoading: leaderboardLoading } = useQuery<{ success: boolean; leaderboard: LeaderboardEntry[] }>({
     queryKey: ["/api/flappy/leaderboard"],
@@ -147,11 +204,16 @@ export function FlappyMenuSheet({
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <Animated.View
           entering={SlideInDown.springify().damping(15)}
-          style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}
+          style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
         >
-          <View style={styles.header}>
-            <View style={styles.handle} />
-          </View>
+          <GestureDetector gesture={panGesture}>
+            <View style={styles.header}>
+              <View style={styles.handle} />
+              <ThemedText style={styles.expandHint}>
+                {isExpanded ? "Drag down to collapse" : "Drag up to expand"}
+              </ThemedText>
+            </View>
+          </GestureDetector>
           
           <Pressable style={styles.closeButton} onPress={onClose}>
             <Feather name="x" size={24} color={GameColors.textSecondary} />
@@ -742,6 +804,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  expandHint: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+    marginTop: 4,
   },
   handle: {
     width: 40,
