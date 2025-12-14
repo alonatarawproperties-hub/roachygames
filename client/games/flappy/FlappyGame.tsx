@@ -29,6 +29,10 @@ import { apiRequest } from "@/lib/query-client";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+const POWERUP_SHIELD = require("@/assets/powerup-shield.png");
+const POWERUP_DOUBLE = require("@/assets/powerup-double.png");
+const POWERUP_MAGNET = require("@/assets/powerup-magnet.png");
+
 function ExitButton({ style, onPress }: { style?: any; onPress?: () => void }) {
   const scale = useSharedValue(1);
 
@@ -152,10 +156,6 @@ const ROACHY_KING_DEAD = require("@/assets/flappy/roachy-king-dead.png");
 const ROACHY_QUEEN_1 = require("@/assets/flappy/roachy-queen-1.png");
 const ROACHY_QUEEN_2 = require("@/assets/flappy/roachy-queen-2.png");
 const ROACHY_QUEEN_DEAD = require("@/assets/flappy/roachy-queen-3.png");
-
-const POWERUP_SHIELD = require("@/assets/powerup-shield.png");
-const POWERUP_DOUBLE = require("@/assets/powerup-double.png");
-const POWERUP_MAGNET = require("@/assets/powerup-magnet.png");
 
 export type RoachySkin = "default" | "rainbow" | "king" | "queen";
 
