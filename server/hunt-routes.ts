@@ -11,8 +11,10 @@ import {
   huntIncubators,
   huntRaids,
   huntRaidParticipants,
+  users,
 } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
+import { logUserActivity } from "./economy-routes";
 
 const RARITY_RATES = {
   common: 0.60,
@@ -469,6 +471,20 @@ export function registerHuntRoutes(app: Express) {
         }),
       });
 
+      const user = await db.query.users.findFirst({
+        where: eq(users.walletAddress, walletAddress),
+      });
+      if (user) {
+        await logUserActivity(
+          user.id,
+          "catch",
+          "Caught Roachy",
+          `${spawn.rarity} ${spawn.creatureClass}: ${creatureName}`,
+          xpGain,
+          "xp"
+        );
+      }
+
       res.json({
         success: true,
         isMysteryEgg: false,
@@ -568,6 +584,20 @@ export function registerHuntRoutes(app: Express) {
           eggsUsed: EGGS_REQUIRED_FOR_HATCH,
         }),
       });
+
+      const user = await db.query.users.findFirst({
+        where: eq(users.walletAddress, walletAddress),
+      });
+      if (user) {
+        await logUserActivity(
+          user.id,
+          "hatch",
+          "Egg Hatched",
+          `${rarity} ${template.roachyClass}: ${template.name}`,
+          50,
+          "xp"
+        );
+      }
 
       res.json({
         success: true,

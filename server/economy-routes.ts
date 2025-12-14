@@ -329,6 +329,17 @@ export function registerEconomyRoutes(app: Express) {
         console.error(`[DailyBonus] On-chain transfer error:`, err);
       }
       
+      if (userId) {
+        await logUserActivity(
+          userId,
+          "reward",
+          "Daily Bonus",
+          `Login streak: ${newStreak} days`,
+          diamondReward,
+          "diamond"
+        );
+      }
+      
       res.json({
         success: true,
         diamondsAwarded: diamondReward,

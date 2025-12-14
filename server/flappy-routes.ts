@@ -9,6 +9,7 @@ import {
   users,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
+import { logUserActivity } from "./economy-routes";
 
 export function registerFlappyRoutes(app: Express) {
   app.get("/api/flappy/leaderboard", async (req: Request, res: Response) => {
@@ -196,6 +197,15 @@ export function registerFlappyRoutes(app: Express) {
           }
         }
       }
+      
+      await logUserActivity(
+        userId,
+        "game",
+        "Flappy Roachy",
+        `Score: ${score} points${isRanked ? " (Ranked)" : ""}`,
+        coinsCollected,
+        "coins"
+      );
       
       res.json({ success: true });
     } catch (error) {
