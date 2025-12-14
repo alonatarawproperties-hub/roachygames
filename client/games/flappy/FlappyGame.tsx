@@ -167,8 +167,32 @@ const powerUpIndicatorStyles = StyleSheet.create({
 const ROACHY_SPRITE_1 = require("@/assets/flappy/roachy-sprite-1.png");
 const ROACHY_SPRITE_2 = require("@/assets/flappy/roachy-sprite-2.png");
 const ROACHY_SPRITE_DEAD = require("@/assets/flappy/roachy-sprite-dead.png");
+const ROACHY_RAINBOW_1 = require("@/assets/flappy/roachy-rainbow-1.png");
+const ROACHY_RAINBOW_2 = require("@/assets/flappy/roachy-rainbow-2.png");
 
-const ALL_SPRITES = [ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD];
+export type RoachySkin = "default" | "rainbow";
+
+export const FLAPPY_SKINS = {
+  default: {
+    id: "default" as const,
+    name: "Classic Roachy",
+    frames: [ROACHY_SPRITE_1, ROACHY_SPRITE_2],
+    dead: ROACHY_SPRITE_DEAD,
+    isNFT: false,
+  },
+  rainbow: {
+    id: "rainbow" as const,
+    name: "Rainbow Wings",
+    frames: [ROACHY_RAINBOW_1, ROACHY_RAINBOW_2],
+    dead: ROACHY_SPRITE_DEAD,
+    isNFT: true,
+  },
+};
+
+const ALL_SPRITES = [
+  ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD,
+  ROACHY_RAINBOW_1, ROACHY_RAINBOW_2,
+];
 
 function GameLoadingSplash({ progress }: { progress: number }) {
   const bobY = useSharedValue(0);
@@ -345,9 +369,10 @@ interface FlappyGameProps {
   onExit?: () => void;
   onScoreSubmit?: (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => void;
   userId?: string | null;
+  skin?: RoachySkin;
 }
 
-export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameProps) {
+export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default" }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
@@ -395,11 +420,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null }: FlappyGameP
   const magnetEndTimeRef = useRef<number>(0);
   const powerUpCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  const ROACHY_FRAMES = [
-    ROACHY_SPRITE_1,
-    ROACHY_SPRITE_2,
-  ];
-  const ROACHY_DEAD = ROACHY_SPRITE_DEAD;
+  const currentSkin = FLAPPY_SKINS[skin] || FLAPPY_SKINS.default;
+  const ROACHY_FRAMES = currentSkin.frames;
+  const ROACHY_DEAD = currentSkin.dead;
   
   useEffect(() => {
     let isMounted = true;

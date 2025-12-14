@@ -67,7 +67,8 @@ A simple Express.js server handles API routes and data storage.
 ### Game Catalog
 - **Roachy Hunt (LIVE):** GPS-based creature hunting, catch, collect, battle.
 - **Roachy Mate (LIVE):** Native chess game with Unicode piece rendering. Located in `client/games/chess/`.
-- **Coming Soon:** Roachy Battles (PvP), Flappy Roach (endless runner).
+- **Flappy Roachy (LIVE):** Endless flyer game with NFT skin system. Located in `client/games/flappy/`.
+- **Coming Soon:** Roachy Battles (PvP).
 
 ### Native Games Architecture
 Games are migrated from web to native React Native components:
@@ -76,6 +77,14 @@ Games are migrated from web to native React Native components:
   - `client/games/chess/ChessBoard.tsx` - Core chess component using chess.js
   - Uses Unicode chess symbols for cross-platform rendering
   - Features: Touch-move, board flip, move validation, check/checkmate detection
+- **Flappy Roachy:**
+  - `client/games/flappy/FlappyGame.tsx` - Core game component
+  - **Skin System:** Supports multiple skins with NFT-locked variants
+    - `default`: Classic Roachy (free)
+    - `rainbow`: Rainbow Wings (NFT-locked, purchasable in marketplace)
+  - Skin assets: `client/assets/flappy/roachy-rainbow-1.png`, `roachy-rainbow-2.png`
+  - Exports: `RoachySkin` type, `FLAPPY_SKINS` constant for skin metadata
+  - Usage: `<FlappyGame skin="rainbow" />` to use rainbow skin
 
 ## External Dependencies
 
