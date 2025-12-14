@@ -132,3 +132,35 @@ export async function linkWallet(
     };
   }
 }
+
+export interface OwnedNft {
+  id: number;
+  nftId: number;
+  name: string;
+  type: string;
+  rarity: string;
+  game: string;
+  imageUrl: string | null;
+  acquiredAt: string;
+  mintAddress: string | null;
+}
+
+export async function getUserNfts(
+  userId: string
+): Promise<{ success: boolean; nfts?: OwnedNft[]; error?: string }> {
+  try {
+    const response = await apiRequest(
+      "GET",
+      `/api/webapp/users/${userId}/nfts`
+    );
+    const result = await response.json();
+    return { success: true, nfts: result.nfts || [] };
+  } catch (error) {
+    console.error("[WebappAPI] Get NFTs failed:", error);
+    return {
+      success: false,
+      nfts: [],
+      error: error instanceof Error ? error.message : "Failed to get NFTs",
+    };
+  }
+}

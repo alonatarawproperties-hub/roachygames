@@ -99,5 +99,16 @@ export function registerWebappRoutes(app: Express) {
     res.status(result.status).json(result.data);
   });
 
+  router.get("/users/:userId/nfts", async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const result = await webappRequest("GET", `/api/web/users/${userId}/nfts`);
+    res.status(result.status).json(result.data);
+  });
+
+  router.get("/nfts", async (req: Request, res: Response) => {
+    const result = await webappRequest("GET", "/api/web/nfts");
+    res.status(result.status).json(result.data);
+  });
+
   app.use("/api/webapp", router);
 }
