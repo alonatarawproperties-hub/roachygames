@@ -1,4 +1,14 @@
-import { Platform } from "react-native";
+import { Platform, Dimensions, PixelRatio } from "react-native";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const BASE_WIDTH = 375;
+
+function scale(size: number, factor: number = 0.5): number {
+  const screenScale = SCREEN_WIDTH / BASE_WIDTH;
+  const newSize = size + (screenScale - 1) * size * factor;
+  const clampedSize = Math.max(size * 0.85, Math.min(newSize, size * 1.25));
+  return Math.round(PixelRatio.roundToNearestPixel(clampedSize));
+}
 
 export const GameColors = {
   primary: "#FF9500",
@@ -178,3 +188,70 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+export const ResponsiveSpacing = {
+  xs: scale(4),
+  sm: scale(8),
+  md: scale(12),
+  lg: scale(16),
+  xl: scale(20),
+  "2xl": scale(24),
+  "3xl": scale(32),
+  "4xl": scale(40),
+  "5xl": scale(48),
+  inputHeight: scale(48),
+  buttonHeight: scale(52),
+};
+
+export const ResponsiveTypography = {
+  h1: {
+    fontSize: scale(32, 0.3),
+    fontWeight: "700" as const,
+  },
+  h2: {
+    fontSize: scale(28, 0.3),
+    fontWeight: "700" as const,
+  },
+  h3: {
+    fontSize: scale(24, 0.3),
+    fontWeight: "600" as const,
+  },
+  h4: {
+    fontSize: scale(20, 0.3),
+    fontWeight: "600" as const,
+  },
+  body: {
+    fontSize: scale(16, 0.3),
+    fontWeight: "400" as const,
+  },
+  small: {
+    fontSize: scale(14, 0.3),
+    fontWeight: "400" as const,
+  },
+  caption: {
+    fontSize: scale(12, 0.3),
+    fontWeight: "400" as const,
+  },
+  link: {
+    fontSize: scale(16, 0.3),
+    fontWeight: "400" as const,
+  },
+};
+
+export const getResponsiveSize = scale;
+
+export const ResponsiveLayout = {
+  screenWidth: SCREEN_WIDTH,
+  isSmallDevice: SCREEN_WIDTH < 360,
+  isMediumDevice: SCREEN_WIDTH >= 360 && SCREEN_WIDTH < 414,
+  isLargeDevice: SCREEN_WIDTH >= 414 && SCREEN_WIDTH < 768,
+  isTablet: SCREEN_WIDTH >= 768,
+  getColumns: (minItemWidth: number = 150, maxColumns: number = 4): number => {
+    const columns = Math.floor(SCREEN_WIDTH / minItemWidth);
+    return Math.max(1, Math.min(columns, maxColumns));
+  },
+  getItemWidth: (columns: number, gap: number, padding: number = 16): number => {
+    const availableWidth = SCREEN_WIDTH - padding * 2 - gap * (columns - 1);
+    return Math.floor(availableWidth / columns);
+  },
+};
