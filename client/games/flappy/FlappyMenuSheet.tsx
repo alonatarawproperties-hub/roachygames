@@ -24,6 +24,8 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING } from "./flappySkins";
+import { useUserNfts } from "@/hooks/useUserNfts";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 const PowerUpShieldIcon = require("@/assets/powerup-shield.png");
@@ -93,6 +95,8 @@ interface FlappyMenuSheetProps {
   onPlayFree: () => void;
   onEquipPowerUp: (type: "shield" | "double" | "magnet") => void;
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
+  selectedSkin: RoachySkin;
+  onSelectSkin: (skin: RoachySkin) => void;
 }
 
 const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.5;
@@ -107,10 +111,13 @@ export function FlappyMenuSheet({
   onPlayFree,
   onEquipPowerUp,
   equippedPowerUps,
+  selectedSkin,
+  onSelectSkin,
 }: FlappyMenuSheetProps) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>("leaderboards");
   const queryClient = useQueryClient();
+  const { getOwnedSkins, isLoading: nftsLoading } = useUserNfts();
   
   const sheetHeight = useSharedValue(COLLAPSED_HEIGHT);
   const startHeight = useSharedValue(COLLAPSED_HEIGHT);
@@ -263,6 +270,10 @@ export function FlappyMenuSheet({
                 equippedPowerUps={equippedPowerUps}
                 onEquip={handleEquipToggle}
                 isEquipping={false}
+                selectedSkin={selectedSkin}
+                onSelectSkin={onSelectSkin}
+                ownedSkins={getOwnedSkins("flappy_roachy")}
+                nftsLoading={nftsLoading}
               />
             )}
           </View>
@@ -659,12 +670,20 @@ function LoadoutTab({
   equippedPowerUps,
   onEquip,
   isEquipping,
+  selectedSkin,
+  onSelectSkin,
+  ownedSkins,
+  nftsLoading,
 }: {
   inventory: any;
   isLoading: boolean;
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
   onEquip: (type: "shield" | "double" | "magnet") => void;
   isEquipping: boolean;
+  selectedSkin: RoachySkin;
+  onSelectSkin: (skin: RoachySkin) => void;
+  ownedSkins: string[];
+  nftsLoading: boolean;
 }) {
   const powerUps = [
     {
@@ -693,13 +712,36 @@ function LoadoutTab({
     },
   ];
 
+  const isSkinOwned = (skinId: RoachySkin): boolean => {
+    if (!FLAPPY_SKINS[skinId].isNFT) return true;
+    const mappedName = SKIN_NFT_MAPPING[skinId];
+    return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
+  };
+
+  const skins = Object.values(FLAPPY_SKINS);
+
   return (
     <ScrollView 
       style={styles.tabContent} 
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <ThemedText style={styles.sectionTitle}>Equip for Next Game</ThemedText>
+      <ThemedText style={styles.sectionTitle}>Skins</ThemedText>
+      
+      <View style={styles.skinGrid}>
+        {skins.map((skin) => (
+          <SkinCard
+            key={skin.id}
+            skin={skin}
+            isSelected={selectedSkin === skin.id}
+            isOwned={isSkinOwned(skin.id)}
+            isLoading={skin.isNFT && nftsLoading}
+            onSelect={() => onSelectSkin(skin.id)}
+          />
+        ))}
+      </View>
+
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Power-ups</ThemedText>
 
       {isLoading ? (
         <ActivityIndicator color={GameColors.gold} style={{ marginTop: 20 }} />
@@ -726,6 +768,72 @@ function LoadoutTab({
         <Feather name="chevron-right" size={16} color={GameColors.textSecondary} />
       </Pressable>
     </ScrollView>
+  );
+}
+
+function SkinCard({
+  skin,
+  isSelected,
+  isOwned,
+  isLoading,
+  onSelect,
+}: {
+  skin: typeof FLAPPY_SKINS.default;
+  isSelected: boolean;
+  isOwned: boolean;
+  isLoading: boolean;
+  onSelect: () => void;
+}) {
+  const handlePress = () => {
+    if (isLoading) return;
+    if (isOwned) {
+      onSelect();
+    } else {
+      WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`);
+    }
+  };
+
+  return (
+    <Pressable
+      style={[
+        styles.skinCard,
+        isSelected && styles.skinCardSelected,
+        !isOwned && !isLoading && styles.skinCardLocked,
+      ]}
+      onPress={handlePress}
+      disabled={isLoading}
+    >
+      <View style={styles.skinPreview}>
+        <Image
+          source={skin.frames[0]}
+          style={styles.skinImage}
+          contentFit="contain"
+        />
+        {!isOwned && !isLoading ? (
+          <View style={styles.lockedOverlay}>
+            <Feather name="lock" size={20} color={GameColors.gold} />
+          </View>
+        ) : null}
+        {isLoading ? (
+          <View style={styles.lockedOverlay}>
+            <ActivityIndicator size="small" color={GameColors.gold} />
+          </View>
+        ) : null}
+        {isSelected && isOwned ? (
+          <View style={styles.selectedBadge}>
+            <Feather name="check" size={12} color="#000" />
+          </View>
+        ) : null}
+      </View>
+      <ThemedText style={styles.skinName} numberOfLines={1}>{skin.name}</ThemedText>
+      {skin.isNFT ? (
+        <View style={styles.nftBadge}>
+          <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
+        </View>
+      ) : (
+        <ThemedText style={styles.freeBadge}>Free</ThemedText>
+      )}
+    </Pressable>
   );
 }
 
@@ -1330,5 +1438,83 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: GameColors.gold,
+  },
+  skinGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  skinCard: {
+    width: "47%",
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.sm,
+    alignItems: "center",
+  },
+  skinCardSelected: {
+    borderWidth: 2,
+    borderColor: GameColors.gold,
+  },
+  skinCardLocked: {
+    opacity: 0.7,
+  },
+  skinPreview: {
+    width: 80,
+    height: 80,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+    position: "relative",
+  },
+  skinImage: {
+    width: 70,
+    height: 70,
+  },
+  lockedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: BorderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  selectedBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: GameColors.gold,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  skinName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.text,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  nftBadge: {
+    backgroundColor: "rgba(255, 215, 0, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+  },
+  nftBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  freeBadge: {
+    fontSize: 10,
+    color: GameColors.textSecondary,
   },
 });
