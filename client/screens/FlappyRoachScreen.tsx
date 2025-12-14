@@ -112,7 +112,7 @@ export function FlappyRoachScreen() {
                 onPress={() => setSelectedSkin(skinId)}
               >
                 <Image
-                  source={skin.frames[0]}
+                  source={skin.frames[1]}
                   style={styles.skinPreview}
                   contentFit="contain"
                 />
