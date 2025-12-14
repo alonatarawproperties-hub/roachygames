@@ -169,9 +169,9 @@ export default function ProfileScreen() {
           <ThemedText type="h3" style={styles.username}>
             {getUserDisplayName()}
           </ThemedText>
-          {!isGuest ? (
+          {!isGuest && user ? (
             <Pressable onPress={handleOpenUsernameModal} style={styles.editButton}>
-              <Feather name="edit-2" size={16} color={GameColors.primary} />
+              <Feather name="edit-2" size={20} color={GameColors.primary} />
             </Pressable>
           ) : null}
         </View>
@@ -625,9 +625,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   editButton: {
-    padding: Spacing.xs,
-    backgroundColor: GameColors.primary + "20",
-    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    backgroundColor: GameColors.primary + "30",
+    borderRadius: BorderRadius.md,
   },
   modalOverlay: {
     flex: 1,
