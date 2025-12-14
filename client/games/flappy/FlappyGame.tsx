@@ -337,7 +337,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   // Scale game elements based on screen size (base is 390px width)
   const scale = GAME_WIDTH / 390;
-  const GAP_SIZE = Math.max(160, BASE_GAP_SIZE * scale);
+  // Cap gap size between 160-220 to maintain difficulty on tablets
+  const GAP_SIZE = Math.min(220, Math.max(160, BASE_GAP_SIZE * Math.min(scale, 1.1)));
   const PIPE_WIDTH = Math.max(50, BASE_PIPE_WIDTH * scale);
   const BIRD_X = GAME_WIDTH * 0.2;
   
