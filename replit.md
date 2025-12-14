@@ -178,22 +178,37 @@ The daily login bonus system has layered anti-exploit protection:
 - `server/economy-routes.ts`: Anti-fraud validation in `/api/daily-bonus/claim`
 - `client/components/arcade/DailyBonusCard.tsx`: Device fingerprint collection
 
-## Web App Rewards Integration (LIVE)
+## Web App Integration (LIVE - December 14, 2025)
 
-### How It Works
-When players claim daily bonuses or earn rewards in the mobile app:
+### Security Architecture
+All webapp API calls are routed through the backend to protect the `MOBILE_APP_SECRET`:
+- **Client** calls `/api/webapp/*` endpoints on the mobile backend
+- **Backend** (`server/webapp-routes.ts`) proxies requests to `roachy.games/api/web/*`
+- **Response sanitization**: All non-OK responses are sanitized to `{ success: false, error: string }` only
+
+### Features
+1. **Token Trading**: Swap CHY/ROACHY tokens for Diamonds via TradingScreen
+2. **Powerup Shop**: Purchase game powerups with Diamonds via PowerupShopScreen
+3. **Balance Sync**: Real-time diamond/CHY balances from webapp
+4. **OAuth Sync**: Google OAuth users synced with webapp on login
+
+### Files
+- `client/lib/webapp-api.ts` - Client API functions (calls backend, not webapp directly)
+- `client/hooks/useWebappBalances.ts` - React Query hook for balance fetching
+- `server/webapp-routes.ts` - Secure proxy with response sanitization
+- `client/screens/TradingScreen.tsx` - Token exchange UI
+- `client/screens/PowerupShopScreen.tsx` - Powerup purchase UI
+
+### Rewards Distribution
+When players claim daily bonuses or earn rewards:
 1. Mobile app records reward in database
-2. Mobile app calls `roachy.games/api/rewards/distribute`
+2. Backend calls `roachy.games/api/rewards/distribute`
 3. Web app verifies request via `MOBILE_APP_SECRET`
 4. Web app transfers DIAMOND tokens from treasury to player wallet
 5. Transaction signature returned to mobile app
 
-### Files
-- `server/rewards-integration.ts` - API client for web app rewards
-- `server/economy-routes.ts` - Calls rewards API on daily bonus claim
-
 ### Environment Variables
-- `MOBILE_APP_SECRET` - Shared secret for authenticating with web app
+- `MOBILE_APP_SECRET` - Shared secret for authenticating with web app (server-side only)
 - `WEBAPP_URL` - Web app URL (default: https://roachy.games)
 
 ## Cross-Platform Integration (roachy.games)
