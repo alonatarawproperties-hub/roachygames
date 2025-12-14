@@ -173,8 +173,11 @@ const ROACHY_RAINBOW_DEAD = require("@/assets/flappy/roachy-rainbow-dead.png");
 const ROACHY_KING_1 = require("@/assets/flappy/roachy-king-1.png");
 const ROACHY_KING_2 = require("@/assets/flappy/roachy-king-2.png");
 const ROACHY_KING_DEAD = require("@/assets/flappy/roachy-king-dead.png");
+const ROACHY_QUEEN_1 = require("@/assets/flappy/roachy-queen-1.png");
+const ROACHY_QUEEN_2 = require("@/assets/flappy/roachy-queen-2.png");
+const ROACHY_QUEEN_DEAD = require("@/assets/flappy/roachy-queen-3.png");
 
-export type RoachySkin = "default" | "rainbow" | "king";
+export type RoachySkin = "default" | "rainbow" | "king" | "queen";
 
 export const FLAPPY_SKINS = {
   default: {
@@ -198,12 +201,20 @@ export const FLAPPY_SKINS = {
     dead: ROACHY_KING_DEAD,
     isNFT: true,
   },
+  queen: {
+    id: "queen" as const,
+    name: "Queen Roachy",
+    frames: [ROACHY_QUEEN_1, ROACHY_QUEEN_2],
+    dead: ROACHY_QUEEN_DEAD,
+    isNFT: true,
+  },
 };
 
 const ALL_SPRITES = [
   ROACHY_SPRITE_1, ROACHY_SPRITE_2, ROACHY_SPRITE_DEAD,
   ROACHY_RAINBOW_1, ROACHY_RAINBOW_2, ROACHY_RAINBOW_DEAD,
   ROACHY_KING_1, ROACHY_KING_2, ROACHY_KING_DEAD,
+  ROACHY_QUEEN_1, ROACHY_QUEEN_2, ROACHY_QUEEN_DEAD,
 ];
 
 function GameLoadingSplash({ progress }: { progress: number }) {
