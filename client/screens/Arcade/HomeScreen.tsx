@@ -41,6 +41,9 @@ import Animated, {
   withSpring 
 } from "react-native-reanimated";
 import { getCreatureDefinition } from "@/constants/creatures";
+import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
+import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
+import { Image as ExpoImage } from "expo-image";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EGGS_REQUIRED = 10;
@@ -194,6 +197,153 @@ const eggStyles = StyleSheet.create({
   },
   hatchButtonTextDisabled: {
     color: GameColors.textSecondary,
+  },
+});
+
+/**
+ * Flappy Roachy Skins Section
+ */
+function FlappySkinsSection() {
+  const { equippedSkin, setEquippedSkin, isLoading } = useFlappySkin();
+  const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+
+  return (
+    <Animated.View entering={FadeInDown.springify()} style={flappyStyles.container}>
+      <View style={flappyStyles.header}>
+        <View style={flappyStyles.iconContainer}>
+          <Feather name="feather" size={24} color={GameColors.gold} />
+        </View>
+        <View style={flappyStyles.info}>
+          <ThemedText style={flappyStyles.title}>Flappy Skins</ThemedText>
+          <ThemedText style={flappyStyles.subtitle}>Tap to equip for Flappy Roachy</ThemedText>
+        </View>
+      </View>
+
+      <View style={flappyStyles.skinsRow}>
+        {skinEntries.map(([skinId, skin]) => {
+          const isEquipped = !isLoading && equippedSkin === skinId;
+          return (
+            <Pressable
+              key={skinId}
+              style={[
+                flappyStyles.skinCard,
+                isEquipped && flappyStyles.skinCardEquipped,
+                isLoading && flappyStyles.skinCardDisabled,
+              ]}
+              onPress={() => !isLoading && setEquippedSkin(skinId)}
+              disabled={isLoading}
+            >
+              <ExpoImage source={skin.frames[1]} style={flappyStyles.skinImage} contentFit="contain" />
+              <ThemedText style={flappyStyles.skinName}>{skin.name}</ThemedText>
+              {skin.isNFT ? (
+                <View style={flappyStyles.nftBadge}>
+                  <ThemedText style={flappyStyles.nftBadgeText}>NFT</ThemedText>
+                </View>
+              ) : null}
+              {isEquipped ? (
+                <View style={flappyStyles.equippedBadge}>
+                  <Feather name="check" size={12} color="#fff" />
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </Animated.View>
+  );
+}
+
+const flappyStyles = StyleSheet.create({
+  container: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: GameColors.gold + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  info: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+  },
+  skinsRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  skinCard: {
+    flex: 1,
+    backgroundColor: GameColors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: "center",
+    position: "relative",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  skinCardEquipped: {
+    borderColor: GameColors.gold,
+    backgroundColor: GameColors.gold + "15",
+  },
+  skinCardDisabled: {
+    opacity: 0.5,
+  },
+  skinImage: {
+    width: 60,
+    height: 60,
+    marginBottom: Spacing.sm,
+  },
+  skinName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+    textAlign: "center",
+  },
+  nftBadge: {
+    position: "absolute",
+    top: Spacing.xs,
+    left: Spacing.xs,
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  nftBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  equippedBadge: {
+    position: "absolute",
+    bottom: Spacing.xs,
+    right: Spacing.xs,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: GameColors.gold,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
@@ -750,6 +900,9 @@ export function ArcadeHomeScreen() {
               onHatch={handleHatch}
               isHatching={isHatching}
             />
+
+            {/* Flappy Roachy Skins */}
+            <FlappySkinsSection />
 
             {/* Dynamic Filter Chips - based on what items exist */}
             <View style={styles.inventoryFilters}>
