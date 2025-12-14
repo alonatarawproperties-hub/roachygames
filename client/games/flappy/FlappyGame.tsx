@@ -204,7 +204,7 @@ export const FLAPPY_SKINS = {
   queen: {
     id: "queen" as const,
     name: "Queen Roachy",
-    frames: [ROACHY_QUEEN_1, ROACHY_QUEEN_2],
+    frames: [ROACHY_QUEEN_2, ROACHY_QUEEN_1],
     dead: ROACHY_QUEEN_DEAD,
     isNFT: true,
   },
