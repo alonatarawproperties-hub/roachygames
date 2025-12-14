@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { db } from "./db";
-import { playerEconomy, dailyLoginBonus, dailyLoginHistory, dailyBonusFraudTracking, users } from "../shared/schema";
-import { eq, sql, and, or, gte } from "drizzle-orm";
+import { playerEconomy, dailyLoginBonus, dailyLoginHistory, dailyBonusFraudTracking, users, userActivityLog } from "../shared/schema";
+import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 import { getAllTokenBalances, getRoachyBalance, getDiamondBalance, isValidSolanaAddress } from "./solana-service";
 import { SOLANA_TOKENS } from "../shared/solana-tokens";
 import { distributeDailyBonus } from "./rewards-integration";
@@ -566,4 +566,73 @@ export function registerEconomyRoutes(app: Express) {
       res.status(500).json({ error: "Failed to fetch diamond balance" });
     }
   });
+
+  app.get("/api/user/:userId/activity", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const activities = await db
+        .select()
+        .from(userActivityLog)
+        .where(eq(userActivityLog.userId, userId))
+        .orderBy(desc(userActivityLog.createdAt))
+        .limit(limit);
+      
+      const formattedActivities = activities.map(activity => ({
+        id: activity.id,
+        type: activity.activityType,
+        title: activity.title,
+        subtitle: activity.subtitle || "",
+        amount: activity.amount ? `+${activity.amount} CHY` : undefined,
+        timestamp: getRelativeTime(activity.createdAt),
+      }));
+      
+      res.json({ 
+        success: true, 
+        activities: formattedActivities 
+      });
+    } catch (error) {
+      console.error("[Economy] Error fetching activity:", error);
+      res.status(500).json({ error: "Failed to fetch activity" });
+    }
+  });
+}
+
+function getRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+export async function logUserActivity(
+  userId: string,
+  activityType: string,
+  title: string,
+  subtitle?: string,
+  amount?: number,
+  amountType: string = "chy",
+  metadata?: Record<string, any>
+) {
+  try {
+    await db.insert(userActivityLog).values({
+      userId,
+      activityType,
+      title,
+      subtitle,
+      amount,
+      amountType,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    });
+  } catch (error) {
+    console.error("[Activity] Error logging activity:", error);
+  }
 }

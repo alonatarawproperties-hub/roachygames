@@ -600,6 +600,31 @@ export const insertWalletLinkHistorySchema = createInsertSchema(walletLinkHistor
 export type WalletLinkHistory = typeof walletLinkHistory.$inferSelect;
 export type InsertWalletLinkHistory = z.infer<typeof insertWalletLinkHistorySchema>;
 
+// ==================== USER ACTIVITY LOG ====================
+
+export const ACTIVITY_TYPES = ['catch', 'reward', 'hatch', 'trade', 'bonus', 'game', 'competition'] as const;
+export type ActivityType = typeof ACTIVITY_TYPES[number];
+
+export const userActivityLog = pgTable("user_activity_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  activityType: text("activity_type").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  amount: integer("amount"),
+  amountType: text("amount_type").default("chy"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertUserActivityLogSchema = createInsertSchema(userActivityLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UserActivityLog = typeof userActivityLog.$inferSelect;
+export type InsertUserActivityLog = z.infer<typeof insertUserActivityLogSchema>;
+
 // ==================== FLAPPY ROACHY TABLES ====================
 
 export const FLAPPY_POWERUP_TYPES = ['shield', 'double', 'magnet'] as const;
