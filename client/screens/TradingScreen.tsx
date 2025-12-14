@@ -21,7 +21,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
-const DiamondIcon = require("@/assets/diamond-icon.png");
 
 const WEBAPP_TRADING_URL = "https://roachy.games/trade";
 
@@ -29,7 +28,7 @@ export default function TradingScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { isGuest } = useAuth();
-  const { diamonds, chy, isLoading: isLoadingBalances } = useWebappBalances();
+  const { chy, isLoading: isLoadingBalances } = useWebappBalances();
 
   const handleOpenTrading = async () => {
     if (Platform.OS !== "web") {
@@ -78,32 +77,23 @@ export default function TradingScreen() {
       <Animated.View entering={FadeInDown.springify()} style={styles.headerSection}>
         <ThemedText style={styles.title}>Token Exchange</ThemedText>
         <ThemedText style={styles.subtitle}>
-          Trade your tokens for Diamonds on roachy.games
+          Trade your tokens on roachy.games
         </ThemedText>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.balanceCard}>
-        <ThemedText style={styles.balanceTitle}>Your Current Balances</ThemedText>
+        <ThemedText style={styles.balanceTitle}>Your CHY Balance</ThemedText>
         {isLoadingBalances ? (
           <View style={styles.loadingBalances}>
             <ThemedText style={styles.loadingText}>Loading...</ThemedText>
           </View>
         ) : (
           <View style={styles.balanceRow}>
-            <View style={styles.balanceItem}>
-              <Image source={ChyCoinIcon} style={styles.balanceIcon} contentFit="contain" />
-              <ThemedText style={styles.balanceValue}>
-                {chy.toLocaleString()}
-              </ThemedText>
-              <ThemedText style={styles.balanceLabel}>CHY</ThemedText>
-            </View>
-            <View style={styles.balanceItem}>
-              <Image source={DiamondIcon} style={styles.balanceIcon} contentFit="contain" />
-              <ThemedText style={styles.balanceValue}>
-                {diamonds.toLocaleString()}
-              </ThemedText>
-              <ThemedText style={styles.balanceLabel}>Diamonds</ThemedText>
-            </View>
+            <Image source={ChyCoinIcon} style={styles.balanceIcon} contentFit="contain" />
+            <ThemedText style={styles.balanceValue}>
+              {chy.toLocaleString()}
+            </ThemedText>
+            <ThemedText style={styles.balanceLabel}>CHY</ThemedText>
           </View>
         )}
       </Animated.View>
@@ -114,16 +104,12 @@ export default function TradingScreen() {
           <ThemedText style={styles.infoTitle}>Trade on roachy.games</ThemedText>
         </View>
         <ThemedText style={styles.infoDescription}>
-          Token trading and conversions are handled securely on our website. You can:
+          Token trading is available on our website:
         </ThemedText>
         <View style={styles.featureList}>
           <View style={styles.featureItem}>
             <Feather name="check-circle" size={18} color={GameColors.success} />
-            <ThemedText style={styles.featureText}>Swap CHY tokens for Diamonds</ThemedText>
-          </View>
-          <View style={styles.featureItem}>
-            <Feather name="check-circle" size={18} color={GameColors.success} />
-            <ThemedText style={styles.featureText}>Trade ROACHY tokens for Diamonds</ThemedText>
+            <ThemedText style={styles.featureText}>Swap CHY for ROACHY tokens</ThemedText>
           </View>
           <View style={styles.featureItem}>
             <Feather name="check-circle" size={18} color={GameColors.success} />
@@ -131,7 +117,7 @@ export default function TradingScreen() {
           </View>
           <View style={styles.featureItem}>
             <Feather name="check-circle" size={18} color={GameColors.success} />
-            <ThemedText style={styles.featureText}>Access advanced trading features</ThemedText>
+            <ThemedText style={styles.featureText}>Access marketplace features</ThemedText>
           </View>
         </View>
       </Animated.View>
@@ -148,13 +134,6 @@ export default function TradingScreen() {
             <ThemedText style={styles.tradeButtonText}>Open Trading Portal</ThemedText>
           </LinearGradient>
         </Pressable>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.syncCard}>
-        <Feather name="refresh-cw" size={18} color={GameColors.info} />
-        <ThemedText style={styles.syncText}>
-          Balances sync automatically. Any trades you make on the website will be reflected here within a minute.
-        </ThemedText>
       </Animated.View>
     </ScrollView>
   );
@@ -213,6 +192,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
     marginBottom: Spacing.xl,
+    alignItems: "center",
     ...GlowStyles.subtle,
   },
   balanceTitle: {
@@ -220,35 +200,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GameColors.textSecondary,
     marginBottom: Spacing.lg,
-    textAlign: "center",
   },
   loadingBalances: {
-    paddingVertical: Spacing.xl,
-    alignItems: "center",
+    paddingVertical: Spacing.lg,
   },
   loadingText: {
     color: GameColors.textSecondary,
   },
   balanceRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  balanceItem: {
     alignItems: "center",
-    gap: Spacing.xs,
+    gap: Spacing.md,
   },
   balanceIcon: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
   },
   balanceValue: {
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: "700",
     color: GameColors.textPrimary,
   },
   balanceLabel: {
-    fontSize: 14,
-    color: GameColors.textSecondary,
+    fontSize: 18,
+    fontWeight: "600",
+    color: GameColors.gold,
   },
   infoCard: {
     backgroundColor: GameColors.surfaceElevated,
@@ -288,7 +264,6 @@ const styles = StyleSheet.create({
   tradeButton: {
     borderRadius: BorderRadius.md,
     overflow: "hidden",
-    marginBottom: Spacing.lg,
     ...GlowStyles.standard,
   },
   tradeButtonGradient: {
@@ -304,21 +279,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: GameColors.background,
-  },
-  syncCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-    backgroundColor: GameColors.surfaceElevated,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    borderLeftWidth: 3,
-    borderLeftColor: GameColors.info,
-  },
-  syncText: {
-    flex: 1,
-    fontSize: 14,
-    color: GameColors.textSecondary,
-    lineHeight: 20,
   },
 });
