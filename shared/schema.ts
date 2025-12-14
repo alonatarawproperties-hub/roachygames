@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   walletAddress: text("wallet_address").unique(),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
+  lastUsernameChange: timestamp("last_username_change"),
   authProvider: text("auth_provider").notNull().default("email"),
   chyBalance: integer("chy_balance").notNull().default(0),
   diamondBalance: integer("diamond_balance").notNull().default(0),

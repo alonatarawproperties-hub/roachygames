@@ -904,4 +904,73 @@ router.post("/unlink-wallet", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/update-username", async (req: Request, res: Response) => {
+  try {
+    const { userId, newUsername } = req.body;
+
+    if (!userId || !newUsername) {
+      return res.status(400).json({ error: "User ID and new username are required" });
+    }
+
+    const trimmedUsername = newUsername.trim();
+    if (trimmedUsername.length < 3) {
+      return res.status(400).json({ error: "Username must be at least 3 characters" });
+    }
+    if (trimmedUsername.length > 20) {
+      return res.status(400).json({ error: "Username must be 20 characters or less" });
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      return res.status(400).json({ error: "Username can only contain letters, numbers, and underscores" });
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    if (user.lastUsernameChange) {
+      const timeSinceLastChange = Date.now() - new Date(user.lastUsernameChange).getTime();
+      if (timeSinceLastChange < SEVEN_DAYS_MS) {
+        const daysRemaining = Math.ceil((SEVEN_DAYS_MS - timeSinceLastChange) / (24 * 60 * 60 * 1000));
+        return res.status(429).json({ 
+          error: `You can change your username in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`,
+          daysRemaining,
+          nextChangeAllowed: new Date(new Date(user.lastUsernameChange).getTime() + SEVEN_DAYS_MS).toISOString(),
+        });
+      }
+    }
+
+    const [updatedUser] = await db.update(users)
+      .set({ 
+        displayName: trimmedUsername, 
+        lastUsernameChange: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    console.log(`[Auth] Username updated for user ${userId}: ${trimmedUsername}`);
+
+    return res.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        displayName: updatedUser.displayName,
+        googleId: updatedUser.googleId,
+        authProvider: updatedUser.authProvider,
+        chyBalance: updatedUser.chyBalance,
+        diamondBalance: updatedUser.diamondBalance,
+        walletAddress: updatedUser.walletAddress,
+        avatarUrl: updatedUser.avatarUrl,
+        lastUsernameChange: updatedUser.lastUsernameChange,
+      },
+    });
+  } catch (error) {
+    console.error("[Auth] Update username error:", error);
+    return res.status(500).json({ error: "Failed to update username" });
+  }
+});
+
 export default router;
