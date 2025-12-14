@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, Pressable, useWindowDimensions } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,11 +8,16 @@ import Animated, {
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
-import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { GameColors, Spacing, BorderRadius, getResponsiveSize } from "@/constants/theme";
 import { GameEntry } from "@/constants/gamesCatalog";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const TILE_WIDTH = (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.md) / 2;
+function useTileWidth() {
+  const { width } = useWindowDimensions();
+  const padding = Spacing.lg * 2;
+  const gap = Spacing.md;
+  const columns = width >= 768 ? 3 : 2;
+  return (width - padding - gap * (columns - 1)) / columns;
+}
 
 interface GameTileProps {
   game: GameEntry;
@@ -31,6 +36,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export function GameTile({ game, onPress, featured = false }: GameTileProps) {
   const scale = useSharedValue(1);
+  const tileWidth = useTileWidth();
   const categoryColor = CATEGORY_COLORS[game.category] || GameColors.primary;
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -104,7 +110,7 @@ export function GameTile({ game, onPress, featured = false }: GameTileProps) {
 
   return (
     <AnimatedPressable
-      style={[styles.tile, animatedStyle, game.isLocked && styles.tileLocked]}
+      style={[styles.tile, { width: tileWidth }, animatedStyle, game.isLocked && styles.tileLocked]}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
@@ -142,11 +148,11 @@ export function GameTile({ game, onPress, featured = false }: GameTileProps) {
 
 const styles = StyleSheet.create({
   tile: {
-    width: TILE_WIDTH,
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     overflow: "hidden",
+    minHeight: getResponsiveSize(140),
   },
   tileLocked: {
     opacity: 0.6,

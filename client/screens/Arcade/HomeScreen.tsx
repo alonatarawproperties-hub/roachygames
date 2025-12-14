@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator, Image, FlatList, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator, Image, FlatList, Platform, useWindowDimensions } from "react-native";
 import { useNavigation, CommonActions } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,7 +25,7 @@ import {
 import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
 import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
-import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { GameColors, Spacing, BorderRadius, getResponsiveSize, ResponsiveLayout } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
 import { useHunt } from "@/context/HuntContext";
@@ -311,13 +311,20 @@ const eggStyles = StyleSheet.create({
  */
 function FlappySkinsSection() {
   const { equippedSkin, setEquippedSkin, isLoading } = useFlappySkin();
+  const { width: screenWidth } = useWindowDimensions();
   const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  
+  const containerPadding = Spacing.lg * 2;
+  const gap = Spacing.sm;
+  const columns = screenWidth >= 768 ? 4 : screenWidth >= 414 ? 3 : 3;
+  const cardWidth = (screenWidth - containerPadding - gap * (columns + 1)) / columns;
+  const imageSize = getResponsiveSize(56);
 
   return (
     <Animated.View entering={FadeInDown.springify()} style={flappyStyles.container}>
       <View style={flappyStyles.header}>
         <View style={flappyStyles.iconContainer}>
-          <Feather name="feather" size={24} color={GameColors.gold} />
+          <Feather name="feather" size={getResponsiveSize(24)} color={GameColors.gold} />
         </View>
         <View style={flappyStyles.info}>
           <ThemedText style={flappyStyles.title}>Flappy Skins</ThemedText>
@@ -333,13 +340,14 @@ function FlappySkinsSection() {
               key={skinId}
               style={[
                 flappyStyles.skinCard,
+                { width: cardWidth },
                 isEquipped && flappyStyles.skinCardEquipped,
                 isLoading && flappyStyles.skinCardDisabled,
               ]}
               onPress={() => !isLoading && setEquippedSkin(skinId)}
               disabled={isLoading}
             >
-              <ExpoImage source={skin.frames[1]} style={flappyStyles.skinImage} contentFit="contain" />
+              <ExpoImage source={skin.frames[1]} style={[flappyStyles.skinImage, { width: imageSize, height: imageSize }]} contentFit="contain" />
               <ThemedText style={flappyStyles.skinName} numberOfLines={2}>{skin.name}</ThemedText>
               {skin.isNFT ? (
                 <View style={flappyStyles.nftBadge}>
@@ -396,20 +404,20 @@ const flappyStyles = StyleSheet.create({
   },
   skinsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   skinCard: {
-    flex: 1,
     backgroundColor: GameColors.background,
     borderRadius: BorderRadius.md,
-    paddingTop: Spacing.xl + 4,
-    paddingBottom: Spacing.xl + 8,
+    paddingTop: getResponsiveSize(24),
+    paddingBottom: getResponsiveSize(32),
     paddingHorizontal: Spacing.sm,
     alignItems: "center",
     position: "relative",
     borderWidth: 2,
     borderColor: "transparent",
-    minHeight: 140,
+    minHeight: getResponsiveSize(140),
   },
   skinCardEquipped: {
     borderColor: GameColors.gold,
@@ -419,47 +427,45 @@ const flappyStyles = StyleSheet.create({
     opacity: 0.5,
   },
   skinImage: {
-    width: 56,
-    height: 56,
     marginBottom: Spacing.sm,
   },
   skinName: {
-    fontSize: 11,
+    fontSize: getResponsiveSize(11),
     fontWeight: "600",
     color: GameColors.textPrimary,
     textAlign: "center",
-    lineHeight: 14,
+    lineHeight: getResponsiveSize(14),
     paddingHorizontal: 2,
   },
   nftBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: getResponsiveSize(6),
+    right: getResponsiveSize(6),
     backgroundColor: "#8B5CF6",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: getResponsiveSize(8),
+    paddingVertical: getResponsiveSize(3),
     borderRadius: 6,
     zIndex: 10,
   },
   nftBadgeText: {
-    fontSize: 9,
+    fontSize: getResponsiveSize(9),
     fontWeight: "700",
     color: "#fff",
   },
   equippedBadge: {
     position: "absolute",
-    bottom: 8,
+    bottom: getResponsiveSize(8),
     left: 0,
     right: 0,
     backgroundColor: GameColors.gold,
-    paddingVertical: 4,
+    paddingVertical: getResponsiveSize(4),
     borderBottomLeftRadius: BorderRadius.md - 2,
     borderBottomRightRadius: BorderRadius.md - 2,
     justifyContent: "center",
     alignItems: "center",
   },
   equippedBadgeText: {
-    fontSize: 9,
+    fontSize: getResponsiveSize(9),
     fontWeight: "700",
     color: "#1A1A0F",
     letterSpacing: 1,
