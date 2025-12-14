@@ -2,10 +2,13 @@ import React from "react";
 import { View, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getMarketplaceUrl } from "@/lib/query-client";
+
+const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 
 interface TokenBalanceCardProps {
   chyCoinsBalance: number;
@@ -94,9 +97,7 @@ export function TokenBalanceCard({
 
       <View style={styles.balanceSection}>
         <View style={styles.coinIconContainer}>
-          <View style={styles.coinIcon}>
-            <ThemedText style={styles.coinSymbol}>C</ThemedText>
-          </View>
+          <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
         </View>
         <View style={styles.balanceInfo}>
           {isLoading ? (
@@ -153,17 +154,6 @@ const styles = StyleSheet.create({
   coinIcon: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: GameColors.gold + "20",
-    borderWidth: 2,
-    borderColor: GameColors.gold + "40",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  coinSymbol: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: GameColors.gold,
   },
   balanceInfo: {
     flex: 1,
