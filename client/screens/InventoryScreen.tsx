@@ -112,18 +112,20 @@ function FlappySkinCard({
         onPress={disabled ? undefined : onEquip}
         disabled={disabled}
       >
+        <View style={styles.cardTopRow}>
+          {skin.isNFT ? (
+            <View style={styles.nftBadge}>
+              <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
+            </View>
+          ) : <View style={styles.badgePlaceholder} />}
+        </View>
         <ExpoImage source={skin.frames[1]} style={styles.skinImage} contentFit="contain" />
-        <ThemedText style={styles.skinName}>{skin.name}</ThemedText>
-        {skin.isNFT ? (
-          <View style={styles.nftBadge}>
-            <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
-          </View>
-        ) : null}
+        <ThemedText style={styles.skinName} numberOfLines={1}>{skin.name}</ThemedText>
         {!disabled && isEquipped ? (
           <View style={styles.equippedBadge}>
-            <Feather name="check" size={12} color="#fff" />
+            <ThemedText style={styles.equippedBadgeText}>EQUIPPED</ThemedText>
           </View>
-        ) : null}
+        ) : <View style={styles.equippedPlaceholder} />}
       </Pressable>
     </Animated.View>
   );
@@ -431,9 +433,8 @@ const styles = StyleSheet.create({
   skinCard: {
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+    padding: Spacing.sm,
     alignItems: "center",
-    position: "relative",
     borderWidth: 2,
     borderColor: "transparent",
   },
@@ -444,9 +445,18 @@ const styles = StyleSheet.create({
   skinCardDisabled: {
     opacity: 0.5,
   },
+  cardTopRow: {
+    width: "100%",
+    height: 20,
+    alignItems: "flex-end",
+    marginBottom: Spacing.xs,
+  },
+  badgePlaceholder: {
+    height: 18,
+  },
   skinImage: {
-    width: 70,
-    height: 70,
+    width: 60,
+    height: 60,
     marginBottom: Spacing.sm,
   },
   skinName: {
@@ -454,14 +464,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GameColors.textPrimary,
     textAlign: "center",
+    marginBottom: Spacing.xs,
   },
   nftBadge: {
-    position: "absolute",
-    top: Spacing.xs,
-    left: Spacing.xs,
     backgroundColor: "#8B5CF6",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
   },
   nftBadgeText: {
@@ -470,14 +478,18 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   equippedBadge: {
-    position: "absolute",
-    bottom: Spacing.xs,
-    right: Spacing.xs,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
     backgroundColor: GameColors.gold,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginTop: Spacing.xs,
+  },
+  equippedBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1A1A0F",
+  },
+  equippedPlaceholder: {
+    height: 26,
   },
 });
