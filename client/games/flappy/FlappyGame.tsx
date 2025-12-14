@@ -179,14 +179,12 @@ export const FLAPPY_SKINS = {
     name: "Classic Roachy",
     frames: [ROACHY_SPRITE_1, ROACHY_SPRITE_2],
     dead: ROACHY_SPRITE_DEAD,
-    isNFT: false,
   },
   rainbow: {
     id: "rainbow" as const,
     name: "Rainbow Wings",
     frames: [ROACHY_RAINBOW_1, ROACHY_RAINBOW_2],
     dead: ROACHY_RAINBOW_DEAD,
-    isNFT: true,
   },
 };
 

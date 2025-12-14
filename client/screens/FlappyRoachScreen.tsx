@@ -117,11 +117,6 @@ export function FlappyRoachScreen() {
                   contentFit="contain"
                 />
                 <ThemedText style={styles.skinName}>{skin.name}</ThemedText>
-                {skin.isNFT ? (
-                  <View style={styles.nftBadge}>
-                    <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
-                  </View>
-                ) : null}
                 {isSelected ? (
                   <View style={styles.checkmark}>
                     <Feather name="check" size={16} color="#fff" />
@@ -215,20 +210,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
     textAlign: "center",
-  },
-  nftBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "#8B5CF6",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  nftBadgeText: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: "#fff",
   },
   checkmark: {
     position: "absolute",
