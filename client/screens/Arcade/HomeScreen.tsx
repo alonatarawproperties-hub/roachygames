@@ -340,7 +340,7 @@ function FlappySkinsSection() {
               disabled={isLoading}
             >
               <ExpoImage source={skin.frames[1]} style={flappyStyles.skinImage} contentFit="contain" />
-              <ThemedText style={flappyStyles.skinName}>{skin.name}</ThemedText>
+              <ThemedText style={flappyStyles.skinName} numberOfLines={2}>{skin.name}</ThemedText>
               {skin.isNFT ? (
                 <View style={flappyStyles.nftBadge}>
                   <ThemedText style={flappyStyles.nftBadgeText}>NFT</ThemedText>
@@ -348,7 +348,7 @@ function FlappySkinsSection() {
               ) : null}
               {isEquipped ? (
                 <View style={flappyStyles.equippedBadge}>
-                  <Feather name="check" size={12} color="#fff" />
+                  <ThemedText style={flappyStyles.equippedBadgeText}>EQUIPPED</ThemedText>
                 </View>
               ) : null}
             </Pressable>
@@ -402,11 +402,14 @@ const flappyStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: GameColors.background,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    paddingTop: Spacing.xl + 4,
+    paddingBottom: Spacing.xl + 8,
+    paddingHorizontal: Spacing.sm,
     alignItems: "center",
     position: "relative",
     borderWidth: 2,
     borderColor: "transparent",
+    minHeight: 140,
   },
   skinCardEquipped: {
     borderColor: GameColors.gold,
@@ -416,24 +419,27 @@ const flappyStyles = StyleSheet.create({
     opacity: 0.5,
   },
   skinImage: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     marginBottom: Spacing.sm,
   },
   skinName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: GameColors.textPrimary,
     textAlign: "center",
+    lineHeight: 14,
+    paddingHorizontal: 2,
   },
   nftBadge: {
     position: "absolute",
-    top: Spacing.xs,
-    left: Spacing.xs,
+    top: 6,
+    right: 6,
     backgroundColor: "#8B5CF6",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    zIndex: 10,
   },
   nftBadgeText: {
     fontSize: 9,
@@ -442,14 +448,22 @@ const flappyStyles = StyleSheet.create({
   },
   equippedBadge: {
     position: "absolute",
-    bottom: Spacing.xs,
-    right: Spacing.xs,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    bottom: 8,
+    left: 0,
+    right: 0,
     backgroundColor: GameColors.gold,
+    paddingVertical: 4,
+    borderBottomLeftRadius: BorderRadius.md - 2,
+    borderBottomRightRadius: BorderRadius.md - 2,
     justifyContent: "center",
     alignItems: "center",
+  },
+  equippedBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#1A1A0F",
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
 });
 
