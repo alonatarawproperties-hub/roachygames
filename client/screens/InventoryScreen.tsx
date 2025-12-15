@@ -498,6 +498,7 @@ const styles = StyleSheet.create({
   },
   skinItemWrapper: {
     width: "50%",
+    maxWidth: 180,
     padding: Spacing.xs,
   },
   skinCard: {
