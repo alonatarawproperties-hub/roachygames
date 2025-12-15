@@ -27,8 +27,10 @@ import * as Haptics from "expo-haptics";
 import { FlappyMenuSheet } from "./FlappyMenuSheet";
 import { apiRequest } from "@/lib/query-client";
 import { FLAPPY_SKINS, RoachySkin, ALL_SPRITES } from "./flappySkins";
+import { FLAPPY_TRAILS, RoachyTrail, ALL_TRAIL_ASSETS } from "./flappyTrails";
 
 export { FLAPPY_SKINS, RoachySkin } from "./flappySkins";
+export { FLAPPY_TRAILS, RoachyTrail } from "./flappyTrails";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -324,9 +326,10 @@ interface FlappyGameProps {
   onScoreSubmit?: (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => void;
   userId?: string | null;
   skin?: RoachySkin;
+  trail?: RoachyTrail;
 }
 
-export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default" }: FlappyGameProps) {
+export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default", trail = "none" }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
@@ -394,10 +397,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     magnet: boolean;
   }>({ shield: false, double: false, magnet: false });
   const [selectedSkin, setSelectedSkin] = useState<RoachySkin>(skin);
+  const [selectedTrail, setSelectedTrail] = useState<RoachyTrail>(trail);
   
   useEffect(() => {
     setSelectedSkin(skin);
   }, [skin]);
+  
+  useEffect(() => {
+    setSelectedTrail(trail);
+  }, [trail]);
   
   const shieldEndTimeRef = useRef<number>(0);
   const doubleEndTimeRef = useRef<number>(0);
@@ -407,6 +415,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const currentSkin = FLAPPY_SKINS[selectedSkin] || FLAPPY_SKINS.default;
   const ROACHY_FRAMES = currentSkin.frames;
   const ROACHY_DEAD = currentSkin.dead;
+  
+  const currentTrail = FLAPPY_TRAILS[selectedTrail] || FLAPPY_TRAILS.none;
+  const TRAIL_ASSET = currentTrail.asset;
   
   useEffect(() => {
     let isMounted = true;
@@ -1210,6 +1221,23 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           </View>
         ))}
         
+        {TRAIL_ASSET && (gameState === "playing" || gameState === "idle") && (
+          <Animated.View 
+            style={[
+              styles.trail, 
+              birdStyle, 
+              { left: BIRD_X - BIRD_VISUAL_SIZE / 2 - 80 }
+            ]}
+          >
+            <Image
+              source={TRAIL_ASSET}
+              style={styles.trailImage}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            />
+          </Animated.View>
+        )}
+        
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_VISUAL_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
           {gameState === "dying" || gameState === "gameover" ? (
@@ -1357,6 +1385,16 @@ const styles = StyleSheet.create({
     height: BIRD_VISUAL_SIZE + 20,
     marginTop: -10,
     marginLeft: -10,
+  },
+  trail: {
+    position: "absolute",
+    width: 120,
+    height: 60,
+    zIndex: 5,
+  },
+  trailImage: {
+    width: 120,
+    height: 60,
   },
   roachySpriteAbsolute: {
     position: "absolute",
