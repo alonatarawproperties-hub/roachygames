@@ -318,6 +318,19 @@ interface PowerUp {
   collected: boolean;
 }
 
+interface TrailParticle {
+  id: number;
+  x: number;
+  y: number;
+  opacity: number;
+  scale: number;
+  rotation: number;
+}
+
+const TRAIL_PARTICLE_SPAWN_INTERVAL = 3;
+const TRAIL_PARTICLE_FADE_SPEED = 0.04;
+const TRAIL_PARTICLE_MAX = 12;
+
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
 type GameMode = "free" | "ranked";
@@ -380,6 +393,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const [coins, setCoins] = useState<Coin[]>([]);
   const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
   const [clouds, setClouds] = useState<Cloud[]>([]);
+  const [trailParticles, setTrailParticles] = useState<TrailParticle[]>([]);
   
   const [shieldActive, setShieldActive] = useState(false);
   const [doublePointsActive, setDoublePointsActive] = useState(false);
@@ -479,6 +493,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const coinsRef = useRef<Coin[]>([]);
   const powerUpsRef = useRef<PowerUp[]>([]);
   const cloudsRef = useRef<Cloud[]>([]);
+  const trailParticlesRef = useRef<TrailParticle[]>([]);
+  const trailParticleIdRef = useRef(0);
+  const trailSpawnCounterRef = useRef(0);
   const shieldRef = useRef(false);
   const doublePointsRef = useRef(false);
   const magnetRef = useRef(false);
@@ -592,11 +609,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     pipesRef.current = [];
     coinsRef.current = [];
     powerUpsRef.current = [];
+    trailParticlesRef.current = [];
+    trailSpawnCounterRef.current = 0;
     scoreRef.current = 0;
     
     setPipes([]);
     setCoins([]);
     setPowerUps([]);
+    setTrailParticles([]);
     setScore(0);
     setShieldActive(false);
     setDoublePointsActive(false);
@@ -960,13 +980,42 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }));
     cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
     
+    if (TRAIL_ASSET) {
+      trailSpawnCounterRef.current++;
+      if (trailSpawnCounterRef.current >= TRAIL_PARTICLE_SPAWN_INTERVAL) {
+        trailSpawnCounterRef.current = 0;
+        const newParticle: TrailParticle = {
+          id: trailParticleIdRef.current++,
+          x: currentBirdX - 40,
+          y: birdY.value,
+          opacity: 0.8,
+          scale: 1.0,
+          rotation: birdRotation.value,
+        };
+        trailParticlesRef.current = [...trailParticlesRef.current, newParticle];
+        if (trailParticlesRef.current.length > TRAIL_PARTICLE_MAX) {
+          trailParticlesRef.current = trailParticlesRef.current.slice(-TRAIL_PARTICLE_MAX);
+        }
+      }
+      
+      trailParticlesRef.current = trailParticlesRef.current
+        .map((p) => ({
+          ...p,
+          x: p.x - currentPipeSpeed * 0.5,
+          opacity: p.opacity - TRAIL_PARTICLE_FADE_SPEED,
+          scale: p.scale * 0.97,
+        }))
+        .filter((p) => p.opacity > 0);
+    }
+    
     runOnJS(setPipes)([...pipesRef.current]);
     runOnJS(setCoins)([...coinsRef.current]);
     runOnJS(setPowerUps)([...powerUpsRef.current]);
     runOnJS(setClouds)([...cloudsRef.current]);
+    runOnJS(setTrailParticles)([...trailParticlesRef.current]);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET]);
   
   const startGame = useCallback(() => {
     clearAllTimers();
@@ -974,6 +1023,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     pipesRef.current = [];
     coinsRef.current = [];
     powerUpsRef.current = [];
+    trailParticlesRef.current = [];
+    trailSpawnCounterRef.current = 0;
     scoreRef.current = 0;
     shieldRef.current = false;
     doublePointsRef.current = false;
@@ -996,6 +1047,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     setCoins([]);
     setPowerUps([]);
     setClouds(initialClouds);
+    setTrailParticles([]);
     setScore(0);
     setShieldActive(false);
     setDoublePointsActive(false);
@@ -1222,12 +1274,20 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           </View>
         ))}
         
-        {TRAIL_ASSET && (gameState === "playing" || gameState === "idle") && (
-          <Animated.View 
+        {TRAIL_ASSET && gameState === "playing" && trailParticles.map((particle) => (
+          <View 
+            key={particle.id}
             style={[
-              styles.trail, 
-              birdStyle, 
-              { left: BIRD_X - BIRD_VISUAL_SIZE / 2 - 80 }
+              styles.trailParticle, 
+              { 
+                left: particle.x - 60,
+                top: particle.y - 30,
+                opacity: particle.opacity,
+                transform: [
+                  { scale: particle.scale },
+                  { rotate: `${particle.rotation}deg` },
+                ],
+              }
             ]}
           >
             <Image
@@ -1236,8 +1296,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
               contentFit="contain"
               cachePolicy="memory-disk"
             />
-          </Animated.View>
-        )}
+          </View>
+        ))}
         
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_VISUAL_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
@@ -1390,6 +1450,12 @@ const styles = StyleSheet.create({
     marginLeft: -10,
   },
   trail: {
+    position: "absolute",
+    width: 120,
+    height: 60,
+    zIndex: 5,
+  },
+  trailParticle: {
     position: "absolute",
     width: 120,
     height: 60,
