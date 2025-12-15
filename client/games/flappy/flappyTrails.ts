@@ -1,4 +1,4 @@
-const BREEZE_TRAIL = require("@/assets/trails/breeze-trail.gif");
+const BREEZE_TRAIL = require("@/assets/trails/breeze-trail.png");
 
 export type RoachyTrail = "none" | "breeze";
 
