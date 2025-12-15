@@ -9,11 +9,9 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getMarketplaceUrl } from "@/lib/query-client";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
-const DiamondIcon = require("@/assets/diamond-icon.png");
 
 interface TokenBalanceCardProps {
   chyCoinsBalance: number;
-  diamondBalance?: number;
   onPress?: () => void;
   isConnected: boolean;
   isLoading?: boolean;
@@ -22,7 +20,6 @@ interface TokenBalanceCardProps {
 
 export function TokenBalanceCard({
   chyCoinsBalance = 0,
-  diamondBalance = 0,
   onPress,
   isConnected,
   isLoading = false,
@@ -112,20 +109,6 @@ export function TokenBalanceCard({
             </View>
           )}
         </View>
-        <View style={styles.balanceDivider} />
-        <View style={styles.balanceItem}>
-          <View style={styles.coinIconContainer}>
-            <Image source={DiamondIcon} style={styles.coinIcon} contentFit="contain" />
-          </View>
-          {isLoading ? (
-            <ActivityIndicator size="small" color={GameColors.info} />
-          ) : (
-            <View style={styles.balanceInfo}>
-              <ThemedText style={styles.balanceValueDiamond}>{formatNumber(diamondBalance)}</ThemedText>
-              <ThemedText style={styles.balanceLabelDiamond}>Diamonds</ThemedText>
-            </View>
-          )}
-        </View>
       </View>
 
       <Pressable style={styles.claimButton} onPress={handleClaimOnWeb}>
@@ -171,11 +154,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.sm,
   },
-  balanceDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: GameColors.surfaceGlow,
-  },
   coinIconContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -192,19 +170,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: GameColors.textPrimary,
   },
-  balanceValueDiamond: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: GameColors.info,
-  },
   balanceLabel: {
     fontSize: 12,
     color: GameColors.gold,
-    marginTop: 2,
-  },
-  balanceLabelDiamond: {
-    fontSize: 12,
-    color: GameColors.info,
     marginTop: 2,
   },
   claimButton: {
