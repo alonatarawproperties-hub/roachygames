@@ -1186,20 +1186,24 @@ export function ArcadeHomeScreen() {
                   />
                 ) : null}
 
-                {selectedGame.categories.map((category) => (
+                {selectedGame.categories.map((category) => {
+                  const filteredItems = (isGuest && (category.id === "skins" || category.id === "trails"))
+                    ? category.items.filter((item: any) => !item.isNFT)
+                    : category.items;
+                  return (
                   <View key={category.id} style={styles.categorySection}>
                     <View style={styles.categoryHeader}>
                       <Feather name={category.icon} size={18} color={GameColors.gold} />
                       <ThemedText style={styles.categoryTitle}>{category.name}</ThemedText>
-                      <ThemedText style={styles.categoryCount}>({category.items.length})</ThemedText>
+                      <ThemedText style={styles.categoryCount}>({filteredItems.length})</ThemedText>
                     </View>
 
-                    {category.items.length > 0 ? (
+                    {filteredItems.length > 0 ? (
                       <View style={styles.categoryItems}>
                         {category.id === "skins" ? (
                           /* Flappy Skins with equip functionality */
                           <View style={styles.skinsGrid}>
-                            {category.items.map((item: any) => (
+                            {filteredItems.map((item: any) => (
                               <Pressable
                                 key={item.id}
                                 style={[
@@ -1231,7 +1235,7 @@ export function ArcadeHomeScreen() {
                         ) : category.id === "trails" ? (
                           /* Flappy Trails with equip functionality */
                           <View style={styles.skinsGrid}>
-                            {category.items.map((item: any) => (
+                            {filteredItems.map((item: any) => (
                               <Pressable
                                 key={item.id}
                                 style={[
@@ -1315,7 +1319,8 @@ export function ArcadeHomeScreen() {
                       </View>
                     )}
                   </View>
-                ))}
+                  );
+                })}
               </View>
             ) : (
               <View style={styles.emptyInventory}>
