@@ -726,7 +726,7 @@ function LoadoutTab({
     },
   ];
 
-  const isGuestUser = !userId || userId.startsWith('player_');
+  const isGuestUser = !userId || userId.startsWith('guest_');
 
   const isSkinOwned = (skinId: RoachySkin): boolean => {
     if (!FLAPPY_SKINS[skinId].isNFT) return true;
