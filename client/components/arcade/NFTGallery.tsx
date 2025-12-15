@@ -151,6 +151,12 @@ export function NFTGallery({
                   <Feather name={classIcon} size={28} color={RARITY_COLORS[item.rarity]} />
                 </View>
 
+                <View style={[styles.rarityBadge, { backgroundColor: RARITY_COLORS[item.rarity] }]}>
+                  <ThemedText style={styles.rarityBadgeText}>
+                    {item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}
+                  </ThemedText>
+                </View>
+
                 <View style={styles.itemInfo}>
                   <ThemedText style={styles.itemName} numberOfLines={1}>
                     {item.name}
@@ -248,6 +254,20 @@ const styles = StyleSheet.create({
     height: 80,
     justifyContent: "center",
     alignItems: "center",
+  },
+  rarityBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  rarityBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#fff",
+    textTransform: "uppercase",
   },
   itemInfo: {
     padding: Spacing.sm,
