@@ -1562,6 +1562,9 @@ const styles = StyleSheet.create({
   },
   skinCard: {
     width: "47%",
+    maxWidth: 160,
+    flexGrow: 0,
+    flexShrink: 0,
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.sm,
