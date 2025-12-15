@@ -734,19 +734,27 @@ function LoadoutTab({
     return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
   };
 
-  const allSkins = Object.values(FLAPPY_SKINS);
-  const skins = allSkins
-    .filter(skin => !isGuestUser || !skin.isNFT)
-    .sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity]);
-  
-  const allTrails = Object.values(FLAPPY_TRAILS);
-  const trails = allTrails.filter(trail => !isGuestUser || !trail.isNFT);
-
   const isTrailOwned = (trailId: RoachyTrail): boolean => {
     if (!FLAPPY_TRAILS[trailId].isNFT) return true;
     const mappedName = TRAIL_NFT_MAPPING[trailId];
     return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
   };
+
+  const allSkins = Object.values(FLAPPY_SKINS);
+  const skins = allSkins
+    .filter(skin => {
+      if (isGuestUser) return !skin.isNFT;
+      if (!skin.isNFT) return true;
+      return isSkinOwned(skin.id);
+    })
+    .sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity]);
+  
+  const allTrails = Object.values(FLAPPY_TRAILS);
+  const trails = allTrails.filter(trail => {
+    if (isGuestUser) return !trail.isNFT;
+    if (!trail.isNFT) return true;
+    return isTrailOwned(trail.id);
+  });
 
   return (
     <ScrollView 

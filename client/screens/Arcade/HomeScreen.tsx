@@ -185,7 +185,7 @@ function TokenBalanceCardWithWebapp() {
 
   return (
     <TokenBalanceCard
-      chyCoinsBalance={user?.chyBalance || chy || 0}
+      chyCoinsBalance={chy || 0}
       isConnected={!!user && !isGuest}
       isLoading={isLoading}
       isGuest={isGuest}
