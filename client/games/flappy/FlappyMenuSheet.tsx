@@ -24,7 +24,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING } from "./flappySkins";
+import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING, RARITY_ORDER, SkinDefinition } from "./flappySkins";
 import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
 
@@ -281,6 +281,7 @@ export function FlappyMenuSheet({
                 nftsLoading={nftsLoading}
                 selectedTrail={selectedTrail}
                 onSelectTrail={onSelectTrail}
+                userId={userId}
               />
             )}
           </View>
@@ -683,6 +684,7 @@ function LoadoutTab({
   nftsLoading,
   selectedTrail,
   onSelectTrail,
+  userId,
 }: {
   inventory: any;
   isLoading: boolean;
@@ -695,6 +697,7 @@ function LoadoutTab({
   nftsLoading: boolean;
   selectedTrail: RoachyTrail;
   onSelectTrail: (trail: RoachyTrail) => void;
+  userId: string | null;
 }) {
   const powerUps = [
     {
@@ -723,14 +726,21 @@ function LoadoutTab({
     },
   ];
 
+  const isGuestUser = !userId || userId.startsWith('player_');
+
   const isSkinOwned = (skinId: RoachySkin): boolean => {
     if (!FLAPPY_SKINS[skinId].isNFT) return true;
     const mappedName = SKIN_NFT_MAPPING[skinId];
     return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
   };
 
-  const skins = Object.values(FLAPPY_SKINS);
-  const trails = Object.values(FLAPPY_TRAILS);
+  const allSkins = Object.values(FLAPPY_SKINS);
+  const skins = allSkins
+    .filter(skin => !isGuestUser || !skin.isNFT)
+    .sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity]);
+  
+  const allTrails = Object.values(FLAPPY_TRAILS);
+  const trails = allTrails.filter(trail => !isGuestUser || !trail.isNFT);
 
   const isTrailOwned = (trailId: RoachyTrail): boolean => {
     if (!FLAPPY_TRAILS[trailId].isNFT) return true;
@@ -811,7 +821,7 @@ function SkinCard({
   isLoading,
   onSelect,
 }: {
-  skin: typeof FLAPPY_SKINS.default;
+  skin: SkinDefinition;
   isSelected: boolean;
   isOwned: boolean;
   isLoading: boolean;
