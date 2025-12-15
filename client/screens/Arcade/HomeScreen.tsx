@@ -44,7 +44,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { getCreatureDefinition } from "@/constants/creatures";
 import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
+import { useFlappyTrail, RoachyTrail } from "@/context/FlappyTrailContext";
 import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
+import { FLAPPY_TRAILS } from "@/games/flappy/flappyTrails";
 import { Image as ExpoImage } from "expo-image";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
 
@@ -780,6 +782,7 @@ export function ArcadeHomeScreen() {
   const { user, logout, isGuest } = useAuth();
   const { collectedEggs, hatchEggs, refreshEconomy, collection: huntCollection } = useHunt();
   const { equippedSkin, setEquippedSkin, isLoading: isSkinLoading } = useFlappySkin();
+  const { equippedTrail, setEquippedTrail, isLoading: isTrailLoading } = useFlappyTrail();
   const {
     items: inventoryItems,
     isLoading: isLoadingInventory,
@@ -804,6 +807,7 @@ export function ArcadeHomeScreen() {
 
   // Build game inventories for game-based tabs
   const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const trailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, typeof FLAPPY_TRAILS.none][];
   const gameInventories = [
     {
       id: "flappy-roach",
@@ -823,8 +827,21 @@ export function ArcadeHomeScreen() {
             isEquipped: !isSkinLoading && equippedSkin === skinId,
           })),
         },
+        {
+          id: "trails",
+          name: "Trails",
+          icon: "wind" as keyof typeof Feather.glyphMap,
+          items: trailEntries.map(([trailId, trail]) => ({
+            id: trailId,
+            name: trail.name,
+            asset: trail.asset,
+            isNFT: trail.isNFT,
+            rarity: trail.rarity,
+            isEquipped: !isTrailLoading && equippedTrail === trailId,
+          })),
+        },
       ],
-      totalItems: skinEntries.length,
+      totalItems: skinEntries.length + trailEntries.length,
     },
     {
       id: "roachy-hunt",
@@ -1202,6 +1219,44 @@ export function ArcadeHomeScreen() {
                                   {item.isNFT ? <PremiumNFTBadge /> : <View style={styles.nftBadgePlaceholder} />}
                                 </View>
                                 <ExpoImage source={item.image} style={styles.skinImage} contentFit="contain" />
+                                <ThemedText style={styles.skinName}>{item.name}</ThemedText>
+                                {item.isEquipped ? (
+                                  <View style={styles.equippedBadge}>
+                                    <ThemedText style={styles.equippedBadgeText}>EQUIPPED</ThemedText>
+                                  </View>
+                                ) : <View style={styles.equippedPlaceholder} />}
+                              </Pressable>
+                            ))}
+                          </View>
+                        ) : category.id === "trails" ? (
+                          /* Flappy Trails with equip functionality */
+                          <View style={styles.skinsGrid}>
+                            {category.items.map((item: any) => (
+                              <Pressable
+                                key={item.id}
+                                style={[
+                                  styles.skinCard,
+                                  item.isEquipped && styles.skinCardEquipped,
+                                  isTrailLoading && styles.skinCardDisabled,
+                                ]}
+                                onPress={() => {
+                                  if (!isTrailLoading) {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    setEquippedTrail(item.id as RoachyTrail);
+                                  }
+                                }}
+                                disabled={isTrailLoading}
+                              >
+                                <View style={styles.skinCardHeader}>
+                                  {item.isNFT ? <PremiumNFTBadge /> : <View style={styles.nftBadgePlaceholder} />}
+                                </View>
+                                {item.asset ? (
+                                  <ExpoImage source={item.asset} style={styles.skinImage} contentFit="contain" />
+                                ) : (
+                                  <View style={styles.trailIconContainer}>
+                                    <Feather name="minus" size={32} color={GameColors.textTertiary} />
+                                  </View>
+                                )}
                                 <ThemedText style={styles.skinName}>{item.name}</ThemedText>
                                 {item.isEquipped ? (
                                   <View style={styles.equippedBadge}>
@@ -2206,6 +2261,13 @@ const styles = StyleSheet.create({
   skinImage: {
     width: 56,
     height: 56,
+    marginBottom: Spacing.xs,
+  },
+  trailIconContainer: {
+    width: 56,
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: Spacing.xs,
   },
   skinName: {
