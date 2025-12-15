@@ -2231,10 +2231,11 @@ const styles = StyleSheet.create({
   },
   skinsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   skinCard: {
-    flex: 1,
+    width: 75,
     backgroundColor: GameColors.background,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
