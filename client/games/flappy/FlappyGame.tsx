@@ -28,6 +28,7 @@ import { FlappyMenuSheet } from "./FlappyMenuSheet";
 import { apiRequest } from "@/lib/query-client";
 import { FLAPPY_SKINS, RoachySkin, ALL_SPRITES } from "./flappySkins";
 import { FLAPPY_TRAILS, RoachyTrail, ALL_TRAIL_ASSETS } from "./flappyTrails";
+import { useFlappyTrail } from "@/context/FlappyTrailContext";
 
 export { FLAPPY_SKINS, RoachySkin } from "./flappySkins";
 export { FLAPPY_TRAILS, RoachyTrail } from "./flappyTrails";
@@ -397,15 +398,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     magnet: boolean;
   }>({ shield: false, double: false, magnet: false });
   const [selectedSkin, setSelectedSkin] = useState<RoachySkin>(skin);
-  const [selectedTrail, setSelectedTrail] = useState<RoachyTrail>(trail);
+  const { equippedTrail, setEquippedTrail } = useFlappyTrail();
   
   useEffect(() => {
     setSelectedSkin(skin);
   }, [skin]);
   
-  useEffect(() => {
-    setSelectedTrail(trail);
-  }, [trail]);
+  const handleSelectTrail = useCallback((newTrail: RoachyTrail) => {
+    setEquippedTrail(newTrail);
+  }, [setEquippedTrail]);
   
   const shieldEndTimeRef = useRef<number>(0);
   const doubleEndTimeRef = useRef<number>(0);
@@ -416,7 +417,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const ROACHY_FRAMES = currentSkin.frames;
   const ROACHY_DEAD = currentSkin.dead;
   
-  const currentTrail = FLAPPY_TRAILS[selectedTrail] || FLAPPY_TRAILS.none;
+  const currentTrail = FLAPPY_TRAILS[equippedTrail] || FLAPPY_TRAILS.none;
   const TRAIL_ASSET = currentTrail.asset;
   
   useEffect(() => {
@@ -1356,6 +1357,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         equippedPowerUps={equippedPowerUps}
         selectedSkin={selectedSkin}
         onSelectSkin={setSelectedSkin}
+        selectedTrail={equippedTrail}
+        onSelectTrail={handleSelectTrail}
       />
     </View>
   );

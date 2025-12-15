@@ -15,7 +15,9 @@ import { useHunt, CaughtCreature as HuntCaughtCreature } from "@/context/HuntCon
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES, CreatureRarity } from "@/constants/creatures";
 import { InventoryStackParamList } from "@/navigation/InventoryStackNavigator";
 import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
+import { useFlappyTrail, RoachyTrail } from "@/context/FlappyTrailContext";
 import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
+import { FLAPPY_TRAILS, TrailDefinition } from "@/games/flappy/flappyTrails";
 
 type NavigationProp = NativeStackNavigationProp<InventoryStackParamList>;
 
@@ -131,6 +133,53 @@ function FlappySkinCard({
   );
 }
 
+function FlappyTrailCard({
+  trailId,
+  trail,
+  isEquipped,
+  onEquip,
+  index,
+  disabled,
+}: {
+  trailId: RoachyTrail;
+  trail: TrailDefinition;
+  isEquipped: boolean;
+  onEquip: () => void;
+  index: number;
+  disabled?: boolean;
+}) {
+  return (
+    <Animated.View entering={FadeIn.delay(index * 50)}>
+      <Pressable
+        style={[styles.skinCard, !disabled && isEquipped && styles.skinCardEquipped, disabled && styles.skinCardDisabled]}
+        onPress={disabled ? undefined : onEquip}
+        disabled={disabled}
+      >
+        <View style={styles.cardTopRow}>
+          {trail.isNFT ? (
+            <View style={styles.nftBadge}>
+              <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
+            </View>
+          ) : <View style={styles.badgePlaceholder} />}
+        </View>
+        {trail.asset ? (
+          <ExpoImage source={trail.asset} style={styles.skinImage} contentFit="contain" />
+        ) : (
+          <View style={[styles.skinImage, styles.noTrailPlaceholder]}>
+            <Feather name="slash" size={24} color={GameColors.textTertiary} />
+          </View>
+        )}
+        <ThemedText style={styles.skinName} numberOfLines={1}>{trail.name}</ThemedText>
+        {!disabled && isEquipped ? (
+          <View style={styles.equippedBadge}>
+            <ThemedText style={styles.equippedBadgeText}>EQUIPPED</ThemedText>
+          </View>
+        ) : <View style={styles.equippedPlaceholder} />}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function InventoryScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -138,12 +187,14 @@ export default function InventoryScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { collection, collectedEggs } = useHunt();
   const { equippedSkin, setEquippedSkin, isLoading: skinLoading } = useFlappySkin();
+  const { equippedTrail, setEquippedTrail, isLoading: trailLoading } = useFlappyTrail();
 
   const navigateToCreature = useCallback((uniqueId: string) => {
     navigation.navigate("CreatureDetail", { uniqueId });
   }, [navigation]);
 
   const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const trailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, TrailDefinition][];
 
   return (
     <View style={styles.container}>
@@ -214,6 +265,25 @@ export default function InventoryScreen() {
                   onEquip={() => setEquippedSkin(skinId)}
                   index={index}
                   disabled={skinLoading}
+                />
+              </View>
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* Flappy Roachy Trails */}
+        <Animated.View entering={FadeInDown.delay(175)}>
+          <SectionHeader title="Flappy Trails" badge={`${trailEntries.length}`} />
+          <View style={styles.skinsRow}>
+            {trailEntries.map(([trailId, trail], index) => (
+              <View key={trailId} style={styles.skinItemWrapper}>
+                <FlappyTrailCard
+                  trailId={trailId}
+                  trail={trail}
+                  isEquipped={equippedTrail === trailId}
+                  onEquip={() => setEquippedTrail(trailId)}
+                  index={index}
+                  disabled={trailLoading}
                 />
               </View>
             ))}
@@ -458,6 +528,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     marginBottom: Spacing.sm,
+  },
+  noTrailPlaceholder: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
   skinName: {
     fontSize: 13,

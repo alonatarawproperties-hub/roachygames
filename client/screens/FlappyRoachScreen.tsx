@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/query-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFlappySkin } from "@/context/FlappySkinContext";
+import { useFlappyTrail } from "@/context/FlappyTrailContext";
 import { GameColors } from "@/constants/theme";
 
 export function FlappyRoachScreen() {
@@ -14,6 +15,7 @@ export function FlappyRoachScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { equippedSkin, isLoading: skinLoading } = useFlappySkin();
+  const { equippedTrail, isLoading: trailLoading } = useFlappyTrail();
 
   useEffect(() => {
     async function lockOrientation() {
@@ -69,7 +71,7 @@ export function FlappyRoachScreen() {
     }
   }, [user?.id, queryClient]);
 
-  if (skinLoading) {
+  if (skinLoading || trailLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={GameColors.gold} />
@@ -84,6 +86,7 @@ export function FlappyRoachScreen() {
         onScoreSubmit={handleScoreSubmit} 
         userId={user?.id}
         skin={equippedSkin}
+        trail={equippedTrail}
       />
     </View>
   );

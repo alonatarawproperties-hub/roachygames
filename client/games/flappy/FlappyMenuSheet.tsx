@@ -25,6 +25,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING } from "./flappySkins";
+import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
@@ -97,6 +98,8 @@ interface FlappyMenuSheetProps {
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
   selectedSkin: RoachySkin;
   onSelectSkin: (skin: RoachySkin) => void;
+  selectedTrail: RoachyTrail;
+  onSelectTrail: (trail: RoachyTrail) => void;
 }
 
 const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.5;
@@ -113,6 +116,8 @@ export function FlappyMenuSheet({
   equippedPowerUps,
   selectedSkin,
   onSelectSkin,
+  selectedTrail,
+  onSelectTrail,
 }: FlappyMenuSheetProps) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>("leaderboards");
@@ -274,6 +279,8 @@ export function FlappyMenuSheet({
                 onSelectSkin={onSelectSkin}
                 ownedSkins={getOwnedSkins("flappy_roachy")}
                 nftsLoading={nftsLoading}
+                selectedTrail={selectedTrail}
+                onSelectTrail={onSelectTrail}
               />
             )}
           </View>
@@ -674,6 +681,8 @@ function LoadoutTab({
   onSelectSkin,
   ownedSkins,
   nftsLoading,
+  selectedTrail,
+  onSelectTrail,
 }: {
   inventory: any;
   isLoading: boolean;
@@ -684,6 +693,8 @@ function LoadoutTab({
   onSelectSkin: (skin: RoachySkin) => void;
   ownedSkins: string[];
   nftsLoading: boolean;
+  selectedTrail: RoachyTrail;
+  onSelectTrail: (trail: RoachyTrail) => void;
 }) {
   const powerUps = [
     {
@@ -719,6 +730,13 @@ function LoadoutTab({
   };
 
   const skins = Object.values(FLAPPY_SKINS);
+  const trails = Object.values(FLAPPY_TRAILS);
+
+  const isTrailOwned = (trailId: RoachyTrail): boolean => {
+    if (!FLAPPY_TRAILS[trailId].isNFT) return true;
+    const mappedName = TRAIL_NFT_MAPPING[trailId];
+    return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
+  };
 
   return (
     <ScrollView 
@@ -737,6 +755,21 @@ function LoadoutTab({
             isOwned={isSkinOwned(skin.id)}
             isLoading={skin.isNFT && nftsLoading}
             onSelect={() => onSelectSkin(skin.id)}
+          />
+        ))}
+      </View>
+
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Trails</ThemedText>
+      
+      <View style={styles.skinGrid}>
+        {trails.map((trail) => (
+          <TrailCard
+            key={trail.id}
+            trail={trail}
+            isSelected={selectedTrail === trail.id}
+            isOwned={isTrailOwned(trail.id)}
+            isLoading={trail.isNFT && nftsLoading}
+            onSelect={() => onSelectTrail(trail.id)}
           />
         ))}
       </View>
@@ -827,6 +860,78 @@ function SkinCard({
       </View>
       <ThemedText style={styles.skinName} numberOfLines={1}>{skin.name}</ThemedText>
       {skin.isNFT ? (
+        <View style={styles.nftBadge}>
+          <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
+        </View>
+      ) : (
+        <ThemedText style={styles.freeBadge}>Free</ThemedText>
+      )}
+    </Pressable>
+  );
+}
+
+function TrailCard({
+  trail,
+  isSelected,
+  isOwned,
+  isLoading,
+  onSelect,
+}: {
+  trail: typeof FLAPPY_TRAILS.none;
+  isSelected: boolean;
+  isOwned: boolean;
+  isLoading: boolean;
+  onSelect: () => void;
+}) {
+  const handlePress = () => {
+    if (isLoading) return;
+    if (isOwned) {
+      onSelect();
+    } else {
+      WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`);
+    }
+  };
+
+  return (
+    <Pressable
+      style={[
+        styles.skinCard,
+        isSelected && styles.skinCardSelected,
+        !isOwned && !isLoading && styles.skinCardLocked,
+      ]}
+      onPress={handlePress}
+      disabled={isLoading}
+    >
+      <View style={styles.skinPreview}>
+        {trail.asset ? (
+          <Image
+            source={trail.asset}
+            style={styles.skinImage}
+            contentFit="contain"
+          />
+        ) : (
+          <View style={[styles.skinImage, styles.noTrailPlaceholder]}>
+            <Feather name="slash" size={20} color={GameColors.textSecondary} />
+          </View>
+        )}
+        {!isOwned && !isLoading ? (
+          <View style={styles.lockedOverlay}>
+            <Feather name="lock" size={20} color={GameColors.gold} />
+          </View>
+        ) : null}
+        {isLoading ? (
+          <View style={styles.lockedOverlay}>
+            <ActivityIndicator size="small" color={GameColors.gold} />
+          </View>
+        ) : null}
+        {isSelected && isOwned ? (
+          <View style={styles.selectedBadge}>
+            <Feather name="check" size={12} color="#000" />
+          </View>
+        ) : null}
+      </View>
+      <ThemedText style={styles.skinName} numberOfLines={1}>{trail.name}</ThemedText>
+      {trail.isNFT ? (
         <View style={styles.nftBadge}>
           <ThemedText style={styles.nftBadgeText}>NFT</ThemedText>
         </View>
@@ -1470,6 +1575,12 @@ const styles = StyleSheet.create({
   skinImage: {
     width: 70,
     height: 70,
+  },
+  noTrailPlaceholder: {
+    backgroundColor: GameColors.surface,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   lockedOverlay: {
     position: "absolute",
