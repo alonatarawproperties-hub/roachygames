@@ -1,6 +1,4 @@
-const BREEZE_TRAIL = require("@/assets/trails/breeze-trail.png");
-
-export type RoachyTrail = "none" | "breeze";
+export type RoachyTrail = "none";
 
 export interface TrailDefinition {
   id: RoachyTrail;
@@ -18,20 +16,10 @@ export const FLAPPY_TRAILS: Record<RoachyTrail, TrailDefinition> = {
     asset: null,
     isNFT: false,
   },
-  breeze: {
-    id: "breeze",
-    name: "Breeze Trail",
-    rarity: "common",
-    asset: BREEZE_TRAIL,
-    isNFT: true,
-  },
 };
 
-export const ALL_TRAIL_ASSETS = [
-  BREEZE_TRAIL,
-];
+export const ALL_TRAIL_ASSETS: any[] = [];
 
 export const TRAIL_NFT_MAPPING: Record<RoachyTrail, string> = {
   none: "",
-  breeze: "breeze",
 };
