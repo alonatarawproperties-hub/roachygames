@@ -10,8 +10,14 @@ const ROACHY_KING_DEAD = require("@/assets/flappy/roachy-king-dead.png");
 const ROACHY_QUEEN_1 = require("@/assets/flappy/roachy-queen-1.png");
 const ROACHY_QUEEN_2 = require("@/assets/flappy/roachy-queen-2.png");
 const ROACHY_QUEEN_DEAD = require("@/assets/flappy/roachy-queen-3.png");
+const ROACHY_PRINCE_1 = require("@/assets/flappy/roachy-prince-1.png");
+const ROACHY_PRINCE_2 = require("@/assets/flappy/roachy-prince-2.png");
+const ROACHY_PRINCE_DEAD = require("@/assets/flappy/roachy-prince-dead.png");
+const ROACHY_PRINCESS_1 = require("@/assets/flappy/roachy-princess-1.png");
+const ROACHY_PRINCESS_2 = require("@/assets/flappy/roachy-princess-2.png");
+const ROACHY_PRINCESS_DEAD = require("@/assets/flappy/roachy-princess-dead.png");
 
-export type RoachySkin = "default" | "rainbow" | "king" | "queen";
+export type RoachySkin = "default" | "rainbow" | "king" | "queen" | "prince" | "princess";
 
 export type SkinRarity = "common" | "rare" | "epic" | "legendary";
 
@@ -64,6 +70,22 @@ export const FLAPPY_SKINS: Record<RoachySkin, SkinDefinition> = {
     isNFT: true,
     rarity: "legendary" as SkinRarity,
   },
+  prince: {
+    id: "prince" as const,
+    name: "Prince Roachy",
+    frames: [ROACHY_PRINCE_1, ROACHY_PRINCE_2],
+    dead: ROACHY_PRINCE_DEAD,
+    isNFT: true,
+    rarity: "common" as SkinRarity,
+  },
+  princess: {
+    id: "princess" as const,
+    name: "Princess Roachy",
+    frames: [ROACHY_PRINCESS_1, ROACHY_PRINCESS_2],
+    dead: ROACHY_PRINCESS_DEAD,
+    isNFT: true,
+    rarity: "common" as SkinRarity,
+  },
 };
 
 export const ALL_SPRITES = [
@@ -71,6 +93,8 @@ export const ALL_SPRITES = [
   ROACHY_RAINBOW_1, ROACHY_RAINBOW_2, ROACHY_RAINBOW_DEAD,
   ROACHY_KING_1, ROACHY_KING_2, ROACHY_KING_DEAD,
   ROACHY_QUEEN_1, ROACHY_QUEEN_2, ROACHY_QUEEN_DEAD,
+  ROACHY_PRINCE_1, ROACHY_PRINCE_2, ROACHY_PRINCE_DEAD,
+  ROACHY_PRINCESS_1, ROACHY_PRINCESS_2, ROACHY_PRINCESS_DEAD,
 ];
 
 export const SKIN_NFT_MAPPING: Record<RoachySkin, string> = {
@@ -78,4 +102,6 @@ export const SKIN_NFT_MAPPING: Record<RoachySkin, string> = {
   rainbow: "rainbow",
   king: "golden",
   queen: "neon",
+  prince: "prince",
+  princess: "princess",
 };
