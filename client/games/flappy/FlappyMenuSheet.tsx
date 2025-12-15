@@ -185,8 +185,8 @@ export function FlappyMenuSheet({
   });
 
 
-  const { data: diamondData } = useQuery<{ success: boolean; diamondBalance: number }>({
-    queryKey: ["/api/user", userId, "diamonds"],
+  const { data: chyData } = useQuery<{ success: boolean; chyBalance: number }>({
+    queryKey: ["/api/user", userId, "chy"],
     enabled: visible && !!userId,
   });
 
@@ -196,7 +196,7 @@ export function FlappyMenuSheet({
     },
     onSuccess: (data: any, period: 'daily' | 'weekly') => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user", userId, "diamonds"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user", userId, "chy"] });
       onPlayRanked(period);
       onClose();
     },
@@ -259,7 +259,7 @@ export function FlappyMenuSheet({
                 isLoading={leaderboardLoading}
                 rankedStatus={rankedStatus}
                 userId={userId}
-                diamondBalance={diamondData?.diamondBalance ?? 0}
+                chyBalance={chyData?.chyBalance ?? 0}
                 onPlayFree={() => {
                   onPlayFree();
                   onClose();
@@ -341,7 +341,7 @@ function CompetitionCard({
   endsIn,
   hasJoined,
   canEnter,
-  diamondBalance,
+  chyBalance,
   userId,
   isEntering,
   isSelected,
@@ -356,14 +356,14 @@ function CompetitionCard({
   endsIn: number;
   hasJoined: boolean;
   canEnter: boolean;
-  diamondBalance: number;
+  chyBalance: number;
   userId: string | null;
   isEntering: boolean;
   isSelected: boolean;
   onEnter: () => void;
   onSelect: () => void;
 }) {
-  const hasEnoughDiamonds = diamondBalance >= entryFee;
+  const hasEnoughChy = chyBalance >= entryFee;
   
   return (
     <Pressable 
@@ -377,7 +377,7 @@ function CompetitionCard({
       <View style={styles.competitionHeader}>
         <View style={styles.competitionTitleRow}>
           <View style={[styles.competitionIcon, hasJoined && styles.joinedIcon, isSelected && styles.selectedIcon]}>
-            <Feather name={icon} size={18} color={isSelected ? GameColors.gold : (hasJoined ? GameColors.gold : GameColors.diamond)} />
+            <Feather name={icon} size={18} color={isSelected ? GameColors.gold : (hasJoined ? GameColors.gold : GameColors.gold)} />
           </View>
           <ThemedText style={styles.competitionTitle}>{title}</ThemedText>
           {isSelected ? (
@@ -429,9 +429,9 @@ function CompetitionCard({
             <ActivityIndicator size="small" color="#000" />
           ) : !userId ? (
             <ThemedText style={styles.enterButtonText}>Sign in to join</ThemedText>
-          ) : !hasEnoughDiamonds ? (
+          ) : !hasEnoughChy ? (
             <ThemedText style={[styles.enterButtonText, { color: GameColors.textSecondary }]}>
-              Need {entryFee - diamondBalance} more
+              Need {entryFee - chyBalance} more
             </ThemedText>
           ) : (
             <ThemedText style={styles.enterButtonText}>Enter Competition</ThemedText>
@@ -447,7 +447,7 @@ function LeaderboardsTab({
   isLoading,
   rankedStatus,
   userId,
-  diamondBalance,
+  chyBalance,
   onPlayFree,
   onPlayRanked,
   isEntering,
@@ -457,7 +457,7 @@ function LeaderboardsTab({
   isLoading: boolean;
   rankedStatus: RankedStatusResponse | undefined;
   userId: string | null;
-  diamondBalance: number;
+  chyBalance: number;
   onPlayFree: () => void;
   onPlayRanked: (period: 'daily' | 'weekly') => void;
   isEntering: boolean;
@@ -468,8 +468,8 @@ function LeaderboardsTab({
   const daily = rankedStatus?.daily;
   const weekly = rankedStatus?.weekly;
   
-  const canEnterDaily = userId && diamondBalance >= (daily?.entryFee || 1) && !isEntering && !daily?.hasJoined;
-  const canEnterWeekly = userId && diamondBalance >= (weekly?.entryFee || 3) && !isEntering && !weekly?.hasJoined;
+  const canEnterDaily = userId && chyBalance >= (daily?.entryFee || 1) && !isEntering && !daily?.hasJoined;
+  const canEnterWeekly = userId && chyBalance >= (weekly?.entryFee || 3) && !isEntering && !weekly?.hasJoined;
 
   const selectedInfo = selectedCompetition === 'daily' ? daily : selectedCompetition === 'weekly' ? weekly : null;
   
@@ -491,7 +491,7 @@ function LeaderboardsTab({
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
             <Image source={ChyCoinIcon} style={styles.coinSymbolImage} contentFit="contain" />
-            <ThemedText style={styles.balanceValue}>{diamondBalance}</ThemedText>
+            <ThemedText style={styles.balanceValue}>{chyBalance}</ThemedText>
             <ThemedText style={styles.balanceLabel}>Chy Coins</ThemedText>
           </View>
         </View>
@@ -525,7 +525,7 @@ function LeaderboardsTab({
           endsIn={daily?.endsIn || 0}
           hasJoined={daily?.hasJoined || false}
           canEnter={!!canEnterDaily}
-          diamondBalance={diamondBalance}
+          chyBalance={chyBalance}
           userId={userId}
           isEntering={isEntering}
           isSelected={selectedCompetition === 'daily'}
@@ -542,7 +542,7 @@ function LeaderboardsTab({
           endsIn={weekly?.endsIn || 0}
           hasJoined={weekly?.hasJoined || false}
           canEnter={!!canEnterWeekly}
-          diamondBalance={diamondBalance}
+          chyBalance={chyBalance}
           userId={userId}
           isEntering={isEntering}
           isSelected={selectedCompetition === 'weekly'}
