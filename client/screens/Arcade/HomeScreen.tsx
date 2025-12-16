@@ -49,6 +49,7 @@ import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
 import { FLAPPY_TRAILS } from "@/games/flappy/flappyTrails";
 import { Image as ExpoImage } from "expo-image";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
+import { useUserNfts } from "@/hooks/useUserNfts";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EGGS_REQUIRED = 10;
@@ -350,7 +351,22 @@ const eggStyles = StyleSheet.create({
 function FlappySkinsSection() {
   const { equippedSkin, setEquippedSkin, isLoading } = useFlappySkin();
   const { width: screenWidth } = useWindowDimensions();
-  const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const { isGuest } = useAuth();
+  const { nfts } = useUserNfts();
+  
+  // Get owned skin names from NFTs
+  const ownedSkinNames = nfts
+    .filter((nft) => nft.game.toLowerCase() === "flappy_roachy" && nft.type === "skin")
+    .map((nft) => nft.name.toLowerCase().replace(/\s+/g, "_"));
+  
+  // Filter skins: show non-NFT skins always, show NFT skins only if owned
+  const allSkins = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const skinEntries = allSkins.filter(([skinId, skin]) => {
+    if (!skin.isNFT) return true;
+    if (isGuest) return false;
+    const nftName = skin.name.toLowerCase().replace(/\s+/g, "_");
+    return ownedSkinNames.includes(nftName);
+  });
   
   const containerPadding = Spacing.lg * 2;
   const gap = Spacing.sm;
@@ -782,6 +798,7 @@ export function ArcadeHomeScreen() {
   const { collectedEggs, hatchEggs, refreshEconomy, collection: huntCollection } = useHunt();
   const { equippedSkin, setEquippedSkin, isLoading: isSkinLoading } = useFlappySkin();
   const { equippedTrail, setEquippedTrail, isLoading: isTrailLoading } = useFlappyTrail();
+  const { nfts } = useUserNfts();
   const {
     items: inventoryItems,
     isLoading: isLoadingInventory,
@@ -804,8 +821,20 @@ export function ArcadeHomeScreen() {
   // Get unique item types that exist in inventory for dynamic filters
   const activeItemTypes = getActiveItemTypes();
 
-  // Build game inventories for game-based tabs
-  const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  // Get owned skin names from NFTs for filtering
+  const ownedSkinNames = nfts
+    .filter((nft) => nft.game.toLowerCase() === "flappy_roachy" && nft.type === "skin")
+    .map((nft) => nft.name.toLowerCase().replace(/\s+/g, "_"));
+
+  // Filter skins: show non-NFT always, show NFT only if owned
+  const allSkins = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const skinEntries = allSkins.filter(([skinId, skin]) => {
+    if (!skin.isNFT) return true;
+    if (isGuest) return false;
+    const nftName = skin.name.toLowerCase().replace(/\s+/g, "_");
+    return ownedSkinNames.includes(nftName);
+  });
+  
   const trailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, typeof FLAPPY_TRAILS.none][];
   const gameInventories = [
     {
