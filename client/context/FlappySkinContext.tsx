@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { RoachySkin, FLAPPY_SKINS } from "@/games/flappy/flappySkins";
 
-export type RoachySkin = "default" | "rainbow";
+export { RoachySkin };
 
 interface FlappySkinContextType {
   equippedSkin: RoachySkin;
@@ -21,8 +22,8 @@ export function FlappySkinProvider({ children }: { children: React.ReactNode }) 
     async function loadSkin() {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored === "default" || stored === "rainbow") {
-          setEquippedSkinState(stored);
+        if (stored && stored in FLAPPY_SKINS) {
+          setEquippedSkinState(stored as RoachySkin);
         }
       } catch (e) {
       } finally {

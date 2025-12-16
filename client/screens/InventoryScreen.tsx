@@ -14,10 +14,25 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useHunt, CaughtCreature as HuntCaughtCreature } from "@/context/HuntContext";
 import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES, CreatureRarity } from "@/constants/creatures";
 import { InventoryStackParamList } from "@/navigation/InventoryStackNavigator";
-import { useFlappySkin, RoachySkin } from "@/context/FlappySkinContext";
-import { useFlappyTrail, RoachyTrail } from "@/context/FlappyTrailContext";
-import { FLAPPY_SKINS } from "@/games/flappy/FlappyGame";
-import { FLAPPY_TRAILS, TrailDefinition } from "@/games/flappy/flappyTrails";
+import { useFlappySkin } from "@/context/FlappySkinContext";
+import { useFlappyTrail } from "@/context/FlappyTrailContext";
+import { FLAPPY_SKINS, RoachySkin } from "@/games/flappy/flappySkins";
+import { FLAPPY_TRAILS, RoachyTrail, TrailDefinition } from "@/games/flappy/flappyTrails";
+import { useAuth } from "@/context/AuthContext";
+import { useUserNfts } from "@/hooks/useUserNfts";
+
+const SKIN_NFT_MAPPING: Record<RoachySkin, string> = {
+  default: "",
+  rainbow: "rainbow",
+  king: "king",
+  queen: "queen",
+  prince: "prince",
+  princess: "princess",
+};
+
+const TRAIL_NFT_MAPPING: Record<RoachyTrail, string> = {
+  none: "",
+};
 
 type NavigationProp = NativeStackNavigationProp<InventoryStackParamList>;
 
@@ -188,13 +203,41 @@ export default function InventoryScreen() {
   const { collection, collectedEggs } = useHunt();
   const { equippedSkin, setEquippedSkin, isLoading: skinLoading } = useFlappySkin();
   const { equippedTrail, setEquippedTrail, isLoading: trailLoading } = useFlappyTrail();
+  const { user } = useAuth();
+  const { getOwnedSkins } = useUserNfts();
+  
+  const ownedSkins = getOwnedSkins("flappy_roachy");
+  const isGuestUser = !user?.id || user.id.startsWith('guest_');
+
+  const isSkinOwned = (skinId: RoachySkin): boolean => {
+    if (!FLAPPY_SKINS[skinId].isNFT) return true;
+    const mappedName = SKIN_NFT_MAPPING[skinId];
+    return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
+  };
+
+  const isTrailOwned = (trailId: RoachyTrail): boolean => {
+    if (!FLAPPY_TRAILS[trailId].isNFT) return true;
+    const mappedName = TRAIL_NFT_MAPPING[trailId];
+    return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
+  };
 
   const navigateToCreature = useCallback((uniqueId: string) => {
     navigation.navigate("CreatureDetail", { uniqueId });
   }, [navigation]);
 
-  const skinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
-  const trailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, TrailDefinition][];
+  const allSkinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
+  const skinEntries = allSkinEntries.filter(([skinId, skin]) => {
+    if (isGuestUser) return !skin.isNFT;
+    if (!skin.isNFT) return true;
+    return isSkinOwned(skinId);
+  });
+  
+  const allTrailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, TrailDefinition][];
+  const trailEntries = allTrailEntries.filter(([trailId, trail]) => {
+    if (isGuestUser) return !trail.isNFT;
+    if (!trail.isNFT) return true;
+    return isTrailOwned(trailId);
+  });
 
   return (
     <View style={styles.container}>
