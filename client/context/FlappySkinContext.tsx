@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { RoachySkin, FLAPPY_SKINS } from "@/games/flappy/flappySkins";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { RoachySkin } from "@/games/flappy/flappySkins";
 
 export { RoachySkin };
 
@@ -10,35 +9,14 @@ interface FlappySkinContextType {
   isLoading: boolean;
 }
 
-const STORAGE_KEY = "flappy_equipped_skin";
-
 const FlappySkinContext = createContext<FlappySkinContextType | null>(null);
 
 export function FlappySkinProvider({ children }: { children: React.ReactNode }) {
   const [equippedSkin, setEquippedSkinState] = useState<RoachySkin>("default");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    async function loadSkin() {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored && stored in FLAPPY_SKINS) {
-          setEquippedSkinState(stored as RoachySkin);
-        }
-      } catch (e) {
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadSkin();
-  }, []);
-
-  const setEquippedSkin = useCallback(async (skin: RoachySkin) => {
+  const setEquippedSkin = useCallback((skin: RoachySkin) => {
     setEquippedSkinState(skin);
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, skin);
-    } catch (e) {
-    }
   }, []);
 
   return (
