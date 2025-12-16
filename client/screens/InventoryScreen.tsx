@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback } from "react";
 import { View, StyleSheet, Image, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -204,52 +204,51 @@ export default function InventoryScreen() {
   const { equippedSkin, setEquippedSkin, isLoading: skinLoading } = useFlappySkin();
   const { equippedTrail, setEquippedTrail, isLoading: trailLoading } = useFlappyTrail();
   const { user, isGuest } = useAuth();
-  const { nfts, getOwnedSkins } = useUserNfts();
+  const { nfts } = useUserNfts();
   
-  const ownedSkinNames = getOwnedSkins("flappy_roachy");
+  // Get owned skin names directly from NFTs array
+  const ownedSkinNames = nfts
+    .filter((nft) => nft.game.toLowerCase() === "flappy_roachy" && nft.type === "skin")
+    .map((nft) => nft.name.toLowerCase().replace(/\s+/g, "_"));
   
-  console.log('[Inventory] User:', user?.id, 'isGuest:', isGuest);
-  console.log('[Inventory] NFTs from API:', JSON.stringify(nfts));
+  console.log('[Inventory] User:', user?.id, 'isGuest:', isGuest, 'authProvider:', user?.authProvider);
+  console.log('[Inventory] Raw NFTs:', JSON.stringify(nfts));
   console.log('[Inventory] Owned skin names:', JSON.stringify(ownedSkinNames));
-
-  const isSkinOwned = useCallback((skinId: RoachySkin): boolean => {
-    const skin = FLAPPY_SKINS[skinId];
-    if (!skin.isNFT) return true;
-    
-    const nftName = skin.name.toLowerCase().replace(/\s+/g, "_");
-    const owned = ownedSkinNames.includes(nftName);
-    console.log(`[Inventory] Checking ${skinId}: NFT name="${nftName}", owned=${owned}`);
-    return owned;
-  }, [ownedSkinNames]);
-
-  const isTrailOwned = useCallback((trailId: RoachyTrail): boolean => {
-    if (!FLAPPY_TRAILS[trailId].isNFT) return true;
-    return false;
-  }, []);
 
   const navigateToCreature = useCallback((uniqueId: string) => {
     navigation.navigate("CreatureDetail", { uniqueId });
   }, [navigation]);
 
-  const skinEntries = useMemo(() => {
-    const all = Object.entries(FLAPPY_SKINS) as [RoachySkin, SkinDefinition][];
-    const filtered = all.filter(([skinId, skin]) => {
-      if (isGuest) {
-        console.log(`[Inventory] Guest: hiding NFT skin ${skinId}`);
-        return !skin.isNFT;
-      }
-      if (!skin.isNFT) return true;
-      return isSkinOwned(skinId);
-    });
-    console.log('[Inventory] Final skins:', filtered.map(([id]) => id));
-    return filtered;
-  }, [isGuest, isSkinOwned]);
+  // Filter skins - NO memoization to avoid stale closures
+  const allSkins = Object.entries(FLAPPY_SKINS) as [RoachySkin, SkinDefinition][];
+  const skinEntries = allSkins.filter(([skinId, skin]) => {
+    // Always show non-NFT skins
+    if (!skin.isNFT) {
+      console.log(`[Inventory] ${skinId}: non-NFT, showing`);
+      return true;
+    }
+    
+    // Guest users: hide ALL NFT skins
+    if (isGuest) {
+      console.log(`[Inventory] ${skinId}: guest user, hiding NFT`);
+      return false;
+    }
+    
+    // Logged in users: only show owned NFT skins
+    const nftName = skin.name.toLowerCase().replace(/\s+/g, "_");
+    const owned = ownedSkinNames.includes(nftName);
+    console.log(`[Inventory] ${skinId}: NFT "${nftName}", owned=${owned}`);
+    return owned;
+  });
   
+  console.log('[Inventory] Final skin count:', skinEntries.length, skinEntries.map(([id]) => id));
+  
+  // Filter trails - same logic
   const allTrailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, TrailDefinition][];
   const trailEntries = allTrailEntries.filter(([trailId, trail]) => {
-    if (isGuest) return !trail.isNFT;
     if (!trail.isNFT) return true;
-    return isTrailOwned(trailId);
+    if (isGuest) return false;
+    return false; // No NFT trails owned yet
   });
 
   return (
