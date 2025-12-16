@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { View, StyleSheet, Image, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -16,7 +16,7 @@ import { getCreatureDefinition, getRarityColor, CREATURE_IMAGES, CreatureRarity 
 import { InventoryStackParamList } from "@/navigation/InventoryStackNavigator";
 import { useFlappySkin } from "@/context/FlappySkinContext";
 import { useFlappyTrail } from "@/context/FlappyTrailContext";
-import { FLAPPY_SKINS, RoachySkin } from "@/games/flappy/flappySkins";
+import { FLAPPY_SKINS, RoachySkin, SkinDefinition } from "@/games/flappy/flappySkins";
 import { FLAPPY_TRAILS, RoachyTrail, TrailDefinition } from "@/games/flappy/flappyTrails";
 import { useAuth } from "@/context/AuthContext";
 import { useUserNfts } from "@/hooks/useUserNfts";
@@ -203,38 +203,51 @@ export default function InventoryScreen() {
   const { collection, collectedEggs } = useHunt();
   const { equippedSkin, setEquippedSkin, isLoading: skinLoading } = useFlappySkin();
   const { equippedTrail, setEquippedTrail, isLoading: trailLoading } = useFlappyTrail();
-  const { user } = useAuth();
-  const { getOwnedSkins } = useUserNfts();
+  const { user, isGuest } = useAuth();
+  const { nfts, getOwnedSkins } = useUserNfts();
   
-  const ownedSkins = getOwnedSkins("flappy_roachy");
-  const isGuestUser = !user?.id || user.id.startsWith('guest_');
+  const ownedSkinNames = getOwnedSkins("flappy_roachy");
+  
+  console.log('[Inventory] User:', user?.id, 'isGuest:', isGuest);
+  console.log('[Inventory] NFTs from API:', JSON.stringify(nfts));
+  console.log('[Inventory] Owned skin names:', JSON.stringify(ownedSkinNames));
 
-  const isSkinOwned = (skinId: RoachySkin): boolean => {
-    if (!FLAPPY_SKINS[skinId].isNFT) return true;
-    const mappedName = SKIN_NFT_MAPPING[skinId];
-    return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
-  };
+  const isSkinOwned = useCallback((skinId: RoachySkin): boolean => {
+    const skin = FLAPPY_SKINS[skinId];
+    if (!skin.isNFT) return true;
+    
+    const nftName = skin.name.toLowerCase().replace(/\s+/g, "_");
+    const owned = ownedSkinNames.includes(nftName);
+    console.log(`[Inventory] Checking ${skinId}: NFT name="${nftName}", owned=${owned}`);
+    return owned;
+  }, [ownedSkinNames]);
 
-  const isTrailOwned = (trailId: RoachyTrail): boolean => {
+  const isTrailOwned = useCallback((trailId: RoachyTrail): boolean => {
     if (!FLAPPY_TRAILS[trailId].isNFT) return true;
-    const mappedName = TRAIL_NFT_MAPPING[trailId];
-    return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
-  };
+    return false;
+  }, []);
 
   const navigateToCreature = useCallback((uniqueId: string) => {
     navigation.navigate("CreatureDetail", { uniqueId });
   }, [navigation]);
 
-  const allSkinEntries = Object.entries(FLAPPY_SKINS) as [RoachySkin, typeof FLAPPY_SKINS.default][];
-  const skinEntries = allSkinEntries.filter(([skinId, skin]) => {
-    if (isGuestUser) return !skin.isNFT;
-    if (!skin.isNFT) return true;
-    return isSkinOwned(skinId);
-  });
+  const skinEntries = useMemo(() => {
+    const all = Object.entries(FLAPPY_SKINS) as [RoachySkin, SkinDefinition][];
+    const filtered = all.filter(([skinId, skin]) => {
+      if (isGuest) {
+        console.log(`[Inventory] Guest: hiding NFT skin ${skinId}`);
+        return !skin.isNFT;
+      }
+      if (!skin.isNFT) return true;
+      return isSkinOwned(skinId);
+    });
+    console.log('[Inventory] Final skins:', filtered.map(([id]) => id));
+    return filtered;
+  }, [isGuest, isSkinOwned]);
   
   const allTrailEntries = Object.entries(FLAPPY_TRAILS) as [RoachyTrail, TrailDefinition][];
   const trailEntries = allTrailEntries.filter(([trailId, trail]) => {
-    if (isGuestUser) return !trail.isNFT;
+    if (isGuest) return !trail.isNFT;
     if (!trail.isNFT) return true;
     return isTrailOwned(trailId);
   });
