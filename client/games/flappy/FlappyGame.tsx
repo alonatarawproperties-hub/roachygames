@@ -859,7 +859,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       birdVelocity.current = MAX_FALL_SPEED;
     }
     
-    const newY = birdY.value + birdVelocity.current * deltaMultiplier;
+    const newY = birdY.value + birdVelocity.current;
     birdY.value = newY;
     
     const targetRotation = Math.min(Math.max(birdVelocity.current * 3, -20), 70);
