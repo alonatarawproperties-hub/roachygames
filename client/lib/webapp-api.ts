@@ -35,7 +35,7 @@ export async function exchangeOAuthUser(
   displayName: string
 ): Promise<OAuthExchangeResult> {
   try {
-    const response = await apiRequest("POST", "/api/webapp/oauth/exchange", {
+    const response = await apiRequest("POST", "/api/web/oauth/exchange", {
       googleId,
       email,
       displayName,
@@ -56,10 +56,10 @@ export async function getUserBalances(
   try {
     const response = await apiRequest(
       "GET",
-      `/api/webapp/users/${userId}/balances`
+      `/api/web/users/${userId}/balances`
     );
     const result = await response.json();
-    return { success: true, balances: result.balances };
+    return { success: true, balances: { diamonds: result.diamondBalance, chy: result.chyBalance } };
   } catch (error) {
     console.error("[WebappAPI] Get balances failed:", error);
     return {
@@ -75,7 +75,7 @@ export async function getUserDiamonds(
   try {
     const response = await apiRequest(
       "GET",
-      `/api/webapp/users/${userId}/diamonds`
+      `/api/web/users/${userId}/diamonds`
     );
     const result = await response.json();
     return { success: true, diamonds: result.diamonds };
@@ -95,7 +95,7 @@ export async function purchasePowerup(
   quantity: number = 1
 ): Promise<PowerupPurchaseResult> {
   try {
-    const response = await apiRequest("POST", "/api/webapp/powerups/purchase", {
+    const response = await apiRequest("POST", "/api/web/powerups/purchase", {
       userId,
       powerupType,
       diamondCost,
@@ -120,7 +120,7 @@ export async function linkWallet(
   try {
     const response = await apiRequest(
       "POST",
-      `/api/webapp/users/${userId}/link-wallet`,
+      `/api/web/users/${userId}/link-wallet`,
       { walletAddress, signature, message }
     );
     return await response.json();
@@ -151,7 +151,7 @@ export async function getUserNfts(
   try {
     const response = await apiRequest(
       "GET",
-      `/api/webapp/users/${userId}/nfts`
+      `/api/web/users/${userId}/nfts`
     );
     const result = await response.json();
     return { success: true, nfts: result.nfts || [] };
