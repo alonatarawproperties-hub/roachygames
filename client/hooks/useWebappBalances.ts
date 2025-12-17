@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getUserBalances } from "@/lib/webapp-api";
 import { useAuth } from "@/context/AuthContext";
 import { useCallback } from "react";
+import { AppState, AppStateStatus } from "react-native";
+import { useEffect, useRef } from "react";
 
 interface WebappBalances {
   diamonds: number;
@@ -13,6 +15,7 @@ export const WEBAPP_BALANCES_QUERY_KEY = "/api/webapp/balances";
 export function useWebappBalances() {
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
+  const appState = useRef(AppState.currentState);
 
   const query = useQuery<WebappBalances | null>({
     queryKey: [WEBAPP_BALANCES_QUERY_KEY, user?.id],
@@ -29,9 +32,22 @@ export function useWebappBalances() {
       return null;
     },
     enabled: !!user?.id && !isGuest,
-    staleTime: 30000,
-    refetchInterval: 60000,
+    staleTime: 10000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+        query.refetch();
+      }
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription?.remove();
+  }, [query]);
 
   const invalidateBalances = useCallback(() => {
     if (user?.id) {
