@@ -69,9 +69,20 @@ export async function apiRequest(
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
 
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add API secret for authenticated endpoints
+  if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
+    headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
