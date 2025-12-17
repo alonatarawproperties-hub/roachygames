@@ -519,6 +519,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const pipeSpawnIntervalRef = useRef(PIPE_SPAWN_INTERVAL);
   pipeSpawnIntervalRef.current = PIPE_SPAWN_INTERVAL;
   
+  const lastFrameTimeRef = useRef<number>(0);
+  const TARGET_FRAME_TIME = 16.67;
+  
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
       switch (type) {
@@ -840,15 +843,23 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
   }, []);
   
-  const gameLoop = useCallback(() => {
+  const gameLoop = useCallback((timestamp: number) => {
     if (gameStateRef.current !== "playing") return;
     
-    birdVelocity.current += GRAVITY;
+    if (lastFrameTimeRef.current === 0) {
+      lastFrameTimeRef.current = timestamp;
+    }
+    const deltaTime = timestamp - lastFrameTimeRef.current;
+    lastFrameTimeRef.current = timestamp;
+    
+    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, 3);
+    
+    birdVelocity.current += GRAVITY * deltaMultiplier;
     if (birdVelocity.current > MAX_FALL_SPEED) {
       birdVelocity.current = MAX_FALL_SPEED;
     }
     
-    const newY = birdY.value + birdVelocity.current;
+    const newY = birdY.value + birdVelocity.current * deltaMultiplier;
     birdY.value = newY;
     
     const targetRotation = Math.min(Math.max(birdVelocity.current * 3, -20), 70);
@@ -864,7 +875,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       return;
     }
     
-    const currentPipeSpeed = pipeSpeedRef.current;
+    const currentPipeSpeed = pipeSpeedRef.current * deltaMultiplier;
     
     pipesRef.current = pipesRef.current.map((pipe) => ({
       ...pipe,
@@ -881,8 +892,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 200 && dist > 0) {
-          newX += (dx / dist) * 8;
-          newY += (dy / dist) * 8;
+          newX += (dx / dist) * 8 * deltaMultiplier;
+          newY += (dy / dist) * 8 * deltaMultiplier;
         }
       }
       
@@ -976,12 +987,12 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     cloudsRef.current = cloudsRef.current.map((cloud) => ({
       ...cloud,
-      x: cloud.x - CLOUD_SPEED,
+      x: cloud.x - CLOUD_SPEED * deltaMultiplier,
     }));
     cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
     
     if (TRAIL_ASSET) {
-      trailSpawnCounterRef.current++;
+      trailSpawnCounterRef.current += deltaMultiplier;
       if (trailSpawnCounterRef.current >= TRAIL_PARTICLE_SPAWN_INTERVAL) {
         trailSpawnCounterRef.current = 0;
         const newParticle: TrailParticle = {
@@ -1002,8 +1013,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         .map((p) => ({
           ...p,
           x: p.x - currentPipeSpeed * 0.5,
-          opacity: p.opacity - TRAIL_PARTICLE_FADE_SPEED,
-          scale: p.scale * 0.97,
+          opacity: p.opacity - TRAIL_PARTICLE_FADE_SPEED * deltaMultiplier,
+          scale: p.scale * Math.pow(0.97, deltaMultiplier),
         }))
         .filter((p) => p.opacity > 0);
     }
@@ -1029,6 +1040,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     shieldRef.current = false;
     doublePointsRef.current = false;
     magnetRef.current = false;
+    lastFrameTimeRef.current = 0;
     
     const initialClouds: Cloud[] = [];
     for (let i = 0; i < 4; i++) {
