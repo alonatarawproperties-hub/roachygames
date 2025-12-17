@@ -57,4 +57,5 @@ externalPort = 3000
 WEBAPP_URL = "https://roachy.games"
 EXPO_PUBLIC_GOOGLE_CLIENT_ID = "433710630203-d0o848q0ir44po4l06n3986jr3v05eav.apps.googleusercontent.com"
 EXPO_PUBLIC_API_URL = "https://roachy-games-mobile--alon0x144.replit.app"
+EXPO_PUBLIC_MOBILE_APP_SECRET = "0CXLVv4BnU9iGOzfR/sX9e3Mlr+42Cw9Prh7I7bkM5U6ObtwarWF8WbEKk9EGcww"
 
