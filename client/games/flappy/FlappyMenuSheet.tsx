@@ -186,7 +186,7 @@ export function FlappyMenuSheet({
   });
 
   // Use webapp balances for real CHY from roachy.games
-  const { chy: chyBalance, refetch: refetchBalances } = useWebappBalances();
+  const { chy: chyBalance, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances();
 
   const enterRankedMutation = useMutation({
     mutationFn: async (period: 'daily' | 'weekly') => {
@@ -258,6 +258,8 @@ export function FlappyMenuSheet({
                 rankedStatus={rankedStatus}
                 userId={userId}
                 chyBalance={chyBalance}
+                balanceLoading={balanceLoading}
+                onRefreshBalance={() => refetchBalances()}
                 onPlayFree={() => {
                   onPlayFree();
                   onClose();
@@ -446,6 +448,8 @@ function LeaderboardsTab({
   rankedStatus,
   userId,
   chyBalance,
+  balanceLoading,
+  onRefreshBalance,
   onPlayFree,
   onPlayRanked,
   isEntering,
@@ -456,6 +460,8 @@ function LeaderboardsTab({
   rankedStatus: RankedStatusResponse | undefined;
   userId: string | null;
   chyBalance: number;
+  balanceLoading: boolean;
+  onRefreshBalance: () => void;
   onPlayFree: () => void;
   onPlayRanked: (period: 'daily' | 'weekly') => void;
   isEntering: boolean;
@@ -487,10 +493,20 @@ function LeaderboardsTab({
     >
       {userId ? (
         <View style={styles.balanceCard}>
+          <View style={styles.balanceHeader}>
+            <ThemedText style={styles.balanceCardLabel}>Your Balance</ThemedText>
+            <Pressable style={styles.refreshBalanceButton} onPress={onRefreshBalance}>
+              <Feather name="refresh-cw" size={14} color={GameColors.textSecondary} />
+            </Pressable>
+          </View>
           <View style={styles.balanceRow}>
             <Image source={ChyCoinIcon} style={styles.coinSymbolImage} contentFit="contain" />
-            <ThemedText style={styles.balanceValue}>{chyBalance}</ThemedText>
-            <ThemedText style={styles.balanceLabel}>Chy Coins</ThemedText>
+            {balanceLoading ? (
+              <ActivityIndicator size="small" color={GameColors.gold} />
+            ) : (
+              <ThemedText style={styles.balanceValue}>{chyBalance}</ThemedText>
+            )}
+            <ThemedText style={styles.balanceLabel}>CHY</ThemedText>
           </View>
         </View>
       ) : null}
@@ -1166,6 +1182,27 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
+  },
+  balanceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  balanceCardLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  refreshBalanceButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GameColors.surfaceLight,
+    alignItems: "center",
+    justifyContent: "center",
   },
   balanceRow: {
     flexDirection: "row",
