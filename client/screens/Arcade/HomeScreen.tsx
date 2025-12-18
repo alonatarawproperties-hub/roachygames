@@ -164,10 +164,11 @@ const nftBadgeStyles = StyleSheet.create({
  * Debug Panel to diagnose balance issues
  */
 function DebugPanel() {
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, updateUserData } = useAuth();
   const { diamonds, chy, isLoading, isError, error, refetch } = useWebappBalances();
   const [apiTestResult, setApiTestResult] = useState<string | null>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const testApiDirectly = async () => {
     setIsTestingApi(true);
@@ -194,9 +195,53 @@ function DebugPanel() {
     }
   };
 
+  const forceResync = async () => {
+    setIsSyncing(true);
+    try {
+      const googleId = user?.googleId;
+      const email = user?.email;
+      
+      if (!googleId || !email) {
+        setApiTestResult(`RESYNC ERROR: Missing googleId (${googleId}) or email (${email})`);
+        return;
+      }
+      
+      const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+      const response = await fetch("https://roachy.games/api/web/oauth/exchange", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(secret ? { "x-api-secret": secret } : {}),
+        },
+        body: JSON.stringify({
+          googleId,
+          email,
+          displayName: user?.displayName || email.split("@")[0],
+        }),
+      });
+      
+      const text = await response.text();
+      setApiTestResult(`RESYNC Status: ${response.status}\n${text}`);
+      
+      if (response.ok) {
+        try {
+          const result = JSON.parse(text);
+          if (result.success && result.user?.id && updateUserData) {
+            await updateUserData({ webappUserId: result.user.id });
+            setApiTestResult(`SUCCESS! webappUserId set to: ${result.user.id}`);
+          }
+        } catch (e) {}
+      }
+    } catch (err: any) {
+      setApiTestResult(`RESYNC EXCEPTION: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <View style={debugStyles.container}>
-      <ThemedText style={debugStyles.title}>DEBUG PANEL</ThemedText>
+      <ThemedText style={debugStyles.title}>DEBUG PANEL (Build 146)</ThemedText>
       
       <View style={debugStyles.row}>
         <ThemedText style={debugStyles.label}>user.id:</ThemedText>
@@ -204,8 +249,15 @@ function DebugPanel() {
       </View>
       
       <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>googleId:</ThemedText>
+        <ThemedText style={debugStyles.value}>{user?.googleId ? `${user.googleId.slice(0, 10)}...` : "null"}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
         <ThemedText style={debugStyles.label}>webappUserId:</ThemedText>
-        <ThemedText style={debugStyles.value}>{user?.webappUserId || "null"}</ThemedText>
+        <ThemedText style={[debugStyles.value, { color: user?.webappUserId ? "#00ff00" : "#ff0000" }]}>
+          {user?.webappUserId || "null (PROBLEM!)"}
+        </ThemedText>
       </View>
       
       <View style={debugStyles.row}>
@@ -214,31 +266,9 @@ function DebugPanel() {
       </View>
       
       <View style={debugStyles.row}>
-        <ThemedText style={debugStyles.label}>isLoading:</ThemedText>
-        <ThemedText style={debugStyles.value}>{isLoading ? "true" : "false"}</ThemedText>
-      </View>
-      
-      <View style={debugStyles.row}>
-        <ThemedText style={debugStyles.label}>isError:</ThemedText>
-        <ThemedText style={debugStyles.value}>{isError ? "true" : "false"}</ThemedText>
-      </View>
-      
-      <View style={debugStyles.row}>
         <ThemedText style={debugStyles.label}>chy (from hook):</ThemedText>
         <ThemedText style={debugStyles.valueHighlight}>{chy}</ThemedText>
       </View>
-      
-      <View style={debugStyles.row}>
-        <ThemedText style={debugStyles.label}>diamonds:</ThemedText>
-        <ThemedText style={debugStyles.value}>{diamonds}</ThemedText>
-      </View>
-      
-      {error ? (
-        <View style={debugStyles.row}>
-          <ThemedText style={debugStyles.label}>error:</ThemedText>
-          <ThemedText style={debugStyles.errorValue}>{String(error)}</ThemedText>
-        </View>
-      ) : null}
       
       <View style={debugStyles.row}>
         <ThemedText style={debugStyles.label}>hasSecret:</ThemedText>
@@ -253,7 +283,11 @@ function DebugPanel() {
         </Pressable>
         
         <Pressable style={debugStyles.button} onPress={testApiDirectly} disabled={isTestingApi}>
-          <ThemedText style={debugStyles.buttonText}>{isTestingApi ? "Testing..." : "Test API"}</ThemedText>
+          <ThemedText style={debugStyles.buttonText}>{isTestingApi ? "..." : "Test API"}</ThemedText>
+        </Pressable>
+        
+        <Pressable style={[debugStyles.button, { backgroundColor: "#6b4a8a" }]} onPress={forceResync} disabled={isSyncing}>
+          <ThemedText style={debugStyles.buttonText}>{isSyncing ? "..." : "Force Resync"}</ThemedText>
         </Pressable>
       </View>
       

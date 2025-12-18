@@ -60,6 +60,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   updateBalances: (chy: number, diamonds: number) => void;
   updateUser: (updatedUser: AuthUser) => Promise<void>;
+  updateUserData: (partial: Partial<AuthUser>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -508,6 +509,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await secureStoreSet(USER_DATA_KEY, JSON.stringify(updatedUser));
   }, []);
 
+  const updateUserData = useCallback(async (partial: Partial<AuthUser>) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...partial };
+    setUser(updatedUser);
+    await secureStoreSet(USER_DATA_KEY, JSON.stringify(updatedUser));
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -527,6 +535,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshUser,
         updateBalances,
         updateUser,
+        updateUserData,
       }}
     >
       {children}
