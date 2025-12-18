@@ -184,15 +184,11 @@ export function ChessLobbyScreen() {
           </Pressable>
           
           <Pressable 
-            style={[styles.playButton, styles.playButtonLocked]}
-            onPress={() => handleLockedMode('Tournaments')}
+            style={[styles.playButton, styles.playButtonSecondary]}
+            onPress={() => navigation.navigate('TournamentList')}
           >
-            <Feather name="lock" size={20} color={GameColors.textSecondary} />
-            <Feather name="award" size={24} color={GameColors.textSecondary} />
-            <Text style={styles.playButtonTextLocked}>Tournaments</Text>
-            <View style={styles.comingSoonBadge}>
-              <Text style={styles.comingSoonText}>Coming Soon</Text>
-            </View>
+            <Feather name="award" size={24} color={GameColors.gold} />
+            <Text style={styles.playButtonTextSecondary}>Tournaments</Text>
           </Pressable>
         </View>
       </ScrollView>
