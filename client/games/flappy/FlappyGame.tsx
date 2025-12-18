@@ -522,7 +522,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const lastFrameTimeRef = useRef<number>(0);
   const TARGET_FRAME_TIME = 16.67;
   const renderFrameCounterRef = useRef(0);
-  const RENDER_THROTTLE = Platform.OS === "android" ? 2 : 1;
+  const RENDER_THROTTLE = Platform.OS === "android" ? 4 : 1;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -727,7 +727,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     pipesRef.current = [...pipesRef.current, newPipe];
-    setPipes([...pipesRef.current]);
+    // Don't call setPipes here - let the throttled game loop sync to React state
   }, []);
   
   const spawnCoin = useCallback(() => {
@@ -747,7 +747,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     coinsRef.current = [...coinsRef.current, newCoin];
-    setCoins([...coinsRef.current]);
+    // Don't call setCoins here - let the throttled game loop sync to React state
   }, []);
   
   const spawnPowerUp = useCallback(() => {
@@ -768,7 +768,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     powerUpsRef.current = [...powerUpsRef.current, newPowerUp];
-    setPowerUps([...powerUpsRef.current]);
+    // Don't call setPowerUps here - let the throttled game loop sync to React state
   }, []);
   
   const spawnCloud = useCallback(() => {
@@ -788,7 +788,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     cloudsRef.current = [...cloudsRef.current, newCloud];
-    setClouds([...cloudsRef.current]);
+    // Don't call setClouds here - let the throttled game loop sync to React state
   }, []);
   
   const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
@@ -854,7 +854,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     const deltaTime = timestamp - lastFrameTimeRef.current;
     lastFrameTimeRef.current = timestamp;
     
-    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, 3);
+    // Allow higher delta multiplier on Android to prevent stacking when frames drop
+    // Cap at 5 to prevent teleporting on extreme lag spikes
+    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, Platform.OS === "android" ? 5 : 3);
     
     birdVelocity.current += GRAVITY * deltaMultiplier;
     if (birdVelocity.current > MAX_FALL_SPEED) {
