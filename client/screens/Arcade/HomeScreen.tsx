@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
+import * as SecureStore from "expo-secure-store";
 import { getMarketplaceUrl } from "@/lib/query-client";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -221,21 +222,27 @@ function DebugPanel() {
       });
       
       const text = await response.text();
-      setApiTestResult(`RESYNC Status: ${response.status}\n${text}`);
       
       if (response.ok) {
         try {
           const result = JSON.parse(text);
           const webappId = result.user?.id;
-          if (webappId && updateUserData) {
-            await updateUserData({ webappUserId: webappId });
-            setApiTestResult(`SUCCESS! webappUserId saved: ${webappId}\nCHY: ${result.user?.chyBalance}\nRestart app to see balance!`);
+          if (webappId) {
+            const updatedUser = { ...user, webappUserId: webappId };
+            if (Platform.OS === "web") {
+              localStorage.setItem("roachy_user_data", JSON.stringify(updatedUser));
+            } else {
+              await SecureStore.setItemAsync("roachy_user_data", JSON.stringify(updatedUser));
+            }
+            setApiTestResult(`SAVED! webappUserId: ${webappId}\nCHY: ${result.user?.chyBalance}\n\nFORCE CLOSE & REOPEN app now!`);
           } else {
-            setApiTestResult(`Got response but no user.id: ${text}`);
+            setApiTestResult(`No user.id in response:\n${text}`);
           }
-        } catch (e) {
-          setApiTestResult(`Parse error: ${e}`);
+        } catch (e: any) {
+          setApiTestResult(`Parse error: ${e.message}\n${text}`);
         }
+      } else {
+        setApiTestResult(`RESYNC failed: ${response.status}\n${text}`);
       }
     } catch (err: any) {
       setApiTestResult(`RESYNC EXCEPTION: ${err.message}`);
