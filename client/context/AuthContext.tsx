@@ -105,10 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (token && userData) {
         const parsedUser = JSON.parse(userData) as AuthUser;
-        setUser(parsedUser);
         
-        // Pass existing user to preserve webappUserId during refresh
-        refreshUserFromServer(token, parsedUser).catch(console.error);
+        // Await the refresh to ensure webappUserId is synced before rendering
+        // This prevents race condition where balance query runs with stale data
+        await refreshUserFromServer(token, parsedUser);
       }
     } catch (error) {
       console.error("[Auth] Error loading stored auth:", error);
