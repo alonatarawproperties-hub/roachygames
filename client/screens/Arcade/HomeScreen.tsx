@@ -227,6 +227,7 @@ function DebugPanel() {
         try {
           const result = JSON.parse(text);
           const webappId = result.user?.id;
+          const webappChy = result.user?.chyBalance ?? 0;
           if (webappId) {
             const updatedUser = { ...user, webappUserId: webappId };
             if (Platform.OS === "web") {
@@ -234,7 +235,8 @@ function DebugPanel() {
             } else {
               await SecureStore.setItemAsync("roachy_user_data", JSON.stringify(updatedUser));
             }
-            setApiTestResult(`SAVED! webappUserId: ${webappId}\nCHY: ${result.user?.chyBalance}\n\nFORCE CLOSE & REOPEN app now!`);
+            await refetch();
+            setApiTestResult(`SAVED webappUserId: ${webappId}\nWebapp CHY: ${webappChy}\nHook CHY: ${chy}\n\nRestart app to see balance!`);
           } else {
             setApiTestResult(`No user.id in response:\n${text}`);
           }
@@ -248,6 +250,29 @@ function DebugPanel() {
       setApiTestResult(`RESYNC EXCEPTION: ${err.message}`);
     } finally {
       setIsSyncing(false);
+    }
+  };
+  
+  const testBalanceApi = async () => {
+    setIsTestingApi(true);
+    try {
+      const wId = user?.webappUserId;
+      if (!wId) {
+        setApiTestResult("No webappUserId - tap Force Resync first");
+        return;
+      }
+      const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+      const url = `https://roachy.games/api/web/users/${wId}/balances`;
+      setApiTestResult(`Fetching: ${url}`);
+      const response = await fetch(url, {
+        headers: secret ? { "x-api-secret": secret } : {},
+      });
+      const text = await response.text();
+      setApiTestResult(`Status: ${response.status}\n${text}`);
+    } catch (err: any) {
+      setApiTestResult(`Balance API error: ${err.message}`);
+    } finally {
+      setIsTestingApi(false);
     }
   };
 
@@ -302,6 +327,10 @@ function DebugPanel() {
           <ThemedText style={debugStyles.buttonText}>{isSyncing ? "..." : "Force Resync"}</ThemedText>
         </Pressable>
       </View>
+      
+      <Pressable style={[debugStyles.button, { backgroundColor: "#4a6b8a", marginTop: 8 }]} onPress={testBalanceApi} disabled={isTestingApi}>
+        <ThemedText style={debugStyles.buttonText}>{isTestingApi ? "..." : "Test Balance API"}</ThemedText>
+      </Pressable>
       
       {apiTestResult ? (
         <View style={debugStyles.apiResult}>
