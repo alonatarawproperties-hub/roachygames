@@ -226,11 +226,16 @@ function DebugPanel() {
       if (response.ok) {
         try {
           const result = JSON.parse(text);
-          if (result.success && result.user?.id && updateUserData) {
-            await updateUserData({ webappUserId: result.user.id });
-            setApiTestResult(`SUCCESS! webappUserId set to: ${result.user.id}`);
+          const webappId = result.user?.id;
+          if (webappId && updateUserData) {
+            await updateUserData({ webappUserId: webappId });
+            setApiTestResult(`SUCCESS! webappUserId saved: ${webappId}\nCHY: ${result.user?.chyBalance}\nRestart app to see balance!`);
+          } else {
+            setApiTestResult(`Got response but no user.id: ${text}`);
           }
-        } catch (e) {}
+        } catch (e) {
+          setApiTestResult(`Parse error: ${e}`);
+        }
       }
     } catch (err: any) {
       setApiTestResult(`RESYNC EXCEPTION: ${err.message}`);
