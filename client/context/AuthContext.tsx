@@ -125,13 +125,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        // Preserve webappUserId from existing user - the mobile backend doesn't store it
         let webappUserId = existingUser?.webappUserId || data.user.webappUserId || null;
         
-        // If webappUserId is missing but user has googleId, re-sync with webapp
-        // This fixes old SecureStore data that didn't have webappUserId
-        if (!webappUserId && data.user.googleId && data.user.email) {
-          console.log("[Auth] webappUserId missing, re-syncing with webapp...");
+        // Always re-sync Google users with webapp to ensure correct webappUserId
+        // This fixes account linking issues when webapp user changes
+        if (data.user.googleId && data.user.email) {
           try {
             const webappResult = await exchangeOAuthUser(
               data.user.googleId,
@@ -139,13 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               data.user.displayName || data.user.email.split("@")[0]
             );
             if (webappResult.success && webappResult.user) {
-              console.log("[Auth] Re-sync successful, webappUserId:", webappResult.user.id);
               webappUserId = webappResult.user.id;
-            } else {
-              console.warn("[Auth] Re-sync failed:", webappResult.error);
             }
           } catch (syncErr) {
-            console.warn("[Auth] Re-sync error:", syncErr);
+            // Keep existing webappUserId if sync fails
           }
         }
         
