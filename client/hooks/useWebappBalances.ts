@@ -17,15 +17,15 @@ export function useWebappBalances() {
   const queryClient = useQueryClient();
   const appState = useRef(AppState.currentState);
 
-  // Use wallet address to sync with webapp (the wallets table is the source of truth)
-  const walletAddress = user?.walletAddress;
+  // Use webappUserId (UUID from roachy.games) for balance sync
+  const webappUserId = user?.webappUserId;
 
   const query = useQuery<WebappBalances | null>({
-    queryKey: [WEBAPP_BALANCES_QUERY_KEY, walletAddress],
+    queryKey: [WEBAPP_BALANCES_QUERY_KEY, webappUserId],
     queryFn: async () => {
-      if (!walletAddress || isGuest) return null;
+      if (!webappUserId || isGuest) return null;
 
-      const result = await getUserBalances(walletAddress);
+      const result = await getUserBalances(webappUserId);
       if (result.success && result.balances) {
         return result.balances;
       }
@@ -53,12 +53,12 @@ export function useWebappBalances() {
   }, [query]);
 
   const invalidateBalances = useCallback(() => {
-    if (walletAddress) {
+    if (webappUserId) {
       queryClient.invalidateQueries({
-        queryKey: [WEBAPP_BALANCES_QUERY_KEY, walletAddress],
+        queryKey: [WEBAPP_BALANCES_QUERY_KEY, webappUserId],
       });
     }
-  }, [queryClient, walletAddress]);
+  }, [queryClient, webappUserId]);
 
   return {
     diamonds: query.data?.diamonds ?? 0,

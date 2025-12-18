@@ -31,6 +31,7 @@ export interface AuthUser {
   diamondBalance: number;
   walletAddress: string | null;
   avatarUrl: string | null;
+  webappUserId: string | null; // UUID from roachy.games for balance sync
 }
 
 interface LinkWalletResult {
@@ -246,13 +247,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             data.user.googleId,
             data.user.email,
             data.user.displayName || data.user.email.split("@")[0]
-          ).then((webappResult) => {
-            if (webappResult.success) {
-              console.log("[Auth] Synced user with webapp");
-              // Update balances from webapp if available
-              if (webappResult.user) {
-                updateBalances(webappResult.user.chyBalance, webappResult.user.diamondBalance);
-              }
+          ).then(async (webappResult) => {
+            if (webappResult.success && webappResult.user) {
+              console.log("[Auth] Synced user with webapp, webappUserId:", webappResult.user.id);
+              // Store the webapp user ID for future balance calls
+              const updatedUser = {
+                ...data.user,
+                webappUserId: webappResult.user.id,
+                chyBalance: webappResult.user.chyBalance,
+                diamondBalance: webappResult.user.diamondBalance,
+              };
+              setUser(updatedUser);
+              await secureStoreSet(USER_DATA_KEY, JSON.stringify(updatedUser));
             } else {
               console.warn("[Auth] Webapp sync failed:", webappResult.error);
             }
@@ -347,6 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         diamondBalance: 0,
         walletAddress: null,
         avatarUrl: null,
+        webappUserId: null,
       };
 
       await secureStoreSet(USER_DATA_KEY, JSON.stringify(guestUser));

@@ -79,13 +79,13 @@ export async function exchangeOAuthUser(
 }
 
 export async function getUserBalances(
-  walletAddress: string
+  userId: string
 ): Promise<{ success: boolean; balances?: WebappBalances; error?: string }> {
   try {
-    console.log("[WebappAPI] Fetching balances for wallet:", walletAddress);
+    console.log("[WebappAPI] Fetching balances for webappUserId:", userId);
     const response = await webappRequest(
       "GET",
-      `/api/v2/sync/${walletAddress}`
+      `/api/web/users/${userId}/balances`
     );
     
     if (!response.ok) {
@@ -95,12 +95,12 @@ export async function getUserBalances(
     }
     
     const result = await response.json();
-    console.log("[WebappAPI] Sync result:", result);
+    console.log("[WebappAPI] Balance result:", result);
     return { 
       success: true, 
       balances: { 
-        diamonds: result.diamonds ?? result.diamondBalance ?? 0, 
-        chy: result.chy ?? result.chyBalance ?? 0 
+        diamonds: result.diamondBalance ?? 0, 
+        chy: result.chyBalance ?? 0 
       } 
     };
   } catch (error) {
