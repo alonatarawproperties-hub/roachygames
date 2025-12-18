@@ -19,17 +19,29 @@ export function useWebappBalances() {
 
   // Use webappUserId (UUID from roachy.games) for balance sync
   const webappUserId = user?.webappUserId;
+  
+  // Diagnostic logging
+  console.log("[useWebappBalances] user?.id:", user?.id);
+  console.log("[useWebappBalances] webappUserId:", webappUserId);
+  console.log("[useWebappBalances] isGuest:", isGuest);
 
   const query = useQuery<WebappBalances | null>({
     queryKey: [WEBAPP_BALANCES_QUERY_KEY, webappUserId],
     queryFn: async () => {
-      if (!webappUserId || isGuest) return null;
+      console.log("[useWebappBalances] queryFn called, webappUserId:", webappUserId, "isGuest:", isGuest);
+      if (!webappUserId || isGuest) {
+        console.log("[useWebappBalances] Skipping fetch - no webappUserId or guest");
+        return null;
+      }
 
       const result = await getUserBalances(webappUserId);
+      console.log("[useWebappBalances] getUserBalances result:", JSON.stringify(result));
       if (result.success && result.balances) {
+        console.log("[useWebappBalances] Returning balances:", JSON.stringify(result.balances));
         return result.balances;
       }
       if (result.error) {
+        console.error("[useWebappBalances] Error:", result.error);
         throw new Error(result.error);
       }
       return null;
@@ -60,7 +72,7 @@ export function useWebappBalances() {
     }
   }, [queryClient, webappUserId]);
 
-  return {
+  const returnValue = {
     diamonds: query.data?.diamonds ?? 0,
     chy: query.data?.chy ?? 0,
     isLoading: query.isLoading,
@@ -69,4 +81,8 @@ export function useWebappBalances() {
     refetch: query.refetch,
     invalidateBalances,
   };
+  
+  console.log("[useWebappBalances] Returning to UI - chy:", returnValue.chy, "diamonds:", returnValue.diamonds);
+  
+  return returnValue;
 }

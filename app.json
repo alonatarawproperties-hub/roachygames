@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cryptocreatures.app",
-      "buildNumber": "122",
+      "buildNumber": "144",
       "backgroundColor": "#120a05",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
@@ -69,7 +69,10 @@
               "pathPrefix": "/app"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

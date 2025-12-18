@@ -82,11 +82,18 @@ export async function getUserBalances(
   userId: string
 ): Promise<{ success: boolean; balances?: WebappBalances; error?: string }> {
   try {
-    console.log("[WebappAPI] Fetching balances for webappUserId:", userId);
+    const apiUrl = `${WEBAPP_API_URL}/api/web/users/${userId}/balances`;
+    const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+    console.log("[WebappAPI] === BALANCE FETCH START ===");
+    console.log("[WebappAPI] URL:", apiUrl);
+    console.log("[WebappAPI] Has secret:", !!secret, "length:", secret?.length);
+    
     const response = await webappRequest(
       "GET",
       `/api/web/users/${userId}/balances`
     );
+    
+    console.log("[WebappAPI] Response status:", response.status);
     
     if (!response.ok) {
       const text = await response.text();
@@ -94,17 +101,24 @@ export async function getUserBalances(
       return { success: false, error: `HTTP ${response.status}: ${text}` };
     }
     
+    const rawText = await response.clone().text();
+    console.log("[WebappAPI] Raw response text:", rawText);
+    
     const result = await response.json();
-    console.log("[WebappAPI] Balance result:", result);
-    return { 
-      success: true, 
-      balances: { 
-        diamonds: result.diamondBalance ?? 0, 
-        chy: result.chyBalance ?? 0 
-      } 
+    console.log("[WebappAPI] Parsed JSON:", JSON.stringify(result));
+    console.log("[WebappAPI] result.chyBalance:", result.chyBalance, "type:", typeof result.chyBalance);
+    console.log("[WebappAPI] result.diamondBalance:", result.diamondBalance, "type:", typeof result.diamondBalance);
+    
+    const balances = { 
+      diamonds: result.diamondBalance ?? 0, 
+      chy: result.chyBalance ?? 0 
     };
+    console.log("[WebappAPI] Final balances object:", JSON.stringify(balances));
+    console.log("[WebappAPI] === BALANCE FETCH END ===");
+    
+    return { success: true, balances };
   } catch (error) {
-    console.error("[WebappAPI] Get balances failed:", error);
+    console.error("[WebappAPI] Get balances EXCEPTION:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to get balances",
