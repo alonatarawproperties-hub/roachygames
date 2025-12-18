@@ -17,15 +17,15 @@ export function useWebappBalances() {
   const queryClient = useQueryClient();
   const appState = useRef(AppState.currentState);
 
-  // Use googleId to sync with webapp since user IDs differ between systems
-  const webappUserId = user?.googleId || user?.id;
+  // Use wallet address to sync with webapp (the wallets table is the source of truth)
+  const walletAddress = user?.walletAddress;
 
   const query = useQuery<WebappBalances | null>({
-    queryKey: [WEBAPP_BALANCES_QUERY_KEY, webappUserId],
+    queryKey: [WEBAPP_BALANCES_QUERY_KEY, walletAddress],
     queryFn: async () => {
-      if (!webappUserId || isGuest) return null;
+      if (!walletAddress || isGuest) return null;
 
-      const result = await getUserBalances(webappUserId);
+      const result = await getUserBalances(walletAddress);
       if (result.success && result.balances) {
         return result.balances;
       }
@@ -53,12 +53,12 @@ export function useWebappBalances() {
   }, [query]);
 
   const invalidateBalances = useCallback(() => {
-    if (webappUserId) {
+    if (walletAddress) {
       queryClient.invalidateQueries({
-        queryKey: [WEBAPP_BALANCES_QUERY_KEY, webappUserId],
+        queryKey: [WEBAPP_BALANCES_QUERY_KEY, walletAddress],
       });
     }
-  }, [queryClient, webappUserId]);
+  }, [queryClient, walletAddress]);
 
   return {
     diamonds: query.data?.diamonds ?? 0,
