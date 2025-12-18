@@ -417,13 +417,7 @@ const debugStyles = StyleSheet.create({
 function TokenBalanceCardWithWebapp() {
   const { user, isGuest, logout, updateUserData } = useAuth();
   const { diamonds, chy, isLoading, refetch } = useWebappBalances();
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const [isSyncing, setIsSyncing] = useState(false);
-  const spinValue = useSharedValue(0);
-
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${spinValue.value * 360}deg` }],
-  }));
 
   const handleGuestSignIn = () => {
     Alert.alert(
@@ -445,11 +439,6 @@ function TokenBalanceCardWithWebapp() {
     if (isSyncing || isGuest) return;
     
     setIsSyncing(true);
-    spinValue.value = withRepeat(
-      withTiming(1, { duration: 800, easing: Easing.linear }),
-      -1,
-      false
-    );
     
     try {
       const googleId = user?.googleId;
@@ -495,48 +484,21 @@ function TokenBalanceCardWithWebapp() {
       await refetch();
     } finally {
       setIsSyncing(false);
-      spinValue.value = 0;
     }
   };
 
   return (
-    <View style={balanceSyncStyles.container}>
-      <TokenBalanceCard
-        chyCoinsBalance={chy || 0}
-        isConnected={!!user && !isGuest}
-        isLoading={isLoading || isSyncing}
-        isGuest={isGuest}
-        onPress={isGuest ? handleGuestSignIn : undefined}
-      />
-      {!isGuest && user && (
-        <Pressable 
-          style={balanceSyncStyles.syncButton} 
-          onPress={handleSync}
-          disabled={isSyncing}
-        >
-          <Animated.View style={spinStyle}>
-            <Feather 
-              name="refresh-cw" 
-              size={16} 
-              color={isSyncing ? GameColors.gold : GameColors.textSecondary} 
-            />
-          </Animated.View>
-        </Pressable>
-      )}
-    </View>
+    <TokenBalanceCard
+      chyCoinsBalance={chy || 0}
+      isConnected={!!user && !isGuest}
+      isLoading={isLoading}
+      isGuest={isGuest}
+      onPress={isGuest ? handleGuestSignIn : undefined}
+      onSync={!isGuest && user ? handleSync : undefined}
+      isSyncing={isSyncing}
+    />
   );
 }
-
-const balanceSyncStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  syncButton: {
-    padding: 8,
-    marginLeft: 4,
-  },
-});
 
 /**
  * Egg Hatching Section for centralized inventory

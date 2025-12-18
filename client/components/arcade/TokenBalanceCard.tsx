@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getMarketplaceUrl } from "@/lib/query-client";
@@ -16,6 +17,8 @@ interface TokenBalanceCardProps {
   isConnected: boolean;
   isLoading?: boolean;
   isGuest?: boolean;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 export function TokenBalanceCard({
@@ -24,7 +27,26 @@ export function TokenBalanceCard({
   isConnected,
   isLoading = false,
   isGuest = false,
+  onSync,
+  isSyncing = false,
 }: TokenBalanceCardProps) {
+  const spinValue = useSharedValue(0);
+
+  React.useEffect(() => {
+    if (isSyncing) {
+      spinValue.value = withRepeat(
+        withTiming(1, { duration: 800, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      spinValue.value = 0;
+    }
+  }, [isSyncing]);
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinValue.value * 360}deg` }],
+  }));
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -93,6 +115,21 @@ export function TokenBalanceCard({
       
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>Your Balance</ThemedText>
+        {onSync && (
+          <Pressable 
+            style={styles.syncButton} 
+            onPress={onSync}
+            disabled={isSyncing}
+          >
+            <Animated.View style={spinStyle}>
+              <Feather 
+                name="refresh-cw" 
+                size={16} 
+                color={isSyncing ? GameColors.gold : GameColors.textSecondary} 
+              />
+            </Animated.View>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.balancesRow}>
@@ -100,7 +137,7 @@ export function TokenBalanceCard({
           <View style={styles.coinIconContainer}>
             <Image source={ChyCoinIcon} style={styles.coinIcon} contentFit="contain" />
           </View>
-          {isLoading ? (
+          {isLoading || isSyncing ? (
             <ActivityIndicator size="small" color={GameColors.gold} />
           ) : (
             <View style={styles.balanceInfo}>
@@ -139,6 +176,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: GameColors.textSecondary,
+  },
+  syncButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GameColors.gold + "15",
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
+    justifyContent: "center",
+    alignItems: "center",
   },
   balancesRow: {
     flexDirection: "row",
