@@ -128,13 +128,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let webappUserId = existingUser?.webappUserId || data.user.webappUserId || null;
         
         // Always re-sync Google users with webapp to ensure correct webappUserId
-        // This fixes account linking issues when webapp user changes
-        if (data.user.googleId && data.user.email) {
+        // Use existingUser credentials as fallback since /api/auth/me may not return googleId
+        const googleId = data.user.googleId || existingUser?.googleId;
+        const email = data.user.email || existingUser?.email;
+        
+        if (googleId && email) {
           try {
             const webappResult = await exchangeOAuthUser(
-              data.user.googleId,
-              data.user.email,
-              data.user.displayName || data.user.email.split("@")[0]
+              googleId,
+              email,
+              data.user.displayName || existingUser?.displayName || email.split("@")[0]
             );
             if (webappResult.success && webappResult.user) {
               webappUserId = webappResult.user.id;
@@ -146,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         const updatedUser = {
           ...data.user,
+          googleId: googleId || data.user.googleId,
           webappUserId,
         };
         setUser(updatedUser);
