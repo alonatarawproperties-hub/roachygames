@@ -24,6 +24,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { useWebappBalances } from "@/hooks/useWebappBalances";
 import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING, RARITY_ORDER, SkinDefinition } from "./flappySkins";
 import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
@@ -184,11 +185,8 @@ export function FlappyMenuSheet({
     enabled: visible && activeTab === "leaderboards",
   });
 
-
-  const { data: chyData } = useQuery<{ success: boolean; chyBalance: number }>({
-    queryKey: ["/api/user", userId, "chy"],
-    enabled: visible && !!userId,
-  });
+  // Use webapp balances for real CHY from roachy.games
+  const { chy: chyBalance, refetch: refetchBalances } = useWebappBalances();
 
   const enterRankedMutation = useMutation({
     mutationFn: async (period: 'daily' | 'weekly') => {
@@ -196,7 +194,7 @@ export function FlappyMenuSheet({
     },
     onSuccess: (data: any, period: 'daily' | 'weekly') => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user", userId, "chy"] });
+      refetchBalances(); // Refresh CHY balance from webapp
       onPlayRanked(period);
       onClose();
     },
@@ -259,7 +257,7 @@ export function FlappyMenuSheet({
                 isLoading={leaderboardLoading}
                 rankedStatus={rankedStatus}
                 userId={userId}
-                chyBalance={chyData?.chyBalance ?? 0}
+                chyBalance={chyBalance}
                 onPlayFree={() => {
                   onPlayFree();
                   onClose();

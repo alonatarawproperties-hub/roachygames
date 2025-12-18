@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from "react";
-import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl, Alert, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl, Alert, Platform, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
+import { useWebappBalances } from "@/hooks/useWebappBalances";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RouteParams = {
@@ -68,6 +69,7 @@ export function TournamentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { tournamentId } = route.params;
   const { user } = useAuth();
+  const { diamonds, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances();
   
   const guestWalletRef = useRef<string | null>(null);
   if (!guestWalletRef.current) {
@@ -314,6 +316,27 @@ export function TournamentDetailScreen() {
         
         {canJoin ? (
           <View style={styles.actionCard}>
+            {tournament.entryFee > 0 && !isRegistered ? (
+              <View style={styles.balanceRow}>
+                <View style={styles.balanceInfo}>
+                  <Feather name="database" size={16} color={GameColors.primary} />
+                  <Text style={styles.balanceLabel}>Your Balance:</Text>
+                  {balanceLoading ? (
+                    <ActivityIndicator size="small" color={GameColors.primary} />
+                  ) : (
+                    <Text style={[
+                      styles.balanceValue,
+                      diamonds < tournament.entryFee && styles.balanceInsufficient
+                    ]}>
+                      {diamonds} diamonds
+                    </Text>
+                  )}
+                </View>
+                <Pressable style={styles.refreshButton} onPress={() => refetchBalances()}>
+                  <Feather name="refresh-cw" size={16} color={GameColors.textSecondary} />
+                </Pressable>
+              </View>
+            ) : null}
             {isRegistered ? (
               <>
                 <View style={styles.registeredBadge}>
@@ -328,6 +351,13 @@ export function TournamentDetailScreen() {
               <View style={styles.fullMessage}>
                 <Feather name="users" size={24} color={GameColors.textSecondary} />
                 <Text style={styles.fullMessageText}>Tournament is full</Text>
+              </View>
+            ) : diamonds < (tournament.entryFee || 0) && tournament.entryFee > 0 ? (
+              <View style={styles.insufficientFunds}>
+                <Feather name="alert-circle" size={20} color={GameColors.error} />
+                <Text style={styles.insufficientText}>
+                  Need {tournament.entryFee - diamonds} more diamonds to join
+                </Text>
               </View>
             ) : (
               <Pressable onPress={handleJoin} disabled={joinMutation.isPending}>
@@ -743,6 +773,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: GameColors.textSecondary,
     textAlign: 'center',
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: GameColors.surface,
+    borderRadius: 10,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  balanceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+  },
+  balanceValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: GameColors.primary,
+  },
+  balanceInsufficient: {
+    color: GameColors.error,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: GameColors.surfaceElevated,
+  },
+  insufficientFunds: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: Spacing.md,
+    borderRadius: 12,
+  },
+  insufficientText: {
+    fontSize: 14,
+    color: GameColors.error,
+    flex: 1,
   },
 });
 
