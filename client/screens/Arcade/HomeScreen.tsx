@@ -278,16 +278,16 @@ function DebugPanel() {
 
   return (
     <View style={debugStyles.container}>
-      <ThemedText style={debugStyles.title}>DEBUG PANEL (Build 146)</ThemedText>
+      <ThemedText style={debugStyles.title}>DEBUG PANEL (Build 147)</ThemedText>
       
       <View style={debugStyles.row}>
-        <ThemedText style={debugStyles.label}>user.id:</ThemedText>
-        <ThemedText style={debugStyles.value}>{user?.id || "null"}</ThemedText>
+        <ThemedText style={debugStyles.label}>email:</ThemedText>
+        <ThemedText style={debugStyles.value}>{user?.email || "null"}</ThemedText>
       </View>
       
       <View style={debugStyles.row}>
         <ThemedText style={debugStyles.label}>googleId:</ThemedText>
-        <ThemedText style={debugStyles.value}>{user?.googleId ? `${user.googleId.slice(0, 10)}...` : "null"}</ThemedText>
+        <ThemedText style={debugStyles.value}>{user?.googleId || "null"}</ThemedText>
       </View>
       
       <View style={debugStyles.row}>
