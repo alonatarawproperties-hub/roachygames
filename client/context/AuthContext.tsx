@@ -106,7 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsedUser = JSON.parse(userData) as AuthUser;
         setUser(parsedUser);
         
-        refreshUserFromServer(token).catch(console.error);
+        // Pass existing user to preserve webappUserId during refresh
+        refreshUserFromServer(token, parsedUser).catch(console.error);
       }
     } catch (error) {
       console.error("[Auth] Error loading stored auth:", error);
@@ -115,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshUserFromServer = async (token: string) => {
+  const refreshUserFromServer = async (token: string, existingUser?: AuthUser | null) => {
     try {
       const response = await fetch(`${getApiUrl()}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -123,8 +124,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
-        await secureStoreSet(USER_DATA_KEY, JSON.stringify(data.user));
+        // Preserve webappUserId from existing user - the mobile backend doesn't store it
+        const updatedUser = {
+          ...data.user,
+          webappUserId: existingUser?.webappUserId || data.user.webappUserId || null,
+        };
+        setUser(updatedUser);
+        await secureStoreSet(USER_DATA_KEY, JSON.stringify(updatedUser));
       } else {
         await logout();
       }
@@ -234,39 +240,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { success: false, error: data.error || "Google login failed" };
         }
 
-        await Promise.all([
-          secureStoreSet(AUTH_TOKEN_KEY, data.token),
-          secureStoreSet(USER_DATA_KEY, JSON.stringify(data.user)),
-        ]);
-
-        setUser(data.user);
+        let finalUser = data.user;
         
-        // Sync with webapp (roachy.games) in the background
+        // Sync with webapp (roachy.games) BEFORE returning - critical for balance sync
         if (data.user.googleId && data.user.email) {
-          exchangeOAuthUser(
-            data.user.googleId,
-            data.user.email,
-            data.user.displayName || data.user.email.split("@")[0]
-          ).then(async (webappResult) => {
+          try {
+            const webappResult = await exchangeOAuthUser(
+              data.user.googleId,
+              data.user.email,
+              data.user.displayName || data.user.email.split("@")[0]
+            );
             if (webappResult.success && webappResult.user) {
               console.log("[Auth] Synced user with webapp, webappUserId:", webappResult.user.id);
-              // Store the webapp user ID for future balance calls
-              const updatedUser = {
+              // Store the webapp user ID for balance calls
+              finalUser = {
                 ...data.user,
                 webappUserId: webappResult.user.id,
                 chyBalance: webappResult.user.chyBalance,
                 diamondBalance: webappResult.user.diamondBalance,
               };
-              setUser(updatedUser);
-              await secureStoreSet(USER_DATA_KEY, JSON.stringify(updatedUser));
             } else {
               console.warn("[Auth] Webapp sync failed:", webappResult.error);
             }
-          }).catch((err) => {
+          } catch (err) {
             console.warn("[Auth] Webapp sync error:", err);
-          });
+          }
         }
-        
+
+        await Promise.all([
+          secureStoreSet(AUTH_TOKEN_KEY, data.token),
+          secureStoreSet(USER_DATA_KEY, JSON.stringify(finalUser)),
+        ]);
+
+        setUser(finalUser);
         return { success: true };
       }
 
