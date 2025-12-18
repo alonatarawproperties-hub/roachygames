@@ -126,6 +126,11 @@ export function ChessGameScreen() {
       });
       return res.json();
     },
+    onMutate: () => {
+      // Immediately switch turn to opponent after player makes a move
+      // This prevents player's timer from ticking while waiting for bot response
+      setIsMyTurn(false);
+    },
     onSuccess: (data: any) => {
       if (data.match) {
         setCurrentFen(data.match.fen);
@@ -133,6 +138,12 @@ export function ChessGameScreen() {
         setPlayer1Time(data.match.player1TimeRemaining);
         setPlayer2Time(data.match.player2TimeRemaining);
         setMoveStartTime(Date.now());
+        
+        // Recalculate isMyTurn from server response
+        const isPlayer1 = data.match.player1Wallet === walletAddress;
+        const myTurn = (data.match.currentTurn === 'white' && isPlayer1) || 
+                       (data.match.currentTurn === 'black' && !isPlayer1);
+        setIsMyTurn(myTurn);
         
         if (data.gameOver) {
           setGameOver(true);
