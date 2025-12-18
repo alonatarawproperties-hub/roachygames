@@ -82,11 +82,20 @@ export async function getUserBalances(
   userId: string
 ): Promise<{ success: boolean; balances?: WebappBalances; error?: string }> {
   try {
+    console.log("[WebappAPI] Fetching balances for userId:", userId);
     const response = await webappRequest(
       "GET",
       `/api/web/users/${userId}/balances`
     );
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("[WebappAPI] Balance fetch failed:", response.status, text);
+      return { success: false, error: `HTTP ${response.status}: ${text}` };
+    }
+    
     const result = await response.json();
+    console.log("[WebappAPI] Balance result:", result);
     return { success: true, balances: { diamonds: result.diamondBalance, chy: result.chyBalance } };
   } catch (error) {
     console.error("[WebappAPI] Get balances failed:", error);
