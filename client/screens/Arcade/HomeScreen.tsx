@@ -161,6 +161,182 @@ const nftBadgeStyles = StyleSheet.create({
 });
 
 /**
+ * Debug Panel to diagnose balance issues
+ */
+function DebugPanel() {
+  const { user, isGuest } = useAuth();
+  const { diamonds, chy, isLoading, isError, error, refetch } = useWebappBalances();
+  const [apiTestResult, setApiTestResult] = useState<string | null>(null);
+  const [isTestingApi, setIsTestingApi] = useState(false);
+
+  const testApiDirectly = async () => {
+    setIsTestingApi(true);
+    try {
+      const webappUserId = user?.webappUserId;
+      if (!webappUserId) {
+        setApiTestResult("ERROR: webappUserId is null/undefined");
+        return;
+      }
+      
+      const url = `https://roachy.games/api/web/users/${webappUserId}/balances`;
+      const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+      
+      const response = await fetch(url, {
+        headers: secret ? { "x-api-secret": secret } : {},
+      });
+      
+      const text = await response.text();
+      setApiTestResult(`Status: ${response.status}\nResponse: ${text}`);
+    } catch (err: any) {
+      setApiTestResult(`EXCEPTION: ${err.message}`);
+    } finally {
+      setIsTestingApi(false);
+    }
+  };
+
+  return (
+    <View style={debugStyles.container}>
+      <ThemedText style={debugStyles.title}>DEBUG PANEL</ThemedText>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>user.id:</ThemedText>
+        <ThemedText style={debugStyles.value}>{user?.id || "null"}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>webappUserId:</ThemedText>
+        <ThemedText style={debugStyles.value}>{user?.webappUserId || "null"}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>isGuest:</ThemedText>
+        <ThemedText style={debugStyles.value}>{isGuest ? "true" : "false"}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>isLoading:</ThemedText>
+        <ThemedText style={debugStyles.value}>{isLoading ? "true" : "false"}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>isError:</ThemedText>
+        <ThemedText style={debugStyles.value}>{isError ? "true" : "false"}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>chy (from hook):</ThemedText>
+        <ThemedText style={debugStyles.valueHighlight}>{chy}</ThemedText>
+      </View>
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>diamonds:</ThemedText>
+        <ThemedText style={debugStyles.value}>{diamonds}</ThemedText>
+      </View>
+      
+      {error ? (
+        <View style={debugStyles.row}>
+          <ThemedText style={debugStyles.label}>error:</ThemedText>
+          <ThemedText style={debugStyles.errorValue}>{String(error)}</ThemedText>
+        </View>
+      ) : null}
+      
+      <View style={debugStyles.row}>
+        <ThemedText style={debugStyles.label}>hasSecret:</ThemedText>
+        <ThemedText style={debugStyles.value}>
+          {process.env.EXPO_PUBLIC_MOBILE_APP_SECRET ? `yes (${process.env.EXPO_PUBLIC_MOBILE_APP_SECRET.length} chars)` : "no"}
+        </ThemedText>
+      </View>
+      
+      <View style={debugStyles.buttonRow}>
+        <Pressable style={debugStyles.button} onPress={() => refetch()}>
+          <ThemedText style={debugStyles.buttonText}>Refetch</ThemedText>
+        </Pressable>
+        
+        <Pressable style={debugStyles.button} onPress={testApiDirectly} disabled={isTestingApi}>
+          <ThemedText style={debugStyles.buttonText}>{isTestingApi ? "Testing..." : "Test API"}</ThemedText>
+        </Pressable>
+      </View>
+      
+      {apiTestResult ? (
+        <View style={debugStyles.apiResult}>
+          <ThemedText style={debugStyles.apiResultText}>{apiTestResult}</ThemedText>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const debugStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#ff6b6b",
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#ff6b6b",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 11,
+    color: "#888",
+  },
+  value: {
+    fontSize: 11,
+    color: "#fff",
+    maxWidth: "60%",
+  },
+  valueHighlight: {
+    fontSize: 14,
+    color: "#00ff00",
+    fontWeight: "700",
+  },
+  errorValue: {
+    fontSize: 10,
+    color: "#ff6b6b",
+    maxWidth: "60%",
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  button: {
+    flex: 1,
+    backgroundColor: "#4a4a6a",
+    padding: 8,
+    borderRadius: 4,
+    alignItems: "center",
+  },
+  buttonText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  apiResult: {
+    marginTop: 8,
+    backgroundColor: "#0d0d1a",
+    padding: 8,
+    borderRadius: 4,
+  },
+  apiResultText: {
+    fontSize: 10,
+    color: "#aaa",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+});
+
+/**
  * Token Balance Card with webapp balances integration
  */
 function TokenBalanceCardWithWebapp() {
@@ -185,13 +361,16 @@ function TokenBalanceCardWithWebapp() {
   };
 
   return (
-    <TokenBalanceCard
-      chyCoinsBalance={chy || 0}
-      isConnected={!!user && !isGuest}
-      isLoading={isLoading}
-      isGuest={isGuest}
-      onPress={isGuest ? handleGuestSignIn : undefined}
-    />
+    <>
+      <DebugPanel />
+      <TokenBalanceCard
+        chyCoinsBalance={chy || 0}
+        isConnected={!!user && !isGuest}
+        isLoading={isLoading}
+        isGuest={isGuest}
+        onPress={isGuest ? handleGuestSignIn : undefined}
+      />
+    </>
   );
 }
 
