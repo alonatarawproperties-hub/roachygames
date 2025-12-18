@@ -1,10 +1,11 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from "react-native-reanimated";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
@@ -35,7 +36,25 @@ export function ChessLobbyScreen() {
   
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>('rapid');
   
-  const { chy, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances(walletAddress);
+  const { chy, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances } = useWebappBalances();
+  
+  const spinValue = useSharedValue(0);
+  
+  useEffect(() => {
+    if (balanceFetching) {
+      spinValue.value = withRepeat(
+        withTiming(1, { duration: 800, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      spinValue.value = 0;
+    }
+  }, [balanceFetching]);
+  
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinValue.value * 360}deg` }],
+  }));
   
   const { data: ratingData } = useQuery({
     queryKey: ['/api/chess/rating', walletAddress],
@@ -116,13 +135,15 @@ export function ChessLobbyScreen() {
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeader}>
             <Text style={styles.balanceLabel}>Your Balance</Text>
-            <Pressable style={styles.refreshButton} onPress={() => refetchBalances()}>
-              <Feather name="refresh-cw" size={16} color={GameColors.background} />
+            <Pressable style={styles.refreshButton} onPress={() => refetchBalances()} disabled={balanceFetching}>
+              <Animated.View style={spinStyle}>
+                <Feather name="refresh-cw" size={16} color={GameColors.background} />
+              </Animated.View>
             </Pressable>
           </View>
           <View style={styles.balanceRow}>
             <Image source={ChyCoinIcon} style={styles.chyCoinIcon} contentFit="contain" />
-            {balanceLoading ? (
+            {balanceLoading || balanceFetching ? (
               <ActivityIndicator size="small" color={GameColors.gold} />
             ) : (
               <Text style={styles.balanceValue}>{chy} CHY</Text>

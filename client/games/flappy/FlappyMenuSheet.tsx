@@ -18,6 +18,9 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withRepeat,
+  withTiming,
+  Easing,
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -186,7 +189,7 @@ export function FlappyMenuSheet({
   });
 
   // Use webapp balances for real CHY from roachy.games
-  const { chy: chyBalance, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances();
+  const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances } = useWebappBalances();
 
   const enterRankedMutation = useMutation({
     mutationFn: async (period: 'daily' | 'weekly') => {
@@ -260,6 +263,7 @@ export function FlappyMenuSheet({
                 chyBalance={chyBalance}
                 balanceLoading={balanceLoading}
                 onRefreshBalance={() => refetchBalances()}
+                balanceFetching={balanceFetching}
                 onPlayFree={() => {
                   onPlayFree();
                   onClose();
@@ -449,6 +453,7 @@ function LeaderboardsTab({
   userId,
   chyBalance,
   balanceLoading,
+  balanceFetching,
   onRefreshBalance,
   onPlayFree,
   onPlayRanked,
@@ -461,6 +466,7 @@ function LeaderboardsTab({
   userId: string | null;
   chyBalance: number;
   balanceLoading: boolean;
+  balanceFetching: boolean;
   onRefreshBalance: () => void;
   onPlayFree: () => void;
   onPlayRanked: (period: 'daily' | 'weekly') => void;
@@ -468,6 +474,24 @@ function LeaderboardsTab({
   entryError?: string;
 }) {
   const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly' | null>(null);
+  
+  const spinValue = useSharedValue(0);
+  
+  React.useEffect(() => {
+    if (balanceFetching) {
+      spinValue.value = withRepeat(
+        withTiming(1, { duration: 800, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      spinValue.value = 0;
+    }
+  }, [balanceFetching]);
+  
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinValue.value * 360}deg` }],
+  }));
   
   const daily = rankedStatus?.daily;
   const weekly = rankedStatus?.weekly;
@@ -495,13 +519,15 @@ function LeaderboardsTab({
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeader}>
             <ThemedText style={styles.balanceCardLabel}>Your Balance</ThemedText>
-            <Pressable style={styles.refreshBalanceButton} onPress={onRefreshBalance}>
-              <Feather name="refresh-cw" size={16} color={GameColors.background} />
+            <Pressable style={styles.refreshBalanceButton} onPress={onRefreshBalance} disabled={balanceFetching}>
+              <Animated.View style={spinStyle}>
+                <Feather name="refresh-cw" size={16} color={GameColors.background} />
+              </Animated.View>
             </Pressable>
           </View>
           <View style={styles.balanceRow}>
             <Image source={ChyCoinIcon} style={styles.chyCoinIconLarge} contentFit="contain" />
-            {balanceLoading ? (
+            {balanceLoading || balanceFetching ? (
               <ActivityIndicator size="small" color={GameColors.gold} />
             ) : (
               <ThemedText style={styles.balanceValue}>{chyBalance} CHY</ThemedText>

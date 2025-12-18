@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl, Alert, Platform, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from "react-native-reanimated";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
@@ -72,7 +73,25 @@ export function TournamentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { tournamentId } = route.params;
   const { user } = useAuth();
-  const { chy, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances();
+  const { chy, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances } = useWebappBalances();
+  
+  const spinValue = useSharedValue(0);
+  
+  useEffect(() => {
+    if (balanceFetching) {
+      spinValue.value = withRepeat(
+        withTiming(1, { duration: 800, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      spinValue.value = 0;
+    }
+  }, [balanceFetching]);
+  
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinValue.value * 360}deg` }],
+  }));
   
   const guestWalletRef = useRef<string | null>(null);
   if (!guestWalletRef.current) {
@@ -324,7 +343,7 @@ export function TournamentDetailScreen() {
                 <View style={styles.balanceInfo}>
                   <Image source={ChyCoinIcon} style={styles.chyCoinIcon} contentFit="contain" />
                   <Text style={styles.balanceLabel}>Your Balance:</Text>
-                  {balanceLoading ? (
+                  {balanceLoading || balanceFetching ? (
                     <ActivityIndicator size="small" color={GameColors.primary} />
                   ) : (
                     <Text style={[
@@ -335,8 +354,10 @@ export function TournamentDetailScreen() {
                     </Text>
                   )}
                 </View>
-                <Pressable style={styles.refreshButton} onPress={() => refetchBalances()}>
-                  <Feather name="refresh-cw" size={16} color={GameColors.background} />
+                <Pressable style={styles.refreshButton} onPress={() => refetchBalances()} disabled={balanceFetching}>
+                  <Animated.View style={spinStyle}>
+                    <Feather name="refresh-cw" size={16} color={GameColors.background} />
+                  </Animated.View>
                 </Pressable>
               </View>
             ) : null}

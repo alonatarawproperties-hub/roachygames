@@ -66,6 +66,7 @@ export function useWebappBalances() {
     diamonds: query.data?.diamonds ?? 0,
     chy: query.data?.chy ?? 0,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     isError: query.isError,
     error: query.error,
     refetch: query.refetch,
