@@ -3,11 +3,14 @@ import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform, Activit
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
+
+const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type TimeControl = 'bullet' | 'blitz' | 'rapid' | 'classical';
@@ -114,11 +117,11 @@ export function ChessLobbyScreen() {
           <View style={styles.balanceHeader}>
             <Text style={styles.balanceLabel}>Your Balance</Text>
             <Pressable style={styles.refreshButton} onPress={() => refetchBalances()}>
-              <Feather name="refresh-cw" size={14} color={GameColors.textSecondary} />
+              <Feather name="refresh-cw" size={16} color={GameColors.background} />
             </Pressable>
           </View>
           <View style={styles.balanceRow}>
-            <Feather name="dollar-sign" size={20} color={GameColors.gold} />
+            <Image source={ChyCoinIcon} style={styles.chyCoinIcon} contentFit="contain" />
             {balanceLoading ? (
               <ActivityIndicator size="small" color={GameColors.gold} />
             ) : (
@@ -250,12 +253,16 @@ const styles = StyleSheet.create({
     color: GameColors.gold,
   },
   refreshButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: GameColors.surfaceElevated,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chyCoinIcon: {
+    width: 28,
+    height: 28,
   },
   header: {
     flexDirection: "row",

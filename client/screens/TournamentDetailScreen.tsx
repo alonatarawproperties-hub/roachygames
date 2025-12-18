@@ -3,12 +3,15 @@ import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl, Alert, P
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
+
+const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RouteParams = {
@@ -319,7 +322,7 @@ export function TournamentDetailScreen() {
             {tournament.entryFee > 0 && !isRegistered ? (
               <View style={styles.balanceRow}>
                 <View style={styles.balanceInfo}>
-                  <Feather name="database" size={16} color={GameColors.primary} />
+                  <Image source={ChyCoinIcon} style={styles.chyCoinIcon} contentFit="contain" />
                   <Text style={styles.balanceLabel}>Your Balance:</Text>
                   {balanceLoading ? (
                     <ActivityIndicator size="small" color={GameColors.primary} />
@@ -333,7 +336,7 @@ export function TournamentDetailScreen() {
                   )}
                 </View>
                 <Pressable style={styles.refreshButton} onPress={() => refetchBalances()}>
-                  <Feather name="refresh-cw" size={16} color={GameColors.textSecondary} />
+                  <Feather name="refresh-cw" size={16} color={GameColors.background} />
                 </Pressable>
               </View>
             ) : null}
@@ -801,9 +804,16 @@ const styles = StyleSheet.create({
     color: GameColors.error,
   },
   refreshButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: GameColors.surfaceElevated,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chyCoinIcon: {
+    width: 24,
+    height: 24,
   },
   insufficientFunds: {
     flexDirection: 'row',

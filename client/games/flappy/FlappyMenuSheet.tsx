@@ -496,17 +496,16 @@ function LeaderboardsTab({
           <View style={styles.balanceHeader}>
             <ThemedText style={styles.balanceCardLabel}>Your Balance</ThemedText>
             <Pressable style={styles.refreshBalanceButton} onPress={onRefreshBalance}>
-              <Feather name="refresh-cw" size={14} color={GameColors.textSecondary} />
+              <Feather name="refresh-cw" size={16} color={GameColors.background} />
             </Pressable>
           </View>
           <View style={styles.balanceRow}>
-            <Image source={ChyCoinIcon} style={styles.coinSymbolImage} contentFit="contain" />
+            <Image source={ChyCoinIcon} style={styles.chyCoinIconLarge} contentFit="contain" />
             {balanceLoading ? (
               <ActivityIndicator size="small" color={GameColors.gold} />
             ) : (
-              <ThemedText style={styles.balanceValue}>{chyBalance}</ThemedText>
+              <ThemedText style={styles.balanceValue}>{chyBalance} CHY</ThemedText>
             )}
-            <ThemedText style={styles.balanceLabel}>CHY</ThemedText>
           </View>
         </View>
       ) : null}
@@ -1197,12 +1196,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   refreshBalanceButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: GameColors.surfaceLight,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.gold,
     alignItems: "center",
     justifyContent: "center",
+  },
+  chyCoinIconLarge: {
+    width: 28,
+    height: 28,
   },
   balanceRow: {
     flexDirection: "row",
