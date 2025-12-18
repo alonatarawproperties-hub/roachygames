@@ -285,7 +285,7 @@ const POWERUP_SIZE = 50;
 const POWERUP_SPAWN_INTERVAL = 12000;
 
 const CLOUD_SPEED = 1.5;
-const CLOUD_SPAWN_INTERVAL = 3000;
+const CLOUD_SPAWN_INTERVAL = Platform.OS === "android" ? 5000 : 3000;
 
 interface Cloud {
   id: number;
@@ -327,9 +327,9 @@ interface TrailParticle {
   rotation: number;
 }
 
-const TRAIL_PARTICLE_SPAWN_INTERVAL = 3;
+const TRAIL_PARTICLE_SPAWN_INTERVAL = Platform.OS === "android" ? 5 : 3;
 const TRAIL_PARTICLE_FADE_SPEED = 0.04;
-const TRAIL_PARTICLE_MAX = 12;
+const TRAIL_PARTICLE_MAX = Platform.OS === "android" ? 6 : 12;
 
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
@@ -521,6 +521,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   const lastFrameTimeRef = useRef<number>(0);
   const TARGET_FRAME_TIME = 16.67;
+  const renderFrameCounterRef = useRef(0);
+  const RENDER_THROTTLE = Platform.OS === "android" ? 2 : 1;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -1019,14 +1021,18 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         .filter((p) => p.opacity > 0);
     }
     
-    runOnJS(setPipes)([...pipesRef.current]);
-    runOnJS(setCoins)([...coinsRef.current]);
-    runOnJS(setPowerUps)([...powerUpsRef.current]);
-    runOnJS(setClouds)([...cloudsRef.current]);
-    runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+    renderFrameCounterRef.current++;
+    if (renderFrameCounterRef.current >= RENDER_THROTTLE) {
+      renderFrameCounterRef.current = 0;
+      runOnJS(setPipes)([...pipesRef.current]);
+      runOnJS(setCoins)([...coinsRef.current]);
+      runOnJS(setPowerUps)([...powerUpsRef.current]);
+      runOnJS(setClouds)([...cloudsRef.current]);
+      runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+    }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, RENDER_THROTTLE]);
   
   const startGame = useCallback(() => {
     clearAllTimers();
@@ -1041,6 +1047,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     doublePointsRef.current = false;
     magnetRef.current = false;
     lastFrameTimeRef.current = 0;
+    renderFrameCounterRef.current = 0;
     
     const initialClouds: Cloud[] = [];
     for (let i = 0; i < 4; i++) {
