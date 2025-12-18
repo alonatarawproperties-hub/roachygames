@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
+import { useWebappBalances } from "@/hooks/useWebappBalances";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type TimeControl = 'bullet' | 'blitz' | 'rapid' | 'classical';
@@ -30,6 +31,8 @@ export function ChessLobbyScreen() {
   const walletAddress = user?.walletAddress || user?.id || guestWalletRef.current;
   
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>('rapid');
+  
+  const { chy, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances(walletAddress);
   
   const { data: ratingData } = useQuery({
     queryKey: ['/api/chess/rating', walletAddress],
@@ -107,6 +110,23 @@ export function ChessLobbyScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.balanceCard}>
+          <View style={styles.balanceHeader}>
+            <Text style={styles.balanceLabel}>Your Balance</Text>
+            <Pressable style={styles.refreshButton} onPress={() => refetchBalances()}>
+              <Feather name="refresh-cw" size={14} color={GameColors.textSecondary} />
+            </Pressable>
+          </View>
+          <View style={styles.balanceRow}>
+            <Feather name="dollar-sign" size={20} color={GameColors.gold} />
+            {balanceLoading ? (
+              <ActivityIndicator size="small" color={GameColors.gold} />
+            ) : (
+              <Text style={styles.balanceValue}>{chy} CHY</Text>
+            )}
+          </View>
+        </View>
+        
         <View style={styles.statsCard}>
           <Text style={styles.statsTitle}>Your Stats</Text>
           <View style={styles.statsRow}>
@@ -200,6 +220,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: GameColors.background,
+  },
+  balanceCard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  balanceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: GameColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  balanceValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: GameColors.gold,
+  },
+  refreshButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GameColors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     flexDirection: "row",
