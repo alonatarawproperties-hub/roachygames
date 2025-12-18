@@ -222,7 +222,7 @@ export function TournamentListScreen() {
           <View style={styles.entryInfo}>
             <Text style={styles.entryLabel}>Entry</Text>
             <Text style={styles.entryAmount}>
-              {tournament.entryFee === 0 ? 'Free' : `${tournament.entryFee} diamonds`}
+              {tournament.entryFee === 0 ? 'Free' : `${tournament.entryFee} CHY`}
             </Text>
           </View>
           

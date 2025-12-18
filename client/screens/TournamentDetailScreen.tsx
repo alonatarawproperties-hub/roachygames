@@ -69,7 +69,7 @@ export function TournamentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { tournamentId } = route.params;
   const { user } = useAuth();
-  const { diamonds, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances();
+  const { chy, isLoading: balanceLoading, refetch: refetchBalances } = useWebappBalances();
   
   const guestWalletRef = useRef<string | null>(null);
   if (!guestWalletRef.current) {
@@ -277,7 +277,7 @@ export function TournamentDetailScreen() {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Entry Fee</Text>
               <Text style={styles.infoValue}>
-                {tournament.entryFee === 0 ? 'Free' : `${tournament.entryFee} diamonds`}
+                {tournament.entryFee === 0 ? 'Free' : `${tournament.entryFee} CHY`}
               </Text>
             </View>
             
@@ -326,9 +326,9 @@ export function TournamentDetailScreen() {
                   ) : (
                     <Text style={[
                       styles.balanceValue,
-                      diamonds < tournament.entryFee && styles.balanceInsufficient
+                      chy < tournament.entryFee && styles.balanceInsufficient
                     ]}>
-                      {diamonds} diamonds
+                      {chy} CHY
                     </Text>
                   )}
                 </View>
@@ -352,11 +352,11 @@ export function TournamentDetailScreen() {
                 <Feather name="users" size={24} color={GameColors.textSecondary} />
                 <Text style={styles.fullMessageText}>Tournament is full</Text>
               </View>
-            ) : diamonds < (tournament.entryFee || 0) && tournament.entryFee > 0 ? (
+            ) : chy < (tournament.entryFee || 0) && tournament.entryFee > 0 ? (
               <View style={styles.insufficientFunds}>
                 <Feather name="alert-circle" size={20} color={GameColors.error} />
                 <Text style={styles.insufficientText}>
-                  Need {tournament.entryFee - diamonds} more diamonds to join
+                  Need {tournament.entryFee - chy} more CHY to join
                 </Text>
               </View>
             ) : (
@@ -370,7 +370,7 @@ export function TournamentDetailScreen() {
                   <Feather name="user-plus" size={20} color={GameColors.background} />
                   <Text style={styles.joinButtonText}>
                     {joinMutation.isPending ? 'Joining...' : 
-                     tournament.entryFee > 0 ? `Join (${tournament.entryFee} diamonds)` : 'Join Free'}
+                     tournament.entryFee > 0 ? `Join (${tournament.entryFee} CHY)` : 'Join Free'}
                   </Text>
                 </LinearGradient>
               </Pressable>
