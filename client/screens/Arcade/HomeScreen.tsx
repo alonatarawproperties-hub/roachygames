@@ -415,9 +415,15 @@ const debugStyles = StyleSheet.create({
  * Token Balance Card with webapp balances integration
  */
 function TokenBalanceCardWithWebapp() {
-  const { user, isGuest, logout } = useAuth();
-  const { diamonds, chy, isLoading } = useWebappBalances();
+  const { user, isGuest, logout, updateUserData } = useAuth();
+  const { diamonds, chy, isLoading, refetch } = useWebappBalances();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const spinValue = useSharedValue(0);
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinValue.value * 360}deg` }],
+  }));
 
   const handleGuestSignIn = () => {
     Alert.alert(
@@ -435,18 +441,102 @@ function TokenBalanceCardWithWebapp() {
     );
   };
 
+  const handleSync = async () => {
+    if (isSyncing || isGuest) return;
+    
+    setIsSyncing(true);
+    spinValue.value = withRepeat(
+      withTiming(1, { duration: 800, easing: Easing.linear }),
+      -1,
+      false
+    );
+    
+    try {
+      const googleId = user?.googleId;
+      const email = user?.email;
+      
+      if (!googleId || !email) {
+        await refetch();
+        return;
+      }
+      
+      const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+      const response = await fetch("https://roachy.games/api/web/oauth/exchange", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(secret ? { "x-api-secret": secret } : {}),
+        },
+        body: JSON.stringify({
+          googleId,
+          email,
+          displayName: user?.displayName || email.split("@")[0],
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const webappId = result.user?.id;
+        if (webappId) {
+          const updatedUser = { ...user, webappUserId: webappId };
+          if (Platform.OS === "web") {
+            localStorage.setItem("roachy_user_data", JSON.stringify(updatedUser));
+          } else {
+            await SecureStore.setItemAsync("roachy_user_data", JSON.stringify(updatedUser));
+          }
+          updateUserData(updatedUser);
+          await refetch();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      } else {
+        await refetch();
+      }
+    } catch (err) {
+      await refetch();
+    } finally {
+      setIsSyncing(false);
+      spinValue.value = 0;
+    }
+  };
+
   return (
-    <>
+    <View style={balanceSyncStyles.container}>
       <TokenBalanceCard
         chyCoinsBalance={chy || 0}
         isConnected={!!user && !isGuest}
-        isLoading={isLoading}
+        isLoading={isLoading || isSyncing}
         isGuest={isGuest}
         onPress={isGuest ? handleGuestSignIn : undefined}
       />
-    </>
+      {!isGuest && user && (
+        <Pressable 
+          style={balanceSyncStyles.syncButton} 
+          onPress={handleSync}
+          disabled={isSyncing}
+        >
+          <Animated.View style={spinStyle}>
+            <Feather 
+              name="refresh-cw" 
+              size={16} 
+              color={isSyncing ? GameColors.gold : GameColors.textSecondary} 
+            />
+          </Animated.View>
+        </Pressable>
+      )}
+    </View>
   );
 }
+
+const balanceSyncStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  syncButton: {
+    padding: 8,
+    marginLeft: 4,
+  },
+});
 
 /**
  * Egg Hatching Section for centralized inventory
