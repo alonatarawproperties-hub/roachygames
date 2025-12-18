@@ -5,7 +5,7 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
  * Uses the deployed Replit app's server for game features
  * @returns {string} The API base URL
  */
-const PRODUCTION_API_URL = "https://roachy-games-mobile--alon0x144.replit.app";
+const PRODUCTION_API_URL = "https://roachy.games";
 
 export function getApiUrl(): string {
   // Use explicitly set API URL if provided
