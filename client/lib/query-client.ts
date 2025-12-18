@@ -100,8 +100,16 @@ export const getQueryFn: <T>(options: {
     const baseUrl = getApiUrl();
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
+    const headers: Record<string, string> = {};
+    
+    // Add API secret for authenticated endpoints
+    if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
+      headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+    }
+
     const res = await fetch(url, {
       credentials: "include",
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
