@@ -369,7 +369,7 @@ export function registerFlappyRoutes(app: Express) {
       }
       
       if (user[0].diamondBalance < ENTRY_FEE) {
-        return res.status(400).json({ success: false, error: "Not enough diamonds" });
+        return res.status(400).json({ success: false, error: "Not enough CHY" });
       }
       
       const [newEntry] = await db.insert(flappyRankedEntries).values({

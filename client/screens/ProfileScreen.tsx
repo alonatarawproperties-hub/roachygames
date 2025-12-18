@@ -380,7 +380,7 @@ export default function ProfileScreen() {
                 Trade Tokens
               </ThemedText>
               <ThemedText style={styles.resourceDescription}>
-                Exchange CHY and ROACHY for Diamonds
+                Trade CHY and ROACHY tokens
               </ThemedText>
             </View>
             <Feather
@@ -401,7 +401,7 @@ export default function ProfileScreen() {
                 Powerup Shop
               </ThemedText>
               <ThemedText style={styles.resourceDescription}>
-                Buy boosts with your Diamonds
+                Buy boosts with your CHY
               </ThemedText>
             </View>
             <Feather

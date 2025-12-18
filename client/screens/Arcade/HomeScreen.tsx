@@ -422,7 +422,7 @@ function TokenBalanceCardWithWebapp() {
   const handleGuestSignIn = () => {
     Alert.alert(
       "Sign In Required",
-      "Sign in to track your CHY and Diamond balances.",
+      "Sign in to track your CHY balance.",
       [
         { text: "Cancel", style: "cancel" },
         {
