@@ -1,4 +1,32 @@
-import { getApiUrl, apiRequest } from "./query-client";
+import { WEBAPP_API_URL } from "./query-client";
+
+// Helper to make authenticated requests to the webapp (roachy.games)
+async function webappRequest(
+  method: string,
+  route: string,
+  data?: unknown
+): Promise<Response> {
+  const url = new URL(route, WEBAPP_API_URL);
+  
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add API secret for authenticated webapp endpoints
+  if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
+    headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+  }
+
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+  return res;
+}
 
 interface WebappBalances {
   diamonds: number;
@@ -35,7 +63,7 @@ export async function exchangeOAuthUser(
   displayName: string
 ): Promise<OAuthExchangeResult> {
   try {
-    const response = await apiRequest("POST", "/api/web/oauth/exchange", {
+    const response = await webappRequest("POST", "/api/web/oauth/exchange", {
       googleId,
       email,
       displayName,
@@ -54,7 +82,7 @@ export async function getUserBalances(
   userId: string
 ): Promise<{ success: boolean; balances?: WebappBalances; error?: string }> {
   try {
-    const response = await apiRequest(
+    const response = await webappRequest(
       "GET",
       `/api/web/users/${userId}/balances`
     );
@@ -73,7 +101,7 @@ export async function getUserDiamonds(
   userId: string
 ): Promise<{ success: boolean; diamonds?: number; error?: string }> {
   try {
-    const response = await apiRequest(
+    const response = await webappRequest(
       "GET",
       `/api/web/users/${userId}/diamonds`
     );
@@ -95,7 +123,7 @@ export async function purchasePowerup(
   quantity: number = 1
 ): Promise<PowerupPurchaseResult> {
   try {
-    const response = await apiRequest("POST", "/api/web/powerups/purchase", {
+    const response = await webappRequest("POST", "/api/web/powerups/purchase", {
       userId,
       powerupType,
       diamondCost,
@@ -118,7 +146,7 @@ export async function linkWallet(
   message?: string
 ): Promise<{ success: boolean; walletAddress?: string; error?: string }> {
   try {
-    const response = await apiRequest(
+    const response = await webappRequest(
       "POST",
       `/api/web/users/${userId}/link-wallet`,
       { walletAddress, signature, message }
@@ -149,7 +177,7 @@ export async function getUserNfts(
   userId: string
 ): Promise<{ success: boolean; nfts?: OwnedNft[]; error?: string }> {
   try {
-    const response = await apiRequest(
+    const response = await webappRequest(
       "GET",
       `/api/web/users/${userId}/nfts`
     );
