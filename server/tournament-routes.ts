@@ -639,4 +639,335 @@ export function registerTournamentRoutes(app: Express) {
       res.status(500).json({ success: false, error: "Failed to seed tournaments" });
     }
   });
+
+  app.post("/api/tournaments/create-weekly-arena", async (req: Request, res: Response) => {
+    try {
+      const {
+        name = 'Weekend Arena Championship',
+        timeControl = 'rapid',
+        entryFee = 15,
+        maxPlayers = 100,
+        minPlayers = 2,
+        scheduledStartAt,
+        scheduledEndAt,
+      } = req.body;
+
+      if (!scheduledStartAt || !scheduledEndAt) {
+        return res.status(400).json({ success: false, error: "Start and end times required" });
+      }
+
+      const startDate = new Date(scheduledStartAt);
+      const endDate = new Date(scheduledEndAt);
+      const registrationStart = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+
+      const [tournament] = await db.insert(chessTournaments).values({
+        name,
+        tournamentType: 'weekly',
+        tournamentFormat: 'arena',
+        timeControl,
+        entryFee,
+        prizePool: 0,
+        rakeAmount: 0,
+        maxPlayers,
+        minPlayers,
+        status: 'registering',
+        scheduledStartAt: startDate,
+        scheduledEndAt: endDate,
+        registrationEndsAt: startDate,
+      }).returning();
+
+      console.log(`[Tournaments] Created weekly arena tournament: ${name}`);
+      res.json({ success: true, tournament });
+    } catch (error) {
+      console.error("Error creating weekly arena:", error);
+      res.status(500).json({ success: false, error: "Failed to create tournament" });
+    }
+  });
+
+  app.get("/api/tournaments/weekly/current", async (req: Request, res: Response) => {
+    try {
+      const now = new Date();
+      
+      const tournaments = await db.select()
+        .from(chessTournaments)
+        .where(
+          and(
+            eq(chessTournaments.tournamentType, 'weekly'),
+            eq(chessTournaments.tournamentFormat, 'arena'),
+            or(
+              eq(chessTournaments.status, 'registering'),
+              eq(chessTournaments.status, 'active'),
+              eq(chessTournaments.status, 'scheduled')
+            )
+          )
+        )
+        .orderBy(asc(chessTournaments.scheduledStartAt))
+        .limit(1);
+
+      if (tournaments.length === 0) {
+        return res.json({ success: true, tournament: null });
+      }
+
+      const tournament = tournaments[0];
+      
+      const participants = await db.select()
+        .from(chessTournamentParticipants)
+        .where(eq(chessTournamentParticipants.tournamentId, tournament.id));
+
+      const leaderboard = [...participants]
+        .sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          return b.wins - a.wins;
+        })
+        .slice(0, 10);
+
+      res.json({
+        success: true,
+        tournament: {
+          ...tournament,
+          prizePool: Math.floor(tournament.currentPlayers * tournament.entryFee * 0.85),
+        },
+        participants: participants.length,
+        leaderboard,
+      });
+    } catch (error) {
+      console.error("Error fetching weekly tournament:", error);
+      res.status(500).json({ success: false, error: "Failed to fetch tournament" });
+    }
+  });
+
+  app.post("/api/tournaments/arena/:id/find-match", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { walletAddress } = req.body;
+
+      if (!walletAddress) {
+        return res.status(400).json({ success: false, error: "Wallet address required" });
+      }
+
+      const tournaments = await db.select()
+        .from(chessTournaments)
+        .where(eq(chessTournaments.id, id))
+        .limit(1);
+
+      if (tournaments.length === 0) {
+        return res.status(404).json({ success: false, error: "Tournament not found" });
+      }
+
+      const tournament = tournaments[0];
+
+      if (tournament.status !== 'active') {
+        return res.status(400).json({ success: false, error: "Tournament is not active" });
+      }
+
+      const participant = await db.select()
+        .from(chessTournamentParticipants)
+        .where(
+          and(
+            eq(chessTournamentParticipants.tournamentId, id),
+            eq(chessTournamentParticipants.walletAddress, walletAddress)
+          )
+        )
+        .limit(1);
+
+      if (participant.length === 0) {
+        return res.status(400).json({ success: false, error: "Not registered in tournament" });
+      }
+
+      const pendingMatches = await db.select()
+        .from(chessTournamentMatches)
+        .where(
+          and(
+            eq(chessTournamentMatches.tournamentId, id),
+            eq(chessTournamentMatches.status, 'waiting'),
+            sql`${chessTournamentMatches.player1Wallet} != ${walletAddress}`
+          )
+        )
+        .limit(1);
+
+      if (pendingMatches.length > 0) {
+        const match = pendingMatches[0];
+        
+        const timeSeconds = TIME_CONTROL_SECONDS[tournament.timeControl as ChessTimeControl] || 600;
+        const [chessMatch] = await db.insert(chessMatches).values({
+          whiteWallet: match.player1Wallet!,
+          blackWallet: walletAddress,
+          timeControl: tournament.timeControl,
+          timeWhite: timeSeconds,
+          timeBlack: timeSeconds,
+          gameMode: 'tournament',
+          status: 'active',
+          currentFen: STARTING_FEN,
+        }).returning();
+
+        await db.update(chessTournamentMatches)
+          .set({
+            player2Wallet: walletAddress,
+            chessMatchId: chessMatch.id,
+            status: 'active',
+            startedAt: new Date(),
+          })
+          .where(eq(chessTournamentMatches.id, match.id));
+
+        return res.json({
+          success: true,
+          matchFound: true,
+          match: {
+            tournamentMatchId: match.id,
+            chessMatchId: chessMatch.id,
+            opponent: match.player1Wallet,
+            color: 'black',
+          },
+        });
+      }
+
+      const [newMatch] = await db.insert(chessTournamentMatches).values({
+        tournamentId: id,
+        roundNumber: 1,
+        matchNumber: Date.now(),
+        player1Wallet: walletAddress,
+        status: 'waiting',
+      }).returning();
+
+      res.json({
+        success: true,
+        matchFound: false,
+        queuePosition: 1,
+        matchId: newMatch.id,
+        message: "Waiting for opponent...",
+      });
+    } catch (error) {
+      console.error("Error finding arena match:", error);
+      res.status(500).json({ success: false, error: "Failed to find match" });
+    }
+  });
+
+  app.post("/api/tournaments/arena/match-complete", async (req: Request, res: Response) => {
+    try {
+      const { tournamentMatchId, winnerWallet, isDraw } = req.body;
+
+      if (!tournamentMatchId) {
+        return res.status(400).json({ success: false, error: "Match ID required" });
+      }
+
+      const matches = await db.select()
+        .from(chessTournamentMatches)
+        .where(eq(chessTournamentMatches.id, tournamentMatchId))
+        .limit(1);
+
+      if (matches.length === 0) {
+        return res.status(404).json({ success: false, error: "Match not found" });
+      }
+
+      const match = matches[0];
+      const player1 = match.player1Wallet;
+      const player2 = match.player2Wallet;
+
+      await db.update(chessTournamentMatches)
+        .set({
+          status: 'completed',
+          winnerWallet: isDraw ? null : winnerWallet,
+          endedAt: new Date(),
+        })
+        .where(eq(chessTournamentMatches.id, tournamentMatchId));
+
+      if (isDraw) {
+        if (player1) {
+          await db.update(chessTournamentParticipants)
+            .set({
+              draws: sql`${chessTournamentParticipants.draws} + 1`,
+              points: sql`${chessTournamentParticipants.points} + 1`,
+              gamesPlayed: sql`${chessTournamentParticipants.gamesPlayed} + 1`,
+            })
+            .where(
+              and(
+                eq(chessTournamentParticipants.tournamentId, match.tournamentId),
+                eq(chessTournamentParticipants.walletAddress, player1)
+              )
+            );
+        }
+        if (player2) {
+          await db.update(chessTournamentParticipants)
+            .set({
+              draws: sql`${chessTournamentParticipants.draws} + 1`,
+              points: sql`${chessTournamentParticipants.points} + 1`,
+              gamesPlayed: sql`${chessTournamentParticipants.gamesPlayed} + 1`,
+            })
+            .where(
+              and(
+                eq(chessTournamentParticipants.tournamentId, match.tournamentId),
+                eq(chessTournamentParticipants.walletAddress, player2)
+              )
+            );
+        }
+      } else {
+        const loserWallet = winnerWallet === player1 ? player2 : player1;
+
+        if (winnerWallet) {
+          await db.update(chessTournamentParticipants)
+            .set({
+              wins: sql`${chessTournamentParticipants.wins} + 1`,
+              points: sql`${chessTournamentParticipants.points} + 3`,
+              gamesPlayed: sql`${chessTournamentParticipants.gamesPlayed} + 1`,
+            })
+            .where(
+              and(
+                eq(chessTournamentParticipants.tournamentId, match.tournamentId),
+                eq(chessTournamentParticipants.walletAddress, winnerWallet)
+              )
+            );
+        }
+
+        if (loserWallet) {
+          await db.update(chessTournamentParticipants)
+            .set({
+              losses: sql`${chessTournamentParticipants.losses} + 1`,
+              gamesPlayed: sql`${chessTournamentParticipants.gamesPlayed} + 1`,
+            })
+            .where(
+              and(
+                eq(chessTournamentParticipants.tournamentId, match.tournamentId),
+                eq(chessTournamentParticipants.walletAddress, loserWallet)
+              )
+            );
+        }
+      }
+
+      res.json({ success: true, message: "Match result recorded" });
+    } catch (error) {
+      console.error("Error completing arena match:", error);
+      res.status(500).json({ success: false, error: "Failed to complete match" });
+    }
+  });
+
+  app.get("/api/tournaments/arena/:id/leaderboard", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const participants = await db.select()
+        .from(chessTournamentParticipants)
+        .where(eq(chessTournamentParticipants.tournamentId, id));
+
+      const leaderboard = [...participants]
+        .sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          return b.gamesPlayed - a.gamesPlayed;
+        })
+        .map((p, index) => ({
+          rank: index + 1,
+          walletAddress: p.walletAddress,
+          points: p.points,
+          wins: p.wins,
+          draws: p.draws,
+          losses: p.losses,
+          gamesPlayed: p.gamesPlayed,
+        }));
+
+      res.json({ success: true, leaderboard });
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+      res.status(500).json({ success: false, error: "Failed to fetch leaderboard" });
+    }
+  });
 }

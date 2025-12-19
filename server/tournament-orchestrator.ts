@@ -72,6 +72,7 @@ class TournamentOrchestrator {
       await this.checkMatchCompletions();
       await this.advanceBrackets();
       await this.finalizeTournaments();
+      await this.checkArenaTournamentEnd();
       this.consecutiveErrors = 0;
       console.log('[TournamentOrchestrator] Tick completed');
     } catch (error: any) {
@@ -82,6 +83,78 @@ class TournamentOrchestrator {
         console.error('[TournamentOrchestrator] Multiple DB errors, reducing log frequency');
       }
     }
+  }
+
+  private async checkArenaTournamentEnd() {
+    const now = new Date();
+    const activeArenaTournaments = await db
+      .select()
+      .from(chessTournaments)
+      .where(
+        and(
+          eq(chessTournaments.status, 'active'),
+          eq(chessTournaments.tournamentFormat, 'arena')
+        )
+      );
+
+    for (const tournament of activeArenaTournaments) {
+      if (tournament.scheduledEndAt && new Date(tournament.scheduledEndAt) <= now) {
+        await this.finalizeArenaTournament(tournament.id);
+      }
+    }
+  }
+
+  private async finalizeArenaTournament(tournamentId: string) {
+    console.log(`[TournamentOrchestrator] Finalizing arena tournament ${tournamentId}`);
+
+    const tournament = await db.select().from(chessTournaments).where(eq(chessTournaments.id, tournamentId)).limit(1);
+    if (tournament.length === 0) return;
+
+    const participants = await db
+      .select()
+      .from(chessTournamentParticipants)
+      .where(eq(chessTournamentParticipants.tournamentId, tournamentId));
+
+    if (participants.length === 0) {
+      await db.update(chessTournaments)
+        .set({ status: 'cancelled', endedAt: new Date() })
+        .where(eq(chessTournaments.id, tournamentId));
+      return;
+    }
+
+    const sortedByPoints = [...participants].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return b.gamesPlayed - a.gamesPlayed;
+    });
+
+    const prizePool = tournament[0].prizePool;
+    const prizes = [
+      Math.floor(prizePool * 0.60),
+      Math.floor(prizePool * 0.25),
+      Math.floor(prizePool * 0.15),
+    ];
+
+    for (let i = 0; i < sortedByPoints.length; i++) {
+      const prize = i < prizes.length ? prizes[i] : 0;
+      await db.update(chessTournamentParticipants)
+        .set({
+          finalPlacement: i + 1,
+          prizesWon: prize,
+        })
+        .where(eq(chessTournamentParticipants.id, sortedByPoints[i].id));
+    }
+
+    const winner = sortedByPoints[0];
+    await db.update(chessTournaments)
+      .set({
+        status: 'completed',
+        winnerWallet: winner.walletAddress,
+        endedAt: new Date(),
+      })
+      .where(eq(chessTournaments.id, tournamentId));
+
+    console.log(`[TournamentOrchestrator] Arena tournament ${tournamentId} completed! Winner: ${winner.walletAddress} with ${winner.points} points`);
   }
 
   private async ensureSitAndGoPool() {
