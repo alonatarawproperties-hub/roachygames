@@ -159,6 +159,30 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/admin/reset-tournaments", async (req: Request, res: Response) => {
+    try {
+      const adminKey = req.headers['x-admin-key'];
+      if (adminKey !== 'roachy-reset-2025') {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
+      await db.delete(chessTournaments).where(eq(chessTournaments.tournamentType, 'sit_and_go'));
+
+      await db.update(chessTournaments)
+        .set({
+          scheduledStartAt: new Date('2025-12-27T00:00:00Z'),
+          scheduledEndAt: new Date('2025-12-28T23:59:59Z'),
+          registrationEndsAt: new Date('2025-12-27T00:00:00Z'),
+        })
+        .where(eq(chessTournaments.name, 'Weekend Arena Championship'));
+
+      res.json({ success: true, message: "Tournaments reset. Orchestrator will recreate Sit & Go tournaments." });
+    } catch (error) {
+      console.error("Error resetting tournaments:", error);
+      res.status(500).json({ success: false, error: "Failed to reset tournaments" });
+    }
+  });
+
   app.get("/api/tournaments/active", async (req: Request, res: Response) => {
     try {
       const tournaments = await db.select()
