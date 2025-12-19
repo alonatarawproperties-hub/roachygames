@@ -19,9 +19,11 @@ import Animated, {
   withTiming,
   withRepeat,
   withSpring,
+  withSequence,
   runOnJS,
   cancelAnimation,
   Easing,
+  interpolate,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { FlappyMenuSheet } from "./FlappyMenuSheet";
@@ -1145,11 +1147,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   useEffect(() => {
     if (gameState === "idle" || gameState === "playing") {
-      const wingSpeed = Platform.OS === "android" ? 180 : 120;
+      const wingSpeed = Platform.OS === "android" ? 150 : 120;
       wingOpacity.value = withRepeat(
-        withTiming(0, { duration: wingSpeed, easing: Easing.linear }),
+        withSequence(
+          withTiming(1, { duration: 0 }),
+          withTiming(1, { duration: wingSpeed }),
+          withTiming(0, { duration: 0 }),
+          withTiming(0, { duration: wingSpeed })
+        ),
         -1,
-        true
+        false
       );
     } else {
       cancelAnimation(wingOpacity);
@@ -1201,11 +1208,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   }));
   
   const wingFrame0Style = useAnimatedStyle(() => ({
-    opacity: wingOpacity.value > 0.5 ? 1 : 0,
+    opacity: wingOpacity.value,
   }));
   
   const wingFrame1Style = useAnimatedStyle(() => ({
-    opacity: wingOpacity.value > 0.5 ? 0 : 1,
+    opacity: 1 - wingOpacity.value,
   }));
   
   const groundStyle = useAnimatedStyle(() => ({
