@@ -162,7 +162,7 @@ export function registerTournamentRoutes(app: Express) {
   app.post("/api/admin/reset-tournaments", async (req: Request, res: Response) => {
     try {
       const adminKey = req.headers['x-admin-key'];
-      if (adminKey !== 'roachy-reset-2025') {
+      if (!process.env.ADMIN_SECRET || adminKey !== process.env.ADMIN_SECRET) {
         return res.status(401).json({ success: false, error: "Unauthorized" });
       }
 
