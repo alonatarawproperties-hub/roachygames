@@ -401,7 +401,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const [shieldTimeLeft, setShieldTimeLeft] = useState(0);
   const [doubleTimeLeft, setDoubleTimeLeft] = useState(0);
   const [magnetTimeLeft, setMagnetTimeLeft] = useState(0);
-  const [wingFrame, setWingFrame] = useState(0);
   
   const [showMenu, setShowMenu] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>("free");
@@ -470,6 +469,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const birdVelocity = useRef(0);
   const birdRotation = useSharedValue(0);
   const groundOffset = useSharedValue(0);
+  const wingOpacity = useSharedValue(1);
   
   const gameLoopRef = useRef<number | null>(null);
   const pipeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -480,7 +480,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const shieldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doubleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const magnetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wingAnimationRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const pipeIdRef = useRef(0);
   const coinIdRef = useRef(0);
@@ -576,10 +575,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       clearTimeout(magnetTimerRef.current);
       magnetTimerRef.current = null;
     }
-    if (wingAnimationRef.current) {
-      clearInterval(wingAnimationRef.current);
-      wingAnimationRef.current = null;
-    }
+    cancelAnimation(wingOpacity);
     if (cloudTimerRef.current) {
       clearInterval(cloudTimerRef.current);
       cloudTimerRef.current = null;
@@ -589,7 +585,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       powerUpCountdownRef.current = null;
     }
     cancelAnimation(groundOffset);
-  }, [groundOffset]);
+  }, [groundOffset, wingOpacity]);
   
   const stopGame = useCallback(() => {
     clearAllTimers();
@@ -1149,23 +1145,21 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   useEffect(() => {
     if (gameState === "idle" || gameState === "playing") {
-      wingAnimationRef.current = setInterval(() => {
-        setWingFrame((prev) => (prev + 1) % 2);
-      }, 120);
+      const wingSpeed = Platform.OS === "android" ? 180 : 120;
+      wingOpacity.value = withRepeat(
+        withTiming(0, { duration: wingSpeed, easing: Easing.linear }),
+        -1,
+        true
+      );
     } else {
-      if (wingAnimationRef.current) {
-        clearInterval(wingAnimationRef.current);
-        wingAnimationRef.current = null;
-      }
+      cancelAnimation(wingOpacity);
+      wingOpacity.value = 1;
     }
     
     return () => {
-      if (wingAnimationRef.current) {
-        clearInterval(wingAnimationRef.current);
-        wingAnimationRef.current = null;
-      }
+      cancelAnimation(wingOpacity);
     };
-  }, [gameState]);
+  }, [gameState, wingOpacity]);
   
   useEffect(() => {
     if (gameState === "playing") {
@@ -1204,6 +1198,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       { translateY: birdY.value - BIRD_VISUAL_SIZE / 2 },
       { rotate: `${birdRotation.value}deg` },
     ],
+  }));
+  
+  const wingFrame0Style = useAnimatedStyle(() => ({
+    opacity: wingOpacity.value,
+  }));
+  
+  const wingFrame1Style = useAnimatedStyle(() => ({
+    opacity: 1 - wingOpacity.value,
   }));
   
   const groundStyle = useAnimatedStyle(() => ({
@@ -1331,18 +1333,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
             />
           ) : (
             <View style={styles.roachySprite}>
-              <Image
-                source={ROACHY_FRAMES[0]}
-                style={[styles.roachySpriteAbsolute, { opacity: wingFrame === 0 ? 1 : 0 }]}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-              />
-              <Image
-                source={ROACHY_FRAMES[1]}
-                style={[styles.roachySpriteAbsolute, { opacity: wingFrame === 1 ? 1 : 0 }]}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-              />
+              <Animated.View style={[styles.roachySpriteAbsolute, wingFrame0Style]}>
+                <Image
+                  source={ROACHY_FRAMES[0]}
+                  style={styles.roachySpriteAbsolute}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                />
+              </Animated.View>
+              <Animated.View style={[styles.roachySpriteAbsolute, wingFrame1Style]}>
+                <Image
+                  source={ROACHY_FRAMES[1]}
+                  style={styles.roachySpriteAbsolute}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                />
+              </Animated.View>
             </View>
           )}
         </Animated.View>
