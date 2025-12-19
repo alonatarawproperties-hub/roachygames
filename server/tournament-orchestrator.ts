@@ -3,7 +3,7 @@ import { chessTournaments, chessTournamentParticipants, chessTournamentMatches, 
 import { eq, and, lt, gte, sql, inArray, isNull } from "drizzle-orm";
 
 const TICK_INTERVAL = 15000;
-const SIT_AND_GO_MIN_POOL = 2;
+const SIT_AND_GO_MIN_POOL = 1;
 
 interface TournamentTemplate {
   name: string;
@@ -15,10 +15,11 @@ interface TournamentTemplate {
 }
 
 const DEFAULT_TEMPLATES: TournamentTemplate[] = [
-  { name: 'Quick 8', tournamentType: 'sit_and_go', timeControl: 'blitz', entryFee: 0, maxPlayers: 8, minPlayers: 2 },
-  { name: 'Diamond Rush', tournamentType: 'sit_and_go', timeControl: 'blitz', entryFee: 10, maxPlayers: 8, minPlayers: 4 },
+  { name: 'Quick 8 - Free', tournamentType: 'sit_and_go', timeControl: 'blitz', entryFee: 0, maxPlayers: 8, minPlayers: 2 },
+  { name: 'Quick 8 - Entry', tournamentType: 'sit_and_go', timeControl: 'blitz', entryFee: 5, maxPlayers: 8, minPlayers: 4 },
+  { name: 'Diamond Rush', tournamentType: 'sit_and_go', timeControl: 'rapid', entryFee: 10, maxPlayers: 8, minPlayers: 4 },
   { name: 'Rapid Arena', tournamentType: 'sit_and_go', timeControl: 'rapid', entryFee: 25, maxPlayers: 8, minPlayers: 4 },
-  { name: 'Elite 8', tournamentType: 'sit_and_go', timeControl: 'blitz', entryFee: 100, maxPlayers: 8, minPlayers: 8 },
+  { name: 'Elite 8', tournamentType: 'sit_and_go', timeControl: 'rapid', entryFee: 50, maxPlayers: 8, minPlayers: 4 },
 ];
 
 function calculateTotalRounds(playerCount: number): number {

@@ -150,7 +150,7 @@ export function registerTournamentRoutes(app: Express) {
         query = query.where(eq(chessTournaments.tournamentType, type as string)) as any;
       }
       
-      const tournaments = await query.orderBy(desc(chessTournaments.createdAt)).limit(50);
+      const tournaments = await query.orderBy(asc(chessTournaments.entryFee)).limit(50);
       
       res.json({ success: true, tournaments });
     } catch (error) {

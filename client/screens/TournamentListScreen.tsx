@@ -51,14 +51,18 @@ function AnimatedLoader({ size = 32, color = GameColors.primary }: { size?: numb
   );
 }
 
-type TournamentType = 'sit_and_go' | 'daily' | 'weekly' | 'monthly';
-type FilterType = 'all' | TournamentType;
+type TournamentType = 'sit_and_go' | 'weekly';
+type FilterType = 'all' | 'sit_and_go' | 'arena';
 
-const TOURNAMENT_TYPE_INFO: Record<TournamentType, { label: string; icon: keyof typeof Feather.glyphMap; color: string }> = {
+const TOURNAMENT_TYPE_INFO: Record<FilterType, { label: string; icon: keyof typeof Feather.glyphMap; color: string }> = {
+  all: { label: 'All', icon: 'grid', color: GameColors.textSecondary },
   sit_and_go: { label: 'Sit & Go', icon: 'zap', color: '#f59e0b' },
-  daily: { label: 'Daily', icon: 'sun', color: '#10b981' },
-  weekly: { label: 'Weekly', icon: 'calendar', color: '#6366f1' },
-  monthly: { label: 'Monthly', icon: 'award', color: '#ec4899' },
+  arena: { label: 'Arena', icon: 'award', color: '#6366f1' },
+};
+
+const TOURNAMENT_TYPE_DISPLAY: Record<string, { label: string; icon: keyof typeof Feather.glyphMap; color: string }> = {
+  sit_and_go: { label: 'Sit & Go', icon: 'zap', color: '#f59e0b' },
+  weekly: { label: 'Arena', icon: 'award', color: '#6366f1' },
 };
 
 const TIME_CONTROL_LABELS: Record<string, string> = {
@@ -89,7 +93,8 @@ function formatTimeUntil(date: Date): string {
 interface Tournament {
   id: string;
   name: string;
-  tournamentType: TournamentType;
+  tournamentType: string;
+  tournamentFormat?: string;
   timeControl: string;
   entryFee: number;
   prizePool: number;
@@ -146,15 +151,17 @@ export function TournamentListScreen() {
   const tournaments: Tournament[] = data?.tournaments || [];
   
   const filteredTournaments = filter === 'all' 
-    ? tournaments 
-    : tournaments.filter(t => t.tournamentType === filter);
+    ? tournaments.filter(t => t.tournamentType === 'sit_and_go' || t.tournamentType === 'weekly')
+    : filter === 'arena' 
+      ? tournaments.filter(t => t.tournamentType === 'weekly')
+      : tournaments.filter(t => t.tournamentType === filter);
   
   const handleTournamentPress = (tournament: Tournament) => {
     navigation.navigate('TournamentDetail', { tournamentId: tournament.id });
   };
   
   const renderTournamentCard = (tournament: Tournament) => {
-    const typeInfo = TOURNAMENT_TYPE_INFO[tournament.tournamentType];
+    const typeInfo = TOURNAMENT_TYPE_DISPLAY[tournament.tournamentType] || { label: 'Tournament', icon: 'award' as const, color: '#6366f1' };
     const isFull = tournament.currentPlayers >= tournament.maxPlayers;
     const isActive = tournament.status === 'active';
     const isRegistering = tournament.status === 'registering' || tournament.status === 'scheduled';
@@ -266,14 +273,7 @@ export function TournamentListScreen() {
         contentContainerStyle={styles.filterContainer}
         style={styles.filterScroll}
       >
-        <Pressable
-          style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>All</Text>
-        </Pressable>
-        
-        {(Object.keys(TOURNAMENT_TYPE_INFO) as TournamentType[]).map((type) => {
+        {(['all', 'sit_and_go', 'arena'] as FilterType[]).map((type) => {
           const info = TOURNAMENT_TYPE_INFO[type];
           const isActive = filter === type;
           return (
@@ -353,7 +353,7 @@ export function TournamentListScreen() {
             <Text style={styles.emptyText}>
               {filter === 'all' 
                 ? 'Tournaments are being created automatically. Pull to refresh!'
-                : `No ${TOURNAMENT_TYPE_INFO[filter as TournamentType]?.label} tournaments available.`}
+                : `No ${TOURNAMENT_TYPE_INFO[filter]?.label || 'matching'} tournaments available.`}
             </Text>
             <Pressable 
               style={styles.retryButton}
