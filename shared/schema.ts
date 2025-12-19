@@ -376,6 +376,9 @@ export type InsertChessMatchmakingQueue = z.infer<typeof insertChessMatchmakingQ
 export const TOURNAMENT_TYPES = ['sit_and_go', 'daily', 'weekly', 'monthly'] as const;
 export type TournamentType = typeof TOURNAMENT_TYPES[number];
 
+export const TOURNAMENT_FORMATS = ['bracket', 'arena'] as const;
+export type TournamentFormat = typeof TOURNAMENT_FORMATS[number];
+
 export const TOURNAMENT_STATUS = ['scheduled', 'registering', 'active', 'completed', 'cancelled'] as const;
 export type TournamentStatus = typeof TOURNAMENT_STATUS[number];
 
@@ -398,6 +401,7 @@ export const chessTournaments = pgTable("chess_tournaments", {
   templateId: varchar("template_id"),
   name: text("name").notNull(),
   tournamentType: text("tournament_type").notNull().default('sit_and_go'),
+  tournamentFormat: text("tournament_format").notNull().default('bracket'),
   timeControl: text("time_control").notNull().default('blitz'),
   entryFee: integer("entry_fee").notNull().default(0),
   prizePool: integer("prize_pool").notNull().default(0),
@@ -409,6 +413,7 @@ export const chessTournaments = pgTable("chess_tournaments", {
   totalRounds: integer("total_rounds").notNull().default(3),
   status: text("status").notNull().default('scheduled'),
   scheduledStartAt: timestamp("scheduled_start_at"),
+  scheduledEndAt: timestamp("scheduled_end_at"),
   registrationEndsAt: timestamp("registration_ends_at"),
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
@@ -423,7 +428,10 @@ export const chessTournamentParticipants = pgTable("chess_tournament_participant
   seed: integer("seed"),
   currentRound: integer("current_round").notNull().default(1),
   wins: integer("wins").notNull().default(0),
+  draws: integer("draws").notNull().default(0),
   losses: integer("losses").notNull().default(0),
+  points: integer("points").notNull().default(0),
+  gamesPlayed: integer("games_played").notNull().default(0),
   isEliminated: boolean("is_eliminated").notNull().default(false),
   finalPlacement: integer("final_placement"),
   prizesWon: integer("prizes_won").notNull().default(0),
