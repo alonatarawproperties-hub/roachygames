@@ -12,18 +12,82 @@ import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
 import { webappRequest } from "./webapp-routes";
 
-// Helper to fetch CHY balance from webapp
-async function getWebappChyBalance(userId: string): Promise<number> {
+// Helper to fetch CHY balance from webapp using googleId/email
+async function getWebappChyBalanceForUser(user: { googleId: string | null; email: string | null; displayName: string | null }): Promise<number> {
   try {
-    const result = await webappRequest("GET", `/api/web/users/${userId}/balances`);
-    if (result.status === 200 && result.data?.chy !== undefined) {
-      return result.data.chy;
+    if (!user.googleId || !user.email) {
+      console.log(`[Flappy] User has no googleId/email, cannot fetch webapp CHY`);
+      return 0;
     }
-    console.log(`[Flappy] Could not fetch CHY for user ${userId}:`, result);
+    
+    // First, exchange OAuth credentials to get webappUserId
+    const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
+      googleId: user.googleId,
+      email: user.email,
+      displayName: user.displayName || user.email.split("@")[0],
+    });
+    
+    if (exchangeResult.status !== 200 || !exchangeResult.data?.success) {
+      console.log(`[Flappy] OAuth exchange failed:`, exchangeResult);
+      return 0;
+    }
+    
+    const webappUserId = exchangeResult.data.user?.id;
+    if (!webappUserId) {
+      console.log(`[Flappy] No webappUserId returned from exchange`);
+      return 0;
+    }
+    
+    // Now fetch balances using the webappUserId
+    const balanceResult = await webappRequest("GET", `/api/web/users/${webappUserId}/balances`);
+    if (balanceResult.status === 200) {
+      const chy = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? 0;
+      console.log(`[Flappy] Fetched CHY balance for webapp user ${webappUserId}: ${chy}`);
+      return chy;
+    }
+    
+    console.log(`[Flappy] Could not fetch CHY for webapp user ${webappUserId}:`, balanceResult);
     return 0;
   } catch (error) {
     console.error(`[Flappy] Error fetching CHY balance:`, error);
     return 0;
+  }
+}
+
+// Helper to deduct CHY from webapp
+async function deductWebappChy(user: { googleId: string | null; email: string | null; displayName: string | null }, amount: number, reason: string): Promise<boolean> {
+  try {
+    if (!user.googleId || !user.email) {
+      return false;
+    }
+    
+    // Get webappUserId first
+    const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
+      googleId: user.googleId,
+      email: user.email,
+      displayName: user.displayName || user.email.split("@")[0],
+    });
+    
+    if (exchangeResult.status !== 200 || !exchangeResult.data?.success) {
+      return false;
+    }
+    
+    const webappUserId = exchangeResult.data.user?.id;
+    if (!webappUserId) {
+      return false;
+    }
+    
+    // Deduct CHY
+    const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
+      userId: webappUserId,
+      amount,
+      reason,
+    });
+    
+    return deductResult.status === 200 && deductResult.data?.success === true;
+  } catch (error) {
+    console.error(`[Flappy] Error deducting CHY:`, error);
+    return false;
   }
 }
 
@@ -384,23 +448,29 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(404).json({ success: false, error: "User not found" });
       }
       
-      // Fetch CHY balance from webapp instead of local database
-      const chyBalance = await getWebappChyBalance(userId);
-      console.log(`[Flappy] User ${userId} CHY balance from webapp: ${chyBalance}, entry fee: ${ENTRY_FEE}`);
+      const userData = user[0];
+      
+      // Fetch CHY balance from webapp using user's googleId/email
+      const chyBalance = await getWebappChyBalanceForUser({
+        googleId: userData.googleId,
+        email: userData.email,
+        displayName: userData.displayName,
+      });
+      console.log(`[Flappy] User ${userId} (${userData.email}) CHY balance from webapp: ${chyBalance}, entry fee: ${ENTRY_FEE}`);
       
       if (chyBalance < ENTRY_FEE) {
         return res.status(400).json({ success: false, error: "Not enough CHY" });
       }
       
       // Deduct entry fee via webapp
-      const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
-        userId,
-        amount: ENTRY_FEE,
-        reason: `Flappy ${period} competition entry`,
-      });
+      const deductSuccess = await deductWebappChy(
+        { googleId: userData.googleId, email: userData.email, displayName: userData.displayName },
+        ENTRY_FEE,
+        `Flappy ${period} competition entry`
+      );
       
-      if (deductResult.status !== 200 || !deductResult.data?.success) {
-        console.error(`[Flappy] Failed to deduct CHY:`, deductResult);
+      if (!deductSuccess) {
+        console.error(`[Flappy] Failed to deduct CHY for user ${userId}`);
         return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
       }
       
