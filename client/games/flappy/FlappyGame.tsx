@@ -1041,17 +1041,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     runOnJS(setCoins)([...coinsRef.current]);
     runOnJS(setPowerUps)([...powerUpsRef.current]);
     
-    if (cloudsEnabled || trailsEnabled) {
-      cloudRenderCounterRef.current = (cloudRenderCounterRef.current || 0) + 1;
-      if (cloudRenderCounterRef.current >= 4) {
-        cloudRenderCounterRef.current = 0;
-        if (cloudsEnabled) {
-          runOnJS(setClouds)([...cloudsRef.current]);
-        }
-        if (trailsEnabled) {
-          runOnJS(setTrailParticles)([...trailParticlesRef.current]);
-        }
-      }
+    if (cloudsEnabled) {
+      runOnJS(setClouds)([...cloudsRef.current]);
+    }
+    if (trailsEnabled) {
+      runOnJS(setTrailParticles)([...trailParticlesRef.current]);
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
