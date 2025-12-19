@@ -338,7 +338,6 @@ type GameMode = "free" | "ranked";
 interface PerformanceSettings {
   cloudsEnabled: boolean;
   trailsEnabled: boolean;
-  renderThrottle: number;
   cloudSpawnInterval: number;
   maxTrailParticles: number;
 }
@@ -346,7 +345,6 @@ interface PerformanceSettings {
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
   cloudsEnabled: Platform.OS !== "android",
   trailsEnabled: Platform.OS !== "android",
-  renderThrottle: Platform.OS === "android" ? 2 : 1,
   cloudSpawnInterval: 3000,
   maxTrailParticles: 12,
 };
@@ -539,7 +537,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const lastFrameTimeRef = useRef<number>(0);
   const TARGET_FRAME_TIME = 16.67;
   const renderFrameCounterRef = useRef(0);
-  const { cloudsEnabled, trailsEnabled, renderThrottle, cloudSpawnInterval, maxTrailParticles } = performanceSettings;
+  const { cloudsEnabled, trailsEnabled, cloudSpawnInterval, maxTrailParticles } = performanceSettings;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -1039,13 +1037,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         .filter((p) => p.opacity > 0);
     }
     
-    renderFrameCounterRef.current++;
-    if (renderFrameCounterRef.current >= renderThrottle) {
-      renderFrameCounterRef.current = 0;
-      runOnJS(setPipes)([...pipesRef.current]);
-      runOnJS(setCoins)([...coinsRef.current]);
-      runOnJS(setPowerUps)([...powerUpsRef.current]);
-    }
+    runOnJS(setPipes)([...pipesRef.current]);
+    runOnJS(setCoins)([...coinsRef.current]);
+    runOnJS(setPowerUps)([...powerUpsRef.current]);
     
     if (cloudsEnabled || trailsEnabled) {
       cloudRenderCounterRef.current = (cloudRenderCounterRef.current || 0) + 1;
@@ -1061,7 +1055,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, renderThrottle, cloudsEnabled, trailsEnabled, maxTrailParticles]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles]);
   
   const startGame = useCallback(() => {
     clearAllTimers();

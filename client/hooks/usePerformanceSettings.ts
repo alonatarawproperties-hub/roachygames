@@ -7,7 +7,6 @@ export type PerformanceMode = 'low' | 'medium' | 'high';
 export interface PerformanceSettings {
   cloudsEnabled: boolean;
   trailsEnabled: boolean;
-  renderThrottle: number;
   cloudSpawnInterval: number;
   maxTrailParticles: number;
 }
@@ -16,21 +15,18 @@ const PERFORMANCE_PRESETS: Record<PerformanceMode, PerformanceSettings> = {
   low: {
     cloudsEnabled: false,
     trailsEnabled: false,
-    renderThrottle: 3,
     cloudSpawnInterval: 5000,
     maxTrailParticles: 0,
   },
   medium: {
     cloudsEnabled: true,
     trailsEnabled: false,
-    renderThrottle: 2,
     cloudSpawnInterval: 4000,
     maxTrailParticles: 4,
   },
   high: {
     cloudsEnabled: true,
     trailsEnabled: true,
-    renderThrottle: 1,
     cloudSpawnInterval: 3000,
     maxTrailParticles: 12,
   },
