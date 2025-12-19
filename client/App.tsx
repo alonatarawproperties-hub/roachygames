@@ -19,6 +19,7 @@ import { ArcadeInventoryProvider } from "@/context/ArcadeInventoryContext";
 import { FlappySkinProvider } from "@/context/FlappySkinContext";
 import { FlappyTrailProvider } from "@/context/FlappyTrailContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { SkinProvider as ChessSkinProvider } from "@/games/chess/skins/SkinContext";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { AppKitWrapper } from "@/components/AppKitWrapper";
 import { GameColors } from "@/constants/theme";
@@ -74,9 +75,11 @@ export default function App() {
                         <ArcadeInventoryProvider>
                           <FlappySkinProvider>
                             <FlappyTrailProvider>
-                              <NavigationContainer>
-                                <RootStackNavigator />
-                              </NavigationContainer>
+                              <ChessSkinProvider>
+                                <NavigationContainer>
+                                  <RootStackNavigator />
+                                </NavigationContainer>
+                              </ChessSkinProvider>
                             </FlappyTrailProvider>
                           </FlappySkinProvider>
                         </ArcadeInventoryProvider>

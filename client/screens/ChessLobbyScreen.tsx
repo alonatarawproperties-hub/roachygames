@@ -165,9 +165,14 @@ export function ChessLobbyScreen() {
           <Feather name="arrow-left" size={24} color={GameColors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>Roachy Mate</Text>
-        <View style={styles.ratingBadge}>
-          <Feather name="award" size={14} color={GameColors.primary} />
-          <Text style={styles.ratingText}>{rating}</Text>
+        <View style={styles.headerRight}>
+          <Pressable onPress={() => navigation.navigate('ChessSkinSelector')} style={styles.skinsButton}>
+            <Feather name="grid" size={18} color={GameColors.gold} />
+          </Pressable>
+          <View style={styles.ratingBadge}>
+            <Feather name="award" size={14} color={GameColors.primary} />
+            <Text style={styles.ratingText}>{rating}</Text>
+          </View>
         </View>
       </View>
       
@@ -407,6 +412,19 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skinsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ratingBadge: {
     flexDirection: 'row',

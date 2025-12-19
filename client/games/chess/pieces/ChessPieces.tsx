@@ -1,6 +1,7 @@
 import React from 'react';
-import { Platform, Text, View, StyleSheet } from 'react-native';
+import { Platform, Text, View, StyleSheet, Image } from 'react-native';
 import Svg, { Path, Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { ChessSkin } from '../skins';
 
 interface PieceProps {
   size: number;
@@ -219,17 +220,46 @@ interface PieceSpriteProps {
   piece: string;
   size: number;
   square: string;
+  skin?: ChessSkin | null;
 }
 
-const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square }) => {
-  if (Platform.OS === 'web') {
-    return <WebPiece piece={piece} size={size * 0.88} />;
-  }
-  
+const PIECE_TYPE_MAP: Record<string, 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn'> = {
+  k: 'king',
+  q: 'queen',
+  r: 'rook',
+  b: 'bishop',
+  n: 'knight',
+  p: 'pawn',
+};
+
+const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square, skin }) => {
   const isWhite = piece === piece.toUpperCase();
   const pieceType = piece.toLowerCase();
   const pieceSize = size * 0.88;
   const uniqueId = `${square}_${piece}`;
+
+  if (skin && skin.id !== 'default') {
+    const pieceName = PIECE_TYPE_MAP[pieceType];
+    if (pieceName) {
+      const colorSet = isWhite ? skin.pieces.white : skin.pieces.black;
+      const imageSource = colorSet[pieceName];
+      if (imageSource) {
+        return (
+          <View style={{ width: pieceSize, height: pieceSize, alignItems: 'center', justifyContent: 'center' }}>
+            <Image
+              source={imageSource}
+              style={{ width: pieceSize, height: pieceSize }}
+              resizeMode="contain"
+            />
+          </View>
+        );
+      }
+    }
+  }
+
+  if (Platform.OS === 'web') {
+    return <WebPiece piece={piece} size={pieceSize} />;
+  }
   
   switch (pieceType) {
     case 'k':

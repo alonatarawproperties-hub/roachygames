@@ -14,6 +14,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { PieceSprite } from './pieces/ChessPieces';
+import { useChessSkin } from './skins/SkinContext';
 
 function detectMoveFromFenChange(oldFen: string, newFen: string): { from: Square; to: Square } | null {
   try {
@@ -94,6 +95,8 @@ export function ChessBoard({
   
   const lastMoveScale = useSharedValue(1);
   const lastMoveSquareRef = useRef<Square | null>(null);
+  
+  const { currentSkin } = useChessSkin();
   
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
   const boardSize = size || Math.min(screenWidth - 16, screenHeight * 0.55, 500);
@@ -253,10 +256,10 @@ export function ChessBoard({
         {piece ? (
           shouldAnimate ? (
             <Animated.View style={lastMoveAnimatedStyle}>
-              <PieceSprite piece={piece} size={squareSize} square={square} />
+              <PieceSprite piece={piece} size={squareSize} square={square} skin={currentSkin} />
             </Animated.View>
           ) : (
-            <PieceSprite piece={piece} size={squareSize} square={square} />
+            <PieceSprite piece={piece} size={squareSize} square={square} skin={currentSkin} />
           )
         ) : null}
         
@@ -289,7 +292,7 @@ export function ChessBoard({
         ) : null}
       </Pressable>
     );
-  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle]);
+  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle, currentSkin]);
   
   const squares = useMemo(() => {
     return Array.from({ length: 64 }).map((_, i) => renderSquare(i));
