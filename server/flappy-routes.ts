@@ -449,6 +449,22 @@ export function registerFlappyRoutes(app: Express) {
       }
       
       const userData = user[0];
+      console.log(`[Flappy] User lookup result:`, {
+        userId,
+        email: userData.email,
+        googleId: userData.googleId,
+        authProvider: userData.authProvider,
+        displayName: userData.displayName,
+      });
+      
+      // Check if user has Google credentials for webapp lookup
+      if (!userData.googleId || !userData.email) {
+        console.error(`[Flappy] User ${userId} has no Google credentials - cannot fetch webapp CHY`);
+        return res.status(400).json({ 
+          success: false, 
+          error: "Google sign-in required for competitions. Please log out and sign in with Google." 
+        });
+      }
       
       // Fetch CHY balance from webapp using user's googleId/email
       const chyBalance = await getWebappChyBalanceForUser({
