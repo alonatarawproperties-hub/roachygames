@@ -37,6 +37,9 @@ interface Participant {
   seed: number | null;
   wins: number;
   losses: number;
+  draws?: number;
+  points?: number;
+  gamesPlayed?: number;
   isEliminated: boolean;
   finalPlacement: number | null;
   prizesWon: number;
@@ -46,6 +49,7 @@ interface Tournament {
   id: string;
   name: string;
   tournamentType: string;
+  tournamentFormat?: 'bracket' | 'arena';
   timeControl: string;
   entryFee: number;
   prizePool: number;
@@ -57,7 +61,18 @@ interface Tournament {
   totalRounds: number;
   status: string;
   scheduledStartAt: string | null;
+  scheduledEndAt?: string | null;
   winnerWallet: string | null;
+}
+
+interface ArenaLeaderboardEntry {
+  rank: number;
+  walletAddress: string;
+  points: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gamesPlayed: number;
 }
 
 function formatWalletAddress(address: string | null): string {
@@ -148,6 +163,99 @@ export function TournamentDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['/api/tournaments', tournamentId] });
     },
   });
+  
+  const isArena = tournament?.tournamentFormat === 'arena';
+  
+  const { data: arenaLeaderboardData, refetch: refetchLeaderboard } = useQuery({
+    queryKey: ['/api/tournaments/arena', tournamentId, 'leaderboard'],
+    queryFn: () => fetch(new URL(`/api/tournaments/arena/${tournamentId}/leaderboard`, getApiUrl()).toString()).then(r => r.json()),
+    enabled: isArena,
+    refetchInterval: 15000,
+  });
+  
+  const arenaLeaderboard: ArenaLeaderboardEntry[] = arenaLeaderboardData?.leaderboard || [];
+  
+  const myArenaStats = useMemo(() => {
+    if (!isArena) return null;
+    const entry = arenaLeaderboard.find(e => e.walletAddress === walletAddress);
+    if (entry) return entry;
+    const participant = participants.find(p => p.walletAddress === walletAddress);
+    if (participant) {
+      return {
+        rank: arenaLeaderboard.length + 1,
+        walletAddress,
+        points: participant.points || 0,
+        wins: participant.wins || 0,
+        draws: participant.draws || 0,
+        losses: participant.losses || 0,
+        gamesPlayed: participant.gamesPlayed || 0,
+      };
+    }
+    return null;
+  }, [isArena, arenaLeaderboard, participants, walletAddress]);
+  
+  const [isSearchingMatch, setIsSearchingMatch] = React.useState(false);
+  
+  const findMatchMutation = useMutation({
+    mutationFn: async () => {
+      setIsSearchingMatch(true);
+      const res = await apiRequest('POST', `/api/tournaments/arena/${tournamentId}/find-match`, {
+        walletAddress,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setIsSearchingMatch(false);
+      if (data.success && data.match) {
+        navigation.navigate('ChessGame', {
+          matchId: data.match.id,
+          walletAddress,
+          tournamentId,
+        });
+      } else if (data.waiting) {
+        if (Platform.OS === 'web') {
+          alert('Searching for opponent... Please wait.');
+        } else {
+          Alert.alert('Searching', 'Looking for an opponent. Please wait a moment and try again.');
+        }
+      } else {
+        const msg = data.message || 'Failed to find match';
+        if (Platform.OS === 'web') {
+          alert(msg);
+        } else {
+          Alert.alert('Error', msg);
+        }
+      }
+    },
+    onError: (error: any) => {
+      setIsSearchingMatch(false);
+      const msg = error?.message || 'Failed to find match';
+      if (Platform.OS === 'web') {
+        alert(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    },
+  });
+  
+  const handleFindMatch = () => {
+    findMatchMutation.mutate();
+  };
+  
+  const getArenaTimeRemaining = () => {
+    if (!tournament?.scheduledEndAt) return null;
+    const endDate = new Date(tournament.scheduledEndAt);
+    const now = new Date();
+    const diff = endDate.getTime() - now.getTime();
+    if (diff <= 0) return 'Ended';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 24) {
+      const days = Math.floor(hours / 24);
+      return `${days}d ${hours % 24}h`;
+    }
+    return `${hours}h ${mins}m`;
+  };
   
   const matchesByRound = useMemo(() => {
     const grouped: Record<number, TournamentMatch[]> = {};
@@ -321,7 +429,7 @@ export function TournamentDetailScreen() {
             
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Format</Text>
-              <Text style={styles.infoValue}>Single Elimination</Text>
+              <Text style={styles.infoValue}>{isArena ? 'Arena' : 'Single Elimination'}</Text>
             </View>
             
             <View style={styles.infoItem}>
@@ -419,7 +527,122 @@ export function TournamentDetailScreen() {
           </View>
         ) : null}
         
-        {participants.length > 0 ? (
+        {isArena && isRegistered && myArenaStats ? (
+          <View style={styles.myStatsCard}>
+            <Text style={styles.myStatsTitle}>Your Stats</Text>
+            <View style={styles.myStatsRow}>
+              <View style={styles.myStatItem}>
+                <Text style={styles.myStatValue}>{myArenaStats.rank}</Text>
+                <Text style={styles.myStatLabel}>Rank</Text>
+              </View>
+              <View style={styles.myStatItem}>
+                <Text style={[styles.myStatValue, styles.pointsValue]}>{myArenaStats.points}</Text>
+                <Text style={styles.myStatLabel}>Points</Text>
+              </View>
+              <View style={styles.myStatItem}>
+                <Text style={styles.myStatValue}>{myArenaStats.wins}</Text>
+                <Text style={styles.myStatLabel}>Wins</Text>
+              </View>
+              <View style={styles.myStatItem}>
+                <Text style={styles.myStatValue}>{myArenaStats.draws}</Text>
+                <Text style={styles.myStatLabel}>Draws</Text>
+              </View>
+              <View style={styles.myStatItem}>
+                <Text style={styles.myStatValue}>{myArenaStats.gamesPlayed}</Text>
+                <Text style={styles.myStatLabel}>Games</Text>
+              </View>
+            </View>
+            {tournament.status === 'active' ? (
+              <Pressable onPress={handleFindMatch} disabled={findMatchMutation.isPending || isSearchingMatch}>
+                <LinearGradient
+                  colors={['#22c55e', '#16a34a']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.findMatchButton}
+                >
+                  {findMatchMutation.isPending || isSearchingMatch ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Feather name="play" size={20} color="#ffffff" />
+                  )}
+                  <Text style={styles.findMatchText}>
+                    {findMatchMutation.isPending || isSearchingMatch ? 'Finding Opponent...' : 'Find Match'}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            ) : tournament.status === 'registering' ? (
+              <View style={styles.arenaWaitingBadge}>
+                <Feather name="clock" size={16} color={GameColors.primary} />
+                <Text style={styles.arenaWaitingText}>Starts {getArenaTimeRemaining()}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        
+        {isArena ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Leaderboard</Text>
+              {tournament.status === 'active' ? (
+                <View style={styles.timeRemainingBadge}>
+                  <Feather name="clock" size={12} color={GameColors.primary} />
+                  <Text style={styles.timeRemainingText}>{getArenaTimeRemaining()} left</Text>
+                </View>
+              ) : null}
+            </View>
+            {arenaLeaderboard.length > 0 ? (
+              <View style={styles.leaderboardList}>
+                {arenaLeaderboard.slice(0, 20).map((entry, index) => (
+                  <View 
+                    key={entry.walletAddress} 
+                    style={[
+                      styles.leaderboardItem,
+                      entry.walletAddress === walletAddress && styles.leaderboardItemHighlight,
+                      index < 3 && styles.leaderboardItemTop3,
+                    ]}
+                  >
+                    <View style={[
+                      styles.leaderboardRank,
+                      index === 0 && styles.rankGold,
+                      index === 1 && styles.rankSilver,
+                      index === 2 && styles.rankBronze,
+                    ]}>
+                      <Text style={[
+                        styles.leaderboardRankText,
+                        index < 3 && styles.leaderboardRankTextTop3,
+                      ]}>{entry.rank}</Text>
+                    </View>
+                    <Text style={[
+                      styles.leaderboardName,
+                      entry.walletAddress === walletAddress && styles.leaderboardNameHighlight,
+                    ]} numberOfLines={1}>
+                      {formatWalletAddress(entry.walletAddress)}
+                      {entry.walletAddress === walletAddress ? ' (You)' : ''}
+                    </Text>
+                    <View style={styles.leaderboardStats}>
+                      <Text style={styles.leaderboardPoints}>{entry.points} pts</Text>
+                      <Text style={styles.leaderboardRecord}>
+                        {entry.wins}W-{entry.draws}D-{entry.losses}L
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : participants.length > 0 ? (
+              <View style={styles.noGamesYet}>
+                <Feather name="users" size={24} color={GameColors.textSecondary} />
+                <Text style={styles.noGamesText}>{participants.length} players registered</Text>
+                <Text style={styles.noGamesSubtext}>Leaderboard updates when games are played</Text>
+              </View>
+            ) : (
+              <View style={styles.noGamesYet}>
+                <Feather name="user-plus" size={24} color={GameColors.textSecondary} />
+                <Text style={styles.noGamesText}>No players yet</Text>
+                <Text style={styles.noGamesSubtext}>Be the first to join!</Text>
+              </View>
+            )}
+          </View>
+        ) : participants.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Participants ({participants.length})</Text>
             <View style={styles.participantsList}>
@@ -447,7 +670,7 @@ export function TournamentDetailScreen() {
           </View>
         ) : null}
         
-        {Object.keys(matchesByRound).length > 0 ? (
+        {!isArena && Object.keys(matchesByRound).length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bracket</Text>
             {Object.keys(matchesByRound).sort((a, b) => Number(a) - Number(b)).map((round) => (
@@ -459,7 +682,7 @@ export function TournamentDetailScreen() {
               </View>
             ))}
           </View>
-        ) : tournament.status === 'registering' || tournament.status === 'scheduled' ? (
+        ) : !isArena && (tournament.status === 'registering' || tournament.status === 'scheduled') ? (
           <View style={styles.waitingCard}>
             <Feather name="clock" size={32} color={GameColors.textSecondary} />
             <Text style={styles.waitingTitle}>Waiting for Players</Text>
@@ -848,6 +1071,175 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: GameColors.error,
     flex: 1,
+  },
+  myStatsCard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: GameColors.primary + '40',
+  },
+  myStatsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: GameColors.textPrimary,
+    textAlign: 'center',
+  },
+  myStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  myStatItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  myStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: GameColors.textPrimary,
+  },
+  pointsValue: {
+    color: GameColors.primary,
+  },
+  myStatLabel: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  findMatchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: 12,
+  },
+  findMatchText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  arenaWaitingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: GameColors.surfaceElevated,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 10,
+  },
+  arenaWaitingText: {
+    fontSize: 14,
+    color: GameColors.primary,
+    fontWeight: '500',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  timeRemainingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: GameColors.primary + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  timeRemainingText: {
+    fontSize: 12,
+    color: GameColors.primary,
+    fontWeight: '600',
+  },
+  leaderboardList: {
+    gap: Spacing.xs,
+  },
+  leaderboardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: GameColors.surface,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  leaderboardItemHighlight: {
+    backgroundColor: GameColors.primary + '20',
+    borderWidth: 1,
+    borderColor: GameColors.primary,
+  },
+  leaderboardItemTop3: {
+    borderWidth: 1,
+    borderColor: GameColors.surfaceElevated,
+  },
+  leaderboardRank: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GameColors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankGold: {
+    backgroundColor: '#fbbf24',
+  },
+  rankSilver: {
+    backgroundColor: '#9ca3af',
+  },
+  rankBronze: {
+    backgroundColor: '#d97706',
+  },
+  leaderboardRankText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: GameColors.textPrimary,
+  },
+  leaderboardRankTextTop3: {
+    color: '#ffffff',
+  },
+  leaderboardName: {
+    flex: 1,
+    fontSize: 14,
+    color: GameColors.textPrimary,
+    fontWeight: '500',
+  },
+  leaderboardNameHighlight: {
+    color: GameColors.primary,
+    fontWeight: '600',
+  },
+  leaderboardStats: {
+    alignItems: 'flex-end',
+  },
+  leaderboardPoints: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: GameColors.primary,
+  },
+  leaderboardRecord: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+  },
+  noGamesYet: {
+    backgroundColor: GameColors.surface,
+    borderRadius: 12,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  noGamesText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: GameColors.textPrimary,
+  },
+  noGamesSubtext: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    textAlign: 'center',
   },
 });
 
