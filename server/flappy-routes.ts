@@ -10,6 +10,22 @@ import {
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
+import { webappRequest } from "./webapp-routes";
+
+// Helper to fetch CHY balance from webapp
+async function getWebappChyBalance(userId: string): Promise<number> {
+  try {
+    const result = await webappRequest("GET", `/api/web/users/${userId}/balances`);
+    if (result.status === 200 && result.data?.chy !== undefined) {
+      return result.data.chy;
+    }
+    console.log(`[Flappy] Could not fetch CHY for user ${userId}:`, result);
+    return 0;
+  } catch (error) {
+    console.error(`[Flappy] Error fetching CHY balance:`, error);
+    return 0;
+  }
+}
 
 export function registerFlappyRoutes(app: Express) {
   app.get("/api/flappy/leaderboard", async (req: Request, res: Response) => {
@@ -368,8 +384,24 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(404).json({ success: false, error: "User not found" });
       }
       
-      if (user[0].diamondBalance < ENTRY_FEE) {
+      // Fetch CHY balance from webapp instead of local database
+      const chyBalance = await getWebappChyBalance(userId);
+      console.log(`[Flappy] User ${userId} CHY balance from webapp: ${chyBalance}, entry fee: ${ENTRY_FEE}`);
+      
+      if (chyBalance < ENTRY_FEE) {
         return res.status(400).json({ success: false, error: "Not enough CHY" });
+      }
+      
+      // Deduct entry fee via webapp
+      const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
+        userId,
+        amount: ENTRY_FEE,
+        reason: `Flappy ${period} competition entry`,
+      });
+      
+      if (deductResult.status !== 200 || !deductResult.data?.success) {
+        console.error(`[Flappy] Failed to deduct CHY:`, deductResult);
+        return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
       }
       
       const [newEntry] = await db.insert(flappyRankedEntries).values({
@@ -381,15 +413,11 @@ export function registerFlappyRoutes(app: Express) {
         gamesPlayed: 0,
       }).returning();
       
-      await db.update(users)
-        .set({ diamondBalance: user[0].diamondBalance - ENTRY_FEE })
-        .where(eq(users.id, userId));
-      
       res.json({ 
         success: true, 
         alreadyJoined: false,
         entryFee: ENTRY_FEE, 
-        newBalance: user[0].diamondBalance - ENTRY_FEE,
+        newBalance: chyBalance - ENTRY_FEE,
         entryId: newEntry.id,
         period,
         periodDate,

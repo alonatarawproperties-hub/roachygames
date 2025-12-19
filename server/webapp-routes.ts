@@ -3,7 +3,7 @@ import { Router, Request, Response, Express } from "express";
 const WEBAPP_URL = process.env.WEBAPP_URL || "https://roachy.games";
 const MOBILE_APP_SECRET = process.env.MOBILE_APP_SECRET;
 
-async function webappRequest(
+export async function webappRequest(
   method: string,
   endpoint: string,
   data?: unknown
