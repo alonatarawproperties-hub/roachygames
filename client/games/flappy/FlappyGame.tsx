@@ -329,9 +329,10 @@ interface TrailParticle {
   rotation: number;
 }
 
-const TRAIL_PARTICLE_SPAWN_INTERVAL = Platform.OS === "android" ? 12 : 3;
-const TRAIL_PARTICLE_FADE_SPEED = Platform.OS === "android" ? 0.15 : 0.04;
-const TRAIL_PARTICLE_MAX = Platform.OS === "android" ? 2 : 12;
+const TRAIL_ENABLED = Platform.OS !== "android";
+const TRAIL_PARTICLE_SPAWN_INTERVAL = 3;
+const TRAIL_PARTICLE_FADE_SPEED = 0.04;
+const TRAIL_PARTICLE_MAX = 12;
 
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
@@ -497,6 +498,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const trailParticlesRef = useRef<TrailParticle[]>([]);
   const trailParticleIdRef = useRef(0);
   const trailSpawnCounterRef = useRef(0);
+  const cloudRenderCounterRef = useRef(0);
   const shieldRef = useRef(false);
   const doublePointsRef = useRef(false);
   const magnetRef = useRef(false);
@@ -993,7 +995,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }));
     cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
     
-    if (TRAIL_ASSET) {
+    if (TRAIL_ENABLED && TRAIL_ASSET) {
       trailSpawnCounterRef.current += deltaMultiplier;
       if (trailSpawnCounterRef.current >= TRAIL_PARTICLE_SPAWN_INTERVAL) {
         trailSpawnCounterRef.current = 0;
@@ -1027,8 +1029,18 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       runOnJS(setPipes)([...pipesRef.current]);
       runOnJS(setCoins)([...coinsRef.current]);
       runOnJS(setPowerUps)([...powerUpsRef.current]);
-      runOnJS(setClouds)([...cloudsRef.current]);
-      runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+      if (!TRAIL_ENABLED) {
+        runOnJS(setClouds)([...cloudsRef.current]);
+      }
+    }
+    
+    if (TRAIL_ENABLED) {
+      cloudRenderCounterRef.current = (cloudRenderCounterRef.current || 0) + 1;
+      if (cloudRenderCounterRef.current >= 4) {
+        cloudRenderCounterRef.current = 0;
+        runOnJS(setClouds)([...cloudsRef.current]);
+        runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+      }
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
