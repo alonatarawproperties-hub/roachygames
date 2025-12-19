@@ -329,9 +329,9 @@ interface TrailParticle {
   rotation: number;
 }
 
-const TRAIL_PARTICLE_SPAWN_INTERVAL = Platform.OS === "android" ? 5 : 3;
-const TRAIL_PARTICLE_FADE_SPEED = 0.04;
-const TRAIL_PARTICLE_MAX = Platform.OS === "android" ? 6 : 12;
+const TRAIL_PARTICLE_SPAWN_INTERVAL = Platform.OS === "android" ? 8 : 3;
+const TRAIL_PARTICLE_FADE_SPEED = Platform.OS === "android" ? 0.08 : 0.04;
+const TRAIL_PARTICLE_MAX = Platform.OS === "android" ? 4 : 12;
 
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
@@ -523,7 +523,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const lastFrameTimeRef = useRef<number>(0);
   const TARGET_FRAME_TIME = 16.67;
   const renderFrameCounterRef = useRef(0);
-  const RENDER_THROTTLE = Platform.OS === "android" ? 4 : 1;
+  const RENDER_THROTTLE = Platform.OS === "android" ? 6 : 2;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
