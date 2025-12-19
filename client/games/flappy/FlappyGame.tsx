@@ -287,8 +287,6 @@ const POWERUP_SIZE = 50;
 const POWERUP_SPAWN_INTERVAL = 12000;
 
 const CLOUD_SPEED = 1.5;
-const CLOUDS_ENABLED = Platform.OS !== "android";
-const CLOUD_SPAWN_INTERVAL = 3000;
 
 interface Cloud {
   id: number;
@@ -330,14 +328,28 @@ interface TrailParticle {
   rotation: number;
 }
 
-const TRAIL_ENABLED = Platform.OS !== "android";
 const TRAIL_PARTICLE_SPAWN_INTERVAL = 3;
 const TRAIL_PARTICLE_FADE_SPEED = 0.04;
-const TRAIL_PARTICLE_MAX = 12;
 
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
 type GameMode = "free" | "ranked";
+
+interface PerformanceSettings {
+  cloudsEnabled: boolean;
+  trailsEnabled: boolean;
+  renderThrottle: number;
+  cloudSpawnInterval: number;
+  maxTrailParticles: number;
+}
+
+const DEFAULT_PERFORMANCE: PerformanceSettings = {
+  cloudsEnabled: Platform.OS !== "android",
+  trailsEnabled: Platform.OS !== "android",
+  renderThrottle: Platform.OS === "android" ? 2 : 1,
+  cloudSpawnInterval: 3000,
+  maxTrailParticles: 12,
+};
 
 interface FlappyGameProps {
   onExit?: () => void;
@@ -345,9 +357,10 @@ interface FlappyGameProps {
   userId?: string | null;
   skin?: RoachySkin;
   trail?: RoachyTrail;
+  performanceSettings?: PerformanceSettings;
 }
 
-export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default", trail = "none" }: FlappyGameProps) {
+export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default", trail = "none", performanceSettings = DEFAULT_PERFORMANCE }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
@@ -526,7 +539,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const lastFrameTimeRef = useRef<number>(0);
   const TARGET_FRAME_TIME = 16.67;
   const renderFrameCounterRef = useRef(0);
-  const RENDER_THROTTLE = Platform.OS === "android" ? 2 : 1;
+  const { cloudsEnabled, trailsEnabled, renderThrottle, cloudSpawnInterval, maxTrailParticles } = performanceSettings;
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -990,7 +1003,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     coinsRef.current = coinsRef.current.filter((coin) => !coin.collected && coin.x > -COIN_SIZE);
     powerUpsRef.current = powerUpsRef.current.filter((pu) => !pu.collected && pu.x > -POWERUP_SIZE);
     
-    if (CLOUDS_ENABLED) {
+    if (cloudsEnabled) {
       cloudsRef.current = cloudsRef.current.map((cloud) => ({
         ...cloud,
         x: cloud.x - CLOUD_SPEED * deltaMultiplier,
@@ -998,7 +1011,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
     }
     
-    if (TRAIL_ENABLED && TRAIL_ASSET) {
+    if (trailsEnabled && TRAIL_ASSET) {
       trailSpawnCounterRef.current += deltaMultiplier;
       if (trailSpawnCounterRef.current >= TRAIL_PARTICLE_SPAWN_INTERVAL) {
         trailSpawnCounterRef.current = 0;
@@ -1011,8 +1024,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           rotation: birdRotation.value,
         };
         trailParticlesRef.current = [...trailParticlesRef.current, newParticle];
-        if (trailParticlesRef.current.length > TRAIL_PARTICLE_MAX) {
-          trailParticlesRef.current = trailParticlesRef.current.slice(-TRAIL_PARTICLE_MAX);
+        if (trailParticlesRef.current.length > maxTrailParticles) {
+          trailParticlesRef.current = trailParticlesRef.current.slice(-maxTrailParticles);
         }
       }
       
@@ -1027,28 +1040,28 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     renderFrameCounterRef.current++;
-    if (renderFrameCounterRef.current >= RENDER_THROTTLE) {
+    if (renderFrameCounterRef.current >= renderThrottle) {
       renderFrameCounterRef.current = 0;
       runOnJS(setPipes)([...pipesRef.current]);
       runOnJS(setCoins)([...coinsRef.current]);
       runOnJS(setPowerUps)([...powerUpsRef.current]);
     }
     
-    if (CLOUDS_ENABLED || TRAIL_ENABLED) {
+    if (cloudsEnabled || trailsEnabled) {
       cloudRenderCounterRef.current = (cloudRenderCounterRef.current || 0) + 1;
       if (cloudRenderCounterRef.current >= 4) {
         cloudRenderCounterRef.current = 0;
-        if (CLOUDS_ENABLED) {
+        if (cloudsEnabled) {
           runOnJS(setClouds)([...cloudsRef.current]);
         }
-        if (TRAIL_ENABLED) {
+        if (trailsEnabled) {
           runOnJS(setTrailParticles)([...trailParticlesRef.current]);
         }
       }
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, RENDER_THROTTLE]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, renderThrottle, cloudsEnabled, trailsEnabled, maxTrailParticles]);
   
   const startGame = useCallback(() => {
     clearAllTimers();
@@ -1066,7 +1079,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     renderFrameCounterRef.current = 0;
     
     const initialClouds: Cloud[] = [];
-    if (CLOUDS_ENABLED) {
+    if (cloudsEnabled) {
       for (let i = 0; i < 4; i++) {
         const sizes: Array<"small" | "medium" | "large"> = ["small", "medium", "large"];
         initialClouds.push({
@@ -1129,8 +1142,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     pipeTimerRef.current = setInterval(spawnPipe, pipeSpawnIntervalRef.current);
     coinTimerRef.current = setInterval(spawnCoin, COIN_SPAWN_INTERVAL);
     powerUpTimerRef.current = setInterval(spawnPowerUp, POWERUP_SPAWN_INTERVAL);
-    if (CLOUDS_ENABLED) {
-      cloudTimerRef.current = setInterval(spawnCloud, CLOUD_SPAWN_INTERVAL);
+    if (cloudsEnabled) {
+      cloudTimerRef.current = setInterval(spawnCloud, cloudSpawnInterval);
     }
     
     initialPipeTimerRef.current = setTimeout(() => {
