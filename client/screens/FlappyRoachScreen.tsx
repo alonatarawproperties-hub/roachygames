@@ -46,7 +46,7 @@ export function FlappyRoachScreen() {
     if (Platform.OS !== "web") {
       ScreenOrientation.unlockAsync().catch(() => {});
     }
-    navigation.goBack();
+    (navigation as any).navigate('ArcadeHome');
   };
 
   const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => {

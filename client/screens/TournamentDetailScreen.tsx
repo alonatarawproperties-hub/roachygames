@@ -257,7 +257,7 @@ export function TournamentDetailScreen() {
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <Feather name="alert-circle" size={48} color={GameColors.error} />
         <Text style={styles.errorTitle}>Tournament Not Found</Text>
-        <Pressable style={styles.backLink} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.backLink} onPress={() => navigation.navigate('ArcadeHome' as never)}>
           <Text style={styles.backLinkText}>Go Back</Text>
         </Pressable>
       </View>
@@ -267,7 +267,7 @@ export function TournamentDetailScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Pressable onPress={() => navigation.navigate('ArcadeHome' as never)} style={styles.backButton}>
           <Feather name="arrow-left" size={24} color={GameColors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{tournament.name}</Text>

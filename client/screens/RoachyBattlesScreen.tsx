@@ -9,7 +9,7 @@ export function RoachyBattlesScreen() {
     <WebGameView
       gameUrl="https://roachy.games/battles"
       gameName="Roachy Battles"
-      onExit={() => navigation.goBack()}
+      onExit={() => (navigation as any).navigate('ArcadeHome')}
     />
   );
 }

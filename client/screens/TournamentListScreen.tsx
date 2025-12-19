@@ -253,7 +253,7 @@ export function TournamentListScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Pressable onPress={() => navigation.navigate('ArcadeHome' as never)} style={styles.backButton}>
           <Feather name="arrow-left" size={24} color={GameColors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>Tournaments</Text>
