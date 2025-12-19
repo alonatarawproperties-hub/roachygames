@@ -1201,11 +1201,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   }));
   
   const wingFrame0Style = useAnimatedStyle(() => ({
-    opacity: wingOpacity.value,
+    opacity: wingOpacity.value > 0.5 ? 1 : 0,
   }));
   
   const wingFrame1Style = useAnimatedStyle(() => ({
-    opacity: 1 - wingOpacity.value,
+    opacity: wingOpacity.value > 0.5 ? 0 : 1,
   }));
   
   const groundStyle = useAnimatedStyle(() => ({
