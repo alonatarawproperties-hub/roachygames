@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
+import { LinearGradient } from "expo-linear-gradient";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -60,6 +61,49 @@ export function ChessLobbyScreen() {
     queryKey: ['/api/chess/rating', walletAddress],
     queryFn: () => fetch(new URL(`/api/chess/rating/${walletAddress}`, getApiUrl()).toString()).then(r => r.json()),
   });
+  
+  const { data: weeklyTournament } = useQuery({
+    queryKey: ['/api/tournaments/weekly/current'],
+    queryFn: () => fetch(new URL('/api/tournaments/weekly/current', getApiUrl()).toString()).then(r => r.json()),
+    refetchInterval: 30000,
+  });
+  
+  const tournamentInfo = useMemo(() => {
+    if (!weeklyTournament?.tournament) return null;
+    const t = weeklyTournament.tournament;
+    const now = new Date();
+    const startDate = t.scheduledStartAt ? new Date(t.scheduledStartAt) : null;
+    const endDate = t.scheduledEndAt ? new Date(t.scheduledEndAt) : null;
+    
+    let timeDisplay = '';
+    let statusText = '';
+    
+    if (t.status === 'registering' && startDate) {
+      const diff = startDate.getTime() - now.getTime();
+      if (diff > 0) {
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        timeDisplay = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+        statusText = 'Starts in';
+      }
+    } else if (t.status === 'active' && endDate) {
+      const diff = endDate.getTime() - now.getTime();
+      if (diff > 0) {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        timeDisplay = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+        statusText = 'Ends in';
+      }
+    }
+    
+    return {
+      ...t,
+      timeDisplay,
+      statusText,
+      prizePool: t.prizePool || Math.floor(t.currentPlayers * t.entryFee * 0.85),
+      participantCount: weeklyTournament.participants || t.currentPlayers,
+    };
+  }, [weeklyTournament]);
   
   const rating = ratingData?.rating?.rating || 1200;
   const gamesPlayed = ratingData?.rating?.gamesPlayed || 0;
@@ -170,6 +214,63 @@ export function ChessLobbyScreen() {
             </View>
           </View>
         </View>
+        
+        {tournamentInfo ? (
+          <Pressable 
+            style={styles.featuredTournament}
+            onPress={() => navigation.navigate('TournamentDetail', { tournamentId: tournamentInfo.id })}
+          >
+            <LinearGradient
+              colors={['#FFD700', '#FF8C00']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.featuredGradient}
+            >
+              <View style={styles.featuredHeader}>
+                <View style={styles.featuredBadge}>
+                  <Feather name="award" size={14} color={GameColors.background} />
+                  <Text style={styles.featuredBadgeText}>WEEKLY ARENA</Text>
+                </View>
+                {tournamentInfo.status === 'active' ? (
+                  <View style={styles.liveBadge}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveText}>LIVE</Text>
+                  </View>
+                ) : null}
+              </View>
+              
+              <Text style={styles.featuredTitle}>{tournamentInfo.name}</Text>
+              
+              <View style={styles.featuredStats}>
+                <View style={styles.featuredStat}>
+                  <Image source={ChyCoinIcon} style={styles.featuredChyIcon} contentFit="contain" />
+                  <Text style={styles.featuredStatValue}>{tournamentInfo.prizePool}</Text>
+                  <Text style={styles.featuredStatLabel}>Prize Pool</Text>
+                </View>
+                <View style={styles.featuredStatDivider} />
+                <View style={styles.featuredStat}>
+                  <Text style={styles.featuredStatValue}>{tournamentInfo.participantCount}</Text>
+                  <Text style={styles.featuredStatLabel}>Players</Text>
+                </View>
+                <View style={styles.featuredStatDivider} />
+                <View style={styles.featuredStat}>
+                  <Text style={styles.featuredStatValue}>{tournamentInfo.timeDisplay || '--'}</Text>
+                  <Text style={styles.featuredStatLabel}>{tournamentInfo.statusText || 'Time'}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.featuredFooter}>
+                <Text style={styles.featuredEntryFee}>{tournamentInfo.entryFee} CHY Entry</Text>
+                <View style={styles.featuredAction}>
+                  <Text style={styles.featuredActionText}>
+                    {tournamentInfo.status === 'registering' ? 'Register Now' : 'View Tournament'}
+                  </Text>
+                  <Feather name="chevron-right" size={16} color={GameColors.background} />
+                </View>
+              </View>
+            </LinearGradient>
+          </Pressable>
+        ) : null}
         
         <View style={styles.demoBanner}>
           <Feather name="cpu" size={20} color={GameColors.primary} />
@@ -495,6 +596,116 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: GameColors.textSecondary,
     textTransform: 'uppercase',
+  },
+  featuredTournament: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  featuredGradient: {
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  featuredHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  featuredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  featuredBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: GameColors.background,
+    letterSpacing: 1,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+  },
+  liveText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 1,
+  },
+  featuredTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: GameColors.background,
+  },
+  featuredStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderRadius: 12,
+    padding: Spacing.md,
+  },
+  featuredStat: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  featuredChyIcon: {
+    width: 20,
+    height: 20,
+    marginBottom: 2,
+  },
+  featuredStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: GameColors.background,
+  },
+  featuredStatLabel: {
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.6)',
+    fontWeight: '500',
+  },
+  featuredStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  featuredFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  featuredEntryFee: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(0,0,0,0.7)',
+  },
+  featuredAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  featuredActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: GameColors.background,
   },
 });
 
