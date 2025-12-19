@@ -167,7 +167,7 @@ export function registerFlappyRoutes(app: Express) {
 
   app.post("/api/flappy/score", async (req: Request, res: Response) => {
     try {
-      const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, diamondEntryFee = 0 } = req.body;
+      const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0 } = req.body;
       
       if (!userId || score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
@@ -178,7 +178,7 @@ export function registerFlappyRoutes(app: Express) {
         score,
         coinsCollected,
         isRanked,
-        diamondEntryFee,
+        chyEntryFee,
       });
       
       const today = new Date().toISOString().split('T')[0];

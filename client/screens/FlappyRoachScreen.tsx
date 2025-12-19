@@ -58,7 +58,7 @@ export function FlappyRoachScreen() {
         coinsCollected: 0,
         isRanked,
         rankedPeriod: isRanked ? rankedPeriod : null,
-        diamondEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
+        chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
       });
       
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/leaderboard"] });

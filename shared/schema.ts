@@ -639,7 +639,7 @@ export const flappyScores = pgTable("flappy_scores", {
   score: integer("score").notNull(),
   coinsCollected: integer("coins_collected").notNull().default(0),
   isRanked: boolean("is_ranked").notNull().default(false),
-  diamondEntryFee: integer("diamond_entry_fee").notNull().default(0),
+  chyEntryFee: integer("diamond_entry_fee").notNull().default(0),
   playedAt: timestamp("played_at").notNull().default(sql`now()`),
 });
 
