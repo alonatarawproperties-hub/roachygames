@@ -189,9 +189,18 @@ export default function ProfileScreen() {
             </Pressable>
           ) : null}
         </View>
-        <ThemedText style={styles.subtitle}>
-          Roachy Creature Hunter
-        </ThemedText>
+        {user?.authProvider || isGuest ? (
+          <View style={styles.accountTypeBadge}>
+            <Feather 
+              name={isGuest ? "user" : user?.authProvider === 'google' ? "globe" : "credit-card"} 
+              size={12} 
+              color={GameColors.primary} 
+            />
+            <ThemedText style={styles.accountTypeText}>
+              {isGuest ? "Guest" : user?.authProvider === 'google' ? "Google Account" : "Wallet"}
+            </ThemedText>
+          </View>
+        ) : null}
         {user?.id ? (
           <Pressable 
             onPress={() => {
@@ -552,13 +561,30 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     marginTop: Spacing.xs,
   },
+  accountTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: GameColors.primary + "20",
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: GameColors.primary,
+  },
+  accountTypeText: {
+    fontSize: 12,
+    color: GameColors.primary,
+    fontWeight: "600",
+    marginLeft: Spacing.xs,
+  },
   userIdContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: Spacing.sm,
     paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.sm,
-    backgroundColor: GameColors.cardBackground,
+    backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.sm,
   },
   userIdLabel: {
