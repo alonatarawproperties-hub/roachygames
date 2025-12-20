@@ -400,10 +400,13 @@ export function registerTournamentRoutes(app: Express) {
       
       // If there's an entry fee and we have userId, refund via webapp
       let refundResult = null;
+      console.log(`[Tournament] Leave request - entryFee: ${tournament.entryFee}, userId: ${userId || 'NOT PROVIDED'}`);
+      
       if (tournament.entryFee > 0 && userId) {
         try {
           const WEBAPP_URL = process.env.WEBAPP_URL || 'https://roachy.games';
           const API_SECRET = process.env.MOBILE_APP_SECRET;
+          console.log(`[Tournament] Attempting refund of ${tournament.entryFee} CHY for userId: ${userId}`);
           
           const refundResponse = await fetch(`${WEBAPP_URL}/api/web/users/${userId}/refund-chy`, {
             method: 'POST',
@@ -428,6 +431,8 @@ export function registerTournamentRoutes(app: Express) {
           console.error(`[Tournament] Refund API error:`, refundError);
           // Continue with leaving anyway
         }
+      } else if (tournament.entryFee > 0 && !userId) {
+        console.warn(`[Tournament] Cannot refund - userId not provided. entryFee: ${tournament.entryFee}`);
       }
       
       // Remove participant
