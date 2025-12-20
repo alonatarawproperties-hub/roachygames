@@ -223,12 +223,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log("[Auth] Starting Google OAuth with PKCE, Platform:", Platform.OS);
 
-      // For iOS native builds, use the reversed client ID as the URL scheme
-      // The redirect URI must include a path for iOS to properly handle the callback
+      // Platform-specific redirect URIs:
+      // iOS: Use reversed client ID scheme (required by Google)
+      // Android: Use app scheme with proper path
       const reversedClientId = GOOGLE_CLIENT_ID.split(".").reverse().join(".");
-      const redirectUri = AuthSession.makeRedirectUri({
-        native: `${reversedClientId}:/oauth2redirect/google`,
-      });
+      
+      let redirectUri: string;
+      if (Platform.OS === "ios") {
+        // iOS requires the reversed client ID as URL scheme
+        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
+      } else if (Platform.OS === "android") {
+        // Android: use app scheme - this must match app.json scheme
+        redirectUri = AuthSession.makeRedirectUri({
+          scheme: "roachy-games",
+          path: "oauth2redirect/google",
+        });
+      } else {
+        // Web fallback
+        redirectUri = AuthSession.makeRedirectUri({
+          preferLocalhost: true,
+        });
+      }
 
       console.log("[Auth] Google OAuth redirect URI:", redirectUri);
 
