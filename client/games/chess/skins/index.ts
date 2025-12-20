@@ -76,6 +76,30 @@ export const CHESS_SKINS: Record<string, ChessSkin> = {
     },
     board: require('@/assets/chess-skins/legendary/legendary_chess_board.png'),
   },
+  celestial: {
+    id: 'celestial',
+    name: 'Celestial & Inferno',
+    rarity: 'legendary',
+    description: 'Angelic light pieces face off against demonic fire pieces',
+    pieces: {
+      white: {
+        king: require('@/assets/chess-skins/angelic/white_king.png'),
+        queen: require('@/assets/chess-skins/angelic/white_queen.png'),
+        rook: require('@/assets/chess-skins/angelic/white_rook.png'),
+        bishop: require('@/assets/chess-skins/angelic/white_bishop.png'),
+        knight: require('@/assets/chess-skins/angelic/white_knight.png'),
+        pawn: require('@/assets/chess-skins/angelic/white_pawn.png'),
+      },
+      black: {
+        king: require('@/assets/chess-skins/angelic/black_king.png'),
+        queen: require('@/assets/chess-skins/angelic/black_queen.png'),
+        rook: require('@/assets/chess-skins/angelic/black_rook.png'),
+        bishop: require('@/assets/chess-skins/angelic/black_bishop.png'),
+        knight: require('@/assets/chess-skins/angelic/black_knight.png'),
+        pawn: require('@/assets/chess-skins/angelic/black_pawn.png'),
+      },
+    },
+  },
 };
 
 export const RARITY_COLORS: Record<string, string> = {
