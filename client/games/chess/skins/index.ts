@@ -128,7 +128,7 @@ export const CHESS_BOARDS: Record<string, ChessBoard> = {
     name: 'Celestial Inferno',
     rarity: 'legendary',
     description: 'Heaven meets hell - fire and ice clash on this epic battlefield',
-    image: require('@/assets/chess-skins/angelic/celestial_inferno_board.png'),
+    image: null, // Uses SVG-based FireIceBoard component instead
   },
 };
 
