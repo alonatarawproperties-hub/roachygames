@@ -192,12 +192,12 @@ export default function ProfileScreen() {
         {user?.authProvider || isGuest ? (
           <View style={styles.accountTypeBadge}>
             <Feather 
-              name={isGuest ? "user" : user?.authProvider === 'google' ? "globe" : "credit-card"} 
+              name={isGuest ? "user" : "globe"} 
               size={12} 
               color={GameColors.primary} 
             />
             <ThemedText style={styles.accountTypeText}>
-              {isGuest ? "Guest" : user?.authProvider === 'google' ? "Google Account" : "Wallet"}
+              {isGuest ? "Guest" : "Google Account"}
             </ThemedText>
           </View>
         ) : null}
