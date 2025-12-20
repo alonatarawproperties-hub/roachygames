@@ -865,14 +865,13 @@ export function registerTournamentRoutes(app: Express) {
         
         const timeSeconds = TIME_CONTROL_SECONDS[tournament.timeControl as ChessTimeControl] || 600;
         const [chessMatch] = await db.insert(chessMatches).values({
-          whiteWallet: match.player1Wallet!,
-          blackWallet: walletAddress,
+          player1Wallet: match.player1Wallet!,
+          player2Wallet: walletAddress,
           timeControl: tournament.timeControl,
-          timeWhite: timeSeconds,
-          timeBlack: timeSeconds,
+          player1TimeRemaining: timeSeconds,
+          player2TimeRemaining: timeSeconds,
           gameMode: 'tournament',
           status: 'active',
-          currentFen: STARTING_FEN,
         }).returning();
 
         await db.update(chessTournamentMatches)

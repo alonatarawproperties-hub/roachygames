@@ -178,7 +178,7 @@ export function TournamentDetailScreen() {
     mutationFn: async () => {
       const res = await apiRequest('POST', `/api/tournaments/${tournamentId}/leave`, {
         walletAddress,
-        userId: user?.id,
+        userId: user?.webappUserId,
       });
       return res.json();
     },
