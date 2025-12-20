@@ -9,6 +9,7 @@ import {
 } from "@shared/schema";
 import { eq, and, sql, desc, ne, lte, gte } from "drizzle-orm";
 import { Chess } from "chess.js";
+import { rateLimit, logSecurityEvent } from "./security";
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const MATCHMAKING_TIMEOUT_MS = 30000;

@@ -11,6 +11,17 @@ import {
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
 import { webappRequest } from "./webapp-routes";
+import { 
+  rateLimit, 
+  requireAuth, 
+  optionalAuth,
+  createGameSession, 
+  validateGameScore, 
+  endGameSession,
+  logSecurityEvent,
+  sanitizeNumber,
+  sanitizeUUID
+} from "./security";
 
 // Helper to fetch CHY balance from webapp using googleId/email
 async function getWebappChyBalanceForUser(user: { googleId: string | null; email: string | null; displayName: string | null }): Promise<number> {
@@ -165,12 +176,58 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  app.post("/api/flappy/score", async (req: Request, res: Response) => {
+  // Start a game session (for anti-cheat tracking)
+  app.post("/api/flappy/session/start", rateLimit({ windowMs: 60000, max: 30 }), async (req: Request, res: Response) => {
     try {
-      const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0 } = req.body;
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ success: false, error: "Missing userId" });
+      }
+      
+      const sessionId = createGameSession(userId, "flappy");
+      logSecurityEvent("game_session_start", userId, { gameType: "flappy", sessionId });
+      
+      res.json({ success: true, sessionId });
+    } catch (error) {
+      console.error("Session start error:", error);
+      res.status(500).json({ success: false, error: "Failed to start session" });
+    }
+  });
+
+  // Score submission with anti-cheat validation
+  app.post("/api/flappy/score", rateLimit({ windowMs: 60000, max: 60 }), async (req: Request, res: Response) => {
+    try {
+      const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
       
       if (!userId || score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
+      }
+      
+      // Validate score is a reasonable number
+      const validatedScore = sanitizeNumber(score, 0, 10000);
+      if (validatedScore === null) {
+        logSecurityEvent("invalid_score_attempt", userId, { score, sessionId }, "warn");
+        return res.status(400).json({ success: false, error: "Invalid score value" });
+      }
+      
+      // Validate score against game session if provided
+      if (sessionId) {
+        const validation = validateGameScore(sessionId, userId, validatedScore, "flappy");
+        if (!validation.valid) {
+          logSecurityEvent("score_validation_failed", userId, { 
+            score: validatedScore, 
+            sessionId, 
+            reason: validation.reason 
+          }, "critical");
+          return res.status(400).json({ success: false, error: "Score validation failed" });
+        }
+        // Clean up the session
+        endGameSession(sessionId);
+      } else if (validatedScore > 500) {
+        // High scores without session are suspicious
+        logSecurityEvent("high_score_no_session", userId, { score: validatedScore }, "warn");
+        return res.status(400).json({ success: false, error: "Session required for high scores" });
       }
       
       await db.insert(flappyScores).values({
@@ -317,13 +374,45 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  app.post("/api/flappy/inventory/add", async (req: Request, res: Response) => {
+  // SECURED: This endpoint requires either admin key OR valid purchase receipt from webapp
+  app.post("/api/flappy/inventory/add", rateLimit({ windowMs: 60000, max: 20 }), async (req: Request, res: Response) => {
     try {
-      const { userId, powerUpType, quantity = 1 } = req.body;
+      const { userId, powerUpType, quantity = 1, purchaseReceipt, adminKey } = req.body;
       
       if (!userId || !powerUpType) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
+      
+      // Security: Require either admin key or valid purchase receipt
+      const isAdmin = adminKey && adminKey === process.env.ADMIN_API_KEY;
+      
+      if (!isAdmin && !purchaseReceipt) {
+        logSecurityEvent("inventory_add_unauthorized", userId, { powerUpType, quantity }, "warn");
+        return res.status(403).json({ success: false, error: "Purchase verification required" });
+      }
+      
+      // If not admin, verify purchase receipt with webapp
+      if (!isAdmin && purchaseReceipt) {
+        try {
+          const verifyResult = await webappRequest("POST", "/api/web/powerups/verify-purchase", {
+            userId,
+            receipt: purchaseReceipt,
+            powerUpType,
+            quantity,
+          });
+          
+          if (verifyResult.status !== 200 || !verifyResult.data?.valid) {
+            logSecurityEvent("inventory_add_invalid_receipt", userId, { powerUpType, quantity, purchaseReceipt }, "critical");
+            return res.status(403).json({ success: false, error: "Invalid purchase receipt" });
+          }
+        } catch (error) {
+          // If webapp verification fails, deny the request
+          console.error("Purchase verification error:", error);
+          return res.status(500).json({ success: false, error: "Purchase verification failed" });
+        }
+      }
+      
+      logSecurityEvent("inventory_add", userId, { powerUpType, quantity, isAdmin }, "info");
       
       const existing = await db.select()
         .from(flappyPowerUpInventory)

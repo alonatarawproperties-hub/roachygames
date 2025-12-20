@@ -10,8 +10,44 @@ import {
   ChessTimeControl,
 } from "@shared/schema";
 import { eq, and, sql, desc, asc, gte, lte, or } from "drizzle-orm";
+import { rateLimit, logSecurityEvent } from "./security";
 
 const RAKE_PERCENTAGE = 15;
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://roachy.games";
+const MOBILE_APP_SECRET = process.env.MOBILE_APP_SECRET;
+
+// Helper to deduct CHY for tournament entry
+async function deductTournamentEntry(userId: string, amount: number, tournamentId: string): Promise<{ success: boolean; error?: string }> {
+  if (!MOBILE_APP_SECRET) {
+    return { success: false, error: "Payment system not configured" };
+  }
+  
+  try {
+    const response = await fetch(`${WEBAPP_URL}/api/web/users/${userId}/spend-chy`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Secret": MOBILE_APP_SECRET,
+      },
+      body: JSON.stringify({
+        amount,
+        reason: `Tournament entry: ${tournamentId}`,
+        transactionType: "tournament_entry",
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { success: false, error: errorData.error || "Payment failed" };
+    }
+    
+    const result = await response.json();
+    return { success: result.success === true };
+  } catch (error) {
+    console.error("[Tournament] CHY deduction error:", error);
+    return { success: false, error: "Payment system error" };
+  }
+}
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 function calculatePrizeDistribution(prizePool: number, playerCount: number): number[] {
@@ -280,10 +316,11 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
-  app.post("/api/tournaments/:id/join", async (req: Request, res: Response) => {
+  // SECURED: Tournament join with CHY deduction
+  app.post("/api/tournaments/:id/join", rateLimit({ windowMs: 60000, max: 10 }), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { walletAddress } = req.body;
+      const { walletAddress, userId } = req.body;
       
       if (!walletAddress) {
         return res.status(400).json({ success: false, error: "Wallet address required" });
@@ -320,6 +357,29 @@ export function registerTournamentRoutes(app: Express) {
       
       if (existing.length > 0) {
         return res.status(400).json({ success: false, error: "Already registered" });
+      }
+      
+      // SECURITY: Deduct entry fee BEFORE registering user
+      if (tournament.entryFee > 0) {
+        if (!userId) {
+          logSecurityEvent("tournament_join_no_userid", null, { tournamentId: id, walletAddress, entryFee: tournament.entryFee }, "warn");
+          return res.status(400).json({ success: false, error: "User ID required for paid tournaments" });
+        }
+        
+        const deductResult = await deductTournamentEntry(userId, tournament.entryFee, id);
+        if (!deductResult.success) {
+          logSecurityEvent("tournament_join_payment_failed", userId, { 
+            tournamentId: id, 
+            entryFee: tournament.entryFee,
+            error: deductResult.error 
+          }, "warn");
+          return res.status(400).json({ success: false, error: deductResult.error || "Payment failed" });
+        }
+        
+        logSecurityEvent("tournament_join_paid", userId, { 
+          tournamentId: id, 
+          entryFee: tournament.entryFee 
+        }, "info");
       }
       
       await db.insert(chessTournamentParticipants).values({
