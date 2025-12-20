@@ -279,6 +279,21 @@ export function sanitizeUUID(input: unknown): string | null {
 }
 
 /**
+ * Security event log storage for admin panel
+ */
+interface SecurityLogEntry {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  userId: string | null;
+  severity: "info" | "warn" | "critical";
+  details: object;
+}
+
+const securityLogStore: SecurityLogEntry[] = [];
+const MAX_LOG_ENTRIES = 500; // Keep last 500 events
+
+/**
  * Logging for security events
  */
 export function logSecurityEvent(
@@ -288,14 +303,22 @@ export function logSecurityEvent(
   severity: "info" | "warn" | "critical" = "info"
 ) {
   const timestamp = new Date().toISOString();
-  const logEntry = {
+  const logEntry: SecurityLogEntry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp,
     eventType,
     userId,
     severity,
-    ...details,
+    details,
   };
   
+  // Store in memory for admin access
+  securityLogStore.unshift(logEntry); // Add to front (newest first)
+  if (securityLogStore.length > MAX_LOG_ENTRIES) {
+    securityLogStore.pop(); // Remove oldest
+  }
+  
+  // Also log to console
   if (severity === "critical") {
     console.error("[SECURITY CRITICAL]", JSON.stringify(logEntry));
   } else if (severity === "warn") {
@@ -303,4 +326,83 @@ export function logSecurityEvent(
   } else {
     console.log("[SECURITY]", JSON.stringify(logEntry));
   }
+}
+
+/**
+ * Get security logs for admin panel
+ * Filters by severity and/or event type
+ */
+export function getSecurityLogs(options?: {
+  severity?: "info" | "warn" | "critical";
+  eventType?: string;
+  limit?: number;
+  since?: string; // ISO timestamp
+}): SecurityLogEntry[] {
+  let logs = [...securityLogStore];
+  
+  if (options?.severity) {
+    logs = logs.filter(l => l.severity === options.severity);
+  }
+  
+  if (options?.eventType) {
+    const eventTypeFilter = options.eventType;
+    logs = logs.filter(l => l.eventType.includes(eventTypeFilter));
+  }
+  
+  if (options?.since) {
+    const sinceDate = new Date(options.since).getTime();
+    logs = logs.filter(l => new Date(l.timestamp).getTime() >= sinceDate);
+  }
+  
+  if (options?.limit) {
+    logs = logs.slice(0, options.limit);
+  }
+  
+  return logs;
+}
+
+/**
+ * Get security log summary/statistics
+ */
+export function getSecurityStats(): {
+  total: number;
+  critical: number;
+  warn: number;
+  info: number;
+  recentCritical: SecurityLogEntry[];
+  topEventTypes: { type: string; count: number }[];
+} {
+  const stats = {
+    total: securityLogStore.length,
+    critical: 0,
+    warn: 0,
+    info: 0,
+    recentCritical: [] as SecurityLogEntry[],
+    topEventTypes: [] as { type: string; count: number }[],
+  };
+  
+  const eventTypeCounts = new Map<string, number>();
+  
+  for (const log of securityLogStore) {
+    if (log.severity === "critical") {
+      stats.critical++;
+      if (stats.recentCritical.length < 10) {
+        stats.recentCritical.push(log);
+      }
+    } else if (log.severity === "warn") {
+      stats.warn++;
+    } else {
+      stats.info++;
+    }
+    
+    eventTypeCounts.set(log.eventType, (eventTypeCounts.get(log.eventType) || 0) + 1);
+  }
+  
+  // Top 10 event types
+  stats.topEventTypes = Array.from(eventTypeCounts.entries())
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  
+  return stats;
 }

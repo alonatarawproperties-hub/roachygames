@@ -13,6 +13,7 @@ import {
   huntEggs,
 } from "@shared/schema";
 import { desc, eq, sql, and, gte, lte, count } from "drizzle-orm";
+import { getSecurityLogs, getSecurityStats } from "./security";
 
 function adminAuth(req: Request, res: Response, next: NextFunction) {
   const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
@@ -458,5 +459,66 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  console.log("[Admin] Admin routes registered");
+  // ===============================
+  // SECURITY MONITORING ENDPOINTS
+  // ===============================
+
+  // Get security log statistics/summary
+  app.get("/api/admin/security/stats", adminAuth, async (req, res) => {
+    try {
+      const stats = getSecurityStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("[Admin] Security stats error:", error);
+      res.status(500).json({ error: "Failed to fetch security stats" });
+    }
+  });
+
+  // Get security logs with filtering
+  app.get("/api/admin/security/logs", adminAuth, async (req, res) => {
+    try {
+      const severity = req.query.severity as "info" | "warn" | "critical" | undefined;
+      const eventType = req.query.eventType as string | undefined;
+      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+      const since = req.query.since as string | undefined;
+
+      const logs = getSecurityLogs({
+        severity,
+        eventType,
+        limit,
+        since,
+      });
+
+      res.json({
+        logs,
+        count: logs.length,
+        filters: { severity, eventType, limit, since },
+      });
+    } catch (error) {
+      console.error("[Admin] Security logs error:", error);
+      res.status(500).json({ error: "Failed to fetch security logs" });
+    }
+  });
+
+  // Get only critical/warning security events (for alerts)
+  app.get("/api/admin/security/alerts", adminAuth, async (req, res) => {
+    try {
+      const criticalLogs = getSecurityLogs({ severity: "critical", limit: 50 });
+      const warnLogs = getSecurityLogs({ severity: "warn", limit: 50 });
+
+      res.json({
+        critical: criticalLogs,
+        warnings: warnLogs,
+        summary: {
+          criticalCount: criticalLogs.length,
+          warningCount: warnLogs.length,
+        },
+      });
+    } catch (error) {
+      console.error("[Admin] Security alerts error:", error);
+      res.status(500).json({ error: "Failed to fetch security alerts" });
+    }
+  });
+
+  console.log("[Admin] Admin routes registered (including security monitoring)");
 }
