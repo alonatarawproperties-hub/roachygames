@@ -17,6 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PieceSprite } from './pieces/ChessPieces';
 import { useChessSkin } from './skins/SkinContext';
+import { FireIceBoard } from './boards/FireIceBoard';
 
 function detectMoveFromFenChange(oldFen: string, newFen: string): { from: Square; to: Square } | null {
   try {
@@ -204,6 +205,7 @@ export function ChessBoard({
   }));
 
   const hasCustomBoard = !!(currentBoard && currentBoard.image);
+  const isFireIceBoard = currentBoard?.id === 'celestial_inferno';
   
   const renderSquare = useCallback((index: number) => {
     const file = index % 8;
@@ -221,7 +223,7 @@ export function ChessBoard({
       ((piece === 'K' && game.turn() === 'w') || (piece === 'k' && game.turn() === 'b'));
     
     const squareColor = getSquareColor(actualFile, actualRank);
-    const backgroundColor = hasCustomBoard ? 'transparent' : squareColor;
+    const backgroundColor = (hasCustomBoard || isFireIceBoard) ? 'transparent' : squareColor;
     let overlayColor: string | null = null;
     
     if (isLastMoveFrom || isLastMoveTo) {
@@ -237,7 +239,7 @@ export function ChessBoard({
     const showFileLabel = showCoordinates && rank === 7;
     const showRankLabel = showCoordinates && file === 0;
     const oppositeSquareColor = (actualFile + actualRank) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
-    const labelColor = hasCustomBoard ? '#FFFFFF' : oppositeSquareColor;
+    const labelColor = (hasCustomBoard || isFireIceBoard) ? '#FFFFFF' : oppositeSquareColor;
     
     const shouldAnimate = isLastMoveTo && lastMoveSquareRef.current === square;
     
@@ -298,7 +300,7 @@ export function ChessBoard({
         ) : null}
       </Pressable>
     );
-  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle, currentSkin, hasCustomBoard]);
+  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle, currentSkin, hasCustomBoard, isFireIceBoard]);
   
   const squares = useMemo(() => {
     return Array.from({ length: 64 }).map((_, i) => renderSquare(i));
@@ -306,7 +308,11 @@ export function ChessBoard({
 
   return (
     <View style={styles.container}>
-      {hasCustomBoard ? (
+      {isFireIceBoard ? (
+        <FireIceBoard size={boardSize}>
+          {squares}
+        </FireIceBoard>
+      ) : hasCustomBoard ? (
         <ImageBackground
           source={currentBoard.image as any}
           style={[styles.customBoardFrame, { width: boardSize + 12, height: boardSize + 12 }]}
@@ -403,14 +409,18 @@ const styles = StyleSheet.create({
     bottom: 1,
     right: 3,
     fontWeight: '700',
-    textShadow: '0 0 3px rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
   },
   rankLabel: {
     position: 'absolute',
     top: 1,
     left: 3,
     fontWeight: '700',
-    textShadow: '0 0 3px rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
   },
 });
 
