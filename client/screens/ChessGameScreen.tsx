@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, Pressable, Text, Alert, Platform, Dimensions, BackHandler } from "react-native";
+import { View, StyleSheet, Pressable, Text, Alert, Platform, Dimensions, BackHandler, AppState, AppStateStatus } from "react-native";
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -39,6 +39,9 @@ export function ChessGameScreen() {
   const [lastSyncedTurn, setLastSyncedTurn] = useState<string | null>(null);
   
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const backgroundTimeRef = useRef<number | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const handleTimeoutRef = useRef<(iWon: boolean) => void>(() => {});
   
   const { data: matchData, refetch: refetchMatch } = useQuery({
     queryKey: ['/api/chess/match', matchId],
@@ -173,6 +176,80 @@ export function ChessGameScreen() {
       refetchMatch();
     }
   }, [matchId, walletAddress, matchData, refetchMatch]);
+  
+  // Keep ref updated with latest handleTimeout
+  useEffect(() => {
+    handleTimeoutRef.current = handleTimeout;
+  }, [handleTimeout]);
+  
+  // Handle app state changes (background/foreground) to continue timer even when phone is locked
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (gameOver) return;
+      
+      // App going to background - store timestamp
+      if (appStateRef.current === 'active' && nextAppState.match(/inactive|background/)) {
+        backgroundTimeRef.current = Date.now();
+      }
+      
+      // App coming to foreground - calculate elapsed time and subtract
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        if (backgroundTimeRef.current) {
+          const elapsedSeconds = Math.floor((Date.now() - backgroundTimeRef.current) / 1000);
+          backgroundTimeRef.current = null;
+          
+          // Subtract elapsed time from the active player's clock
+          if (playerColor === 'white') {
+            if (isMyTurn) {
+              setPlayer1Time(prev => {
+                const newTime = Math.max(0, prev - elapsedSeconds);
+                if (newTime === 0 && !timeoutTriggeredRef.current) {
+                  timeoutTriggeredRef.current = true;
+                  handleTimeoutRef.current(false);
+                }
+                return newTime;
+              });
+            } else {
+              setPlayer2Time(prev => {
+                const newTime = Math.max(0, prev - elapsedSeconds);
+                if (newTime === 0 && !timeoutTriggeredRef.current) {
+                  timeoutTriggeredRef.current = true;
+                  handleTimeoutRef.current(true);
+                }
+                return newTime;
+              });
+            }
+          } else {
+            if (isMyTurn) {
+              setPlayer2Time(prev => {
+                const newTime = Math.max(0, prev - elapsedSeconds);
+                if (newTime === 0 && !timeoutTriggeredRef.current) {
+                  timeoutTriggeredRef.current = true;
+                  handleTimeoutRef.current(false);
+                }
+                return newTime;
+              });
+            } else {
+              setPlayer1Time(prev => {
+                const newTime = Math.max(0, prev - elapsedSeconds);
+                if (newTime === 0 && !timeoutTriggeredRef.current) {
+                  timeoutTriggeredRef.current = true;
+                  handleTimeoutRef.current(true);
+                }
+                return newTime;
+              });
+            }
+          }
+        }
+      }
+      
+      appStateRef.current = nextAppState;
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [isMyTurn, playerColor, gameOver]);
   
   const moveMutation = useMutation({
     mutationFn: async (move: { from: string; to: string; promotion?: string }) => {
