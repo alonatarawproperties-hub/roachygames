@@ -316,7 +316,7 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
-  // SECURED: Tournament join with CHY deduction
+  // SECURED: Tournament join with CHY deduction and authentication via Authorization header
   app.post("/api/tournaments/:id/join", rateLimit({ windowMs: 60000, max: 10 }), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -324,6 +324,18 @@ export function registerTournamentRoutes(app: Express) {
       
       if (!walletAddress) {
         return res.status(400).json({ success: false, error: "Wallet address required" });
+      }
+      
+      // Extract auth from Authorization header, not from body (prevents token replay attacks)
+      let authenticatedUserId: string | null = null;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.substring(7);
+        const { verifyToken } = await import("./security");
+        const payload = verifyToken(token);
+        if (payload) {
+          authenticatedUserId = payload.userId;
+        }
       }
       
       const tournaments = await db.select()
@@ -359,13 +371,26 @@ export function registerTournamentRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Already registered" });
       }
       
-      // SECURITY: Deduct entry fee BEFORE registering user
+      // SECURITY: For paid tournaments, verify Authorization header matches userId
+      let chyDeducted = false;
       if (tournament.entryFee > 0) {
         if (!userId) {
           logSecurityEvent("tournament_join_no_userid", null, { tournamentId: id, walletAddress, entryFee: tournament.entryFee }, "warn");
           return res.status(400).json({ success: false, error: "User ID required for paid tournaments" });
         }
         
+        // Verify authenticated user matches claimed userId (Authorization header, not body)
+        if (!authenticatedUserId) {
+          logSecurityEvent("tournament_join_no_auth", userId, { tournamentId: id, entryFee: tournament.entryFee }, "warn");
+          return res.status(401).json({ success: false, error: "Authentication required for paid tournaments" });
+        }
+        
+        if (authenticatedUserId !== userId) {
+          logSecurityEvent("tournament_join_user_mismatch", authenticatedUserId, { claimedUserId: userId, tournamentId: id }, "critical");
+          return res.status(403).json({ success: false, error: "Unauthorized: user mismatch" });
+        }
+        
+        // Deduct CHY
         const deductResult = await deductTournamentEntry(userId, tournament.entryFee, id);
         if (!deductResult.success) {
           logSecurityEvent("tournament_join_payment_failed", userId, { 
@@ -375,6 +400,7 @@ export function registerTournamentRoutes(app: Express) {
           }, "warn");
           return res.status(400).json({ success: false, error: deductResult.error || "Payment failed" });
         }
+        chyDeducted = true;
         
         logSecurityEvent("tournament_join_paid", userId, { 
           tournamentId: id, 
@@ -382,42 +408,81 @@ export function registerTournamentRoutes(app: Express) {
         }, "info");
       }
       
-      await db.insert(chessTournamentParticipants).values({
-        tournamentId: id,
-        walletAddress,
-      });
-      
-      const newPlayerCount = tournament.currentPlayers + 1;
-      
-      await db.update(chessTournaments)
-        .set({
-          currentPlayers: newPlayerCount,
-          status: newPlayerCount >= tournament.minPlayers ? 'registering' : tournament.status,
-        })
-        .where(eq(chessTournaments.id, id));
-      
-      if (tournament.tournamentType === 'sit_and_go' && newPlayerCount >= tournament.maxPlayers) {
-        const participants = await db.select()
-          .from(chessTournamentParticipants)
-          .where(eq(chessTournamentParticipants.tournamentId, id));
+      // Insert participant - if this fails after CHY deduction, we need to refund
+      try {
+        await db.insert(chessTournamentParticipants).values({
+          tournamentId: id,
+          walletAddress,
+        });
+      } catch (insertError: any) {
+        // Check if it's a duplicate key error (race condition protection)
+        const isDuplicate = insertError.code === '23505' || insertError.message?.includes('duplicate');
         
-        await generateBracket(id, participants);
+        // SECURITY: Refund CHY on ANY insert failure, not just duplicates
+        if (chyDeducted && userId) {
+          try {
+            await fetch(`${WEBAPP_URL}/api/web/users/${userId}/refund-chy`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-API-Secret": MOBILE_APP_SECRET || "",
+              },
+              body: JSON.stringify({
+                amount: tournament.entryFee,
+                reason: `Tournament join failed${isDuplicate ? ' (duplicate)' : ''}: ${id}`,
+              }),
+            });
+            logSecurityEvent("tournament_join_refund", userId, { tournamentId: id, amount: tournament.entryFee, reason: isDuplicate ? 'duplicate' : 'error' }, "info");
+          } catch (refundError) {
+            logSecurityEvent("tournament_join_refund_failed", userId, { tournamentId: id, amount: tournament.entryFee }, "critical");
+          }
+        }
+        
+        if (isDuplicate) {
+          return res.status(400).json({ success: false, error: "Already registered" });
+        }
+        throw insertError;
+      }
+      
+      // Continue with tournament updates - wrap in try-catch for safety
+      try {
+        const newPlayerCount = tournament.currentPlayers + 1;
         
         await db.update(chessTournaments)
           .set({
-            status: 'active',
-            currentRound: 1,
-            startedAt: new Date(),
+            currentPlayers: newPlayerCount,
+            status: newPlayerCount >= tournament.minPlayers ? 'registering' : tournament.status,
           })
           .where(eq(chessTournaments.id, id));
+        
+        if (tournament.tournamentType === 'sit_and_go' && newPlayerCount >= tournament.maxPlayers) {
+          const participants = await db.select()
+            .from(chessTournamentParticipants)
+            .where(eq(chessTournamentParticipants.tournamentId, id));
+          
+          await generateBracket(id, participants);
+          
+          await db.update(chessTournaments)
+            .set({
+              status: 'active',
+              currentRound: 1,
+              startedAt: new Date(),
+            })
+            .where(eq(chessTournaments.id, id));
+        }
+        
+        const updated = await db.select()
+          .from(chessTournaments)
+          .where(eq(chessTournaments.id, id))
+          .limit(1);
+        
+        res.json({ success: true, tournament: updated[0] });
+      } catch (updateError) {
+        // If update fails after successful insert, the player is registered but tournament state may be off
+        // This is better than losing CHY - they're still in the tournament
+        console.error("Error updating tournament after join:", updateError);
+        res.json({ success: true, warning: "Joined but tournament update pending" });
       }
-      
-      const updated = await db.select()
-        .from(chessTournaments)
-        .where(eq(chessTournaments.id, id))
-        .limit(1);
-      
-      res.json({ success: true, tournament: updated[0] });
     } catch (error) {
       console.error("Error joining tournament:", error);
       res.status(500).json({ success: false, error: "Failed to join tournament" });

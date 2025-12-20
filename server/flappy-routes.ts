@@ -176,17 +176,21 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  // Start a game session (for anti-cheat tracking)
-  app.post("/api/flappy/session/start", rateLimit({ windowMs: 60000, max: 30 }), async (req: Request, res: Response) => {
+  // Start a game session (for anti-cheat tracking) - REQUIRES AUTHENTICATION
+  app.post("/api/flappy/session/start", rateLimit({ windowMs: 60000, max: 30 }), requireAuth, async (req: Request, res: Response) => {
     try {
+      // Use authenticated userId from JWT, not from request body
+      const authenticatedUserId = (req as any).userId;
       const { userId } = req.body;
       
-      if (!userId) {
-        return res.status(400).json({ success: false, error: "Missing userId" });
+      // Verify the requested userId matches the authenticated user
+      if (userId && userId !== authenticatedUserId) {
+        logSecurityEvent("session_start_user_mismatch", authenticatedUserId, { requestedUserId: userId }, "critical");
+        return res.status(403).json({ success: false, error: "Unauthorized user" });
       }
       
-      const sessionId = createGameSession(userId, "flappy");
-      logSecurityEvent("game_session_start", userId, { gameType: "flappy", sessionId });
+      const sessionId = createGameSession(authenticatedUserId, "flappy");
+      logSecurityEvent("game_session_start", authenticatedUserId, { gameType: "flappy", sessionId });
       
       res.json({ success: true, sessionId });
     } catch (error) {
@@ -195,13 +199,21 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  // Score submission with anti-cheat validation
-  app.post("/api/flappy/score", rateLimit({ windowMs: 60000, max: 60 }), async (req: Request, res: Response) => {
+  // Score submission with anti-cheat validation - REQUIRES AUTHENTICATION (no guest bypass)
+  app.post("/api/flappy/score", rateLimit({ windowMs: 60000, max: 60 }), requireAuth, async (req: Request, res: Response) => {
     try {
       const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
+      const authenticatedUserId = (req as any).userId;
       
       if (!userId || score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
+      }
+      
+      // SECURITY: Always verify authenticated user matches claimed userId
+      // No guest bypass - requireAuth ensures we always have authenticatedUserId
+      if (authenticatedUserId !== userId) {
+        logSecurityEvent("score_submit_user_mismatch", authenticatedUserId, { requestedUserId: userId, score }, "critical");
+        return res.status(403).json({ success: false, error: "Unauthorized user" });
       }
       
       // Validate score is a reasonable number

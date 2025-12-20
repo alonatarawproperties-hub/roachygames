@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, real, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -436,7 +436,10 @@ export const chessTournamentParticipants = pgTable("chess_tournament_participant
   finalPlacement: integer("final_placement"),
   prizesWon: integer("prizes_won").notNull().default(0),
   joinedAt: timestamp("joined_at").notNull().default(sql`now()`),
-});
+}, (table) => ({
+  // Unique constraint to prevent race conditions - one entry per wallet per tournament
+  uniqueParticipant: unique().on(table.tournamentId, table.walletAddress),
+}));
 
 export const chessTournamentMatches = pgTable("chess_tournament_matches", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
