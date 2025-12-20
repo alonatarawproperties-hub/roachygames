@@ -58,12 +58,12 @@ export const CHESS_SKINS: Record<string, ChessSkin> = {
     description: 'White marble and dark obsidian pieces with glowing cyan circuits',
     pieces: {
       white: {
-        king: require('@/assets/chess-skins/legendary/2d_white_king_sprite_v2.png'),
-        queen: require('@/assets/chess-skins/legendary/2d_white_queen_sprite_v2.png'),
-        rook: require('@/assets/chess-skins/legendary/2d_white_rook_sprite_v2.png'),
-        bishop: require('@/assets/chess-skins/legendary/2d_white_bishop_sprite_v2.png'),
-        knight: require('@/assets/chess-skins/legendary/2d_white_knight_sprite_v2.png'),
-        pawn: require('@/assets/chess-skins/legendary/2d_white_pawn_sprite_v2.png'),
+        king: require('@/assets/chess-skins/legendary/2d_white_king_sprite_v3.png'),
+        queen: require('@/assets/chess-skins/legendary/2d_white_queen_sprite_v3.png'),
+        rook: require('@/assets/chess-skins/legendary/2d_white_rook_sprite_v3.png'),
+        bishop: require('@/assets/chess-skins/legendary/2d_white_bishop_sprite_v3.png'),
+        knight: require('@/assets/chess-skins/legendary/2d_white_knight_sprite_v3.png'),
+        pawn: require('@/assets/chess-skins/legendary/2d_white_pawn_sprite_v3.png'),
       },
       black: {
         king: require('@/assets/chess-skins/legendary/2d_black_king_sprite_v2.png'),
