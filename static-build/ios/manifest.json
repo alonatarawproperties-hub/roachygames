@@ -1,11 +1,11 @@
 {
-  "id": "c0d8f5d5-ff79-485e-b86d-d8e5f84bc8f6",
-  "createdAt": "2025-12-19T10:51:55.613Z",
+  "id": "72820ee0-61b9-4919-871f-19e421a18926",
+  "createdAt": "2025-12-20T09:40:31.148Z",
   "runtimeVersion": "1.0.0",
   "launchAsset": {
-    "key": "bundle-1766141515613-14140",
+    "key": "bundle-1766223631148-41707",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1766141515613-14140/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1766223631148-41707/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -35,7 +35,7 @@
       "ios": {
         "supportsTablet": true,
         "bundleIdentifier": "com.cryptocreatures.app",
-        "buildNumber": "148",
+        "buildNumber": "156",
         "backgroundColor": "#120a05",
         "infoPlist": {
           "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
@@ -178,6 +178,6 @@
     "expoGo": {
       "__flipperHack": "React Native packager is running"
     },
-    "scopeKey": "@anonymous/roachy-games-af7e00dd-8182-4845-a13a-9eb740371abc"
+    "scopeKey": "@anonymous/roachy-games-1b38a58d-345d-44fa-8cf9-796a4dd4de62"
   }
 }
