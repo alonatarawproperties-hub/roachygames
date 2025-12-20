@@ -201,21 +201,38 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
         ) : null}
-        {user?.id ? (
+        {user?.authProvider === 'google' && user?.googleId ? (
           <Pressable 
             onPress={() => {
-              if (user.id) {
+              if (user.googleId) {
                 import('expo-clipboard').then(Clipboard => {
-                  Clipboard.setStringAsync(user.id);
+                  Clipboard.setStringAsync(user.googleId!);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert('Copied', 'User ID copied to clipboard');
+                  Alert.alert('Copied', 'Google ID copied to clipboard');
                 });
               }
             }}
             style={styles.userIdContainer}
           >
-            <ThemedText style={styles.userIdLabel}>User ID: </ThemedText>
-            <ThemedText style={styles.userId}>{user.id}</ThemedText>
+            <ThemedText style={styles.userIdLabel}>Google ID: </ThemedText>
+            <ThemedText style={styles.userId}>{user.googleId}</ThemedText>
+            <Feather name="copy" size={12} color={GameColors.textSecondary} style={{ marginLeft: 4 }} />
+          </Pressable>
+        ) : user?.authProvider === 'wallet' && user?.walletAddress ? (
+          <Pressable 
+            onPress={() => {
+              if (user.walletAddress) {
+                import('expo-clipboard').then(Clipboard => {
+                  Clipboard.setStringAsync(user.walletAddress!);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert('Copied', 'Wallet address copied to clipboard');
+                });
+              }
+            }}
+            style={styles.userIdContainer}
+          >
+            <ThemedText style={styles.userIdLabel}>Wallet: </ThemedText>
+            <ThemedText style={styles.userId}>{user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}</ThemedText>
             <Feather name="copy" size={12} color={GameColors.textSecondary} style={{ marginLeft: 4 }} />
           </Pressable>
         ) : null}
