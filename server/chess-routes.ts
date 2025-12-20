@@ -498,7 +498,41 @@ export function registerChessRoutes(app: Express) {
         return res.status(404).json({ success: false, error: "Match not found" });
       }
       
-      res.json({ success: true, match: matches[0] });
+      const match = matches[0];
+      
+      // Check for timeout if game is still active
+      if (match.status === 'active' && match.startedAt) {
+        const now = Date.now();
+        const matchStart = new Date(match.startedAt).getTime();
+        const moveHistory = match.moveHistory || '';
+        const moves = moveHistory ? moveHistory.split(',') : [];
+        
+        // Calculate elapsed time since last move/turn change
+        // For simplicity, check if current player's time has run out
+        const isWhiteTurn = match.currentTurn === 'white';
+        const currentPlayerTime = isWhiteTurn ? match.player1TimeRemaining : match.player2TimeRemaining;
+        
+        // If the current player's time is 0 or less, they lose on time
+        if (currentPlayerTime <= 0) {
+          const winner = isWhiteTurn ? match.player2Wallet : match.player1Wallet;
+          
+          await db.update(chessMatches)
+            .set({
+              status: 'completed',
+              winnerWallet: winner,
+              winReason: 'timeout',
+              endedAt: new Date(),
+              player1TimeRemaining: Math.max(0, match.player1TimeRemaining),
+              player2TimeRemaining: Math.max(0, match.player2TimeRemaining),
+            })
+            .where(eq(chessMatches.id, matchId));
+          
+          const updatedMatches = await db.select().from(chessMatches).where(eq(chessMatches.id, matchId)).limit(1);
+          return res.json({ success: true, match: updatedMatches[0] });
+        }
+      }
+      
+      res.json({ success: true, match });
     } catch (error) {
       console.error("Error fetching match:", error);
       res.status(500).json({ success: false, error: "Failed to fetch match" });

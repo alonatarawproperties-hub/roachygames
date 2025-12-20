@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, Pressable, Text, Alert, Platform, Dimensions } from "react-native";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { View, StyleSheet, Pressable, Text, Alert, Platform, Dimensions, BackHandler } from "react-native";
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -82,6 +82,9 @@ export function ChessGameScreen() {
     }
   }, [matchData, walletAddress, lastSyncedTurn]);
   
+  // Track if we've already triggered timeout to prevent multiple calls
+  const timeoutTriggeredRef = useRef(false);
+  
   useEffect(() => {
     if (gameOver) {
       if (timerRef.current) {
@@ -94,15 +97,47 @@ export function ChessGameScreen() {
     timerRef.current = setInterval(() => {
       if (playerColor === 'white') {
         if (isMyTurn) {
-          setPlayer1Time(prev => Math.max(0, prev - 1));
+          setPlayer1Time(prev => {
+            const newTime = Math.max(0, prev - 1);
+            // Check for timeout - my time ran out, I lose
+            if (newTime === 0 && !timeoutTriggeredRef.current) {
+              timeoutTriggeredRef.current = true;
+              handleTimeout(false); // I lost on time
+            }
+            return newTime;
+          });
         } else {
-          setPlayer2Time(prev => Math.max(0, prev - 1));
+          setPlayer2Time(prev => {
+            const newTime = Math.max(0, prev - 1);
+            // Check for timeout - opponent's time ran out, I win
+            if (newTime === 0 && !timeoutTriggeredRef.current) {
+              timeoutTriggeredRef.current = true;
+              handleTimeout(true); // I won on time
+            }
+            return newTime;
+          });
         }
       } else {
         if (isMyTurn) {
-          setPlayer2Time(prev => Math.max(0, prev - 1));
+          setPlayer2Time(prev => {
+            const newTime = Math.max(0, prev - 1);
+            // Check for timeout - my time ran out, I lose
+            if (newTime === 0 && !timeoutTriggeredRef.current) {
+              timeoutTriggeredRef.current = true;
+              handleTimeout(false); // I lost on time
+            }
+            return newTime;
+          });
         } else {
-          setPlayer1Time(prev => Math.max(0, prev - 1));
+          setPlayer1Time(prev => {
+            const newTime = Math.max(0, prev - 1);
+            // Check for timeout - opponent's time ran out, I win
+            if (newTime === 0 && !timeoutTriggeredRef.current) {
+              timeoutTriggeredRef.current = true;
+              handleTimeout(true); // I won on time
+            }
+            return newTime;
+          });
         }
       }
     }, 1000);
@@ -113,6 +148,31 @@ export function ChessGameScreen() {
       }
     };
   }, [isMyTurn, playerColor, gameOver]);
+  
+  // Handle timeout - report to server
+  const handleTimeout = useCallback(async (iWon: boolean) => {
+    try {
+      const winnerWallet = iWon ? walletAddress : 
+        (matchData?.match?.player1Wallet === walletAddress 
+          ? matchData?.match?.player2Wallet 
+          : matchData?.match?.player1Wallet);
+      
+      await apiRequest('POST', '/api/chess/end', {
+        matchId,
+        winnerWallet,
+        winReason: 'timeout',
+      });
+      
+      setGameOver(true);
+      setWinner(winnerWallet);
+      setWinReason('timeout');
+      refetchMatch();
+    } catch (error) {
+      console.error('Error reporting timeout:', error);
+      // Refetch to sync with server state
+      refetchMatch();
+    }
+  }, [matchId, walletAddress, matchData, refetchMatch]);
   
   const moveMutation = useMutation({
     mutationFn: async (move: { from: string; to: string; promotion?: string }) => {
@@ -172,10 +232,94 @@ export function ChessGameScreen() {
     },
   });
   
+  // Prevent accidental back/exit during active game
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (gameOver) {
+          return false; // Allow back navigation when game is over
+        }
+        
+        // Show warning dialog
+        if (Platform.OS === 'web') {
+          const shouldLeave = confirm('Leave game? You will lose by resignation if you exit now.');
+          if (shouldLeave) {
+            endGameMutation.mutate('resign');
+          }
+        } else {
+          Alert.alert(
+            'Leave Game?',
+            'You will lose by resignation if you exit now.',
+            [
+              { text: 'Stay', style: 'cancel' },
+              { 
+                text: 'Leave & Resign', 
+                style: 'destructive', 
+                onPress: () => {
+                  endGameMutation.mutate('resign');
+                  navigation.navigate('ChessLobby');
+                }
+              },
+            ]
+          );
+        }
+        return true; // Prevent default back behavior
+      };
+
+      // Android hardware back button
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        subscription.remove();
+      };
+    }, [gameOver, endGameMutation, navigation])
+  );
+
+  // Prevent swipe-back gesture and navigation
+  useEffect(() => {
+    if (gameOver) return;
+    
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      if (gameOver) return; // Allow navigation when game is over
+      
+      // Prevent default behavior
+      e.preventDefault();
+      
+      // Show confirmation
+      if (Platform.OS === 'web') {
+        const shouldLeave = confirm('Leave game? You will lose by resignation if you exit now.');
+        if (shouldLeave) {
+          endGameMutation.mutate('resign');
+          navigation.dispatch(e.data.action);
+        }
+      } else {
+        Alert.alert(
+          'Leave Game?',
+          'You will lose by resignation if you exit now.',
+          [
+            { text: 'Stay', style: 'cancel' },
+            { 
+              text: 'Leave & Resign', 
+              style: 'destructive', 
+              onPress: () => {
+                endGameMutation.mutate('resign');
+                navigation.dispatch(e.data.action);
+              }
+            },
+          ]
+        );
+      }
+    });
+
+    return unsubscribe;
+  }, [gameOver, navigation, endGameMutation]);
+  
   const handleMove = useCallback((move: { from: string; to: string; san: string; fen: string; promotion?: string }) => {
-    if (gameOver || !isMyTurn) return;
+    // Don't allow moves if game is over, not my turn, or my time ran out
+    const currentMyTime = playerColor === 'white' ? player1Time : player2Time;
+    if (gameOver || !isMyTurn || currentMyTime <= 0) return;
     moveMutation.mutate({ from: move.from, to: move.to, promotion: move.promotion });
-  }, [gameOver, isMyTurn, moveMutation]);
+  }, [gameOver, isMyTurn, playerColor, player1Time, player2Time, moveMutation]);
   
   const handleResign = () => {
     if (Platform.OS === 'web') {
@@ -270,7 +414,7 @@ export function ChessGameScreen() {
           fen={currentFen}
           playerColor={playerColor}
           onMove={handleMove}
-          disabled={!isMyTurn || gameOver}
+          disabled={!isMyTurn || gameOver || myTime <= 0}
           showCoordinates={true}
           size={boardSize}
         />
