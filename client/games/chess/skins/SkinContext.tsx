@@ -29,9 +29,7 @@ export function SkinProvider({ children }: { children: ReactNode }) {
   // Check if current user is a god account
   const isGodAccount = useMemo(() => {
     const email = user?.email?.toLowerCase();
-    const isGod = email ? GOD_ACCOUNTS.includes(email) : false;
-    console.log('[SkinContext] God account check:', { email, isGod, godAccounts: GOD_ACCOUNTS });
-    return isGod;
+    return email ? GOD_ACCOUNTS.includes(email) : false;
   }, [user?.email]);
   
   // God accounts own all skins, regular users own what's in storage
