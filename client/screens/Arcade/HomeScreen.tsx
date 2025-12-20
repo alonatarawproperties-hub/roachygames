@@ -1733,27 +1733,34 @@ export function ArcadeHomeScreen() {
                 <ThemedText style={styles.accountTypeText}>{getAccountType()}</ThemedText>
               </View>
               {!isGuest && user ? (
-                <Pressable 
-                  onPress={() => {
-                    const idToCopy = user.googleId || user.email || user.id;
-                    if (idToCopy) {
-                      import('expo-clipboard').then(Clipboard => {
-                        Clipboard.setStringAsync(idToCopy);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        Alert.alert('Copied', user.googleId ? 'Google ID copied' : user.email ? 'Email copied' : 'User ID copied');
-                      });
-                    }
-                  }}
-                  style={styles.userIdContainer}
-                >
-                  <ThemedText style={styles.userIdLabel}>
-                    {user.googleId ? 'Google ID: ' : user.email ? 'Account: ' : 'User ID: '}
-                  </ThemedText>
-                  <ThemedText style={styles.userId} numberOfLines={1}>
-                    {user.googleId || user.email || user.id}
-                  </ThemedText>
-                  <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
-                </Pressable>
+                <View style={styles.accountInfoContainer}>
+                  {user.email ? (
+                    <ThemedText style={styles.accountEmail} numberOfLines={1}>
+                      {user.email}
+                    </ThemedText>
+                  ) : null}
+                  <Pressable 
+                    onPress={() => {
+                      const idToCopy = user.googleId || user.id;
+                      if (idToCopy) {
+                        import('expo-clipboard').then(Clipboard => {
+                          Clipboard.setStringAsync(idToCopy);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          Alert.alert('Copied', 'ID copied to clipboard');
+                        });
+                      }
+                    }}
+                    style={styles.userIdContainer}
+                  >
+                    <ThemedText style={styles.userIdLabel}>
+                      {user.googleId ? 'ID: ' : 'User ID: '}
+                    </ThemedText>
+                    <ThemedText style={styles.userId} numberOfLines={1}>
+                      {user.googleId || user.id}
+                    </ThemedText>
+                    <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
+                  </Pressable>
+                </View>
               ) : null}
             </View>
 
@@ -2204,10 +2211,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GameColors.gold,
   },
+  accountInfoContainer: {
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    width: "100%",
+  },
+  accountEmail: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
   userIdContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: Spacing.sm,
+    justifyContent: "center",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     backgroundColor: GameColors.surface,
@@ -2221,7 +2238,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: GameColors.textPrimary,
     fontWeight: "600",
-    flex: 1,
   },
   walletSection: {
     marginBottom: Spacing.xl,
