@@ -367,7 +367,7 @@ export function registerTournamentRoutes(app: Express) {
   app.post("/api/tournaments/:id/leave", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { walletAddress } = req.body;
+      const { walletAddress, userId } = req.body;
       
       const tournaments = await db.select()
         .from(chessTournaments)
@@ -384,6 +384,53 @@ export function registerTournamentRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Cannot leave active/completed tournament" });
       }
       
+      // Check if user is actually registered
+      const participants = await db.select()
+        .from(chessTournamentParticipants)
+        .where(
+          and(
+            eq(chessTournamentParticipants.tournamentId, id),
+            eq(chessTournamentParticipants.walletAddress, walletAddress)
+          )
+        );
+      
+      if (participants.length === 0) {
+        return res.status(400).json({ success: false, error: "Not registered in this tournament" });
+      }
+      
+      // If there's an entry fee and we have userId, refund via webapp
+      let refundResult = null;
+      if (tournament.entryFee > 0 && userId) {
+        try {
+          const WEBAPP_URL = process.env.WEBAPP_URL || 'https://roachy.games';
+          const API_SECRET = process.env.MOBILE_APP_SECRET;
+          
+          const refundResponse = await fetch(`${WEBAPP_URL}/api/web/users/${userId}/refund-chy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(API_SECRET ? { 'x-api-secret': API_SECRET } : {}),
+            },
+            body: JSON.stringify({
+              amount: tournament.entryFee,
+              reason: `Tournament withdrawal: ${tournament.name}`,
+            }),
+          });
+          
+          refundResult = await refundResponse.json();
+          console.log(`[Tournament] Refund for ${walletAddress}: ${JSON.stringify(refundResult)}`);
+          
+          if (!refundResult.success) {
+            console.error(`[Tournament] Refund failed for ${walletAddress}: ${refundResult.error}`);
+            // Continue with leaving anyway, but note the refund failure
+          }
+        } catch (refundError) {
+          console.error(`[Tournament] Refund API error:`, refundError);
+          // Continue with leaving anyway
+        }
+      }
+      
+      // Remove participant
       await db.delete(chessTournamentParticipants)
         .where(
           and(
@@ -396,7 +443,11 @@ export function registerTournamentRoutes(app: Express) {
         .set({ currentPlayers: Math.max(0, tournament.currentPlayers - 1) })
         .where(eq(chessTournaments.id, id));
       
-      res.json({ success: true });
+      res.json({ 
+        success: true, 
+        refunded: tournament.entryFee > 0 ? refundResult?.success ?? false : false,
+        refundAmount: tournament.entryFee > 0 && refundResult?.success ? tournament.entryFee : 0,
+      });
     } catch (error) {
       console.error("Error leaving tournament:", error);
       res.status(500).json({ success: false, error: "Failed to leave tournament" });

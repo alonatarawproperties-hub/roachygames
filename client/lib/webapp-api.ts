@@ -206,6 +206,41 @@ export async function purchasePowerup(
   }
 }
 
+// Refund CHY through the webapp API - for tournament withdrawals before start
+export async function refundChy(
+  userId: string,
+  amount: number,
+  reason: string
+): Promise<SpendChyResult> {
+  try {
+    const response = await webappRequest(
+      "POST",
+      `/api/web/users/${userId}/refund-chy`,
+      { amount, reason }
+    );
+    
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      const errorText = result.error || `HTTP ${response.status}`;
+      return { success: false, error: errorText };
+    }
+    
+    const result = await response.json();
+    return {
+      success: result.success ?? true,
+      spent: result.refunded,
+      reason: result.reason,
+      newBalance: result.newBalance,
+    };
+  } catch (error) {
+    console.error("[WebappAPI] Refund CHY failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to refund CHY",
+    };
+  }
+}
+
 export async function linkWallet(
   userId: string,
   walletAddress: string,

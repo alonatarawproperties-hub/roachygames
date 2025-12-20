@@ -178,11 +178,22 @@ export function TournamentDetailScreen() {
     mutationFn: async () => {
       const res = await apiRequest('POST', `/api/tournaments/${tournamentId}/leave`, {
         walletAddress,
+        userId: user?.id,
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tournaments', tournamentId] });
+      // Show refund message if applicable
+      if (data.refunded && data.refundAmount > 0) {
+        if (Platform.OS === 'web') {
+          alert(`Your ${data.refundAmount} CHY entry fee has been refunded!`);
+        } else {
+          Alert.alert('Refund Processed', `Your ${data.refundAmount} CHY entry fee has been refunded!`);
+        }
+        // Refresh balance
+        invalidateBalances();
+      }
     },
   });
   
