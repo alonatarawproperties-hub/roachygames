@@ -207,8 +207,12 @@ export function FlappyMenuSheet({
 
   const enterRankedMutation = useMutation({
     mutationFn: async (period: 'daily' | 'weekly') => {
-      // Backend handles CHY deduction via webapp API - don't deduct here to avoid double spend
-      return apiRequest("POST", "/api/flappy/ranked/enter", { userId, period });
+      // Backend handles CHY deduction via webapp API - pass webappUserId for direct balance lookup
+      return apiRequest("POST", "/api/flappy/ranked/enter", { 
+        userId, 
+        period,
+        webappUserId: user?.webappUserId 
+      });
     },
     onSuccess: (data: any, period: 'daily' | 'weekly') => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });

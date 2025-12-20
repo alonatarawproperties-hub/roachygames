@@ -410,7 +410,7 @@ export function registerFlappyRoutes(app: Express) {
 
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
-      const { userId, period = 'daily' } = req.body;
+      const { userId, period = 'daily', webappUserId } = req.body;
       
       if (!userId) {
         return res.status(400).json({ success: false, error: "Missing userId" });
@@ -442,51 +442,80 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
-      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      // If webappUserId is provided from frontend, use it directly for faster balance lookup
+      let chyBalance = 0;
+      let effectiveWebappUserId = webappUserId;
       
-      if (user.length === 0) {
-        return res.status(404).json({ success: false, error: "User not found" });
-      }
-      
-      const userData = user[0];
-      console.log(`[Flappy] User lookup result:`, {
-        userId,
-        email: userData.email,
-        googleId: userData.googleId,
-        authProvider: userData.authProvider,
-        displayName: userData.displayName,
-      });
-      
-      // Check if user has Google credentials for webapp lookup
-      if (!userData.googleId || !userData.email) {
-        console.error(`[Flappy] User ${userId} has no Google credentials - cannot fetch webapp CHY`);
-        return res.status(400).json({ 
-          success: false, 
-          error: "Google sign-in required for competitions. Please log out and sign in with Google." 
+      if (webappUserId) {
+        console.log(`[Flappy] Using frontend-provided webappUserId: ${webappUserId}`);
+        // Direct balance fetch using webappUserId
+        const balanceResult = await webappRequest("GET", `/api/web/users/${webappUserId}/balances`);
+        if (balanceResult.status === 200) {
+          chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? 0;
+          console.log(`[Flappy] Direct balance fetch for ${webappUserId}: ${chyBalance} CHY`);
+        } else {
+          console.log(`[Flappy] Direct balance fetch failed:`, balanceResult);
+        }
+      } else {
+        // Fallback: Look up user and do OAuth exchange
+        const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        
+        if (user.length === 0) {
+          return res.status(404).json({ success: false, error: "User not found" });
+        }
+        
+        const userData = user[0];
+        console.log(`[Flappy] User lookup result (no webappUserId):`, {
+          userId,
+          email: userData.email,
+          googleId: userData.googleId,
         });
+        
+        if (!userData.googleId || !userData.email) {
+          return res.status(400).json({ 
+            success: false, 
+            error: "Google sign-in required for competitions. Please log out and sign in with Google." 
+          });
+        }
+        
+        // Get webappUserId via OAuth exchange
+        const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
+          googleId: userData.googleId,
+          email: userData.email,
+          displayName: userData.displayName || userData.email.split("@")[0],
+        });
+        
+        if (exchangeResult.status === 200 && exchangeResult.data?.success) {
+          effectiveWebappUserId = exchangeResult.data.user?.id;
+          if (effectiveWebappUserId) {
+            const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/balances`);
+            if (balanceResult.status === 200) {
+              chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? 0;
+            }
+          }
+        }
+        console.log(`[Flappy] OAuth exchange result - webappUserId: ${effectiveWebappUserId}, balance: ${chyBalance}`);
       }
       
-      // Fetch CHY balance from webapp using user's googleId/email
-      const chyBalance = await getWebappChyBalanceForUser({
-        googleId: userData.googleId,
-        email: userData.email,
-        displayName: userData.displayName,
-      });
-      console.log(`[Flappy] User ${userId} (${userData.email}) CHY balance from webapp: ${chyBalance}, entry fee: ${ENTRY_FEE}`);
+      console.log(`[Flappy] Final balance check: ${chyBalance} CHY, entry fee: ${ENTRY_FEE}`);
       
       if (chyBalance < ENTRY_FEE) {
         return res.status(400).json({ success: false, error: "Not enough CHY" });
       }
       
-      // Deduct entry fee via webapp
-      const deductSuccess = await deductWebappChy(
-        { googleId: userData.googleId, email: userData.email, displayName: userData.displayName },
-        ENTRY_FEE,
-        `Flappy ${period} competition entry`
-      );
+      if (!effectiveWebappUserId) {
+        return res.status(400).json({ success: false, error: "Could not verify webapp account" });
+      }
       
-      if (!deductSuccess) {
-        console.error(`[Flappy] Failed to deduct CHY for user ${userId}`);
+      // Deduct entry fee via webapp using webappUserId directly
+      const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
+        userId: effectiveWebappUserId,
+        amount: ENTRY_FEE,
+        reason: `Flappy ${period} competition entry`,
+      });
+      
+      if (deductResult.status !== 200 || !deductResult.data?.success) {
+        console.error(`[Flappy] Failed to deduct CHY:`, deductResult);
         return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
       }
       
