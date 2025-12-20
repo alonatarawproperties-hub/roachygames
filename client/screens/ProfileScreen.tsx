@@ -201,29 +201,23 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
         ) : null}
-        {!isGuest && user ? (
+        {!isGuest && user?.authProvider === 'google' ? (
           <Pressable 
             onPress={() => {
-              const idToCopy = user.googleId || user.walletAddress || user.id;
+              const idToCopy = user.googleId || user.id;
               if (idToCopy) {
                 import('expo-clipboard').then(Clipboard => {
                   Clipboard.setStringAsync(idToCopy);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert('Copied', 'ID copied to clipboard');
+                  Alert.alert('Copied', 'Google ID copied to clipboard');
                 });
               }
             }}
             style={styles.userIdContainer}
           >
-            <ThemedText style={styles.userIdLabel}>
-              {user.googleId ? 'Google ID: ' : user.walletAddress ? 'Wallet: ' : 'User ID: '}
-            </ThemedText>
+            <ThemedText style={styles.userIdLabel}>Google ID: </ThemedText>
             <ThemedText style={styles.userId} numberOfLines={1}>
-              {user.googleId 
-                ? user.googleId 
-                : user.walletAddress 
-                  ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-                  : user.id}
+              {user.googleId || user.id}
             </ThemedText>
             <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
           </Pressable>
