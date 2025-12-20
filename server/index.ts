@@ -35,24 +35,29 @@ function setupCors(app: express.Application) {
       });
     }
 
+    // Add roachy.games webapp for admin API access
+    origins.add("https://roachy.games");
+    origins.add("https://www.roachy.games");
+
     const origin = req.header("origin");
 
-    // Allow Replit origins (both .replit.dev and .repl.co)
-    const isReplitOrigin = origin && (
+    // Allow Replit origins (both .replit.dev and .repl.co) and roachy.games
+    const isAllowedOrigin = origin && (
       origins.has(origin) ||
       origin.includes('.replit.dev') ||
       origin.includes('.repl.co') ||
       origin.includes('riker.replit.dev') ||
-      origin.includes('riker.repl.co')
+      origin.includes('riker.repl.co') ||
+      origin.includes('roachy.games')
     );
 
-    if (isReplitOrigin) {
+    if (isAllowedOrigin) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, DELETE, OPTIONS",
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type");
+      res.header("Access-Control-Allow-Headers", "Content-Type, X-Admin-API-Key");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 

@@ -6,6 +6,7 @@ import { registerTournamentRoutes } from "./tournament-routes";
 import { registerEconomyRoutes } from "./economy-routes";
 import { registerFlappyRoutes } from "./flappy-routes";
 import { registerWebappRoutes } from "./webapp-routes";
+import { registerAdminRoutes } from "./admin-routes";
 import authRoutes from "./auth-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -16,6 +17,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerEconomyRoutes(app);
   registerFlappyRoutes(app);
   registerWebappRoutes(app);
+  registerAdminRoutes(app);
 
   const httpServer = createServer(app);
 
