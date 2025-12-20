@@ -201,39 +201,31 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
         ) : null}
-        {user?.authProvider === 'google' && user?.googleId ? (
+        {!isGuest && user ? (
           <Pressable 
             onPress={() => {
-              if (user.googleId) {
+              const idToCopy = user.googleId || user.walletAddress || user.id;
+              if (idToCopy) {
                 import('expo-clipboard').then(Clipboard => {
-                  Clipboard.setStringAsync(user.googleId!);
+                  Clipboard.setStringAsync(idToCopy);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert('Copied', 'Google ID copied to clipboard');
+                  Alert.alert('Copied', 'ID copied to clipboard');
                 });
               }
             }}
             style={styles.userIdContainer}
           >
-            <ThemedText style={styles.userIdLabel}>Google ID: </ThemedText>
-            <ThemedText style={styles.userId}>{user.googleId}</ThemedText>
-            <Feather name="copy" size={12} color={GameColors.textSecondary} style={{ marginLeft: 4 }} />
-          </Pressable>
-        ) : user?.authProvider === 'wallet' && user?.walletAddress ? (
-          <Pressable 
-            onPress={() => {
-              if (user.walletAddress) {
-                import('expo-clipboard').then(Clipboard => {
-                  Clipboard.setStringAsync(user.walletAddress!);
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert('Copied', 'Wallet address copied to clipboard');
-                });
-              }
-            }}
-            style={styles.userIdContainer}
-          >
-            <ThemedText style={styles.userIdLabel}>Wallet: </ThemedText>
-            <ThemedText style={styles.userId}>{user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}</ThemedText>
-            <Feather name="copy" size={12} color={GameColors.textSecondary} style={{ marginLeft: 4 }} />
+            <ThemedText style={styles.userIdLabel}>
+              {user.googleId ? 'Google ID: ' : user.walletAddress ? 'Wallet: ' : 'User ID: '}
+            </ThemedText>
+            <ThemedText style={styles.userId} numberOfLines={1}>
+              {user.googleId 
+                ? user.googleId 
+                : user.walletAddress 
+                  ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+                  : user.id}
+            </ThemedText>
+            <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
           </Pressable>
         ) : null}
       </Animated.View>
