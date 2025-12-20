@@ -232,35 +232,9 @@ const PIECE_TYPE_MAP: Record<string, 'king' | 'queen' | 'rook' | 'bishop' | 'kni
   p: 'pawn',
 };
 
-const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square, skin }) => {
-  const isWhite = piece === piece.toUpperCase();
-  const pieceType = piece.toLowerCase();
-  const pieceSize = size * 0.88;
-  const uniqueId = `${square}_${piece}`;
-
-  if (skin && skin.id !== 'default') {
-    const pieceName = PIECE_TYPE_MAP[pieceType];
-    if (pieceName) {
-      const colorSet = isWhite ? skin.pieces.white : skin.pieces.black;
-      const imageSource = colorSet[pieceName];
-      if (imageSource) {
-        return (
-          <View style={{ width: pieceSize, height: pieceSize, alignItems: 'center', justifyContent: 'center' }}>
-            <Image
-              source={imageSource}
-              style={{ width: pieceSize, height: pieceSize }}
-              resizeMode="contain"
-            />
-          </View>
-        );
-      }
-    }
-  }
-
-  if (Platform.OS === 'web') {
-    return <WebPiece piece={piece} size={pieceSize} />;
-  }
-  
+const SvgFallback: React.FC<{ pieceType: string; pieceSize: number; isWhite: boolean; uniqueId: string }> = ({ 
+  pieceType, pieceSize, isWhite, uniqueId 
+}) => {
   switch (pieceType) {
     case 'k':
       return <KingSvg size={pieceSize} isWhite={isWhite} uniqueId={uniqueId} />;
@@ -277,6 +251,40 @@ const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square, ski
     default:
       return null;
   }
+};
+
+const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square, skin }) => {
+  const [imageError, setImageError] = React.useState(false);
+  const isWhite = piece === piece.toUpperCase();
+  const pieceType = piece.toLowerCase();
+  const pieceSize = size * 0.88;
+  const uniqueId = `${square}_${piece}`;
+
+  if (skin && skin.id !== 'default' && !imageError) {
+    const pieceName = PIECE_TYPE_MAP[pieceType];
+    if (pieceName) {
+      const colorSet = isWhite ? skin.pieces.white : skin.pieces.black;
+      const imageSource = colorSet[pieceName];
+      if (imageSource) {
+        return (
+          <View style={{ width: pieceSize, height: pieceSize, alignItems: 'center', justifyContent: 'center' }}>
+            <Image
+              source={imageSource}
+              style={{ width: pieceSize, height: pieceSize }}
+              resizeMode="contain"
+              onError={() => setImageError(true)}
+            />
+          </View>
+        );
+      }
+    }
+  }
+
+  if (Platform.OS === 'web') {
+    return <WebPiece piece={piece} size={pieceSize} />;
+  }
+  
+  return <SvgFallback pieceType={pieceType} pieceSize={pieceSize} isWhite={isWhite} uniqueId={uniqueId} />;
 };
 
 export const PieceSprite = React.memo(PieceSpriteInner);
