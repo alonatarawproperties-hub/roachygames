@@ -192,6 +192,24 @@ export default function ProfileScreen() {
         <ThemedText style={styles.subtitle}>
           Roachy Creature Hunter
         </ThemedText>
+        {user?.id ? (
+          <Pressable 
+            onPress={() => {
+              if (user.id) {
+                import('expo-clipboard').then(Clipboard => {
+                  Clipboard.setStringAsync(user.id);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert('Copied', 'User ID copied to clipboard');
+                });
+              }
+            }}
+            style={styles.userIdContainer}
+          >
+            <ThemedText style={styles.userIdLabel}>User ID: </ThemedText>
+            <ThemedText style={styles.userId}>{user.id}</ThemedText>
+            <Feather name="copy" size={12} color={GameColors.textSecondary} style={{ marginLeft: 4 }} />
+          </Pressable>
+        ) : null}
       </Animated.View>
 
       <Modal
@@ -533,6 +551,24 @@ const styles = StyleSheet.create({
   subtitle: {
     color: GameColors.textSecondary,
     marginTop: Spacing.xs,
+  },
+  userIdContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: GameColors.cardBackground,
+    borderRadius: BorderRadius.sm,
+  },
+  userIdLabel: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+  },
+  userId: {
+    fontSize: 11,
+    color: GameColors.textPrimary,
+    fontFamily: "monospace",
   },
   statsGrid: {
     flexDirection: "row",
