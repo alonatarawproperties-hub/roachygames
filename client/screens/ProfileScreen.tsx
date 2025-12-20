@@ -208,26 +208,61 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
         ) : null}
-        {!isGuest && user?.authProvider === 'google' ? (
-          <Pressable 
-            onPress={() => {
-              const idToCopy = user.googleId || user.id;
-              if (idToCopy) {
-                import('expo-clipboard').then(Clipboard => {
-                  Clipboard.setStringAsync(idToCopy);
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert('Copied', 'Google ID copied to clipboard');
-                });
-              }
-            }}
-            style={styles.userIdContainer}
-          >
-            <ThemedText style={styles.userIdLabel}>Google ID: </ThemedText>
-            <ThemedText style={styles.userId} numberOfLines={1}>
-              {user.googleId || user.id}
-            </ThemedText>
-            <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
-          </Pressable>
+        {!isGuest && user ? (
+          <View>
+            {user.googleId ? (
+              <Pressable 
+                onPress={() => {
+                  import('expo-clipboard').then(Clipboard => {
+                    Clipboard.setStringAsync(user.googleId!);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Alert.alert('Copied', 'Google ID copied to clipboard');
+                  });
+                }}
+                style={styles.userIdContainer}
+              >
+                <ThemedText style={styles.userIdLabel}>Google ID: </ThemedText>
+                <ThemedText style={styles.userId} numberOfLines={1}>
+                  {user.googleId}
+                </ThemedText>
+                <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
+              </Pressable>
+            ) : user.email ? (
+              <Pressable 
+                onPress={() => {
+                  import('expo-clipboard').then(Clipboard => {
+                    Clipboard.setStringAsync(user.email!);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Alert.alert('Copied', 'Email copied to clipboard');
+                  });
+                }}
+                style={styles.userIdContainer}
+              >
+                <ThemedText style={styles.userIdLabel}>Account: </ThemedText>
+                <ThemedText style={styles.userId} numberOfLines={1}>
+                  {user.email}
+                </ThemedText>
+                <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
+              </Pressable>
+            ) : (
+              <Pressable 
+                onPress={() => {
+                  import('expo-clipboard').then(Clipboard => {
+                    Clipboard.setStringAsync(user.id);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Alert.alert('Copied', 'User ID copied to clipboard');
+                  });
+                }}
+                style={styles.userIdContainer}
+              >
+                <ThemedText style={styles.userIdLabel}>User ID: </ThemedText>
+                <ThemedText style={styles.userId} numberOfLines={1}>
+                  {user.id}
+                </ThemedText>
+                <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
+              </Pressable>
+            )}
+          </View>
         ) : null}
       </Animated.View>
 
