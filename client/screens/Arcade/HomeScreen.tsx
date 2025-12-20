@@ -1732,6 +1732,29 @@ export function ArcadeHomeScreen() {
                 <Feather name={getAccountIcon()} size={12} color={GameColors.gold} />
                 <ThemedText style={styles.accountTypeText}>{getAccountType()}</ThemedText>
               </View>
+              {!isGuest && user ? (
+                <Pressable 
+                  onPress={() => {
+                    const idToCopy = user.googleId || user.email || user.id;
+                    if (idToCopy) {
+                      import('expo-clipboard').then(Clipboard => {
+                        Clipboard.setStringAsync(idToCopy);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        Alert.alert('Copied', user.googleId ? 'Google ID copied' : user.email ? 'Email copied' : 'User ID copied');
+                      });
+                    }
+                  }}
+                  style={styles.userIdContainer}
+                >
+                  <ThemedText style={styles.userIdLabel}>
+                    {user.googleId ? 'Google ID: ' : user.email ? 'Account: ' : 'User ID: '}
+                  </ThemedText>
+                  <ThemedText style={styles.userId} numberOfLines={1}>
+                    {user.googleId || user.email || user.id}
+                  </ThemedText>
+                  <Feather name="copy" size={14} color={GameColors.primary} style={{ marginLeft: 6 }} />
+                </Pressable>
+              ) : null}
             </View>
 
             <View style={styles.rewardsSection}>
@@ -1761,7 +1784,7 @@ export function ArcadeHomeScreen() {
             </View>
 
             <View style={styles.transactionSection}>
-              <ActivityHistory />
+              <ActivityHistory userId={!isGuest && user ? user.id : undefined} />
             </View>
 
             <View style={styles.webLinksSection}>
@@ -2180,6 +2203,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: GameColors.gold,
+  },
+  userIdContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+  },
+  userIdLabel: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+  },
+  userId: {
+    fontSize: 12,
+    color: GameColors.textPrimary,
+    fontWeight: "600",
+    flex: 1,
   },
   walletSection: {
     marginBottom: Spacing.xl,

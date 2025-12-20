@@ -207,38 +207,19 @@ export function FlappyMenuSheet({
 
   const enterRankedMutation = useMutation({
     mutationFn: async (period: 'daily' | 'weekly') => {
-      // Get entry fee based on period
-      const entryFee = period === 'daily' ? 1 : 3;
-      
-      // Spend CHY through webapp API first (never deduct locally)
-      if (entryFee > 0 && user?.webappUserId) {
-        const spendResult = await spendChy(
-          user.webappUserId,
-          entryFee,
-          `flappy_ranked_${period}`
-        );
-        
-        if (!spendResult.success) {
-          if (spendResult.walletNotLinked) {
-            throw new Error('Please link your wallet on the web app (roachy.games) first to play ranked.');
-          }
-          throw new Error(spendResult.error || 'Failed to process entry fee');
-        }
-        
-        // Invalidate balance cache after spending
-        invalidateBalances();
-      }
-      
+      // Backend handles CHY deduction via webapp API - don't deduct here to avoid double spend
       return apiRequest("POST", "/api/flappy/ranked/enter", { userId, period });
     },
     onSuccess: (data: any, period: 'daily' | 'weekly') => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
-      invalidateBalances(); // Refresh CHY balance from webapp
+      invalidateBalances(); // Refresh CHY balance from webapp after backend deduction
       onPlayRanked(period);
       onClose();
     },
     onError: (error: any) => {
       console.log("Ranked entry failed:", error.message || "Not enough Chy Coins");
+      // Refresh balance in case of any issues
+      invalidateBalances();
     },
   });
 
