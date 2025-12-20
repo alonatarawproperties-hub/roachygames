@@ -23,7 +23,14 @@ export interface ChessSkin {
       pawn: ImageSourcePropType;
     };
   };
-  board?: ImageSourcePropType;
+}
+
+export interface ChessBoard {
+  id: string;
+  name: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  description: string;
+  image: ImageSourcePropType | null;
 }
 
 export const CHESS_SKINS: Record<string, ChessSkin> = {
@@ -74,7 +81,6 @@ export const CHESS_SKINS: Record<string, ChessSkin> = {
         pawn: require('@/assets/chess-skins/legendary/2d_black_pawn_sprite_v2.png'),
       },
     },
-    board: require('@/assets/chess-skins/legendary/legendary_chess_board.png'),
   },
   celestial: {
     id: 'celestial',
@@ -102,6 +108,30 @@ export const CHESS_SKINS: Record<string, ChessSkin> = {
   },
 };
 
+export const CHESS_BOARDS: Record<string, ChessBoard> = {
+  default: {
+    id: 'default',
+    name: 'Classic Wood',
+    rarity: 'common',
+    description: 'Traditional wooden chess board',
+    image: null,
+  },
+  legendary_marble: {
+    id: 'legendary_marble',
+    name: 'Legendary Marble',
+    rarity: 'legendary',
+    description: 'Elegant marble board with glowing cyan circuits',
+    image: require('@/assets/chess-skins/legendary/legendary_chess_board.png'),
+  },
+  celestial_inferno: {
+    id: 'celestial_inferno',
+    name: 'Celestial Inferno',
+    rarity: 'legendary',
+    description: 'Heaven meets hell - fire and ice clash on this epic battlefield',
+    image: require('@/assets/chess-skins/angelic/celestial_inferno_board.png'),
+  },
+};
+
 export const RARITY_COLORS: Record<string, string> = {
   common: '#9CA3AF',
   rare: '#3B82F6',
@@ -115,4 +145,12 @@ export function getSkinById(id: string): ChessSkin | null {
 
 export function getAllSkins(): ChessSkin[] {
   return Object.values(CHESS_SKINS);
+}
+
+export function getBoardById(id: string): ChessBoard | null {
+  return CHESS_BOARDS[id] || null;
+}
+
+export function getAllBoards(): ChessBoard[] {
+  return Object.values(CHESS_BOARDS);
 }

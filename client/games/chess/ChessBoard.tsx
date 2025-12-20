@@ -5,6 +5,8 @@ import {
   Pressable,
   StyleSheet,
   Dimensions,
+  Image,
+  ImageBackground,
 } from 'react-native';
 import { Chess, Square, Move as ChessMove } from 'chess.js';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -96,7 +98,7 @@ export function ChessBoard({
   const lastMoveScale = useSharedValue(1);
   const lastMoveSquareRef = useRef<Square | null>(null);
   
-  const { currentSkin } = useChessSkin();
+  const { currentSkin, currentBoard } = useChessSkin();
   
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
   const boardSize = size || Math.min(screenWidth - 16, screenHeight * 0.55, 500);
@@ -200,6 +202,8 @@ export function ChessBoard({
   const lastMoveAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: lastMoveScale.value }],
   }));
+
+  const hasCustomBoard = !!(currentBoard && currentBoard.image);
   
   const renderSquare = useCallback((index: number) => {
     const file = index % 8;
@@ -216,7 +220,8 @@ export function ChessBoard({
     const isInCheck = game.inCheck() && piece && 
       ((piece === 'K' && game.turn() === 'w') || (piece === 'k' && game.turn() === 'b'));
     
-    const backgroundColor = getSquareColor(actualFile, actualRank);
+    const squareColor = getSquareColor(actualFile, actualRank);
+    const backgroundColor = hasCustomBoard ? 'transparent' : squareColor;
     let overlayColor: string | null = null;
     
     if (isLastMoveFrom || isLastMoveTo) {
@@ -231,7 +236,8 @@ export function ChessBoard({
     
     const showFileLabel = showCoordinates && rank === 7;
     const showRankLabel = showCoordinates && file === 0;
-    const labelColor = (actualFile + actualRank) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
+    const oppositeSquareColor = (actualFile + actualRank) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
+    const labelColor = hasCustomBoard ? '#FFFFFF' : oppositeSquareColor;
     
     const shouldAnimate = isLastMoveTo && lastMoveSquareRef.current === square;
     
@@ -292,26 +298,38 @@ export function ChessBoard({
         ) : null}
       </Pressable>
     );
-  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle, currentSkin]);
+  }, [isFlipped, getPieceAt, selectedSquare, validMoves, lastMove, game, getSquareColor, showCoordinates, squareSize, handleSquarePress, lastMoveAnimatedStyle, currentSkin, hasCustomBoard]);
   
   const squares = useMemo(() => {
     return Array.from({ length: 64 }).map((_, i) => renderSquare(i));
   }, [renderSquare]);
-  
+
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#D4A84B', '#8B6914', '#D4A84B']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.boardFrame, { width: boardSize + 12, height: boardSize + 12 }]}
-      >
-        <View style={[styles.boardInner, { width: boardSize + 4, height: boardSize + 4 }]}>
-          <View style={[styles.board, { width: boardSize, height: boardSize }]}>
+      {hasCustomBoard ? (
+        <ImageBackground
+          source={currentBoard.image as any}
+          style={[styles.customBoardFrame, { width: boardSize + 12, height: boardSize + 12 }]}
+          imageStyle={styles.customBoardImage}
+        >
+          <View style={[styles.board, styles.customBoard, { width: boardSize, height: boardSize }]}>
             {squares}
           </View>
-        </View>
-      </LinearGradient>
+        </ImageBackground>
+      ) : (
+        <LinearGradient
+          colors={['#D4A84B', '#8B6914', '#D4A84B']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.boardFrame, { width: boardSize + 12, height: boardSize + 12 }]}
+        >
+          <View style={[styles.boardInner, { width: boardSize + 4, height: boardSize + 4 }]}>
+            <View style={[styles.board, { width: boardSize, height: boardSize }]}>
+              {squares}
+            </View>
+          </View>
+        </LinearGradient>
+      )}
     </View>
   );
 }
@@ -328,6 +346,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  customBoardFrame: {
+    borderRadius: 8,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customBoardImage: {
+    borderRadius: 8,
+  },
+  customBoard: {
+    backgroundColor: 'transparent',
   },
   boardInner: {
     backgroundColor: '#2a1a0a',
@@ -368,12 +403,14 @@ const styles = StyleSheet.create({
     bottom: 1,
     right: 3,
     fontWeight: '700',
+    textShadow: '0 0 3px rgba(0,0,0,0.8)',
   },
   rankLabel: {
     position: 'absolute',
     top: 1,
     left: 3,
     fontWeight: '700',
+    textShadow: '0 0 3px rgba(0,0,0,0.8)',
   },
 });
 

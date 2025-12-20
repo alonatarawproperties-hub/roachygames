@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useChessSkin } from '@/games/chess/skins/SkinContext';
-import { getAllSkins, RARITY_COLORS, ChessSkin } from '@/games/chess/skins';
+import { getAllSkins, getAllBoards, RARITY_COLORS, ChessSkin, ChessBoard } from '@/games/chess/skins';
 import { GameColors, Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/ThemedText';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -84,16 +84,101 @@ function SkinCard({
   );
 }
 
+function BoardCard({ 
+  board, 
+  isSelected, 
+  isOwned, 
+  onSelect 
+}: { 
+  board: ChessBoard; 
+  isSelected: boolean; 
+  isOwned: boolean;
+  onSelect: () => void;
+}) {
+  const rarityColor = RARITY_COLORS[board.rarity];
+  
+  return (
+    <Pressable 
+      onPress={isOwned ? onSelect : undefined}
+      style={[
+        styles.boardCard,
+        isSelected && styles.boardCardSelected,
+        !isOwned && styles.skinCardLocked,
+      ]}
+    >
+      <LinearGradient
+        colors={isSelected ? ['#3D2E1A', '#2A1F10'] : ['#2A2A2A', '#1A1A1A']}
+        style={styles.boardCardGradient}
+      >
+        <View style={styles.cardHeader}>
+          <View style={[styles.rarityBadge, { backgroundColor: rarityColor }]}>
+            <Text style={styles.rarityText}>{board.rarity.toUpperCase()}</Text>
+          </View>
+          {isSelected ? (
+            <View style={styles.equippedBadge}>
+              <Feather name="check-circle" size={16} color="#4ADE80" />
+              <Text style={styles.equippedText}>Equipped</Text>
+            </View>
+          ) : null}
+        </View>
+        
+        <View style={styles.boardPreviewContainer}>
+          {board.image ? (
+            <Image 
+              source={board.image} 
+              style={styles.boardPreviewImage} 
+              resizeMode="cover" 
+            />
+          ) : (
+            <View style={styles.defaultBoardPreview}>
+              <View style={styles.miniBoard}>
+                {[0,1,2,3].map(row => (
+                  <View key={row} style={styles.miniBoardRow}>
+                    {[0,1,2,3].map(col => (
+                      <View 
+                        key={col} 
+                        style={[
+                          styles.miniBoardSquare,
+                          { backgroundColor: (row + col) % 2 === 0 ? '#F0D9B5' : '#B58863' }
+                        ]} 
+                      />
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+        
+        <ThemedText style={styles.skinName}>{board.name}</ThemedText>
+        <ThemedText style={styles.skinDescription}>{board.description}</ThemedText>
+        
+        {!isOwned ? (
+          <View style={styles.lockedOverlay}>
+            <Feather name="lock" size={32} color="#888" />
+            <Text style={styles.lockedText}>Purchase on Marketplace</Text>
+          </View>
+        ) : null}
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
 export default function ChessSkinSelectorScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation();
-  const { currentSkin, setCurrentSkin, ownedSkins } = useChessSkin();
+  const { currentSkin, setCurrentSkin, currentBoard, setCurrentBoard, ownedSkins, ownedBoards } = useChessSkin();
   
   const allSkins = getAllSkins();
+  const allBoards = getAllBoards();
   
   const handleSelectSkin = (skinId: string) => {
     setCurrentSkin(skinId);
+  };
+
+  const handleSelectBoard = (boardId: string) => {
+    setCurrentBoard(boardId);
   };
   
   return (
@@ -106,9 +191,9 @@ export default function ChessSkinSelectorScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <ThemedText style={styles.title}>Chess Piece Skins</ThemedText>
+          <ThemedText style={styles.title}>Chess NFT Skins</ThemedText>
           <ThemedText style={styles.subtitle}>
-            Customize your pieces with NFT skins
+            Mix and match your pieces and board
           </ThemedText>
         </View>
         
@@ -125,55 +210,23 @@ export default function ChessSkinSelectorScreen() {
           ))}
         </View>
         
-        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Board</ThemedText>
-        <View style={styles.boardSection}>
-          {currentSkin.board ? (
-            <View style={styles.boardCard}>
-              <Image 
-                source={currentSkin.board} 
-                style={styles.boardPreview} 
-                resizeMode="contain" 
-              />
-              <View style={styles.boardInfo}>
-                <ThemedText style={styles.boardName}>{currentSkin.name} Board</ThemedText>
-                <ThemedText style={styles.boardDescription}>
-                  Custom board included with {currentSkin.name} skin
-                </ThemedText>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.defaultBoardCard}>
-              <View style={styles.defaultBoardPreview}>
-                <View style={styles.miniBoard}>
-                  {[0,1,2,3].map(row => (
-                    <View key={row} style={styles.miniBoardRow}>
-                      {[0,1,2,3].map(col => (
-                        <View 
-                          key={col} 
-                          style={[
-                            styles.miniBoardSquare,
-                            { backgroundColor: (row + col) % 2 === 0 ? '#F0D9B5' : '#B58863' }
-                          ]} 
-                        />
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.boardInfo}>
-                <ThemedText style={styles.boardName}>Classic Board</ThemedText>
-                <ThemedText style={styles.boardDescription}>
-                  Standard wooden chess board
-                </ThemedText>
-              </View>
-            </View>
-          )}
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Boards</ThemedText>
+        <View style={styles.skinsGrid}>
+          {allBoards.map((board) => (
+            <BoardCard
+              key={board.id}
+              board={board}
+              isSelected={currentBoard.id === board.id}
+              isOwned={ownedBoards.includes(board.id)}
+              onSelect={() => handleSelectBoard(board.id)}
+            />
+          ))}
         </View>
         
         <View style={styles.infoSection}>
           <Feather name="info" size={16} color="#888" />
           <ThemedText style={styles.infoText}>
-            NFT skins can be purchased on the roachy.games marketplace. Selecting a skin with a custom board will also change your board.
+            NFT skins can be purchased on the roachy.games marketplace. Mix and match any pieces with any board!
           </ThemedText>
         </View>
       </ScrollView>
@@ -311,35 +364,33 @@ const styles = StyleSheet.create({
     color: GameColors.gold,
     marginBottom: Spacing.md,
   },
-  boardSection: {
-    marginBottom: Spacing.lg,
-  },
   boardCard: {
-    backgroundColor: '#2A2A2A',
     borderRadius: 12,
-    padding: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
+    overflow: 'hidden',
     borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  boardCardSelected: {
     borderColor: GameColors.gold,
   },
-  defaultBoardCard: {
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
+  boardCardGradient: {
     padding: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
+    minHeight: 200,
   },
-  boardPreview: {
-    width: 80,
-    height: 80,
+  boardPreviewContainer: {
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  boardPreviewImage: {
+    width: 100,
+    height: 100,
     borderRadius: 8,
   },
   defaultBoardPreview: {
-    width: 80,
-    height: 80,
+    width: 100,
+    height: 100,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -351,20 +402,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   miniBoardSquare: {
-    width: 18,
-    height: 18,
-  },
-  boardInfo: {
-    flex: 1,
-  },
-  boardName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFF',
-    marginBottom: 4,
-  },
-  boardDescription: {
-    fontSize: 12,
-    color: '#AAA',
+    width: 24,
+    height: 24,
   },
 });
