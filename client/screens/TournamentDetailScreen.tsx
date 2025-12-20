@@ -11,6 +11,7 @@ import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
+import { spendChy } from "@/lib/webapp-api";
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -88,7 +89,7 @@ export function TournamentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { tournamentId } = route.params;
   const { user } = useAuth();
-  const { chy, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances } = useWebappBalances();
+  const { chy, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances, invalidateBalances } = useWebappBalances();
   
   const spinValue = useSharedValue(0);
   
@@ -134,6 +135,26 @@ export function TournamentDetailScreen() {
   
   const joinMutation = useMutation({
     mutationFn: async () => {
+      // If tournament has entry fee, spend CHY through webapp API first
+      const entryFee = tournament?.entryFee || 0;
+      if (entryFee > 0 && user?.webappUserId) {
+        const spendResult = await spendChy(
+          user.webappUserId,
+          entryFee,
+          `tournament_entry_${tournament?.tournamentType || 'unknown'}`
+        );
+        
+        if (!spendResult.success) {
+          if (spendResult.walletNotLinked) {
+            throw new Error('Please link your wallet on the web app (roachy.games) first to join paid tournaments.');
+          }
+          throw new Error(spendResult.error || 'Failed to process entry fee');
+        }
+        
+        // Invalidate balance cache after spending
+        invalidateBalances();
+      }
+      
       const res = await apiRequest('POST', `/api/tournaments/${tournamentId}/join`, {
         walletAddress,
       });
@@ -141,6 +162,7 @@ export function TournamentDetailScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tournaments', tournamentId] });
+      invalidateBalances(); // Refresh balance after successful join
     },
     onError: (error: any) => {
       const message = error?.message || 'Failed to join tournament';

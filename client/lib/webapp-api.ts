@@ -31,6 +31,17 @@ async function webappRequest(
 interface WebappBalances {
   diamonds: number;
   chy: number;
+  walletAddress?: string | null;
+  walletLinked?: boolean;
+}
+
+interface SpendChyResult {
+  success: boolean;
+  spent?: number;
+  reason?: string;
+  newBalance?: number;
+  error?: string;
+  walletNotLinked?: boolean;
 }
 
 interface PowerupPurchaseResult {
@@ -80,22 +91,29 @@ export async function exchangeOAuthUser(
 
 export async function getUserBalances(
   userId: string
-): Promise<{ success: boolean; balances?: WebappBalances; error?: string }> {
+): Promise<{ success: boolean; balances?: WebappBalances; error?: string; walletNotLinked?: boolean }> {
   try {
+    // Use the new wallet-balance endpoint for accurate CHY balance
     const response = await webappRequest(
       "GET",
-      `/api/web/users/${userId}/balances`
+      `/api/web/users/${userId}/wallet-balance`
     );
     
     if (!response.ok) {
       const text = await response.text();
+      // Check for wallet not linked error
+      if (text.includes("No linked wallet")) {
+        return { success: false, error: text, walletNotLinked: true };
+      }
       return { success: false, error: `HTTP ${response.status}: ${text}` };
     }
     
     const result = await response.json();
-    const balances = { 
-      diamonds: result.diamondBalance ?? 0, 
-      chy: result.chyBalance ?? 0 
+    const balances: WebappBalances = { 
+      diamonds: 0, // Diamonds not used anymore, CHY is single currency
+      chy: result.chyBalance ?? 0,
+      walletAddress: result.walletAddress ?? null,
+      walletLinked: result.walletLinked ?? false,
     };
     
     return { success: true, balances };
@@ -103,6 +121,45 @@ export async function getUserBalances(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to get balances",
+    };
+  }
+}
+
+// Spend CHY through the webapp API - never deduct locally
+export async function spendChy(
+  userId: string,
+  amount: number,
+  reason: string
+): Promise<SpendChyResult> {
+  try {
+    const response = await webappRequest(
+      "POST",
+      `/api/web/users/${userId}/spend-chy`,
+      { amount, reason }
+    );
+    
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      const errorText = result.error || `HTTP ${response.status}`;
+      // Check for wallet not linked error
+      if (errorText.includes("No linked wallet")) {
+        return { success: false, error: errorText, walletNotLinked: true };
+      }
+      return { success: false, error: errorText };
+    }
+    
+    const result = await response.json();
+    return {
+      success: result.success ?? true,
+      spent: result.spent,
+      reason: result.reason,
+      newBalance: result.newBalance,
+    };
+  } catch (error) {
+    console.error("[WebappAPI] Spend CHY failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to spend CHY",
     };
   }
 }

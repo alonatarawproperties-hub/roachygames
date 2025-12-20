@@ -8,6 +8,8 @@ import { useEffect, useRef } from "react";
 interface WebappBalances {
   diamonds: number;
   chy: number;
+  walletAddress?: string | null;
+  walletLinked?: boolean;
 }
 
 export const WEBAPP_BALANCES_QUERY_KEY = "/api/webapp/balances";
@@ -65,6 +67,8 @@ export function useWebappBalances() {
   return {
     diamonds: query.data?.diamonds ?? 0,
     chy: query.data?.chy ?? 0,
+    walletAddress: query.data?.walletAddress ?? null,
+    walletLinked: query.data?.walletLinked ?? false,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: query.isError,

@@ -32,6 +32,7 @@ import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING, RARITY_ORDER, SkinDefinitio
 import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
 import { useAuth } from "@/context/AuthContext";
+import { spendChy } from "@/lib/webapp-api";
 
 // God accounts have access to ALL skins without purchasing
 const GOD_ACCOUNTS = [
@@ -202,15 +203,37 @@ export function FlappyMenuSheet({
   });
 
   // Use webapp balances for real CHY from roachy.games
-  const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances } = useWebappBalances();
+  const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances, invalidateBalances } = useWebappBalances();
 
   const enterRankedMutation = useMutation({
     mutationFn: async (period: 'daily' | 'weekly') => {
+      // Get entry fee based on period
+      const entryFee = period === 'daily' ? 1 : 3;
+      
+      // Spend CHY through webapp API first (never deduct locally)
+      if (entryFee > 0 && user?.webappUserId) {
+        const spendResult = await spendChy(
+          user.webappUserId,
+          entryFee,
+          `flappy_ranked_${period}`
+        );
+        
+        if (!spendResult.success) {
+          if (spendResult.walletNotLinked) {
+            throw new Error('Please link your wallet on the web app (roachy.games) first to play ranked.');
+          }
+          throw new Error(spendResult.error || 'Failed to process entry fee');
+        }
+        
+        // Invalidate balance cache after spending
+        invalidateBalances();
+      }
+      
       return apiRequest("POST", "/api/flappy/ranked/enter", { userId, period });
     },
     onSuccess: (data: any, period: 'daily' | 'weekly') => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
-      refetchBalances(); // Refresh CHY balance from webapp
+      invalidateBalances(); // Refresh CHY balance from webapp
       onPlayRanked(period);
       onClose();
     },
