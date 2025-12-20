@@ -112,6 +112,7 @@ export default function ChessSkinSelectorScreen() {
           </ThemedText>
         </View>
         
+        <ThemedText style={styles.sectionTitle}>Pieces</ThemedText>
         <View style={styles.skinsGrid}>
           {allSkins.map((skin) => (
             <SkinCard
@@ -124,10 +125,55 @@ export default function ChessSkinSelectorScreen() {
           ))}
         </View>
         
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Board</ThemedText>
+        <View style={styles.boardSection}>
+          {currentSkin.board ? (
+            <View style={styles.boardCard}>
+              <Image 
+                source={currentSkin.board} 
+                style={styles.boardPreview} 
+                resizeMode="contain" 
+              />
+              <View style={styles.boardInfo}>
+                <ThemedText style={styles.boardName}>{currentSkin.name} Board</ThemedText>
+                <ThemedText style={styles.boardDescription}>
+                  Custom board included with {currentSkin.name} skin
+                </ThemedText>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.defaultBoardCard}>
+              <View style={styles.defaultBoardPreview}>
+                <View style={styles.miniBoard}>
+                  {[0,1,2,3].map(row => (
+                    <View key={row} style={styles.miniBoardRow}>
+                      {[0,1,2,3].map(col => (
+                        <View 
+                          key={col} 
+                          style={[
+                            styles.miniBoardSquare,
+                            { backgroundColor: (row + col) % 2 === 0 ? '#F0D9B5' : '#B58863' }
+                          ]} 
+                        />
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.boardInfo}>
+                <ThemedText style={styles.boardName}>Classic Board</ThemedText>
+                <ThemedText style={styles.boardDescription}>
+                  Standard wooden chess board
+                </ThemedText>
+              </View>
+            </View>
+          )}
+        </View>
+        
         <View style={styles.infoSection}>
           <Feather name="info" size={16} color="#888" />
           <ThemedText style={styles.infoText}>
-            NFT skins can be purchased on the roachy.games marketplace
+            NFT skins can be purchased on the roachy.games marketplace. Selecting a skin with a custom board will also change your board.
           </ThemedText>
         </View>
       </ScrollView>
@@ -258,5 +304,67 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: GameColors.gold,
+    marginBottom: Spacing.md,
+  },
+  boardSection: {
+    marginBottom: Spacing.lg,
+  },
+  boardCard: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderWidth: 2,
+    borderColor: GameColors.gold,
+  },
+  defaultBoardCard: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  boardPreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  defaultBoardPreview: {
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  miniBoard: {
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  miniBoardRow: {
+    flexDirection: 'row',
+  },
+  miniBoardSquare: {
+    width: 18,
+    height: 18,
+  },
+  boardInfo: {
+    flex: 1,
+  },
+  boardName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  boardDescription: {
+    fontSize: 12,
+    color: '#AAA',
   },
 });

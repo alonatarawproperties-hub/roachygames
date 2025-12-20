@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -31,6 +31,12 @@ import { useWebappBalances } from "@/hooks/useWebappBalances";
 import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING, RARITY_ORDER, SkinDefinition } from "./flappySkins";
 import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
+import { useAuth } from "@/context/AuthContext";
+
+// God accounts have access to ALL skins without purchasing
+const GOD_ACCOUNTS = [
+  'zajkcomshop@gmail.com',
+];
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
 const PowerUpShieldIcon = require("@/assets/powerup-shield.png");
@@ -127,6 +133,13 @@ export function FlappyMenuSheet({
   const [activeTab, setActiveTab] = useState<TabType>("leaderboards");
   const queryClient = useQueryClient();
   const { getOwnedSkins, isLoading: nftsLoading } = useUserNfts();
+  const { user } = useAuth();
+  
+  // Check if current user is a god account
+  const isGodAccount = useMemo(() => {
+    const email = user?.email?.toLowerCase();
+    return email ? GOD_ACCOUNTS.includes(email) : false;
+  }, [user?.email]);
   
   const sheetHeight = useSharedValue(COLLAPSED_HEIGHT);
   const startHeight = useSharedValue(COLLAPSED_HEIGHT);
@@ -286,6 +299,7 @@ export function FlappyMenuSheet({
                 selectedTrail={selectedTrail}
                 onSelectTrail={onSelectTrail}
                 userId={userId}
+                isGodAccount={isGodAccount}
               />
             )}
           </View>
@@ -724,6 +738,7 @@ function LoadoutTab({
   selectedTrail,
   onSelectTrail,
   userId,
+  isGodAccount,
 }: {
   inventory: any;
   isLoading: boolean;
@@ -737,6 +752,7 @@ function LoadoutTab({
   selectedTrail: RoachyTrail;
   onSelectTrail: (trail: RoachyTrail) => void;
   userId: string | null;
+  isGodAccount: boolean;
 }) {
   const powerUps = [
     {
@@ -765,15 +781,20 @@ function LoadoutTab({
     },
   ];
 
-  const isGuestUser = !userId || userId.startsWith('guest_');
+  // God accounts bypass guest restrictions
+  const isGuestUser = !isGodAccount && (!userId || userId.startsWith('guest_'));
 
   const isSkinOwned = (skinId: RoachySkin): boolean => {
+    // God accounts own all skins
+    if (isGodAccount) return true;
     if (!FLAPPY_SKINS[skinId].isNFT) return true;
     const mappedName = SKIN_NFT_MAPPING[skinId];
     return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
   };
 
   const isTrailOwned = (trailId: RoachyTrail): boolean => {
+    // God accounts own all trails
+    if (isGodAccount) return true;
     if (!FLAPPY_TRAILS[trailId].isNFT) return true;
     const mappedName = TRAIL_NFT_MAPPING[trailId];
     return ownedSkins.some(s => s.toLowerCase().includes(mappedName.toLowerCase()));
@@ -782,6 +803,8 @@ function LoadoutTab({
   const allSkins = Object.values(FLAPPY_SKINS);
   const skins = allSkins
     .filter(skin => {
+      // God accounts see all skins
+      if (isGodAccount) return true;
       if (isGuestUser) return !skin.isNFT;
       if (!skin.isNFT) return true;
       return isSkinOwned(skin.id);
@@ -790,6 +813,8 @@ function LoadoutTab({
   
   const allTrails = Object.values(FLAPPY_TRAILS);
   const trails = allTrails.filter(trail => {
+    // God accounts see all trails
+    if (isGodAccount) return true;
     if (isGuestUser) return !trail.isNFT;
     if (!trail.isNFT) return true;
     return isTrailOwned(trail.id);
