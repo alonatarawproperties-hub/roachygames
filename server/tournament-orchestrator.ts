@@ -159,6 +159,51 @@ class TournamentOrchestrator {
   }
 
   private async ensureSitAndGoPool() {
+    // First, clean up ALL sit_and_go tournaments that are empty (no players) and in registering status
+    // Then create exactly 1 per template
+    
+    // Get all registering sit_and_go tournaments
+    const allSitAndGo = await db
+      .select()
+      .from(chessTournaments)
+      .where(
+        and(
+          eq(chessTournaments.tournamentType, 'sit_and_go'),
+          eq(chessTournaments.status, 'registering')
+        )
+      );
+    
+    // Group by entry fee to identify duplicates
+    const templateEntryFees = new Set(DEFAULT_TEMPLATES.map(t => t.entryFee));
+    const validTournamentIds = new Set<string>();
+    
+    for (const template of DEFAULT_TEMPLATES) {
+      // Find tournaments matching this template
+      const matching = allSitAndGo.filter(t => 
+        t.entryFee === template.entryFee && 
+        t.currentPlayers === 0
+      );
+      
+      // Keep the first one (oldest), mark others for deletion
+      if (matching.length > 0) {
+        validTournamentIds.add(matching[0].id);
+      }
+    }
+    
+    // Delete all empty sit_and_go tournaments that aren't in our valid set
+    // or have entry fees that don't match our templates
+    for (const tournament of allSitAndGo) {
+      const isValidTemplate = templateEntryFees.has(tournament.entryFee);
+      const isKept = validTournamentIds.has(tournament.id);
+      const hasPlayers = tournament.currentPlayers > 0;
+      
+      if (!hasPlayers && (!isValidTemplate || !isKept)) {
+        await db.delete(chessTournaments).where(eq(chessTournaments.id, tournament.id));
+        console.log(`[TournamentOrchestrator] Cleaned up duplicate/invalid tournament: ${tournament.name}`);
+      }
+    }
+    
+    // Now ensure exactly 1 tournament per template
     for (const template of DEFAULT_TEMPLATES) {
       const openTournaments = await db
         .select()
@@ -166,35 +211,29 @@ class TournamentOrchestrator {
         .where(
           and(
             eq(chessTournaments.tournamentType, template.tournamentType),
-            eq(chessTournaments.timeControl, template.timeControl),
             eq(chessTournaments.entryFee, template.entryFee),
-            eq(chessTournaments.maxPlayers, template.maxPlayers),
             eq(chessTournaments.status, 'registering')
           )
         );
 
-      const needToCreate = SIT_AND_GO_MIN_POOL - openTournaments.length;
-      
-      if (needToCreate > 0) {
-        for (let i = 0; i < needToCreate; i++) {
-          const prizePool = Math.floor(template.entryFee * template.maxPlayers * 0.85);
-          const rakeAmount = Math.floor(template.entryFee * template.maxPlayers * 0.15);
-          
-          await db.insert(chessTournaments).values({
-            name: `${template.name} #${Date.now().toString(36).slice(-4).toUpperCase()}`,
-            tournamentType: template.tournamentType,
-            timeControl: template.timeControl,
-            entryFee: template.entryFee,
-            prizePool,
-            rakeAmount,
-            maxPlayers: template.maxPlayers,
-            minPlayers: template.minPlayers,
-            totalRounds: calculateTotalRounds(template.maxPlayers),
-            status: 'registering',
-          });
-          
-          console.log(`[TournamentOrchestrator] Created new ${template.name} tournament`);
-        }
+      if (openTournaments.length === 0) {
+        const prizePool = Math.floor(template.entryFee * template.maxPlayers * 0.85);
+        const rakeAmount = Math.floor(template.entryFee * template.maxPlayers * 0.15);
+        
+        await db.insert(chessTournaments).values({
+          name: `${template.name} #${Date.now().toString(36).slice(-4).toUpperCase()}`,
+          tournamentType: template.tournamentType,
+          timeControl: template.timeControl,
+          entryFee: template.entryFee,
+          prizePool,
+          rakeAmount,
+          maxPlayers: template.maxPlayers,
+          minPlayers: template.minPlayers,
+          totalRounds: calculateTotalRounds(template.maxPlayers),
+          status: 'registering',
+        });
+        
+        console.log(`[TournamentOrchestrator] Created new ${template.name} tournament`);
       }
     }
   }
