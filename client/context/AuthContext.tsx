@@ -11,8 +11,17 @@ WebBrowser.maybeCompleteAuthSession();
 const AUTH_TOKEN_KEY = "roachy_auth_token";
 const USER_DATA_KEY = "roachy_user_data";
 
-// Google OAuth Client ID
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+// Google OAuth Client IDs (platform-specific)
+const GOOGLE_CLIENT_ID_IOS = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID_ANDROID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID;
+
+// Get platform-specific client ID
+const getGoogleClientId = () => {
+  if (Platform.OS === "android") {
+    return GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID_IOS;
+  }
+  return GOOGLE_CLIENT_ID_IOS;
+};
 
 // Google OAuth discovery document
 const discovery = {
@@ -217,16 +226,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = useCallback(async () => {
     try {
-      if (!GOOGLE_CLIENT_ID) {
+      const clientId = getGoogleClientId();
+      if (!clientId) {
         return { success: false, error: "Google sign-in not configured" };
       }
 
       console.log("[Auth] Starting Google OAuth with PKCE, Platform:", Platform.OS);
+      console.log("[Auth] Using client ID:", clientId.substring(0, 20) + "...");
 
       // Platform-specific redirect URIs:
       // iOS: Use reversed client ID scheme (required by Google)
       // Android: Use app scheme with proper path
-      const reversedClientId = GOOGLE_CLIENT_ID.split(".").reverse().join(".");
+      const reversedClientId = clientId.split(".").reverse().join(".");
       
       let redirectUri: string;
       if (Platform.OS === "ios") {
@@ -249,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Use authorization code flow with PKCE (required for iOS native clients)
       const request = new AuthSession.AuthRequest({
-        clientId: GOOGLE_CLIENT_ID,
+        clientId,
         scopes: ["openid", "profile", "email"],
         redirectUri,
         responseType: AuthSession.ResponseType.Code,
