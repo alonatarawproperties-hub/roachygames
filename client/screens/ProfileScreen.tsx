@@ -149,9 +149,16 @@ export default function ProfileScreen() {
   };
 
   const getUserDisplayName = () => {
-    // Don't show wallet addresses - check for wallet pattern
-    if (user?.displayName && !user.displayName.toLowerCase().includes('wallet')) {
-      return user.displayName;
+    // Priority: displayName > email username > fallback
+    // Don't show wallet addresses
+    if (user?.displayName) {
+      const name = user.displayName.trim();
+      // Skip if it looks like a wallet address (starts with letters/numbers and is long)
+      if (name.length > 30 && /^[a-zA-Z0-9]/.test(name)) {
+        // Likely a wallet address, skip
+      } else if (!name.toLowerCase().includes('wallet')) {
+        return name;
+      }
     }
     if (user?.email) return user.email.split("@")[0];
     return isGuest ? "Guest Player" : "Roachy Trainer";
@@ -491,7 +498,7 @@ export default function ProfileScreen() {
         <ThemedText type="h4" style={styles.sectionTitle}>
           Recent Activity
         </ThemedText>
-        <ActivityHistory userId={user?.id} />
+        <ActivityHistory userId={!isGuest && user ? user.id : undefined} showHeader={false} />
       </Animated.View>
 
       <Animated.View

@@ -19,6 +19,7 @@ interface ActivityItem {
 interface ActivityHistoryProps {
   userId?: string | null;
   limit?: number;
+  showHeader?: boolean;
 }
 
 const getActivityIcon = (type: ActivityType): keyof typeof Feather.glyphMap => {
@@ -47,7 +48,7 @@ const getActivityColor = (type: ActivityType): string => {
   }
 };
 
-export function ActivityHistory({ userId, limit = 5 }: ActivityHistoryProps) {
+export function ActivityHistory({ userId, limit = 5, showHeader = true }: ActivityHistoryProps) {
   const { data, isLoading } = useQuery<{ success: boolean; activities: ActivityItem[] }>({
     queryKey: [`/api/user/${userId}/activity?limit=${limit}`],
     enabled: !!userId,
@@ -80,10 +81,12 @@ export function ActivityHistory({ userId, limit = 5 }: ActivityHistoryProps) {
   if (!userId) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <ThemedText style={styles.headerTitle}>Recent Activity</ThemedText>
-          <Feather name="clock" size={16} color={GameColors.textSecondary} />
-        </View>
+        {showHeader ? (
+          <View style={styles.header}>
+            <ThemedText style={styles.headerTitle}>Recent Activity</ThemedText>
+            <Feather name="clock" size={16} color={GameColors.textSecondary} />
+          </View>
+        ) : null}
         <View style={styles.emptyState}>
           <Feather name="user" size={24} color={GameColors.textTertiary} />
           <ThemedText style={styles.emptyText}>Sign in to see your activity</ThemedText>
@@ -94,10 +97,12 @@ export function ActivityHistory({ userId, limit = 5 }: ActivityHistoryProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Recent Activity</ThemedText>
-        <Feather name="clock" size={16} color={GameColors.textSecondary} />
-      </View>
+      {showHeader ? (
+        <View style={styles.header}>
+          <ThemedText style={styles.headerTitle}>Recent Activity</ThemedText>
+          <Feather name="clock" size={16} color={GameColors.textSecondary} />
+        </View>
+      ) : null}
       {isLoading ? (
         <View style={styles.loadingState}>
           <ActivityIndicator size="small" color={GameColors.gold} />
