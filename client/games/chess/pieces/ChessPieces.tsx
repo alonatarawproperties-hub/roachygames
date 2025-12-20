@@ -2,6 +2,14 @@ import React from 'react';
 import { Platform, Text, View, StyleSheet, Image } from 'react-native';
 import Svg, { Path, Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { ChessSkin } from '../skins';
+import {
+  IceKingSvg, FireKingSvg,
+  IceQueenSvg, FireQueenSvg,
+  IceRookSvg, FireRookSvg,
+  IceBishopSvg, FireBishopSvg,
+  IceKnightSvg, FireKnightSvg,
+  IcePawnSvg, FirePawnSvg,
+} from './CelestialPieces';
 
 interface PieceProps {
   size: number;
@@ -253,12 +261,56 @@ const SvgFallback: React.FC<{ pieceType: string; pieceSize: number; isWhite: boo
   }
 };
 
+const CelestialPiece: React.FC<{ pieceType: string; pieceSize: number; isWhite: boolean; uniqueId: string }> = ({ 
+  pieceType, pieceSize, isWhite, uniqueId 
+}) => {
+  if (isWhite) {
+    switch (pieceType) {
+      case 'k':
+        return <IceKingSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'q':
+        return <IceQueenSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'r':
+        return <IceRookSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'b':
+        return <IceBishopSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'n':
+        return <IceKnightSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'p':
+        return <IcePawnSvg size={pieceSize} uniqueId={uniqueId} />;
+      default:
+        return null;
+    }
+  } else {
+    switch (pieceType) {
+      case 'k':
+        return <FireKingSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'q':
+        return <FireQueenSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'r':
+        return <FireRookSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'b':
+        return <FireBishopSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'n':
+        return <FireKnightSvg size={pieceSize} uniqueId={uniqueId} />;
+      case 'p':
+        return <FirePawnSvg size={pieceSize} uniqueId={uniqueId} />;
+      default:
+        return null;
+    }
+  }
+};
+
 const PieceSpriteInner: React.FC<PieceSpriteProps> = ({ piece, size, square, skin }) => {
   const [imageError, setImageError] = React.useState(false);
   const isWhite = piece === piece.toUpperCase();
   const pieceType = piece.toLowerCase();
   const pieceSize = size * 0.88;
   const uniqueId = `${square}_${piece}`;
+
+  if (skin && skin.id === 'celestial') {
+    return <CelestialPiece pieceType={pieceType} pieceSize={pieceSize} isWhite={isWhite} uniqueId={uniqueId} />;
+  }
 
   if (skin && skin.id !== 'default' && !imageError) {
     const pieceName = PIECE_TYPE_MAP[pieceType];
