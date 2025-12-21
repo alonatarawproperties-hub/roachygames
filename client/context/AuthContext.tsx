@@ -236,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Platform-specific redirect URIs:
       // iOS: Use reversed client ID scheme (required by Google)
-      // Android: Use app scheme with proper path
+      // Android: Use reversed client ID scheme (required by Google for Play Store apps)
       const reversedClientId = clientId.split(".").reverse().join(".");
       
       let redirectUri: string;
@@ -244,11 +244,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // iOS requires the reversed client ID as URL scheme
         redirectUri = `${reversedClientId}:/oauth2redirect/google`;
       } else if (Platform.OS === "android") {
-        // Android: use app scheme - this must match app.json scheme
-        redirectUri = AuthSession.makeRedirectUri({
-          scheme: "roachy-games",
-          path: "oauth2redirect/google",
-        });
+        // Android Play Store apps require the reversed client ID scheme
+        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
       } else {
         // Web fallback
         redirectUri = AuthSession.makeRedirectUri({
