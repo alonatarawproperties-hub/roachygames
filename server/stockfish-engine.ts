@@ -15,10 +15,10 @@ interface EngineMove {
 }
 
 const BOT_DIFFICULTIES = {
-  rookie: { skillLevel: 3, elo: 1350, name: "Rookie Roachy" },
-  club: { skillLevel: 8, elo: 1600, name: "Club Roachy" },
-  expert: { skillLevel: 14, elo: 2000, name: "Expert Roachy" },
-  magnus: { skillLevel: 20, elo: 2800, name: "Magnus" },
+  rookie: { skillLevel: 3, elo: 1350, thinkTime: 1500, name: "Rookie Roachy", unlimited: false },
+  club: { skillLevel: 8, elo: 1600, thinkTime: 2000, name: "Club Roachy", unlimited: false },
+  expert: { skillLevel: 15, elo: 2100, thinkTime: 2500, name: "Expert Roachy", unlimited: false },
+  magnus: { skillLevel: 20, elo: 0, thinkTime: 4000, name: "Magnus", unlimited: true },
 } as const;
 
 type BotDifficulty = keyof typeof BOT_DIFFICULTIES;
@@ -122,29 +122,41 @@ class StockfishEngine {
     const settings = BOT_DIFFICULTIES[difficulty];
     
     this.sendCommandNoWait(`setoption name Skill Level value ${settings.skillLevel}`);
-    this.sendCommandNoWait('setoption name UCI_LimitStrength value true');
-    this.sendCommandNoWait(`setoption name UCI_Elo value ${settings.elo}`);
+    
+    // For Magnus difficulty, play at full strength without ELO limitation
+    if ('unlimited' in settings && settings.unlimited) {
+      this.sendCommandNoWait('setoption name UCI_LimitStrength value false');
+      console.log(`[Stockfish] Difficulty set to ${settings.name} (UNLIMITED STRENGTH)`);
+    } else {
+      this.sendCommandNoWait('setoption name UCI_LimitStrength value true');
+      this.sendCommandNoWait(`setoption name UCI_Elo value ${settings.elo}`);
+      console.log(`[Stockfish] Difficulty set to ${settings.name} (ELO: ${settings.elo})`);
+    }
     
     await this.sendCommandWait('isready');
     
     this.currentDifficulty = difficulty;
-    console.log(`[Stockfish] Difficulty set to ${settings.name} (ELO: ${settings.elo})`);
   }
 
-  async getBestMove(fen: string, difficulty: BotDifficulty, thinkTimeMs: number = 2000): Promise<EngineMove | null> {
+  async getBestMove(fen: string, difficulty: BotDifficulty, thinkTimeMs?: number): Promise<EngineMove | null> {
     if (!this.isReady) {
       console.warn('[Stockfish] Engine not ready, initializing...');
       await this.initialize();
     }
 
     const startTime = Date.now();
+    const settings = BOT_DIFFICULTIES[difficulty];
+    
+    // Use difficulty-specific think time if not provided
+    const actualThinkTime = thinkTimeMs ?? settings.thinkTime;
     
     await this.setDifficulty(difficulty);
 
     this.sendCommandNoWait('ucinewgame');
     this.sendCommandNoWait(`position fen ${fen}`);
     
-    const response = await this.sendCommandWait(`go movetime ${thinkTimeMs}`);
+    // Use movetime for consistent performance
+    const response = await this.sendCommandWait(`go movetime ${actualThinkTime}`);
     
     const bestMoveMatch = response.match(/bestmove\s+(\w+)/);
     if (!bestMoveMatch) {
@@ -153,14 +165,14 @@ class StockfishEngine {
     }
 
     const move = bestMoveMatch[1];
-    const actualThinkTime = Date.now() - startTime;
+    const elapsedTime = Date.now() - startTime;
     
     const evalMatch = response.match(/score cp (-?\d+)/);
     const depthMatch = response.match(/info depth (\d+)/);
     
-    const humanizedThinkTime = Math.max(actualThinkTime, 1500 + Math.random() * 1000);
+    const humanizedThinkTime = Math.max(elapsedTime, 1500 + Math.random() * 1000);
 
-    console.log(`[Stockfish] Best move: ${move} (${actualThinkTime}ms, ${difficulty})`);
+    console.log(`[Stockfish] Best move: ${move} (${elapsedTime}ms, ${difficulty})`);
 
     return {
       move,
@@ -198,7 +210,8 @@ export async function makeStockfishMove(
 ): Promise<EngineMove | null> {
   try {
     const engine = await getStockfishEngine();
-    return await engine.getBestMove(fen, difficulty, 2000);
+    // Don't pass thinkTime to use difficulty-specific settings
+    return await engine.getBestMove(fen, difficulty);
   } catch (error) {
     console.error('[Stockfish] Error making move:', error);
     return null;

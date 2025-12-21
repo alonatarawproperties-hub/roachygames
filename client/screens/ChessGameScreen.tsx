@@ -42,6 +42,7 @@ export function ChessGameScreen() {
   const backgroundTimeRef = useRef<number | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const handleTimeoutRef = useRef<(iWon: boolean) => void>(() => {});
+  const opponentWalletRef = useRef<string | null>(null);
   
   const { data: matchData, refetch: refetchMatch } = useQuery({
     queryKey: ['/api/chess/match', matchId],
@@ -73,6 +74,7 @@ export function ChessGameScreen() {
       setCurrentFen(match.fen);
       
       const opponent = isPlayer1 ? match.player2Wallet : match.player1Wallet;
+      opponentWalletRef.current = opponent; // Store opponent wallet for timeout handling
       setOpponentName(opponent === 'bot' ? 'Roachy Bot' : `Player ${opponent.slice(0, 6)}...`);
       
       if (match.status === 'completed') {
@@ -154,28 +156,38 @@ export function ChessGameScreen() {
   
   // Handle timeout - report to server
   const handleTimeout = useCallback(async (iWon: boolean) => {
+    // Use stored opponent wallet from ref (set when match data loads) for reliable winner resolution
+    const opponentWallet = opponentWalletRef.current;
+    
+    // Determine winner wallet
+    const winnerWallet = iWon ? walletAddress : opponentWallet;
+    
+    // Only proceed if we have a valid winner
+    if (!winnerWallet) {
+      console.error('Cannot resolve winner - no opponent wallet available');
+      refetchMatch();
+      return;
+    }
+    
+    // IMMEDIATELY set game over state to prevent any more moves
+    setGameOver(true);
+    setWinner(winnerWallet);
+    setWinReason('timeout');
+    
     try {
-      const winnerWallet = iWon ? walletAddress : 
-        (matchData?.match?.player1Wallet === walletAddress 
-          ? matchData?.match?.player2Wallet 
-          : matchData?.match?.player1Wallet);
-      
       await apiRequest('POST', '/api/chess/end', {
         matchId,
         winnerWallet,
         winReason: 'timeout',
       });
       
-      setGameOver(true);
-      setWinner(winnerWallet);
-      setWinReason('timeout');
       refetchMatch();
     } catch (error) {
       console.error('Error reporting timeout:', error);
       // Refetch to sync with server state
       refetchMatch();
     }
-  }, [matchId, walletAddress, matchData, refetchMatch]);
+  }, [matchId, walletAddress, refetchMatch]);
   
   // Keep ref updated with latest handleTimeout
   useEffect(() => {
