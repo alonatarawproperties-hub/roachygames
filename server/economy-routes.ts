@@ -17,8 +17,9 @@ const DAILY_BONUS_REWARDS: Record<number, number> = {
 };
 
 const MAX_CLAIMS_PER_DEVICE_PER_DAY = 1;
+const MAX_CLAIMS_PER_IP_SUBNET_PER_DAY = 3;
+const MAX_WALLETS_PER_DEVICE = 3;
 const NEW_ACCOUNT_COOLDOWN_HOURS = 24;
-const EMAIL_VERIFICATION_REQUIRED_AFTER_DAY = 3;
 
 function getIpSubnet(ip: string): string {
   if (!ip) return "unknown";
@@ -152,6 +153,25 @@ export function registerEconomyRoutes(app: Express) {
       
       const fraudFlags: string[] = [];
       
+      const isIPv6 = clientIp.includes(':');
+      const subnetPattern = isIPv6 ? `${ipSubnet}:%` : `${ipSubnet}.%`;
+      
+      const ipSubnetClaims = await db.query.dailyLoginHistory.findMany({
+        where: and(
+          eq(dailyLoginHistory.claimDate, today),
+          sql`${dailyLoginHistory.ipAddress} LIKE ${subnetPattern}`
+        ),
+      });
+      
+      if (ipSubnetClaims.length >= MAX_CLAIMS_PER_IP_SUBNET_PER_DAY) {
+        console.log(`[AntiExploit] IP subnet ${ipSubnet} blocked - ${ipSubnetClaims.length} claims today`);
+        return res.status(429).json({ 
+          error: "Too many claims from this network today",
+          fraudBlocked: true,
+          retryAfter: "24 hours"
+        });
+      }
+      
       if (deviceFingerprint) {
         const existingFraudRecord = await db.query.dailyBonusFraudTracking.findFirst({
           where: eq(dailyBonusFraudTracking.deviceFingerprint, deviceFingerprint),
@@ -188,9 +208,13 @@ export function registerEconomyRoutes(app: Express) {
             ? JSON.parse(existingFraudRecord.linkedWallets) as string[]
             : [];
           if (!linkedWallets.includes(walletAddress)) {
-            if (linkedWallets.length >= 3) {
-              console.log(`[AntiExploit] Device ${deviceFingerprint} has ${linkedWallets.length} linked wallets - suspicious`);
-              fraudFlags.push("multiple_wallets");
+            if (linkedWallets.length >= MAX_WALLETS_PER_DEVICE - 1) {
+              console.log(`[AntiExploit] Device ${deviceFingerprint} BLOCKED - already has ${linkedWallets.length} wallets (max ${MAX_WALLETS_PER_DEVICE - 1} allowed for new)`);
+              return res.status(429).json({ 
+                error: "Too many accounts on this device",
+                fraudBlocked: true,
+                retryAfter: "permanent"
+              });
             }
             linkedWallets.push(walletAddress);
             await db.update(dailyBonusFraudTracking)
@@ -244,21 +268,6 @@ export function registerEconomyRoutes(app: Express) {
           newStreak = 1;
         } else {
           newStreak = bonusRecord.currentStreak + 1;
-        }
-      }
-      
-      if (newStreak > EMAIL_VERIFICATION_REQUIRED_AFTER_DAY && userId) {
-        const user = await db.query.users.findFirst({
-          where: eq(users.id, userId),
-        });
-        
-        if (user && !user.isEmailVerified) {
-          console.log(`[AntiExploit] Email verification required for day ${newStreak} bonus: ${walletAddress}`);
-          return res.status(403).json({ 
-            error: `Email verification required for Day ${newStreak}+ bonuses`,
-            emailVerificationRequired: true,
-            currentStreak: newStreak - 1
-          });
         }
       }
       
