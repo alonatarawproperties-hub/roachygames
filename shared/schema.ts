@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal, real, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, real, unique, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -518,10 +518,10 @@ export type InsertChessTournamentMatch = z.infer<typeof insertChessTournamentMat
 export const playerEconomy = pgTable("player_economy", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   walletAddress: text("wallet_address").notNull().unique(),
-  diamonds: integer("diamonds").notNull().default(0),
-  chy: integer("chy").notNull().default(0),
-  totalDiamondsEarned: integer("total_diamonds_earned").notNull().default(0),
-  totalChyEarned: integer("total_chy_earned").notNull().default(0),
+  diamonds: numeric("diamonds", { precision: 10, scale: 2 }).notNull().default("0"),
+  chy: numeric("chy", { precision: 10, scale: 2 }).notNull().default("0"),
+  totalDiamondsEarned: numeric("total_diamonds_earned", { precision: 10, scale: 2 }).notNull().default("0"),
+  totalChyEarned: numeric("total_chy_earned", { precision: 10, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -533,7 +533,7 @@ export const dailyLoginBonus = pgTable("daily_login_bonus", {
   longestStreak: integer("longest_streak").notNull().default(0),
   lastClaimDate: text("last_claim_date"),
   totalClaims: integer("total_claims").notNull().default(0),
-  totalDiamondsFromBonus: integer("total_diamonds_from_bonus").notNull().default(0),
+  totalDiamondsFromBonus: numeric("total_diamonds_from_bonus", { precision: 10, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -543,7 +543,7 @@ export const dailyLoginHistory = pgTable("daily_login_history", {
   walletAddress: text("wallet_address").notNull(),
   claimDate: text("claim_date").notNull(),
   streakDay: integer("streak_day").notNull(),
-  diamondsAwarded: integer("diamonds_awarded").notNull(),
+  diamondsAwarded: numeric("diamonds_awarded", { precision: 10, scale: 2 }).notNull(),
   deviceFingerprint: text("device_fingerprint"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),

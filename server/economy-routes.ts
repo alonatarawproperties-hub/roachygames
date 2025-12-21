@@ -64,7 +64,7 @@ export function registerEconomyRoutes(app: Express) {
       
       if (!economy) {
         const [newEconomy] = await db.insert(playerEconomy)
-          .values({ walletAddress, diamonds: 0, chy: 0 })
+          .values({ walletAddress, diamonds: "0", chy: "0" })
           .returning();
         economy = newEconomy;
       }
@@ -94,7 +94,7 @@ export function registerEconomyRoutes(app: Express) {
             longestStreak: 0,
             lastClaimDate: null,
             totalClaims: 0,
-            totalDiamondsFromBonus: 0,
+            totalDiamondsFromBonus: "0",
           })
           .returning();
         bonusRecord = newRecord;
@@ -273,6 +273,7 @@ export function registerEconomyRoutes(app: Express) {
       
       const diamondReward = getDiamondRewardForDay(newStreak);
       const newLongestStreak = Math.max(bonusRecord.longestStreak, newStreak);
+      const currentTotalFromBonus = parseFloat(bonusRecord.totalDiamondsFromBonus) || 0;
       
       await db.update(dailyLoginBonus)
         .set({
@@ -280,7 +281,7 @@ export function registerEconomyRoutes(app: Express) {
           longestStreak: newLongestStreak,
           lastClaimDate: today,
           totalClaims: bonusRecord.totalClaims + 1,
-          totalDiamondsFromBonus: bonusRecord.totalDiamondsFromBonus + diamondReward,
+          totalDiamondsFromBonus: String(currentTotalFromBonus + diamondReward),
           updatedAt: sql`now()`,
         })
         .where(eq(dailyLoginBonus.walletAddress, walletAddress));
@@ -289,7 +290,7 @@ export function registerEconomyRoutes(app: Express) {
         walletAddress,
         claimDate: today,
         streakDay: newStreak,
-        diamondsAwarded: diamondReward,
+        diamondsAwarded: String(diamondReward),
         deviceFingerprint: deviceFingerprint || null,
         ipAddress: clientIp,
         userAgent: userAgent,
@@ -313,12 +314,14 @@ export function registerEconomyRoutes(app: Express) {
       
       if (!economy) {
         await db.insert(playerEconomy)
-          .values({ walletAddress, diamonds: diamondReward, chy: 0, totalDiamondsEarned: diamondReward });
+          .values({ walletAddress, diamonds: String(diamondReward), chy: "0", totalDiamondsEarned: String(diamondReward) });
       } else {
+        const currentDiamonds = parseFloat(economy.diamonds) || 0;
+        const currentTotalEarned = parseFloat(economy.totalDiamondsEarned) || 0;
         await db.update(playerEconomy)
           .set({
-            diamonds: economy.diamonds + diamondReward,
-            totalDiamondsEarned: economy.totalDiamondsEarned + diamondReward,
+            diamonds: String(currentDiamonds + diamondReward),
+            totalDiamondsEarned: String(currentTotalEarned + diamondReward),
             updatedAt: sql`now()`,
           })
           .where(eq(playerEconomy.walletAddress, walletAddress));
@@ -353,14 +356,16 @@ export function registerEconomyRoutes(app: Express) {
         );
       }
       
+      const totalCoinsValue = updatedEconomy ? parseFloat(updatedEconomy.diamonds) : diamondReward;
+      
       res.json({
         success: true,
         coinsAwarded: diamondReward,
         diamondsAwarded: diamondReward,
         newStreak,
         longestStreak: newLongestStreak,
-        totalCoins: updatedEconomy?.diamonds || diamondReward,
-        totalDiamonds: updatedEconomy?.diamonds || diamondReward,
+        totalCoins: totalCoinsValue,
+        totalDiamonds: totalCoinsValue,
         blockchain: {
           success: blockchainResult.success,
           transactionSignature: blockchainResult.transactionSignature,
@@ -496,7 +501,7 @@ export function registerEconomyRoutes(app: Express) {
       let allTimeEarnings = 0;
 
       for (const record of allHistory) {
-        const diamonds = record.diamondsAwarded || 0;
+        const diamonds = parseFloat(record.diamondsAwarded) || 0;
         allTimeEarnings += diamonds;
 
         if (record.claimDate === todayStr) {
