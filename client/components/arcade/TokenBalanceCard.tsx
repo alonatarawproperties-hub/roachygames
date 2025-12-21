@@ -49,8 +49,10 @@ export function TokenBalanceCard({
   }));
 
   const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
+    if (num < 1 && num > 0) return num.toFixed(2);
+    if (num < 100) return num.toFixed(2);
     return num.toLocaleString();
   };
 

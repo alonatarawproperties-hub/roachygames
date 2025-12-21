@@ -100,10 +100,15 @@ export function DailyBonusCard({ userId, isConnected, isGuest = false, onSignIn 
       
       queryClient.invalidateQueries({ queryKey: ["/api/daily-bonus", userId] });
       queryClient.invalidateQueries({ queryKey: ["/api/user", userId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/activity`] });
+      
+      const coinsAwarded = data?.coinsAwarded ?? data?.diamondsAwarded ?? 0;
+      const newStreak = data?.newStreak ?? 1;
+      const totalCoins = data?.totalCoins ?? data?.totalDiamonds ?? coinsAwarded;
       
       Alert.alert(
         "Bonus Claimed!",
-        `You received ${data.coinsAwarded} Chy Coin${data.coinsAwarded > 1 ? 's' : ''}!\n\nStreak: ${data.newStreak} day${data.newStreak > 1 ? 's' : ''}\nTotal Chy Coins: ${data.totalCoins}`,
+        `You received ${coinsAwarded} CHY!\n\nStreak: ${newStreak} day${newStreak > 1 ? 's' : ''}\nTotal CHY: ${totalCoins}`,
         [{ text: "Awesome!", style: "default" }]
       );
       setClaimingDay(null);
