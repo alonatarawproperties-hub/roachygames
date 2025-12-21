@@ -27,14 +27,6 @@
         "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background.",
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": [
-          "phantom",
-          "solflare",
-          "backpack",
-          "metamask",
-          "trust",
-          "rainbow"
-        ],
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -137,8 +129,7 @@
     "extra": {
       "eas": {
         "projectId": "b771b4a4-642a-40c9-98e4-f7af33384b5d"
-      },
-      "walletConnectProjectId": "${EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID}"
+      }
     },
     "owner": "roachygames"
   }
