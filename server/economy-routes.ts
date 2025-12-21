@@ -7,13 +7,13 @@ import { SOLANA_TOKENS } from "../shared/solana-tokens";
 import { distributeDailyBonus } from "./rewards-integration";
 
 const DAILY_BONUS_REWARDS: Record<number, number> = {
-  1: 1,
-  2: 1,
-  3: 1,
-  4: 2,
-  5: 2,
-  6: 2,
-  7: 3,
+  1: 5,
+  2: 10,
+  3: 15,
+  4: 20,
+  5: 25,
+  6: 35,
+  7: 50,
 };
 
 const MAX_CLAIMS_PER_DEVICE_PER_DAY = 1;
@@ -113,7 +113,7 @@ export function registerEconomyRoutes(app: Express) {
       for (let i = 1; i <= 7; i++) {
         weeklyRewards.push({
           day: i,
-          diamonds: DAILY_BONUS_REWARDS[i],
+          coins: DAILY_BONUS_REWARDS[i],
           claimed: canClaim ? i <= effectiveStreak : i <= bonusRecord.currentStreak,
           isToday: canClaim && i === nextStreakDay,
         });
@@ -342,9 +342,11 @@ export function registerEconomyRoutes(app: Express) {
       
       res.json({
         success: true,
+        coinsAwarded: diamondReward,
         diamondsAwarded: diamondReward,
         newStreak,
         longestStreak: newLongestStreak,
+        totalCoins: updatedEconomy?.diamonds || diamondReward,
         totalDiamonds: updatedEconomy?.diamonds || diamondReward,
         blockchain: {
           success: blockchainResult.success,

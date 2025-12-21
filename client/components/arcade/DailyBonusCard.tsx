@@ -154,13 +154,13 @@ export function DailyBonusCard({ userId, isConnected, isGuest = false, onSignIn 
   }));
 
   const defaultRewards: DailyReward[] = [
-    { day: 1, coins: 1, claimed: false, isToday: true },
-    { day: 2, coins: 1, claimed: false, isToday: false },
-    { day: 3, coins: 1, claimed: false, isToday: false },
-    { day: 4, coins: 2, claimed: false, isToday: false },
-    { day: 5, coins: 2, claimed: false, isToday: false },
-    { day: 6, coins: 2, claimed: false, isToday: false },
-    { day: 7, coins: 3, claimed: false, isToday: false },
+    { day: 1, coins: 5, claimed: false, isToday: true },
+    { day: 2, coins: 10, claimed: false, isToday: false },
+    { day: 3, coins: 15, claimed: false, isToday: false },
+    { day: 4, coins: 20, claimed: false, isToday: false },
+    { day: 5, coins: 25, claimed: false, isToday: false },
+    { day: 6, coins: 35, claimed: false, isToday: false },
+    { day: 7, coins: 50, claimed: false, isToday: false },
   ];
 
   const rewards = bonusData?.weeklyRewards || defaultRewards;
