@@ -13,7 +13,6 @@ import { ChessGameScreen } from "@/screens/ChessGameScreen";
 import { TournamentListScreen } from "@/screens/TournamentListScreen";
 import { TournamentDetailScreen } from "@/screens/TournamentDetailScreen";
 import { AuthScreen } from "@/screens/AuthScreen";
-import ChessSkinSelectorScreen from "@/screens/ChessSkinSelectorScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/context/AuthContext";
 import { WildCreature } from "@/constants/gameState";
@@ -32,7 +31,6 @@ export type RootStackParamList = {
   ChessGame: { matchId: string; walletAddress: string };
   TournamentList: undefined;
   TournamentDetail: { tournamentId: string };
-  ChessSkinSelector: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -139,14 +137,6 @@ export default function RootStackNavigator() {
             component={TournamentDetailScreen}
             options={{
               headerShown: false,
-              animation: "slide_from_right",
-            }}
-          />
-          <Stack.Screen
-            name="ChessSkinSelector"
-            component={ChessSkinSelectorScreen}
-            options={{
-              headerTitle: "Chess Skins",
               animation: "slide_from_right",
             }}
           />
