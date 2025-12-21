@@ -79,6 +79,7 @@ export function DailyBonusCard({ userId, isConnected, isGuest = false, onSignIn 
   const claimMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/daily-bonus/claim", { 
+        walletAddress: userId,
         userId,
         deviceFingerprint,
       });
