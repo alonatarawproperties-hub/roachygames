@@ -15,10 +15,10 @@ interface EngineMove {
 }
 
 const BOT_DIFFICULTIES = {
-  rookie: { skillLevel: 3, elo: 1350, thinkTime: 1500, name: "Rookie Roachy", unlimited: false },
-  club: { skillLevel: 8, elo: 1600, thinkTime: 2000, name: "Club Roachy", unlimited: false },
-  expert: { skillLevel: 15, elo: 2100, thinkTime: 2500, name: "Expert Roachy", unlimited: false },
-  magnus: { skillLevel: 20, elo: 0, thinkTime: 4000, name: "Magnus", unlimited: true },
+  rookie: { skillLevel: 8, elo: 1500, thinkTime: 2000, depth: 8, name: "Rookie Roachy", unlimited: false },
+  club: { skillLevel: 12, elo: 1800, thinkTime: 2500, depth: 12, name: "Club Roachy", unlimited: false },
+  expert: { skillLevel: 18, elo: 2200, thinkTime: 3000, depth: 16, name: "Expert Roachy", unlimited: false },
+  magnus: { skillLevel: 20, elo: 0, thinkTime: 5000, depth: 20, name: "Magnus", unlimited: true },
 } as const;
 
 type BotDifficulty = keyof typeof BOT_DIFFICULTIES;
@@ -155,8 +155,9 @@ class StockfishEngine {
     this.sendCommandNoWait('ucinewgame');
     this.sendCommandNoWait(`position fen ${fen}`);
     
-    // Use movetime for consistent performance
-    const response = await this.sendCommandWait(`go movetime ${actualThinkTime}`);
+    // Use both depth and movetime for smarter, more consistent play
+    const minDepth = settings.depth ?? 10;
+    const response = await this.sendCommandWait(`go depth ${minDepth} movetime ${actualThinkTime}`);
     
     const bestMoveMatch = response.match(/bestmove\s+(\w+)/);
     if (!bestMoveMatch) {
