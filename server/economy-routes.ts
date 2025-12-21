@@ -7,13 +7,13 @@ import { SOLANA_TOKENS } from "../shared/solana-tokens";
 import { distributeDailyBonus } from "./rewards-integration";
 
 const DAILY_BONUS_REWARDS: Record<number, number> = {
-  1: 5,
-  2: 10,
-  3: 15,
-  4: 20,
-  5: 25,
-  6: 35,
-  7: 50,
+  1: 0.1,
+  2: 0.15,
+  3: 0.2,
+  4: 0.25,
+  5: 0.3,
+  6: 0.4,
+  7: 0.6,
 };
 
 const MAX_CLAIMS_PER_DEVICE_PER_DAY = 1;
