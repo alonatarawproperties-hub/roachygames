@@ -152,6 +152,7 @@ router.post("/login", async (req: Request, res: Response) => {
 const ALLOWED_GOOGLE_CLIENT_IDS = [
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
   process.env.GOOGLE_WEB_CLIENT_ID,
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID,
 ].filter(Boolean) as string[];
 
 async function verifyGoogleToken(idToken: string): Promise<{
@@ -195,7 +196,40 @@ async function verifyGoogleToken(idToken: string): Promise<{
   }
 }
 
-// Exchange authorization code for tokens (PKCE flow for native iOS)
+// Google OAuth callback redirect for Android (server-side redirect to app)
+router.get("/google/callback", async (req: Request, res: Response) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+    
+    // Handle OAuth errors from Google
+    if (error) {
+      console.error("[Auth] Google OAuth error:", error, error_description);
+      const errorMsg = encodeURIComponent(String(error_description || error));
+      return res.redirect(`roachy-games://oauth2redirect?error=${errorMsg}`);
+    }
+    
+    if (!code) {
+      console.error("[Auth] Google OAuth callback missing code");
+      return res.redirect(`roachy-games://oauth2redirect?error=missing_code`);
+    }
+    
+    console.log("[Auth] Google OAuth callback received, redirecting to app with code");
+    
+    // Redirect to app with the authorization code
+    // The state parameter contains the PKCE state that expo-auth-session expects
+    let redirectUrl = `roachy-games://oauth2redirect?code=${encodeURIComponent(String(code))}`;
+    if (state) {
+      redirectUrl += `&state=${encodeURIComponent(String(state))}`;
+    }
+    
+    return res.redirect(redirectUrl);
+  } catch (error) {
+    console.error("[Auth] Google OAuth callback error:", error);
+    return res.redirect(`roachy-games://oauth2redirect?error=server_error`);
+  }
+});
+
+// Exchange authorization code for tokens (PKCE flow for native iOS/Android)
 router.post("/google-code", async (req: Request, res: Response) => {
   try {
     const { code, codeVerifier, redirectUri } = req.body;
@@ -204,10 +238,19 @@ router.post("/google-code", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Authorization code, code verifier, and redirect URI are required" });
     }
 
-    const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+    // Determine which client ID to use based on redirect URI pattern
+    // Android uses server callback redirect (Web client ID)
+    // iOS uses reversed client ID scheme (iOS client ID)
+    const isAndroidServerRedirect = redirectUri.includes("/api/auth/google/callback");
+    const clientId = isAndroidServerRedirect 
+      ? process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID  // Web client ID for Android
+      : process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;         // iOS client ID
+    
     if (!clientId) {
       return res.status(500).json({ error: "Google OAuth not configured" });
     }
+    
+    console.log("[Auth] Token exchange using client ID:", clientId.substring(0, 20) + "...", "isAndroid:", isAndroidServerRedirect);
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {

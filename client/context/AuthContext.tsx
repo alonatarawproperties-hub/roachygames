@@ -236,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Platform-specific redirect URIs:
       // iOS: Use reversed client ID scheme (required by Google)
-      // Android: Use reversed client ID scheme (required by Google for Play Store apps)
+      // Android: Use Web client ID with server-side redirect (browser-based OAuth)
       const reversedClientId = clientId.split(".").reverse().join(".");
       
       let redirectUri: string;
@@ -244,8 +244,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // iOS requires the reversed client ID as URL scheme
         redirectUri = `${reversedClientId}:/oauth2redirect/google`;
       } else if (Platform.OS === "android") {
-        // Android Play Store apps require the reversed client ID scheme
-        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
+        // Android uses server-side redirect with Web client ID
+        // Server receives the code and redirects to app's custom scheme
+        redirectUri = `${getApiUrl()}/api/auth/google/callback`;
       } else {
         // Web fallback
         redirectUri = AuthSession.makeRedirectUri({
