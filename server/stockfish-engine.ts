@@ -1,15 +1,14 @@
 import { spawn, ChildProcess } from 'child_process';
-import path from 'path';
 
 interface StockfishOptions {
-  skillLevel?: number; // 0-20
-  elo?: number; // 1350-3190 (overrides skillLevel if set)
-  thinkTimeMs?: number; // Move time limit
-  depth?: number; // Search depth limit
+  skillLevel?: number;
+  elo?: number;
+  thinkTimeMs?: number;
+  depth?: number;
 }
 
 interface EngineMove {
-  move: string; // UCI format like "e2e4"
+  move: string;
   thinkTimeMs: number;
   evaluation?: number;
   depth?: number;
@@ -29,8 +28,7 @@ class StockfishEngine {
   private isReady: boolean = false;
   private responseBuffer: string = '';
   private pendingResolve: ((value: string) => void) | null = null;
-  private currentSkillLevel: number = 20;
-  private currentElo: number | null = null;
+  private currentDifficulty: BotDifficulty | null = null;
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -72,10 +70,11 @@ class StockfishEngine {
         this.process.on('close', (code) => {
           console.log(`[Stockfish] Process exited with code ${code}`);
           this.isReady = false;
+          this.currentDifficulty = null;
         });
 
-        this.sendCommand('uci').then(() => {
-          this.sendCommand('isready').then(() => {
+        this.sendCommandWait('uci').then(() => {
+          this.sendCommandWait('isready').then(() => {
             this.isReady = true;
             console.log('[Stockfish] Engine initialized');
             resolve();
@@ -89,7 +88,12 @@ class StockfishEngine {
     });
   }
 
-  private sendCommand(command: string): Promise<string> {
+  private sendCommandNoWait(command: string): void {
+    if (!this.process?.stdin) return;
+    this.process.stdin.write(command + '\n');
+  }
+
+  private sendCommandWait(command: string): Promise<string> {
     return new Promise((resolve) => {
       if (!this.process?.stdin) {
         resolve('');
@@ -106,56 +110,45 @@ class StockfishEngine {
           this.responseBuffer = '';
           this.pendingResolve = null;
         }
-      }, 5000);
+      }, 10000);
     });
   }
 
-  async setDifficulty(difficulty: BotDifficulty): Promise<void> {
+  private async setDifficulty(difficulty: BotDifficulty): Promise<void> {
+    if (this.currentDifficulty === difficulty) {
+      return;
+    }
+    
     const settings = BOT_DIFFICULTIES[difficulty];
-    await this.setSkillLevel(settings.skillLevel);
-    await this.setElo(settings.elo);
+    
+    this.sendCommandNoWait(`setoption name Skill Level value ${settings.skillLevel}`);
+    this.sendCommandNoWait('setoption name UCI_LimitStrength value true');
+    this.sendCommandNoWait(`setoption name UCI_Elo value ${settings.elo}`);
+    
+    await this.sendCommandWait('isready');
+    
+    this.currentDifficulty = difficulty;
     console.log(`[Stockfish] Difficulty set to ${settings.name} (ELO: ${settings.elo})`);
   }
 
-  async setSkillLevel(level: number): Promise<void> {
-    const clampedLevel = Math.max(0, Math.min(20, level));
-    this.currentSkillLevel = clampedLevel;
-    await this.sendCommand(`setoption name Skill Level value ${clampedLevel}`);
-  }
-
-  async setElo(elo: number): Promise<void> {
-    const clampedElo = Math.max(1350, Math.min(3190, elo));
-    this.currentElo = clampedElo;
-    await this.sendCommand('setoption name UCI_LimitStrength value true');
-    await this.sendCommand(`setoption name UCI_Elo value ${clampedElo}`);
-  }
-
-  async getBestMove(fen: string, options: StockfishOptions = {}): Promise<EngineMove | null> {
+  async getBestMove(fen: string, difficulty: BotDifficulty, thinkTimeMs: number = 2000): Promise<EngineMove | null> {
     if (!this.isReady) {
       console.warn('[Stockfish] Engine not ready, initializing...');
       await this.initialize();
     }
 
     const startTime = Date.now();
-    const thinkTimeMs = options.thinkTimeMs || 2000;
-    const depth = options.depth || 15;
-
-    if (options.skillLevel !== undefined) {
-      await this.setSkillLevel(options.skillLevel);
-    }
-    if (options.elo !== undefined) {
-      await this.setElo(options.elo);
-    }
-
-    await this.sendCommand('ucinewgame');
-    await this.sendCommand(`position fen ${fen}`);
     
-    const goCommand = `go movetime ${thinkTimeMs} depth ${depth}`;
-    const response = await this.sendCommand(goCommand);
+    await this.setDifficulty(difficulty);
+
+    this.sendCommandNoWait('ucinewgame');
+    this.sendCommandNoWait(`position fen ${fen}`);
+    
+    const response = await this.sendCommandWait(`go movetime ${thinkTimeMs}`);
     
     const bestMoveMatch = response.match(/bestmove\s+(\w+)/);
     if (!bestMoveMatch) {
-      console.error('[Stockfish] No bestmove found in response:', response);
+      console.error('[Stockfish] No bestmove found in response');
       return null;
     }
 
@@ -167,7 +160,7 @@ class StockfishEngine {
     
     const humanizedThinkTime = Math.max(actualThinkTime, 1500 + Math.random() * 1000);
 
-    console.log(`[Stockfish] Best move: ${move} (think: ${actualThinkTime}ms, ELO: ${this.currentElo || 'max'})`);
+    console.log(`[Stockfish] Best move: ${move} (${actualThinkTime}ms, ${difficulty})`);
 
     return {
       move,
@@ -179,10 +172,11 @@ class StockfishEngine {
 
   async shutdown(): Promise<void> {
     if (this.process) {
-      await this.sendCommand('quit');
+      this.sendCommandNoWait('quit');
       this.process.kill();
       this.process = null;
       this.isReady = false;
+      this.currentDifficulty = null;
       console.log('[Stockfish] Engine shut down');
     }
   }
@@ -204,8 +198,7 @@ export async function makeStockfishMove(
 ): Promise<EngineMove | null> {
   try {
     const engine = await getStockfishEngine();
-    await engine.setDifficulty(difficulty);
-    return await engine.getBestMove(fen, { thinkTimeMs: 2000 });
+    return await engine.getBestMove(fen, difficulty, 2000);
   } catch (error) {
     console.error('[Stockfish] Error making move:', error);
     return null;

@@ -10,6 +10,7 @@ import {
 import { eq, and, sql, desc, ne, lte, gte } from "drizzle-orm";
 import { Chess } from "chess.js";
 import { rateLimit, logSecurityEvent } from "./security";
+import { makeStockfishMove, BOT_DIFFICULTIES, BotDifficulty } from "./stockfish-engine";
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const MATCHMAKING_TIMEOUT_MS = 30000;
@@ -464,6 +465,7 @@ export function registerChessRoutes(app: Express) {
           player2TimeRemaining: timeSeconds,
           wagerAmount: 0,
           isAgainstBot: true,
+          botDifficulty: 'magnus',
           startedAt: new Date(),
         }).returning();
         
@@ -622,7 +624,8 @@ export function registerChessRoutes(app: Express) {
         .where(eq(chessMatches.id, matchId));
       
       if (!gameOver && match.isAgainstBot && newTurn === 'black') {
-        const botResult = makeBotMove(game);
+        const botDifficulty = (match.botDifficulty as BotDifficulty) || 'magnus';
+        const botResult = await makeStockfishMove(game.fen(), botDifficulty);
         if (botResult) {
           const botMoveUci = botResult.move;
           const botFrom = botMoveUci.slice(0, 2);
@@ -636,7 +639,6 @@ export function registerChessRoutes(app: Express) {
             const botNewTurn = game.turn() === 'w' ? 'white' : 'black';
             const botMoveHistory = moveHistory + ',' + botMoveUci;
             
-            // Deduct bot's think time from its clock (player2 is the bot)
             const botThinkSeconds = Math.ceil(botResult.thinkTimeMs / 1000);
             const botNewTime = Math.max(0, newPlayer2Time - botThinkSeconds);
             
@@ -775,7 +777,10 @@ export function registerChessRoutes(app: Express) {
 
   app.post("/api/chess/demo-match", async (req: Request, res: Response) => {
     try {
-      const { walletAddress, gameMode = 'casual', timeControl = 'rapid' } = req.body;
+      const { walletAddress, gameMode = 'casual', timeControl = 'rapid', difficulty = 'magnus' } = req.body;
+      
+      const validDifficulties = ['rookie', 'club', 'expert', 'magnus'];
+      const botDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'magnus';
       
       const timeSeconds = TIME_CONTROL_SECONDS[timeControl as ChessTimeControl] || 600;
       
@@ -791,6 +796,7 @@ export function registerChessRoutes(app: Express) {
         player2TimeRemaining: timeSeconds,
         wagerAmount: 0,
         isAgainstBot: true,
+        botDifficulty,
         startedAt: new Date(),
       }).returning();
       

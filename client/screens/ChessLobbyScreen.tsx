@@ -24,6 +24,15 @@ const TIME_CONTROL_INFO: Record<TimeControl, { label: string; time: string; seco
   classical: { label: 'Classical', time: '30 min', seconds: 1800 },
 };
 
+type BotDifficulty = 'rookie' | 'club' | 'expert' | 'magnus';
+
+const BOT_DIFFICULTY_INFO: Record<BotDifficulty, { label: string; elo: string; icon: string; color: string }> = {
+  rookie: { label: 'Rookie', elo: '~1350', icon: 'smile', color: '#4CAF50' },
+  club: { label: 'Club', elo: '~1600', icon: 'user', color: '#2196F3' },
+  expert: { label: 'Expert', elo: '~2000', icon: 'star', color: '#FF9800' },
+  magnus: { label: 'Magnus', elo: '~2800', icon: 'zap', color: '#F44336' },
+};
+
 export function ChessLobbyScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
@@ -36,6 +45,7 @@ export function ChessLobbyScreen() {
   const walletAddress = user?.walletAddress || user?.id || guestWalletRef.current;
   
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControl>('rapid');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<BotDifficulty>('magnus');
   
   const { chy, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances } = useWebappBalances();
   
@@ -110,11 +120,12 @@ export function ChessLobbyScreen() {
   
   const createDemoMatchMutation = useMutation({
     mutationFn: async () => {
-      console.log('[ChessLobby] Creating demo match...', { walletAddress, gameMode: 'casual', timeControl: selectedTimeControl });
+      console.log('[ChessLobby] Creating demo match...', { walletAddress, gameMode: 'casual', timeControl: selectedTimeControl, difficulty: selectedDifficulty });
       const res = await apiRequest('POST', '/api/chess/demo-match', {
         walletAddress,
         gameMode: 'casual',
         timeControl: selectedTimeControl,
+        difficulty: selectedDifficulty,
       });
       return res.json();
     },
@@ -280,8 +291,47 @@ export function ChessLobbyScreen() {
         <View style={styles.demoBanner}>
           <Feather name="cpu" size={20} color={GameColors.primary} />
           <View style={styles.demoBannerText}>
-            <Text style={styles.demoBannerTitle}>Demo Mode - Play vs Bot</Text>
-            <Text style={styles.demoBannerSubtitle}>Challenge our Magnus-level AI opponent</Text>
+            <Text style={styles.demoBannerTitle}>Play vs Stockfish AI</Text>
+            <Text style={styles.demoBannerSubtitle}>Choose your difficulty level</Text>
+          </View>
+        </View>
+        
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bot Difficulty</Text>
+          <View style={styles.difficultyButtons}>
+            {(Object.keys(BOT_DIFFICULTY_INFO) as BotDifficulty[]).map((diff) => {
+              const info = BOT_DIFFICULTY_INFO[diff];
+              const isSelected = selectedDifficulty === diff;
+              return (
+                <Pressable
+                  key={diff}
+                  style={[
+                    styles.difficultyButton, 
+                    isSelected && styles.difficultyButtonSelected,
+                    isSelected && { borderColor: info.color }
+                  ]}
+                  onPress={() => setSelectedDifficulty(diff)}
+                >
+                  <Feather 
+                    name={info.icon as any} 
+                    size={18} 
+                    color={isSelected ? info.color : GameColors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.difficultyButtonLabel, 
+                    isSelected && { color: info.color }
+                  ]}>
+                    {info.label}
+                  </Text>
+                  <Text style={[
+                    styles.difficultyButtonElo,
+                    isSelected && styles.difficultyButtonEloSelected
+                  ]}>
+                    {info.elo}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
         
@@ -514,6 +564,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: GameColors.textSecondary,
     marginTop: 2,
+  },
+  difficultyButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  difficultyButton: {
+    flex: 1,
+    minWidth: '22%',
+    backgroundColor: GameColors.surface,
+    padding: Spacing.sm,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: 2,
+  },
+  difficultyButtonSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  difficultyButtonLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: GameColors.textPrimary,
+  },
+  difficultyButtonElo: {
+    fontSize: 10,
+    color: GameColors.textSecondary,
+  },
+  difficultyButtonEloSelected: {
+    color: GameColors.textPrimary,
   },
   timeButtons: {
     flexDirection: 'row',

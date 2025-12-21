@@ -295,6 +295,16 @@ export type ChessGameMode = typeof CHESS_GAME_MODES[number];
 export const CHESS_TIME_CONTROLS = ['bullet', 'blitz', 'rapid', 'classical'] as const;
 export type ChessTimeControl = typeof CHESS_TIME_CONTROLS[number];
 
+export const BOT_DIFFICULTIES = ['rookie', 'club', 'expert', 'magnus'] as const;
+export type BotDifficulty = typeof BOT_DIFFICULTIES[number];
+
+export const BOT_ELO_RATINGS: Record<BotDifficulty, number> = {
+  rookie: 1350,
+  club: 1600,
+  expert: 2000,
+  magnus: 2800,
+};
+
 export const TIME_CONTROL_SECONDS: Record<ChessTimeControl, number> = {
   bullet: 60,
   blitz: 300,
@@ -333,6 +343,7 @@ export const chessMatches = pgTable("chess_matches", {
   winReason: text("win_reason"),
   moveHistory: text("move_history").default(''),
   isAgainstBot: boolean("is_against_bot").notNull().default(false),
+  botDifficulty: text("bot_difficulty").default('magnus'),
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
