@@ -240,7 +240,11 @@ export function registerEconomyRoutes(app: Express) {
       
       let newStreak = 1;
       if (bonusRecord.lastClaimDate === yesterday) {
-        newStreak = bonusRecord.currentStreak + 1;
+        if (bonusRecord.currentStreak >= 7) {
+          newStreak = 1;
+        } else {
+          newStreak = bonusRecord.currentStreak + 1;
+        }
       }
       
       if (newStreak > EMAIL_VERIFICATION_REQUIRED_AFTER_DAY && userId) {
