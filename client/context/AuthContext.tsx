@@ -235,18 +235,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[Auth] Using client ID:", clientId.substring(0, 20) + "...");
 
       // Platform-specific redirect URIs:
-      // iOS: Use reversed client ID scheme (required by Google)
-      // Android: Use Web client ID with server-side redirect (browser-based OAuth)
+      // iOS & Android: Use reversed client ID scheme (required by Google for native clients)
       const reversedClientId = clientId.split(".").reverse().join(".");
       
       let redirectUri: string;
-      if (Platform.OS === "ios") {
-        // iOS requires the reversed client ID as URL scheme
+      if (Platform.OS === "ios" || Platform.OS === "android") {
+        // Native clients use reversed client ID as URL scheme
         redirectUri = `${reversedClientId}:/oauth2redirect/google`;
-      } else if (Platform.OS === "android") {
-        // Android uses server-side redirect with Web client ID
-        // Server receives the code and redirects to app's custom scheme
-        redirectUri = `${getApiUrl()}/api/auth/google/callback`;
       } else {
         // Web fallback
         redirectUri = AuthSession.makeRedirectUri({

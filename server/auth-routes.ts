@@ -239,18 +239,24 @@ router.post("/google-code", async (req: Request, res: Response) => {
     }
 
     // Determine which client ID to use based on redirect URI pattern
-    // Android uses server callback redirect (Web client ID)
-    // iOS uses reversed client ID scheme (iOS client ID)
-    const isAndroidServerRedirect = redirectUri.includes("/api/auth/google/callback");
-    const clientId = isAndroidServerRedirect 
-      ? process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID  // Web client ID for Android
-      : process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;         // iOS client ID
+    // Both iOS and Android now use reversed client ID scheme
+    // Check which reversed client ID is in the redirectUri to determine which one to use
+    const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID;
+    const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+    
+    let clientId: string | undefined;
+    if (androidClientId && redirectUri.includes(androidClientId.split(".").reverse().join("."))) {
+      clientId = androidClientId;
+    } else {
+      clientId = iosClientId;
+    }
     
     if (!clientId) {
       return res.status(500).json({ error: "Google OAuth not configured" });
     }
     
-    console.log("[Auth] Token exchange using client ID:", clientId.substring(0, 20) + "...", "isAndroid:", isAndroidServerRedirect);
+    const isAndroid = androidClientId && redirectUri.includes(androidClientId.split(".").reverse().join("."));
+    console.log("[Auth] Token exchange using client ID:", clientId.substring(0, 20) + "...", "isAndroid:", isAndroid);
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {

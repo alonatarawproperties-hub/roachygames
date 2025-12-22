@@ -78,6 +78,19 @@
             "BROWSABLE",
             "DEFAULT"
           ]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "com.googleusercontent.apps.433710630203-6sf1rqe7cmo6jtmvskngjtv9h3679gh",
+              "pathPrefix": "/oauth2redirect"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
