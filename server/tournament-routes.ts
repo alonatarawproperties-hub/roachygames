@@ -351,11 +351,29 @@ export function registerTournamentRoutes(app: Express) {
         .where(eq(chessTournamentMatches.tournamentId, id))
         .orderBy(asc(chessTournamentMatches.roundNumber), asc(chessTournamentMatches.matchNumber));
       
+      // For free Sit & Go tournaments, include countdown info
+      let countdownStartsAt: string | null = null;
+      const tournament = tournaments[0];
+      if (tournament.entryFee === 0 && tournament.tournamentType === 'sit_and_go' && 
+          tournament.status === 'registering' && participants.length > 0) {
+        // Get first participant's join time for countdown
+        const firstParticipant = await db.select()
+          .from(chessTournamentParticipants)
+          .where(eq(chessTournamentParticipants.tournamentId, id))
+          .orderBy(asc(chessTournamentParticipants.joinedAt))
+          .limit(1);
+        
+        if (firstParticipant.length > 0) {
+          countdownStartsAt = firstParticipant[0].joinedAt.toISOString();
+        }
+      }
+      
       res.json({
         success: true,
         tournament: tournaments[0],
         participants,
         matches,
+        countdownStartsAt,
       });
     } catch (error) {
       console.error("Error fetching tournament:", error);

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, RefreshControl, Alert, Platform, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -124,6 +124,40 @@ export function TournamentDetailScreen() {
   const tournament: Tournament | null = data?.tournament || null;
   const participants: Participant[] = data?.participants || [];
   const matches: TournamentMatch[] = data?.matches || [];
+  const countdownStartsAt: string | null = data?.countdownStartsAt || null;
+  
+  // Countdown timer for free tournaments (10 min = 600 seconds)
+  const [countdown, setCountdown] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (!countdownStartsAt || !tournament || tournament.entryFee > 0 || tournament.status !== 'registering') {
+      setCountdown(null);
+      return;
+    }
+    
+    const updateCountdown = () => {
+      const startTime = new Date(countdownStartsAt).getTime();
+      const endTime = startTime + 10 * 60 * 1000; // 10 minutes
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      setCountdown(remaining);
+      
+      // If countdown ended, refetch to get updated status
+      if (remaining === 0) {
+        refetch();
+      }
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [countdownStartsAt, tournament?.entryFee, tournament?.status, refetch]);
+  
+  const formatCountdown = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
   
   const isRegistered = useMemo(() => 
     participants.some(p => p.walletAddress === walletAddress),
@@ -697,11 +731,20 @@ export function TournamentDetailScreen() {
           <View style={styles.waitingCard}>
             <Feather name="clock" size={32} color={GameColors.textSecondary} />
             <Text style={styles.waitingTitle}>Waiting for Players</Text>
-            <Text style={styles.waitingText}>
-              {tournament.minPlayers - tournament.currentPlayers > 0 
-                ? `Need ${tournament.minPlayers - tournament.currentPlayers} more to start`
-                : 'Tournament will begin soon'}
-            </Text>
+            {countdown !== null && countdown > 0 ? (
+              <View style={styles.countdownContainer}>
+                <Text style={styles.countdownLabel}>Starting in</Text>
+                <Text style={styles.countdownTimer}>{formatCountdown(countdown)}</Text>
+              </View>
+            ) : countdown === 0 ? (
+              <Text style={styles.waitingText}>Starting now...</Text>
+            ) : (
+              <Text style={styles.waitingText}>
+                {tournament.minPlayers - tournament.currentPlayers > 0 
+                  ? `Need ${tournament.minPlayers - tournament.currentPlayers} more to start`
+                  : 'Tournament will begin soon'}
+              </Text>
+            )}
           </View>
         ) : null}
       </ScrollView>
@@ -1053,6 +1096,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: GameColors.textSecondary,
     textAlign: 'center',
+  },
+  countdownContainer: {
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  countdownLabel: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    marginBottom: 4,
+  },
+  countdownTimer: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: GameColors.gold,
+    fontVariant: ['tabular-nums'],
   },
   balanceRow: {
     flexDirection: 'row',
