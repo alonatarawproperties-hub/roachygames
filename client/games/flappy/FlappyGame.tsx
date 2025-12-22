@@ -383,13 +383,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const BIRD_X = GAME_WIDTH * 0.2;
   
   // Scale pipe speed based on screen width so gameplay feels consistent
-  const PIPE_SPEED = Math.max(3, Math.min(8, BASE_PIPE_SPEED * Math.pow(scale, 0.7)));
+  // Slower on Android to reduce lag and give more reaction time
+  const PIPE_SPEED = Platform.OS === "android" 
+    ? Math.max(2.5, Math.min(5, BASE_PIPE_SPEED * Math.pow(scale, 0.6)))
+    : Math.max(3, Math.min(8, BASE_PIPE_SPEED * Math.pow(scale, 0.7)));
   
   // Calculate spawn interval to maintain consistent visual gap between pipes
-  // Target gap: ~1.6 screen widths between consecutive pipes (relative spacing)
-  // Gap in pixels = PIPE_SPEED * (interval_ms / 16.67)
-  // Solving for interval: interval = (target_gap_pixels) * 16.67 / PIPE_SPEED
-  const TARGET_GAP_SCREENS = 1.6; // How many screen widths between pipes
+  // Android: Wider spacing (2.2 screen widths) for better gameplay
+  // iOS/Web: Standard spacing (1.8 screen widths)
+  const TARGET_GAP_SCREENS = Platform.OS === "android" ? 2.2 : 1.8;
   const targetGapPixels = TARGET_GAP_SCREENS * GAME_WIDTH;
   const PIPE_SPAWN_INTERVAL = Math.round((targetGapPixels / PIPE_SPEED) * 16.67);
   
@@ -1037,15 +1039,21 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         .filter((p) => p.opacity > 0);
     }
     
-    runOnJS(setPipes)([...pipesRef.current]);
-    runOnJS(setCoins)([...coinsRef.current]);
-    runOnJS(setPowerUps)([...powerUpsRef.current]);
+    // Throttle React state updates on Android (every 3rd frame) to reduce lag
+    renderFrameCounterRef.current++;
+    const updateFrequency = Platform.OS === "android" ? 3 : 1;
     
-    if (cloudsEnabled) {
-      runOnJS(setClouds)([...cloudsRef.current]);
-    }
-    if (trailsEnabled) {
-      runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+    if (renderFrameCounterRef.current % updateFrequency === 0) {
+      runOnJS(setPipes)([...pipesRef.current]);
+      runOnJS(setCoins)([...coinsRef.current]);
+      runOnJS(setPowerUps)([...powerUpsRef.current]);
+      
+      if (cloudsEnabled) {
+        runOnJS(setClouds)([...cloudsRef.current]);
+      }
+      if (trailsEnabled) {
+        runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+      }
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
