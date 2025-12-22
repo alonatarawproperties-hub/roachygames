@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
+import * as Updates from "expo-updates";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
@@ -34,6 +35,18 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
+        if (Platform.OS !== 'web' && !__DEV__) {
+          console.log('[App] Checking for OTA updates...');
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            console.log('[App] Update available, downloading...');
+            await Updates.fetchUpdateAsync();
+            console.log('[App] Update downloaded, reloading app...');
+            await Updates.reloadAsync();
+            return;
+          }
+          console.log('[App] No update available, continuing...');
+        }
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (e) {
         console.warn('[App] Error during preparation:', e);
