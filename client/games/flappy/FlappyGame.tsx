@@ -748,7 +748,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     const minY = 100;
     const maxY = playableHeightRef.current - 100;
     const y = Math.floor(Math.random() * (maxY - minY)) + minY;
-    const value = Math.floor(Math.random() * 50) + 10;
+    const value = Math.floor(Math.random() * 5) + 1;
     
     const newCoin: Coin = {
       id: coinIdRef.current++,
@@ -1129,7 +1129,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     pipeTimerRef.current = setInterval(spawnPipe, pipeSpawnIntervalRef.current);
     coinTimerRef.current = setInterval(spawnCoin, COIN_SPAWN_INTERVAL);
-    powerUpTimerRef.current = setInterval(spawnPowerUp, POWERUP_SPAWN_INTERVAL);
+    // Powerups disabled - will be sold as consumables in marketplace
     if (cloudsEnabled) {
       cloudTimerRef.current = setInterval(spawnCloud, cloudSpawnInterval);
     }
@@ -1141,7 +1141,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }, 1000);
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnPowerUp, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId]);
   
   const jump = useCallback(() => {
     if (showMenu) return;
@@ -1816,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   exitButton: {
     position: "absolute",
-    right: 16,
+    left: 16,
     width: 44,
     height: 44,
     borderRadius: 22,
