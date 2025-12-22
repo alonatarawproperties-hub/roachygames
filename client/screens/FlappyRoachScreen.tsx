@@ -11,6 +11,7 @@ import { useFlappyTrail } from "@/context/FlappyTrailContext";
 import { usePerformanceSettings, PerformanceMode } from "@/hooks/usePerformanceSettings";
 import { GameColors, Colors } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function FlappyRoachScreen() {
   const navigation = useNavigation();
@@ -20,6 +21,7 @@ export function FlappyRoachScreen() {
   const { equippedTrail, isLoading: trailLoading } = useFlappyTrail();
   const { mode, setMode, settings, isLoading: perfLoading } = usePerformanceSettings();
   const [showSettings, setShowSettings] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     async function lockOrientation() {
@@ -100,7 +102,7 @@ export function FlappyRoachScreen() {
       />
       
       <Pressable 
-        style={styles.settingsButton}
+        style={[styles.settingsButton, { top: insets.top + 62 }]}
         onPress={() => setShowSettings(true)}
       >
         <Feather name="settings" size={20} color="#fff" />
@@ -178,7 +180,6 @@ const styles = StyleSheet.create({
   },
   settingsButton: {
     position: "absolute",
-    top: 110,
     right: 16,
     width: 40,
     height: 40,
