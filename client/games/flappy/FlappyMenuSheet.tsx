@@ -358,6 +358,9 @@ function formatCountdown(ms: number): string {
   return `${hours}h ${minutes}m`;
 }
 
+// Beta: Flappy competitions are locked - only free play available
+const FLAPPY_COMPETITIONS_LOCKED = true;
+
 function CompetitionCard({
   title,
   icon,
@@ -390,6 +393,43 @@ function CompetitionCard({
   onSelect: () => void;
 }) {
   const hasEnoughChy = chyBalance >= entryFee;
+  
+  // Beta lock - show Coming Soon for all competitions
+  if (FLAPPY_COMPETITIONS_LOCKED) {
+    return (
+      <View style={[styles.competitionCard, { opacity: 0.6 }]}>
+        <View style={styles.competitionHeader}>
+          <View style={styles.competitionTitleRow}>
+            <View style={styles.competitionIcon}>
+              <Feather name={icon} size={18} color={GameColors.textSecondary} />
+            </View>
+            <ThemedText style={styles.competitionTitle}>{title}</ThemedText>
+            <View style={{ backgroundColor: GameColors.gold, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+              <ThemedText style={{ fontSize: 10, fontWeight: 'bold', color: '#000' }}>SOON</ThemedText>
+            </View>
+          </View>
+        </View>
+        
+        <View style={styles.competitionStats}>
+          <View style={styles.statItem}>
+            <ThemedText style={styles.statItemValue}>-</ThemedText>
+            <ThemedText style={styles.statItemLabel}>Players</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <View style={styles.entryFeeDisplay}>
+              <Image source={ChyCoinIcon} style={styles.coinIconImage} contentFit="contain" />
+              <ThemedText style={styles.statItemValue}>{entryFee}</ThemedText>
+            </View>
+            <ThemedText style={styles.statItemLabel}>Entry Fee</ThemedText>
+          </View>
+        </View>
+        
+        <View style={[styles.enterButton, styles.disabledButton]}>
+          <ThemedText style={[styles.enterButtonText, { color: GameColors.textSecondary }]}>Coming Soon</ThemedText>
+        </View>
+      </View>
+    );
+  }
   
   return (
     <Pressable 

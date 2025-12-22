@@ -509,9 +509,20 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
+  // Beta: Block all flappy ranked competitions
+  const FLAPPY_COMPETITIONS_LOCKED = true;
+
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
       const { userId, period = 'daily', webappUserId } = req.body;
+      
+      // Beta block - no flappy competitions during beta
+      if (FLAPPY_COMPETITIONS_LOCKED) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Flappy competitions coming soon! Free play is available now." 
+        });
+      }
       
       if (!userId) {
         return res.status(400).json({ success: false, error: "Missing userId" });
