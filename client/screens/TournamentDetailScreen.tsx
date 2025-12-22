@@ -479,30 +479,16 @@ export function TournamentDetailScreen() {
         
         {canJoin ? (
           <View style={styles.actionCard}>
+            {/* TEMPORARY: Paid tournaments locked during beta */}
             {tournament.entryFee > 0 && !isRegistered ? (
-              <View style={styles.balanceRow}>
-                <View style={styles.balanceInfo}>
-                  <Image source={ChyCoinIcon} style={styles.chyCoinIcon} contentFit="contain" />
-                  <Text style={styles.balanceLabel}>Your Balance:</Text>
-                  {balanceLoading || balanceFetching ? (
-                    <ActivityIndicator size="small" color={GameColors.primary} />
-                  ) : (
-                    <Text style={[
-                      styles.balanceValue,
-                      chy < tournament.entryFee && styles.balanceInsufficient
-                    ]}>
-                      {chy} CHY
-                    </Text>
-                  )}
-                </View>
-                <Pressable style={styles.refreshButton} onPress={() => refetchBalances()} disabled={balanceFetching}>
-                  <Animated.View style={spinStyle}>
-                    <Feather name="refresh-cw" size={16} color={GameColors.background} />
-                  </Animated.View>
-                </Pressable>
+              <View style={styles.lockedBadge}>
+                <Feather name="lock" size={24} color={GameColors.gold} />
+                <Text style={styles.lockedTitle}>Coming Soon</Text>
+                <Text style={styles.lockedText}>
+                  Paid tournaments will be available after beta launch
+                </Text>
               </View>
-            ) : null}
-            {isRegistered ? (
+            ) : isRegistered ? (
               <>
                 <View style={styles.registeredBadge}>
                   <Feather name="check-circle" size={20} color="#22c55e" />
@@ -517,13 +503,6 @@ export function TournamentDetailScreen() {
                 <Feather name="users" size={24} color={GameColors.textSecondary} />
                 <Text style={styles.fullMessageText}>Tournament is full</Text>
               </View>
-            ) : chy < (tournament.entryFee || 0) && tournament.entryFee > 0 ? (
-              <View style={styles.insufficientFunds}>
-                <Feather name="alert-circle" size={20} color={GameColors.error} />
-                <Text style={styles.insufficientText}>
-                  Need {tournament.entryFee - chy} more CHY to join
-                </Text>
-              </View>
             ) : (
               <Pressable onPress={handleJoin} disabled={joinMutation.isPending}>
                 <LinearGradient
@@ -534,8 +513,7 @@ export function TournamentDetailScreen() {
                 >
                   <Feather name="user-plus" size={20} color={GameColors.background} />
                   <Text style={styles.joinButtonText}>
-                    {joinMutation.isPending ? 'Joining...' : 
-                     tournament.entryFee > 0 ? `Join (${tournament.entryFee} CHY)` : 'Join Free'}
+                    {joinMutation.isPending ? 'Joining...' : 'Join Free'}
                   </Text>
                 </LinearGradient>
               </Pressable>
@@ -875,6 +853,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: GameColors.textSecondary,
     fontWeight: '500',
+  },
+  lockedBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+    backgroundColor: GameColors.surfaceElevated,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+    borderStyle: 'dashed',
+  },
+  lockedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: GameColors.gold,
+  },
+  lockedText: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.md,
   },
   joinButton: {
     flexDirection: 'row',

@@ -353,6 +353,11 @@ export function registerTournamentRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Tournament not accepting registrations" });
       }
       
+      // TEMPORARY: Paid tournaments are locked during closed beta
+      if (tournament.entryFee > 0) {
+        return res.status(400).json({ success: false, error: "Paid tournaments coming soon! Only free tournaments available during beta." });
+      }
+      
       if (tournament.currentPlayers >= tournament.maxPlayers) {
         return res.status(400).json({ success: false, error: "Tournament is full" });
       }

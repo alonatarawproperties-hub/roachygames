@@ -233,7 +233,13 @@ export function TournamentListScreen() {
             </Text>
           </View>
           
-          {isRegistering && !isFull ? (
+          {/* TEMPORARY: Paid tournaments locked during beta */}
+          {tournament.entryFee > 0 ? (
+            <View style={styles.lockedBadge}>
+              <Feather name="lock" size={12} color={GameColors.gold} />
+              <Text style={styles.lockedBadgeText}>Soon</Text>
+            </View>
+          ) : isRegistering && !isFull ? (
             <LinearGradient
               colors={[GameColors.primary, GameColors.gold]}
               start={{ x: 0, y: 0 }}
@@ -573,6 +579,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: GameColors.textSecondary,
+  },
+  lockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+    borderStyle: 'dashed',
+  },
+  lockedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: GameColors.gold,
   },
   watchButton: {
     flexDirection: 'row',
