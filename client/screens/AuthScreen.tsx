@@ -575,14 +575,26 @@ export function AuthScreen() {
 
         <View style={styles.authSection}>
           <GlassCard>
-            <PrimaryButton
-              onPress={handleGoogleAuth}
-              disabled={isDisabled}
-              loading={isGoogleLoading}
-              icon={<GoogleLogo size={24} />}
-            >
-              {isGoogleLoading ? "Signing in..." : "Continue with Google"}
-            </PrimaryButton>
+            {Platform.OS === "android" ? (
+              <View style={styles.lockedButtonContainer}>
+                <View style={[styles.lockedButton]}>
+                  <GoogleLogo size={24} />
+                  <ThemedText style={styles.lockedButtonText}>Continue with Google</ThemedText>
+                  <View style={styles.comingSoonBadge}>
+                    <ThemedText style={styles.comingSoonText}>Soon</ThemedText>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <PrimaryButton
+                onPress={handleGoogleAuth}
+                disabled={isDisabled}
+                loading={isGoogleLoading}
+                icon={<GoogleLogo size={24} />}
+              >
+                {isGoogleLoading ? "Signing in..." : "Continue with Google"}
+              </PrimaryButton>
+            )}
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
@@ -649,6 +661,37 @@ const styles = StyleSheet.create({
   },
   authSection: {
     marginVertical: Spacing.xl,
+  },
+  lockedButtonContainer: {
+    marginBottom: Spacing.sm,
+  },
+  lockedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    opacity: 0.6,
+    gap: Spacing.sm,
+  },
+  lockedButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: GameColors.textSecondary,
+  },
+  comingSoonBadge: {
+    backgroundColor: GameColors.gold,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  comingSoonText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#000',
   },
   divider: {
     flexDirection: "row",
