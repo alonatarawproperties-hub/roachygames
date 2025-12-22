@@ -895,14 +895,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     const currentPipeSpeed = pipeSpeedRef.current * deltaMultiplier;
     
-    pipesRef.current = pipesRef.current.map((pipe) => ({
-      ...pipe,
-      x: pipe.x - currentPipeSpeed,
-    }));
+    // Mutate in place to avoid garbage collection (major Android perf fix)
+    for (let i = 0; i < pipesRef.current.length; i++) {
+      pipesRef.current[i].x -= currentPipeSpeed;
+    }
     
-    coinsRef.current = coinsRef.current.map((coin) => {
-      let newX = coin.x - currentPipeSpeed;
-      let newY = coin.y;
+    for (let i = 0; i < coinsRef.current.length; i++) {
+      const coin = coinsRef.current[i];
+      coin.x -= currentPipeSpeed;
       
       if (magnetRef.current && !coin.collected) {
         const dx = birdXRef.current - coin.x;
@@ -910,18 +910,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 200 && dist > 0) {
-          newX += (dx / dist) * 8 * deltaMultiplier;
-          newY += (dy / dist) * 8 * deltaMultiplier;
+          coin.x += (dx / dist) * 8 * deltaMultiplier;
+          coin.y += (dy / dist) * 8 * deltaMultiplier;
         }
       }
-      
-      return { ...coin, x: newX, y: newY };
-    });
+    }
     
-    powerUpsRef.current = powerUpsRef.current.map((pu) => ({
-      ...pu,
-      x: pu.x - currentPipeSpeed,
-    }));
+    for (let i = 0; i < powerUpsRef.current.length; i++) {
+      powerUpsRef.current[i].x -= currentPipeSpeed;
+    }
     
     const currentBirdX = birdXRef.current;
     const currentPipeWidth = pipeWidthRef.current;
@@ -946,16 +943,19 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       }
     }
     
-    pipesRef.current = pipesRef.current.map((pipe) => {
+    // Check pipe passing and score (mutate in place)
+    for (let i = 0; i < pipesRef.current.length; i++) {
+      const pipe = pipesRef.current[i];
       if (!pipe.passed && pipe.x + currentPipeWidth < currentBirdX) {
         scoreRef.current += 1;
+        pipe.passed = true;
         runOnJS(setScore)(scoreRef.current);
-        return { ...pipe, passed: true };
       }
-      return pipe;
-    });
+    }
     
-    coinsRef.current = coinsRef.current.map((coin) => {
+    // Check coin collection (mutate in place)
+    for (let i = 0; i < coinsRef.current.length; i++) {
+      const coin = coinsRef.current[i];
       if (!coin.collected) {
         const coinLeft = coin.x - COIN_SIZE / 2;
         const coinRight = coin.x + COIN_SIZE / 2;
@@ -970,15 +970,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         ) {
           const points = doublePointsRef.current ? coin.value * 2 : coin.value;
           scoreRef.current += points;
+          coin.collected = true;
           runOnJS(setScore)(scoreRef.current);
           runOnJS(playSound)("coin");
-          return { ...coin, collected: true };
         }
       }
-      return coin;
-    });
+    }
     
-    powerUpsRef.current = powerUpsRef.current.map((pu) => {
+    // Check powerup collection (mutate in place)
+    for (let i = 0; i < powerUpsRef.current.length; i++) {
+      const pu = powerUpsRef.current[i];
       if (!pu.collected) {
         const puLeft = pu.x - POWERUP_SIZE / 2;
         const puRight = pu.x + POWERUP_SIZE / 2;
@@ -991,26 +992,26 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           birdBottom > puTop &&
           birdTop < puBottom
         ) {
+          pu.collected = true;
           runOnJS(playSound)("powerup");
           runOnJS(activatePowerUp)(pu.type);
-          return { ...pu, collected: true };
         }
       }
-      return pu;
-    });
+    }
     
     pipesRef.current = pipesRef.current.filter((pipe) => pipe.x > -currentPipeWidth);
     coinsRef.current = coinsRef.current.filter((coin) => !coin.collected && coin.x > -COIN_SIZE);
     powerUpsRef.current = powerUpsRef.current.filter((pu) => !pu.collected && pu.x > -POWERUP_SIZE);
     
+    // Update clouds in place (mutate to avoid GC)
     if (cloudsEnabled) {
-      cloudsRef.current = cloudsRef.current.map((cloud) => ({
-        ...cloud,
-        x: cloud.x - CLOUD_SPEED * deltaMultiplier,
-      }));
+      for (let i = 0; i < cloudsRef.current.length; i++) {
+        cloudsRef.current[i].x -= CLOUD_SPEED * deltaMultiplier;
+      }
       cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
     }
     
+    // Update trail particles in place (mutate to avoid GC)
     if (trailsEnabled && TRAIL_ASSET) {
       trailSpawnCounterRef.current += deltaMultiplier;
       if (trailSpawnCounterRef.current >= TRAIL_PARTICLE_SPAWN_INTERVAL) {
@@ -1023,36 +1024,41 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           scale: 1.0,
           rotation: birdRotation.value,
         };
-        trailParticlesRef.current = [...trailParticlesRef.current, newParticle];
+        trailParticlesRef.current.push(newParticle);
         if (trailParticlesRef.current.length > maxTrailParticles) {
-          trailParticlesRef.current = trailParticlesRef.current.slice(-maxTrailParticles);
+          trailParticlesRef.current.shift();
         }
       }
       
-      trailParticlesRef.current = trailParticlesRef.current
-        .map((p) => ({
-          ...p,
-          x: p.x - currentPipeSpeed * 0.5,
-          opacity: p.opacity - TRAIL_PARTICLE_FADE_SPEED * deltaMultiplier,
-          scale: p.scale * Math.pow(0.97, deltaMultiplier),
-        }))
-        .filter((p) => p.opacity > 0);
+      // Update particles in place and track which to remove
+      let writeIdx = 0;
+      for (let i = 0; i < trailParticlesRef.current.length; i++) {
+        const p = trailParticlesRef.current[i];
+        p.x -= currentPipeSpeed * 0.5;
+        p.opacity -= TRAIL_PARTICLE_FADE_SPEED * deltaMultiplier;
+        p.scale *= Math.pow(0.97, deltaMultiplier);
+        if (p.opacity > 0) {
+          trailParticlesRef.current[writeIdx++] = p;
+        }
+      }
+      trailParticlesRef.current.length = writeIdx;
     }
     
-    // Throttle React state updates on Android (every 3rd frame) to reduce lag
+    // Throttle React state updates on Android (every 4th frame) to reduce lag
     renderFrameCounterRef.current++;
-    const updateFrequency = Platform.OS === "android" ? 3 : 1;
+    const updateFrequency = Platform.OS === "android" ? 4 : 1;
     
     if (renderFrameCounterRef.current % updateFrequency === 0) {
-      runOnJS(setPipes)([...pipesRef.current]);
-      runOnJS(setCoins)([...coinsRef.current]);
-      runOnJS(setPowerUps)([...powerUpsRef.current]);
+      // Use slice() instead of spread to create shallow copy (faster)
+      runOnJS(setPipes)(pipesRef.current.slice());
+      runOnJS(setCoins)(coinsRef.current.slice());
+      runOnJS(setPowerUps)(powerUpsRef.current.slice());
       
       if (cloudsEnabled) {
-        runOnJS(setClouds)([...cloudsRef.current]);
+        runOnJS(setClouds)(cloudsRef.current.slice());
       }
       if (trailsEnabled) {
-        runOnJS(setTrailParticles)([...trailParticlesRef.current]);
+        runOnJS(setTrailParticles)(trailParticlesRef.current.slice());
       }
     }
     
