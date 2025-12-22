@@ -444,6 +444,7 @@ export const chessTournamentParticipants = pgTable("chess_tournament_participant
   points: integer("points").notNull().default(0),
   gamesPlayed: integer("games_played").notNull().default(0),
   isEliminated: boolean("is_eliminated").notNull().default(false),
+  isBot: boolean("is_bot").notNull().default(false),
   finalPlacement: integer("final_placement"),
   prizesWon: integer("prizes_won").notNull().default(0),
   joinedAt: timestamp("joined_at").notNull().default(sql`now()`),

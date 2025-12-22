@@ -50,6 +50,87 @@ async function deductTournamentEntry(userId: string, amount: number, tournamentI
 }
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+// Bot filling for free tournaments - 10 minute wait time
+const BOT_FILL_WAIT_MS = 10 * 60 * 1000; // 10 minutes
+const BOT_NAMES = [
+  "RoachyBot_Alpha", "RoachyBot_Beta", "RoachyBot_Gamma", "RoachyBot_Delta",
+  "RoachyBot_Echo", "RoachyBot_Foxtrot", "RoachyBot_Golf", "RoachyBot_Hotel"
+];
+
+function generateBotWallet(): string {
+  const randomId = Math.random().toString(36).substring(2, 10).toUpperCase();
+  return `BOT_${randomId}`;
+}
+
+async function fillTournamentWithBots(tournamentId: string): Promise<boolean> {
+  try {
+    const tournaments = await db.select()
+      .from(chessTournaments)
+      .where(eq(chessTournaments.id, tournamentId))
+      .limit(1);
+    
+    if (tournaments.length === 0) return false;
+    const tournament = tournaments[0];
+    
+    // Only fill free Sit & Go tournaments that are still registering
+    if (tournament.entryFee > 0) return false;
+    if (tournament.tournamentType !== 'sit_and_go') return false;
+    if (tournament.status !== 'registering') return false;
+    if (tournament.currentPlayers >= tournament.maxPlayers) return false;
+    
+    // Check if 10 minutes have passed since first player joined
+    const firstParticipant = await db.select()
+      .from(chessTournamentParticipants)
+      .where(eq(chessTournamentParticipants.tournamentId, tournamentId))
+      .orderBy(asc(chessTournamentParticipants.joinedAt))
+      .limit(1);
+    
+    if (firstParticipant.length === 0) return false;
+    
+    const firstJoinTime = new Date(firstParticipant[0].joinedAt).getTime();
+    const now = Date.now();
+    
+    if (now - firstJoinTime < BOT_FILL_WAIT_MS) {
+      return false; // Not enough time has passed
+    }
+    
+    // Fill remaining slots with bots
+    const botsNeeded = tournament.maxPlayers - tournament.currentPlayers;
+    console.log(`[Tournament] Filling ${botsNeeded} bot slots for tournament ${tournamentId}`);
+    
+    for (let i = 0; i < botsNeeded; i++) {
+      const botWallet = generateBotWallet();
+      await db.insert(chessTournamentParticipants).values({
+        tournamentId,
+        walletAddress: botWallet,
+        isBot: true,
+      });
+    }
+    
+    // Update player count and start tournament
+    const participants = await db.select()
+      .from(chessTournamentParticipants)
+      .where(eq(chessTournamentParticipants.tournamentId, tournamentId));
+    
+    await db.update(chessTournaments)
+      .set({
+        currentPlayers: participants.length,
+        status: 'active',
+        currentRound: 1,
+        startedAt: new Date(),
+      })
+      .where(eq(chessTournaments.id, tournamentId));
+    
+    await generateBracket(tournamentId, participants);
+    
+    console.log(`[Tournament] Bot-filled and started tournament ${tournamentId} with ${participants.length} players`);
+    return true;
+  } catch (error) {
+    console.error(`[Tournament] Error filling bots:`, error);
+    return false;
+  }
+}
+
 function calculatePrizeDistribution(prizePool: number, playerCount: number): number[] {
   if (playerCount <= 2) return [prizePool];
   if (playerCount <= 4) return [Math.floor(prizePool * 0.7), Math.floor(prizePool * 0.3)];
@@ -187,6 +268,13 @@ export function registerTournamentRoutes(app: Express) {
       }
       
       const tournaments = await query.orderBy(asc(chessTournaments.entryFee)).limit(50);
+      
+      // Check for free tournaments that need bot-filling (async, don't block response)
+      for (const t of tournaments) {
+        if (t.entryFee === 0 && t.tournamentType === 'sit_and_go' && t.status === 'registering' && t.currentPlayers > 0 && t.currentPlayers < t.maxPlayers) {
+          fillTournamentWithBots(t.id).catch(err => console.error(`Bot fill check error for ${t.id}:`, err));
+        }
+      }
       
       res.json({ success: true, tournaments });
     } catch (error) {
