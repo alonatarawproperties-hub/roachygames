@@ -333,16 +333,17 @@ export function registerEconomyRoutes(app: Express) {
       
       console.log(`[DailyBonus] ${walletAddress} claimed day ${newStreak} bonus: ${diamondReward} diamonds${fraudFlags.length > 0 ? ` (flags: ${fraudFlags.join(", ")})` : ""}`);
       
-      let blockchainResult: { success: boolean; transactionSignature?: string } = { success: false };
+      let blockchainResult: { success: boolean; transactionSignature?: string; error?: string } = { success: false };
       try {
         blockchainResult = await distributeDailyBonus(walletAddress, diamondReward, newStreak);
         if (blockchainResult.success) {
-          console.log(`[DailyBonus] On-chain transfer successful: ${blockchainResult.transactionSignature}`);
+          console.log(`[DailyBonus] CHY distribution successful: ${blockchainResult.transactionSignature}`);
         } else {
-          console.log(`[DailyBonus] On-chain transfer failed, rewards tracked in database only`);
+          console.error(`[DailyBonus] CHY distribution failed: ${blockchainResult.error || 'Unknown error'}`);
         }
       } catch (err) {
-        console.error(`[DailyBonus] On-chain transfer error:`, err);
+        console.error(`[DailyBonus] CHY distribution error:`, err);
+        blockchainResult = { success: false, error: err instanceof Error ? err.message : 'Distribution failed' };
       }
       
       if (userId) {
@@ -369,7 +370,12 @@ export function registerEconomyRoutes(app: Express) {
         blockchain: {
           success: blockchainResult.success,
           transactionSignature: blockchainResult.transactionSignature,
+          error: blockchainResult.error,
         },
+        chyDistributed: blockchainResult.success,
+        distributionNote: blockchainResult.success 
+          ? "CHY credited to your account" 
+          : "Bonus recorded - CHY will be credited shortly",
       });
     } catch (error) {
       console.error("[DailyBonus] Error claiming bonus:", error);

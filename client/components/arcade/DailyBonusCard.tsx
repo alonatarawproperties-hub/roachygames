@@ -101,14 +101,16 @@ export function DailyBonusCard({ userId, isConnected, isGuest = false, onSignIn 
       queryClient.invalidateQueries({ queryKey: ["/api/daily-bonus", userId] });
       queryClient.invalidateQueries({ queryKey: ["/api/user", userId] });
       queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/activity`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/webapp/balances"] });
       
       const coinsAwarded = data?.coinsAwarded ?? data?.diamondsAwarded ?? 0;
       const newStreak = data?.newStreak ?? 1;
-      const totalCoins = data?.totalCoins ?? data?.totalDiamonds ?? coinsAwarded;
+      const chyDistributed = data?.chyDistributed ?? false;
+      const distributionNote = data?.distributionNote ?? "";
       
       Alert.alert(
         "Bonus Claimed!",
-        `You received ${coinsAwarded} CHY!\n\nStreak: ${newStreak} day${newStreak > 1 ? 's' : ''}\nTotal CHY: ${totalCoins}`,
+        `You earned ${coinsAwarded} CHY!\n\nStreak: ${newStreak} day${newStreak > 1 ? 's' : ''}${distributionNote ? `\n\n${distributionNote}` : ''}`,
         [{ text: "Awesome!", style: "default" }]
       );
       setClaimingDay(null);
