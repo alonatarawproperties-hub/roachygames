@@ -24,6 +24,7 @@ import {
   WebCTABanner,
 } from "@/components/arcade";
 import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
 import { GAMES_CATALOG } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius, getResponsiveSize, ResponsiveLayout } from "@/constants/theme";
@@ -1390,6 +1391,8 @@ export function ArcadeHomeScreen() {
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
+
+      <UpdateBanner visible={activeTab === "Home"} />
 
       <ArcadeHeader
         searchValue={searchQuery}
