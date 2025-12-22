@@ -623,7 +623,19 @@ export function registerChessRoutes(app: Express) {
         })
         .where(eq(chessMatches.id, matchId));
       
-      if (!gameOver && match.isAgainstBot && newTurn === 'black') {
+      // Check if it's the bot's turn to move
+      // Bot can be player1 (white) or player2 (black) - check wallet prefix
+      const player1IsBot = match.player1Wallet?.startsWith('BOT_') ?? false;
+      const player2IsBot = match.player2Wallet?.startsWith('BOT_') ?? false;
+      const botIsWhite = player1IsBot;
+      const botIsBlack = player2IsBot || (match.isAgainstBot && !player1IsBot);
+      
+      const shouldBotMove = !gameOver && match.isAgainstBot && (
+        (botIsBlack && newTurn === 'black') || 
+        (botIsWhite && newTurn === 'white')
+      );
+      
+      if (shouldBotMove) {
         const botDifficulty = (match.botDifficulty as BotDifficulty) || 'magnus';
         const botResult = await makeStockfishMove(game.fen(), botDifficulty);
         if (botResult) {
@@ -640,12 +652,15 @@ export function registerChessRoutes(app: Express) {
             const botMoveHistory = moveHistory + ',' + botMoveUci;
             
             const botThinkSeconds = Math.ceil(botResult.thinkTimeMs / 1000);
-            const botNewTime = Math.max(0, newPlayer2Time - botThinkSeconds);
+            const botPlayerIsP1 = botIsWhite;
+            const botNewTimeP1 = botPlayerIsP1 ? Math.max(0, newPlayer1Time - botThinkSeconds) : newPlayer1Time;
+            const botNewTimeP2 = !botPlayerIsP1 ? Math.max(0, newPlayer2Time - botThinkSeconds) : newPlayer2Time;
+            const botWallet = botPlayerIsP1 ? match.player1Wallet : match.player2Wallet;
             
             if (game.isGameOver()) {
               gameOver = true;
               if (game.isCheckmate()) {
-                winner = 'bot';
+                winner = botWallet ?? undefined;
                 reason = 'checkmate';
               } else if (game.isDraw()) {
                 reason = 'draw';
@@ -657,7 +672,8 @@ export function registerChessRoutes(app: Express) {
                 fen: botNewFen,
                 currentTurn: botNewTurn,
                 moveHistory: botMoveHistory,
-                player2TimeRemaining: botNewTime,
+                player1TimeRemaining: botNewTimeP1,
+                player2TimeRemaining: botNewTimeP2,
                 ...(gameOver ? {
                   status: 'completed',
                   winnerWallet: winner,

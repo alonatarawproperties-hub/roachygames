@@ -4,6 +4,55 @@ import { eq, and, lt, gte, sql, inArray, isNull } from "drizzle-orm";
 
 const TICK_INTERVAL = 15000;
 const SIT_AND_GO_MIN_POOL = 1;
+const FREE_TOURNAMENT_BOT_FILL_DELAY_MS = 10 * 60 * 1000; // 10 minutes
+
+// Human-like bot names (no obvious "bot" patterns)
+const BOT_FIRST_NAMES = [
+  'Alex', 'Jordan', 'Casey', 'Morgan', 'Riley', 'Quinn', 'Avery', 'Taylor',
+  'Jamie', 'Sage', 'Dakota', 'Phoenix', 'River', 'Skyler', 'Blake', 'Cameron',
+  'Drew', 'Finley', 'Harper', 'Logan', 'Mason', 'Noah', 'Peyton', 'Reese',
+  'Mika', 'Sasha', 'Kai', 'Remy', 'Ellis', 'Parker', 'Rowan', 'Hayden',
+  'Charlie', 'Emerson', 'Jessie', 'Kerry', 'Lee', 'Max', 'Pat', 'Sam',
+  'Toni', 'Val', 'Wren', 'Zion', 'Ari', 'Bay', 'Cody', 'Devon'
+];
+
+const BOT_LAST_NAMES = [
+  'Knight', 'Storm', 'Wolf', 'Swift', 'Stone', 'Frost', 'Blaze', 'Cross',
+  'Steel', 'Hawk', 'Fox', 'Reed', 'Nash', 'Cole', 'Grey', 'Price',
+  'Lane', 'Hayes', 'Wells', 'Hunt', 'Clay', 'Flynn', 'Ross', 'Cruz',
+  'Wade', 'Cash', 'Pike', 'Webb', 'Dunn', 'Vega', 'Chen', 'Park',
+  'Kim', 'Shah', 'Patel', 'Singh', 'Wong', 'Lee', 'Zhao', 'Kumar'
+];
+
+const BOT_SUFFIXES = ['', '', '', '', '99', '23', 'x', '_gg', '77', '88', '11', ''];
+
+function generateBotName(): string {
+  const firstName = BOT_FIRST_NAMES[Math.floor(Math.random() * BOT_FIRST_NAMES.length)];
+  const lastName = BOT_LAST_NAMES[Math.floor(Math.random() * BOT_LAST_NAMES.length)];
+  const suffix = BOT_SUFFIXES[Math.floor(Math.random() * BOT_SUFFIXES.length)];
+  
+  const formats = [
+    `${firstName}${lastName}${suffix}`,
+    `${firstName}_${lastName}${suffix}`,
+    `${firstName.toLowerCase()}${lastName.toLowerCase()}${suffix}`,
+    `${firstName}${suffix}`,
+    `${lastName}${firstName.slice(0, 1)}${suffix}`,
+  ];
+  
+  return formats[Math.floor(Math.random() * formats.length)];
+}
+
+function generateBotWallet(botName: string): string {
+  // Generate a fake wallet-like address for bots
+  const randomHex = Array.from({ length: 32 }, () => 
+    Math.floor(Math.random() * 16).toString(16)
+  ).join('');
+  return `BOT_${botName}_${randomHex.slice(0, 16)}`;
+}
+
+function isBot(walletAddress: string | null): boolean {
+  return walletAddress?.startsWith('BOT_') ?? false;
+}
 
 interface TournamentTemplate {
   name: string;
@@ -69,6 +118,7 @@ class TournamentOrchestrator {
     try {
       console.log('[TournamentOrchestrator] Tick starting...');
       await this.ensureSitAndGoPool();
+      await this.fillFreeTournamentsWithBots();
       await this.startReadyTournaments();
       await this.checkMatchCompletions();
       await this.advanceBrackets();
@@ -83,6 +133,77 @@ class TournamentOrchestrator {
       } else if (this.consecutiveErrors === 4) {
         console.error('[TournamentOrchestrator] Multiple DB errors, reducing log frequency');
       }
+    }
+  }
+
+  private async fillFreeTournamentsWithBots() {
+    const now = new Date();
+    const cutoffTime = new Date(now.getTime() - FREE_TOURNAMENT_BOT_FILL_DELAY_MS);
+
+    // Find free sit_and_go tournaments that have been registering for 10+ minutes
+    // and have at least 1 human player but are not full
+    const freeTournaments = await db
+      .select()
+      .from(chessTournaments)
+      .where(
+        and(
+          eq(chessTournaments.tournamentType, 'sit_and_go'),
+          eq(chessTournaments.status, 'registering'),
+          eq(chessTournaments.entryFee, 0)
+        )
+      );
+
+    for (const tournament of freeTournaments) {
+      // Check if tournament has been registering for at least 10 minutes
+      const createdAt = new Date(tournament.createdAt);
+      if (createdAt > cutoffTime) {
+        continue; // Not old enough yet
+      }
+
+      // Check if it has at least 1 player and is not full
+      if (tournament.currentPlayers === 0 || tournament.currentPlayers >= tournament.maxPlayers) {
+        continue; // No players or already full
+      }
+
+      // Get existing participants to avoid duplicate bot names
+      const existingParticipants = await db
+        .select()
+        .from(chessTournamentParticipants)
+        .where(eq(chessTournamentParticipants.tournamentId, tournament.id));
+
+      const existingWallets = new Set(existingParticipants.map(p => p.walletAddress));
+      const slotsToFill = tournament.maxPlayers - tournament.currentPlayers;
+
+      console.log(`[TournamentOrchestrator] Filling ${slotsToFill} slots with bots in "${tournament.name}"`);
+
+      // Add bots to fill remaining slots
+      for (let i = 0; i < slotsToFill; i++) {
+        let botName: string;
+        let botWallet: string;
+        let attempts = 0;
+
+        // Generate unique bot name/wallet
+        do {
+          botName = generateBotName();
+          botWallet = generateBotWallet(botName);
+          attempts++;
+        } while (existingWallets.has(botWallet) && attempts < 20);
+
+        existingWallets.add(botWallet);
+
+        await db.insert(chessTournamentParticipants).values({
+          tournamentId: tournament.id,
+          walletAddress: botWallet,
+        });
+      }
+
+      // Update player count
+      await db
+        .update(chessTournaments)
+        .set({ currentPlayers: tournament.maxPlayers })
+        .where(eq(chessTournaments.id, tournament.id));
+
+      console.log(`[TournamentOrchestrator] Filled "${tournament.name}" with ${slotsToFill} bots, now ready to start`);
     }
   }
 
@@ -515,6 +636,27 @@ class TournamentOrchestrator {
       return null;
     }
 
+    const player1IsBot = isBot(tourneyMatch.player1Wallet);
+    const player2IsBot = isBot(tourneyMatch.player2Wallet);
+
+    // If both players are bots, auto-resolve the match with random winner
+    if (player1IsBot && player2IsBot) {
+      const winner = Math.random() < 0.5 ? tourneyMatch.player1Wallet : tourneyMatch.player2Wallet;
+      
+      await db
+        .update(chessTournamentMatches)
+        .set({
+          status: 'completed',
+          winnerWallet: winner,
+          startedAt: new Date(),
+          endedAt: new Date(),
+        })
+        .where(eq(chessTournamentMatches.id, tourneyMatchId));
+
+      console.log(`[TournamentOrchestrator] Bot vs Bot match auto-resolved: ${winner} wins`);
+      return null; // No actual chess match needed
+    }
+
     const [tournament] = await db
       .select()
       .from(chessTournaments)
@@ -530,6 +672,7 @@ class TournamentOrchestrator {
     };
 
     const timeLimit = timeControlSeconds[tournament.timeControl] || 300;
+    const matchAgainstBot = player1IsBot || player2IsBot;
 
     const [newMatch] = await db
       .insert(chessMatches)
@@ -542,7 +685,7 @@ class TournamentOrchestrator {
         player2TimeRemaining: timeLimit,
         status: 'active',
         wagerAmount: 0,
-        isAgainstBot: false,
+        isAgainstBot: matchAgainstBot,
       })
       .returning();
 
@@ -555,7 +698,7 @@ class TournamentOrchestrator {
       })
       .where(eq(chessTournamentMatches.id, tourneyMatchId));
 
-    console.log(`[TournamentOrchestrator] Created chess match ${newMatch.id} for tournament match ${tourneyMatchId}`);
+    console.log(`[TournamentOrchestrator] Created chess match ${newMatch.id} for tournament match ${tourneyMatchId}${matchAgainstBot ? ' (vs bot)' : ''}`);
 
     return newMatch.id;
   }
