@@ -71,20 +71,7 @@
           "data": [
             {
               "scheme": "roachy-games",
-              "path": "/oauth2redirect/google"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        },
-        {
-          "action": "VIEW",
-          "data": [
-            {
-              "scheme": "roachy-games",
-              "path": "/oauth2redirect"
+              "host": "oauth2redirect"
             }
           ],
           "category": [
