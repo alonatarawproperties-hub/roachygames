@@ -1816,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   exitButton: {
     position: "absolute",
-    right: 70,
+    right: 16,
     width: 44,
     height: 44,
     borderRadius: 22,

@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   settingsButton: {
     position: "absolute",
-    top: 50,
+    top: 110,
     right: 16,
     width: 40,
     height: 40,
