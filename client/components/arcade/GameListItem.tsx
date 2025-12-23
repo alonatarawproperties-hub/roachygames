@@ -9,7 +9,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { GameEntry } from "@/constants/gamesCatalog";
+import { GameEntry, isGameLockedForPlatform, isGameComingSoonForPlatform } from "@/constants/gamesCatalog";
 
 interface GameListItemProps {
   game: GameEntry;
@@ -36,6 +36,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItemProps) {
   const scale = useSharedValue(1);
   const categoryStyle = CATEGORY_COLORS[game.category] || CATEGORY_COLORS.adventure;
+  
+  const isLocked = isGameLockedForPlatform(game);
+  const isComingSoon = isGameComingSoonForPlatform(game);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -50,7 +53,7 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
   };
 
   const handlePress = () => {
-    if (game.isLocked) {
+    if (isLocked) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -60,7 +63,7 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
 
   return (
     <AnimatedPressable
-      style={[styles.container, animatedStyle, game.isLocked && styles.locked]}
+      style={[styles.container, animatedStyle, isLocked && styles.locked]}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
@@ -76,19 +79,24 @@ export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItem
           <Feather
             name={game.iconName as any}
             size={24}
-            color={game.isLocked ? GameColors.textTertiary : categoryStyle.text}
+            color={isLocked ? GameColors.textTertiary : categoryStyle.text}
           />
         )}
-        {game.isLocked && (
+        {isLocked && (
           <View style={styles.lockBadge}>
             <Feather name="lock" size={10} color={GameColors.textSecondary} />
+          </View>
+        )}
+        {isComingSoon && (
+          <View style={styles.comingSoonBadge}>
+            <ThemedText style={styles.comingSoonText}>Soon</ThemedText>
           </View>
         )}
       </View>
 
       <View style={styles.content}>
         <ThemedText
-          style={[styles.title, game.isLocked && styles.titleLocked]}
+          style={[styles.title, isLocked && styles.titleLocked]}
           numberOfLines={1}
         >
           {game.title}
@@ -187,5 +195,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.3,
+  },
+  comingSoonBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: GameColors.gold,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  comingSoonText: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: GameColors.background,
   },
 });

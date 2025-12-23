@@ -26,7 +26,7 @@ import {
 import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
-import { GAMES_CATALOG } from "@/constants/gamesCatalog";
+import { GAMES_CATALOG, isGameLockedForPlatform } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius, getResponsiveSize, ResponsiveLayout } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
@@ -1703,7 +1703,7 @@ export function ArcadeHomeScreen() {
                 View leaderboards and achievements inside each game
               </ThemedText>
               <View style={styles.gameShortcuts}>
-                {GAMES_CATALOG.filter(g => !g.isLocked).map((game) => (
+                {GAMES_CATALOG.filter(g => !isGameLockedForPlatform(g)).map((game) => (
                   <Pressable
                     key={game.id}
                     style={styles.gameShortcut}

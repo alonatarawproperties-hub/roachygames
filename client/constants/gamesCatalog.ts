@@ -1,4 +1,4 @@
-import { ImageSourcePropType } from "react-native";
+import { ImageSourcePropType, Platform } from "react-native";
 
 const RoachyMateLogo = require("@/assets/roachy-mate-logo.png");
 const RoachyHuntLogo = require("@/assets/roachy-hunt-logo.png");
@@ -15,6 +15,7 @@ export interface GameEntry {
   routeName: string;
   isLocked: boolean;
   isComingSoon: boolean;
+  isLockedOnAndroid?: boolean;
   category: "strategy" | "battle" | "arcade" | "adventure";
   playerCount: string;
   rewards: string[];
@@ -45,6 +46,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     routeName: "FlappyRoachStack",
     isLocked: false,
     isComingSoon: false,
+    isLockedOnAndroid: true,
     category: "arcade",
     playerCount: "Solo",
     rewards: ["Coins", "High Scores", "Power-ups"],
@@ -89,4 +91,16 @@ export function getAvailableGames(): GameEntry[] {
 
 export function getComingSoonGames(): GameEntry[] {
   return GAMES_CATALOG.filter((game) => game.isComingSoon);
+}
+
+export function isGameLockedForPlatform(game: GameEntry): boolean {
+  if (game.isLocked) return true;
+  if (game.isLockedOnAndroid && Platform.OS === "android") return true;
+  return false;
+}
+
+export function isGameComingSoonForPlatform(game: GameEntry): boolean {
+  if (game.isComingSoon) return true;
+  if (game.isLockedOnAndroid && Platform.OS === "android") return true;
+  return false;
 }
