@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -22,7 +21,6 @@ import Animated, {
   withSpring,
   withSequence,
   runOnJS,
-  runOnUI,
   cancelAnimation,
   Easing,
   interpolate,
@@ -216,10 +214,9 @@ function AnimatedPipeSlot({
 const animatedPipeStyles = StyleSheet.create({
   pipe: {
     position: "absolute",
-    backgroundColor: "#73bf2e",
+    backgroundColor: "#2D5A27",
     borderWidth: 3,
-    borderColor: "#2d5016",
-    zIndex: 50,
+    borderColor: "#1E3D1B",
   },
   pipeTop: {
     top: 0,
@@ -230,22 +227,22 @@ const animatedPipeStyles = StyleSheet.create({
   },
   pipeCapTop: {
     position: "absolute",
-    bottom: -3,
+    bottom: -2,
     left: -6,
-    height: 26,
-    backgroundColor: "#73bf2e",
+    height: 30,
+    backgroundColor: "#3D7A37",
     borderWidth: 3,
-    borderColor: "#2d5016",
+    borderColor: "#1E3D1B",
     borderRadius: 4,
   },
   pipeCapBottom: {
     position: "absolute",
-    top: -3,
+    top: -2,
     left: -6,
-    height: 26,
-    backgroundColor: "#73bf2e",
+    height: 30,
+    backgroundColor: "#3D7A37",
     borderWidth: 3,
-    borderColor: "#2d5016",
+    borderColor: "#1E3D1B",
     borderRadius: 4,
   },
   pipeHighlight: {
@@ -292,100 +289,19 @@ function AnimatedCoinSlot({
 const animatedCoinStyles = StyleSheet.create({
   coin: {
     position: "absolute",
-    width: 35,
-    height: 35,
-    borderRadius: 17.5,
-    backgroundColor: "#FFD700",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GameColors.gold,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 3,
     borderColor: "#B8860B",
-    zIndex: 60,
   },
   coinText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#8B4513",
-  },
-});
-
-// Android-only animated cloud component for 60fps cloud animation
-function AnimatedCloudSlot({
-  cloudX,
-  cloudY,
-  cloudSize,
-  cloudOpacity,
-}: {
-  cloudX: Animated.SharedValue<number>;
-  cloudY: Animated.SharedValue<number>;
-  cloudSize: Animated.SharedValue<number>;
-  cloudOpacity: Animated.SharedValue<number>;
-}) {
-  const cloudStyle = useAnimatedStyle(() => {
-    const size = cloudSize.value;
-    if (size === 0 || cloudX.value < -200) {
-      return { opacity: 0, left: -1000, top: 0 };
-    }
-    return {
-      opacity: cloudOpacity.value,
-      left: cloudX.value,
-      top: cloudY.value,
-    };
-  });
-
-  const sizeStyle = useAnimatedStyle(() => {
-    const size = cloudSize.value;
-    // Size: 1=small, 2=medium, 3=large
-    const scale = size === 1 ? 0.6 : size === 2 ? 0.85 : 1.0;
-    return {
-      transform: [{ scale }],
-    };
-  });
-
-  return (
-    <Animated.View style={[animatedCloudStyles.cloud, cloudStyle, sizeStyle]}>
-      <View style={animatedCloudStyles.cloudPuff1} />
-      <View style={animatedCloudStyles.cloudPuff2} />
-      <View style={animatedCloudStyles.cloudPuff3} />
-    </Animated.View>
-  );
-}
-
-const animatedCloudStyles = StyleSheet.create({
-  cloud: {
-    position: "absolute",
-    flexDirection: "row",
-    alignItems: "center",
-    width: 120,
-    height: 60,
-    zIndex: 1,
-  },
-  cloudPuff1: {
-    position: "absolute",
-    left: 0,
-    bottom: 0,
-    width: "40%",
-    height: "60%",
-    backgroundColor: "#fff",
-    borderRadius: 100,
-  },
-  cloudPuff2: {
-    position: "absolute",
-    left: "25%",
-    bottom: 0,
-    width: "50%",
-    height: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 100,
-  },
-  cloudPuff3: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: "40%",
-    height: "70%",
-    backgroundColor: "#fff",
-    borderRadius: 100,
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#5D4300",
   },
 });
 
@@ -580,8 +496,8 @@ interface PerformanceSettings {
 }
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
-  cloudsEnabled: true, // Enable clouds on all platforms - Android uses UI thread
-  trailsEnabled: Platform.OS !== "android", // Trails still disabled on Android
+  cloudsEnabled: Platform.OS !== "android",
+  trailsEnabled: Platform.OS !== "android",
   cloudSpawnInterval: 3000,
   maxTrailParticles: 12,
 };
@@ -742,7 +658,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const cloudIdRef = useRef(0);
   
   const cloudTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const androidCollisionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const pipesRef = useRef<Pipe[]>([]);
   const coinsRef = useRef<Coin[]>([]);
@@ -817,42 +732,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const coin7X = useSharedValue(-1000);
   const coin7Y = useSharedValue(0);
   
-  // Android: Cloud shared values for 60fps cloud animation
-  const MAX_CLOUDS = 6;
-  const cloud0X = useSharedValue(-1000);
-  const cloud0Y = useSharedValue(0);
-  const cloud0Size = useSharedValue(0); // 0=hidden, 1=small, 2=medium, 3=large
-  const cloud0Opacity = useSharedValue(0);
-  const cloud1X = useSharedValue(-1000);
-  const cloud1Y = useSharedValue(0);
-  const cloud1Size = useSharedValue(0);
-  const cloud1Opacity = useSharedValue(0);
-  const cloud2X = useSharedValue(-1000);
-  const cloud2Y = useSharedValue(0);
-  const cloud2Size = useSharedValue(0);
-  const cloud2Opacity = useSharedValue(0);
-  const cloud3X = useSharedValue(-1000);
-  const cloud3Y = useSharedValue(0);
-  const cloud3Size = useSharedValue(0);
-  const cloud3Opacity = useSharedValue(0);
-  const cloud4X = useSharedValue(-1000);
-  const cloud4Y = useSharedValue(0);
-  const cloud4Size = useSharedValue(0);
-  const cloud4Opacity = useSharedValue(0);
-  const cloud5X = useSharedValue(-1000);
-  const cloud5Y = useSharedValue(0);
-  const cloud5Size = useSharedValue(0);
-  const cloud5Opacity = useSharedValue(0);
-  
   // Refs to access all shared values by index (for spawn/despawn logic)
   const pipeXSlots = useRef([pipe0X, pipe1X, pipe2X, pipe3X, pipe4X, pipe5X]);
   const pipeHSlots = useRef([pipe0H, pipe1H, pipe2H, pipe3H, pipe4H, pipe5H]);
   const coinXSlots = useRef([coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X]);
   const coinYSlots = useRef([coin0Y, coin1Y, coin2Y, coin3Y, coin4Y, coin5Y, coin6Y, coin7Y]);
-  const cloudXSlots = useRef([cloud0X, cloud1X, cloud2X, cloud3X, cloud4X, cloud5X]);
-  const cloudYSlots = useRef([cloud0Y, cloud1Y, cloud2Y, cloud3Y, cloud4Y, cloud5Y]);
-  const cloudSizeSlots = useRef([cloud0Size, cloud1Size, cloud2Size, cloud3Size, cloud4Size, cloud5Size]);
-  const cloudOpacitySlots = useRef([cloud0Opacity, cloud1Opacity, cloud2Opacity, cloud3Opacity, cloud4Opacity, cloud5Opacity]);
   
   // CRITICAL: Shared values for all game parameters - JS values get frozen in worklets!
   const pipeSpeedSV = useSharedValue(PIPE_SPEED);
@@ -968,10 +852,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (cloudTimerRef.current) {
       clearInterval(cloudTimerRef.current);
       cloudTimerRef.current = null;
-    }
-    if (androidCollisionIntervalRef.current) {
-      clearInterval(androidCollisionIntervalRef.current);
-      androidCollisionIntervalRef.current = null;
     }
     if (powerUpCountdownRef.current) {
       clearInterval(powerUpCountdownRef.current);
@@ -1208,21 +1088,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     cloudsRef.current = [...cloudsRef.current, newCloud];
-    
-    // Android: Find an empty cloud slot and set shared values for UI thread animation
-    if (isAndroid) {
-      for (let i = 0; i < MAX_CLOUDS; i++) {
-        if (cloudXSlots.current[i].value < -100) {
-          cloudXSlots.current[i].value = newCloud.x;
-          cloudYSlots.current[i].value = newCloud.y;
-          cloudSizeSlots.current[i].value = size === "small" ? 1 : size === "medium" ? 2 : 3;
-          cloudOpacitySlots.current[i].value = opacity;
-          break;
-        }
-      }
-    }
     // Don't call setClouds here - let the throttled game loop sync to React state
-  }, [isAndroid]);
+  }, []);
   
   const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
     if (gameStateRef.current !== "playing") return;
@@ -1626,138 +1493,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (coin6X.value > -100) coin6X.value -= pipeSpeed;
     if (coin7X.value > -100) coin7X.value -= pipeSpeed;
     
-    // Move clouds - 60fps cloud animation on UI thread
-    const cloudSpeed = CLOUD_SPEED * deltaMultiplier;
-    if (cloud0X.value > -200) cloud0X.value -= cloudSpeed;
-    if (cloud1X.value > -200) cloud1X.value -= cloudSpeed;
-    if (cloud2X.value > -200) cloud2X.value -= cloudSpeed;
-    if (cloud3X.value > -200) cloud3X.value -= cloudSpeed;
-    if (cloud4X.value > -200) cloud4X.value -= cloudSpeed;
-    if (cloud5X.value > -200) cloud5X.value -= cloudSpeed;
-    
-    // Note: Collision detection runs on JS thread at lower frequency (setInterval)
+    // Note: Velocity synced back to JS ref in gameLoop (less frequent, reduces JS bridge overhead)
   }, isAndroid);
-  
-  // Android: Collision detection runs at 20fps via setInterval (not requestAnimationFrame)
-  // This completely frees the JS thread from animation work - UI thread handles all 60fps rendering
-  const androidCollisionCheck = useCallback(() => {
-    if (gameStateRef.current !== "playing") return;
-    
-    // Read current bird position from shared value
-    const currentBirdY = birdY.value;
-    const currentBirdX = birdXRef.current;
-    const currentPipeWidth = pipeWidthRef.current;
-    const currentGapSize = gapSizeRef.current;
-    
-    // Bird hitbox (same as iOS for consistent gameplay)
-    const birdLeft = currentBirdX - BIRD_SIZE / 2 + 10;
-    const birdRight = currentBirdX + BIRD_SIZE / 2 - 10;
-    const birdTop = currentBirdY - BIRD_SIZE / 2 + 10;
-    const birdBottom = currentBirdY + BIRD_SIZE / 2 - 10;
-    
-    // Read pipe positions from shared values - use these directly for collision (authoritative source)
-    const pipeXVals = [pipe0X.value, pipe1X.value, pipe2X.value, pipe3X.value, pipe4X.value, pipe5X.value];
-    const pipeHVals = [pipe0H.value, pipe1H.value, pipe2H.value, pipe3H.value, pipe4H.value, pipe5H.value];
-    
-    // Sync shared values back to refs for collision detection
-    for (let i = 0; i < pipesRef.current.length && i < MAX_PIPES; i++) {
-      if (pipeXVals[i] > -200) {
-        pipesRef.current[i].x = pipeXVals[i];
-        pipesRef.current[i].topHeight = pipeHVals[i]; // Also sync topHeight!
-      }
-    }
-    
-    // Check pipe collision using shared values directly (authoritative source from UI thread)
-    if (!shieldRef.current) {
-      for (let i = 0; i < MAX_PIPES; i++) {
-        const pipeX = pipeXVals[i];
-        const pipeTopHeight = pipeHVals[i];
-        
-        // Skip inactive pipes (off-screen or not yet spawned)
-        if (pipeX < -currentPipeWidth || pipeX > gameWidthRef.current + 100) continue;
-        
-        const pipeLeft = pipeX;
-        const pipeRight = pipeX + currentPipeWidth;
-        
-        if (birdRight > pipeLeft && birdLeft < pipeRight) {
-          if (birdTop < pipeTopHeight || birdBottom > pipeTopHeight + currentGapSize) {
-            gameOver();
-            return;
-          }
-        }
-      }
-    }
-    
-    // Check pipe passing and score
-    for (let i = 0; i < pipesRef.current.length; i++) {
-      const pipe = pipesRef.current[i];
-      if (!pipe.passed && pipe.x + currentPipeWidth < currentBirdX) {
-        scoreRef.current += 1;
-        pipe.passed = true;
-        setScore(scoreRef.current);
-      }
-    }
-    
-    // Read coin positions from shared values and check collection
-    const coinXVals = [coin0X.value, coin1X.value, coin2X.value, coin3X.value, coin4X.value, coin5X.value, coin6X.value, coin7X.value];
-    const coinYVals = [coin0Y.value, coin1Y.value, coin2Y.value, coin3Y.value, coin4Y.value, coin5Y.value, coin6Y.value, coin7Y.value];
-    
-    // Check coin collection using shared values directly (authoritative source from UI thread)
-    for (let i = 0; i < MAX_COINS; i++) {
-      const coinX = coinXVals[i];
-      const coinY = coinYVals[i];
-      
-      // Skip inactive coins (off-screen or not yet spawned)
-      if (coinX < -COIN_SIZE || coinX > gameWidthRef.current + 100) continue;
-      
-      // Check if this coin slot has already been collected (using ref for tracking)
-      const coinRef = coinsRef.current.find(c => 
-        Math.abs(c.x - coinX) < 5 && Math.abs(c.y - coinY) < 5 && !c.collected
-      );
-      if (!coinRef) continue;
-      
-      const coinLeft = coinX - COIN_SIZE / 2;
-      const coinRight = coinX + COIN_SIZE / 2;
-      const coinTop = coinY - COIN_SIZE / 2;
-      const coinBottom = coinY + COIN_SIZE / 2;
-      
-      if (birdRight > coinLeft && birdLeft < coinRight && birdBottom > coinTop && birdTop < coinBottom) {
-        const points = doublePointsRef.current ? coinRef.value * 2 : coinRef.value;
-        scoreRef.current += points;
-        coinRef.collected = true;
-        // Hide coin by moving it off-screen in shared value
-        coinXSlots.current[i].value = -1000;
-        setScore(scoreRef.current);
-        playSound("coin");
-      }
-    }
-    
-    // Sync remaining coins from shared values back to refs
-    for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
-      if (coinXVals[i] > -100) {
-        coinsRef.current[i].x = coinXVals[i];
-      }
-    }
-    
-    // Clean up off-screen pipes (mutate in place)
-    let pipeWriteIdx = 0;
-    for (let i = 0; i < pipesRef.current.length; i++) {
-      if (pipesRef.current[i].x > -currentPipeWidth) {
-        pipesRef.current[pipeWriteIdx++] = pipesRef.current[i];
-      }
-    }
-    pipesRef.current.length = pipeWriteIdx;
-    
-    // Clean up collected/off-screen coins
-    let coinWriteIdx = 0;
-    for (let i = 0; i < coinsRef.current.length; i++) {
-      const coin = coinsRef.current[i];
-      if (!coin.collected && coin.x > -COIN_SIZE) {
-        coinsRef.current[coinWriteIdx++] = coin;
-      }
-    }
-    coinsRef.current.length = coinWriteIdx;
-  }, [birdY, gameOver, playSound]);
   
   const startGame = useCallback(() => {
     clearAllTimers();
@@ -1820,19 +1557,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       coin5X.value = -1000; coin5Y.value = 0;
       coin6X.value = -1000; coin6Y.value = 0;
       coin7X.value = -1000; coin7Y.value = 0;
-      // Initialize cloud shared values for 60fps cloud animation
-      for (let i = 0; i < Math.min(initialClouds.length, MAX_CLOUDS); i++) {
-        const cloud = initialClouds[i];
-        cloudXSlots.current[i].value = cloud.x;
-        cloudYSlots.current[i].value = cloud.y;
-        cloudSizeSlots.current[i].value = cloud.size === "small" ? 1 : cloud.size === "medium" ? 2 : 3;
-        cloudOpacitySlots.current[i].value = cloud.opacity;
-      }
-      // Reset remaining cloud slots
-      for (let i = initialClouds.length; i < MAX_CLOUDS; i++) {
-        cloudXSlots.current[i].value = -1000;
-        cloudSizeSlots.current[i].value = 0;
-      }
     }
     
     groundOffset.value = withRepeat(
@@ -1880,95 +1604,36 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       }
     }, 1000);
     
-    // On Android: Use UI thread for ALL animation (useFrameCallback) + setInterval for collision (50ms = 20fps)
-    // On iOS/web: Use JS thread requestAnimationFrame for everything
+    // On Android: Use UI thread for bird physics (frameCallbackActive) + JS thread for entity updates
+    // On iOS/web: Use JS thread for everything
     if (isAndroid) {
-      // CRITICAL: Initialize ALL shared values BEFORE enabling the frame callback
-      // This prevents the first-frame glitch where values jump from defaults to live values
+      frameCallbackActive.value = true;
       birdVelocitySV.value = 0;
-      birdY.value = PLAYABLE_HEIGHT / 2;
-      birdRotation.value = 0;
-      pipeSpeedSV.value = pipeSpeedRef.current;
-      playableHeightSV.value = playableHeightRef.current;
-      
-      // Delay frame callback activation by one frame to ensure shared values are committed
-      requestAnimationFrame(() => {
-        frameCallbackActive.value = true;
-      });
-      
-      // Android: Use setInterval for collision detection (50ms = 20fps) instead of requestAnimationFrame
-      // This completely frees the JS thread from animation work - only discrete collision checks
-      androidCollisionIntervalRef.current = setInterval(() => {
-        if (gameStateRef.current !== "playing") return;
-        androidCollisionCheck();
-      }, 50);
-    } else {
-      // iOS/web: Use requestAnimationFrame game loop
-      gameLoopRef.current = requestAnimationFrame(gameLoop);
+      pipeSpeedSV.value = pipeSpeedRef.current; // Sync shared value for worklet
+      playableHeightSV.value = playableHeightRef.current; // Sync for floor collision
     }
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues, androidCollisionCheck]);
+    // Always start JS game loop (needed for entity updates on all platforms)
+    gameLoopRef.current = requestAnimationFrame(gameLoop);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues]);
   
-  // Android: Fire-and-forget JS handler for side effects only (sound, game start)
-  // This runs AFTER physics is already updated in the worklet
-  const handleAndroidTapEffects = useCallback(() => {
-    if (showMenu) return;
-    
-    if (gameState === "idle") {
-      startGame();
-      playSound("jump");
-    } else if (gameState === "playing") {
-      playSound("jump");
-    } else if (gameState === "gameover") {
-      resetToIdle();
-    }
-  }, [gameState, startGame, playSound, showMenu, resetToIdle]);
-
-  // iOS: Full JS handler (physics + effects)
-  const handleIOSTap = useCallback(() => {
+  const jump = useCallback(() => {
     if (showMenu) return;
     
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
-      birdRotation.value = -20;
+      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
+      birdRotation.value = withTiming(-20, { duration: 100 });
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
-      birdRotation.value = -20;
+      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
+      birdRotation.value = withTiming(-20, { duration: 100 });
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle]);
-
-  // Web fallback: Regular press handler
-  const jumpWeb = useCallback(() => {
-    handleIOSTap();
-  }, [handleIOSTap]);
-
-  // Native: UI-thread tap gesture for zero-latency response
-  // onStart fires immediately on touch-down, directly on UI thread - no JS bridge delay
-  const tapGesture = useMemo(() => 
-    Gesture.Tap()
-      .onStart(() => {
-        'worklet';
-        // Android: Update shared values directly on UI thread for instant visual response
-        // Physics happens HERE - no waiting for JS
-        if (isAndroid) {
-          birdVelocitySV.value = JUMP_STRENGTH;
-          birdRotation.value = -20;
-        }
-        // Fire-and-forget: Queue JS side effects (sound, game state) - don't wait for response
-        // Android uses handleAndroidTapEffects (no physics, just effects)
-        // iOS uses handleIOSTap (physics + effects since iOS runs on JS thread anyway)
-        if (isAndroid) {
-          runOnJS(handleAndroidTapEffects)();
-        } else {
-          runOnJS(handleIOSTap)();
-        }
-      }),
-    [isAndroid, birdVelocitySV, birdRotation, handleAndroidTapEffects, handleIOSTap]
-  );
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, birdVelocitySV]);
   
   useEffect(() => {
     return () => {
@@ -2054,22 +1719,32 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     return <GameLoadingSplash progress={loadProgress} />;
   }
   
-  // Game content wrapped by either GestureDetector (native) or Pressable (web)
-  const gameContent = (
-    <>
+  return (
+    <View style={styles.container} onLayout={handleLayout}>
+      <Pressable style={styles.gameArea} onPress={jump}>
         <View style={styles.sky} />
+        
+        {clouds.map((cloud) => (
+          <View
+            key={cloud.id}
+            style={[
+              styles.cloud,
+              cloud.size === "small" && styles.cloudSmall,
+              cloud.size === "medium" && styles.cloudMedium,
+              cloud.size === "large" && styles.cloudLarge,
+              { left: cloud.x, top: cloud.y, opacity: cloud.opacity },
+            ]}
+          >
+            <View style={styles.cloudPuff1} />
+            <View style={styles.cloudPuff2} />
+            <View style={styles.cloudPuff3} />
+          </View>
+        ))}
         
         {/* Android: Use slot-based animated components with individual shared values (zero GC) */}
         {/* iOS/Web: Use React state-based rendering */}
         {isAndroid ? (
           <>
-            {/* Cloud slots - 60fps clouds on UI thread */}
-            <AnimatedCloudSlot cloudX={cloud0X} cloudY={cloud0Y} cloudSize={cloud0Size} cloudOpacity={cloud0Opacity} />
-            <AnimatedCloudSlot cloudX={cloud1X} cloudY={cloud1Y} cloudSize={cloud1Size} cloudOpacity={cloud1Opacity} />
-            <AnimatedCloudSlot cloudX={cloud2X} cloudY={cloud2Y} cloudSize={cloud2Size} cloudOpacity={cloud2Opacity} />
-            <AnimatedCloudSlot cloudX={cloud3X} cloudY={cloud3Y} cloudSize={cloud3Size} cloudOpacity={cloud3Opacity} />
-            <AnimatedCloudSlot cloudX={cloud4X} cloudY={cloud4Y} cloudSize={cloud4Size} cloudOpacity={cloud4Opacity} />
-            <AnimatedCloudSlot cloudX={cloud5X} cloudY={cloud5Y} cloudSize={cloud5Size} cloudOpacity={cloud5Opacity} />
             {/* Pipe slots - each reads from its own individual shared value */}
             <AnimatedPipeSlot pipeX={pipe0X} pipeTopHeight={pipe0H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
             <AnimatedPipeSlot pipeX={pipe1X} pipeTopHeight={pipe1H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
@@ -2089,23 +1764,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           </>
         ) : (
           <>
-            {/* iOS/Web: Clouds use React state */}
-            {clouds.map((cloud) => (
-              <View
-                key={cloud.id}
-                style={[
-                  styles.cloud,
-                  cloud.size === "small" && styles.cloudSmall,
-                  cloud.size === "medium" && styles.cloudMedium,
-                  cloud.size === "large" && styles.cloudLarge,
-                  { left: cloud.x, top: cloud.y, opacity: cloud.opacity },
-                ]}
-              >
-                <View style={styles.cloudPuff1} />
-                <View style={styles.cloudPuff2} />
-                <View style={styles.cloudPuff3} />
-              </View>
-            ))}
             {pipes.map((pipe) => (
               <React.Fragment key={pipe.id}>
                 <View
@@ -2289,22 +1947,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
             </View>
           </View>
         )}
-    </>
-  );
-  
-  return (
-    <View style={styles.container} onLayout={handleLayout}>
-      {Platform.OS === "web" ? (
-        <Pressable style={styles.gameArea} onPress={jumpWeb}>
-          {gameContent}
-        </Pressable>
-      ) : (
-        <GestureDetector gesture={tapGesture}>
-          <Animated.View style={styles.gameArea}>
-            {gameContent}
-          </Animated.View>
-        </GestureDetector>
-      )}
+      </Pressable>
       
       <ExitButton style={[styles.exitButton, { top: insets.top + 10 }]} onPress={onExit} />
       
