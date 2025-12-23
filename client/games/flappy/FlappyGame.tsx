@@ -217,6 +217,7 @@ const animatedPipeStyles = StyleSheet.create({
     backgroundColor: "#2D5A27",
     borderWidth: 3,
     borderColor: "#1E3D1B",
+    zIndex: 50,
   },
   pipeTop: {
     top: 0,
@@ -302,6 +303,84 @@ const animatedCoinStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     color: "#5D4300",
+  },
+});
+
+// Android-only animated cloud component for 60fps cloud animation
+function AnimatedCloudSlot({ 
+  cloudX, 
+  cloudY,
+  cloudSize,
+  cloudOpacity,
+}: { 
+  cloudX: Animated.SharedValue<number>; 
+  cloudY: Animated.SharedValue<number>;
+  cloudSize: Animated.SharedValue<number>;
+  cloudOpacity: Animated.SharedValue<number>;
+}) {
+  const cloudStyle = useAnimatedStyle(() => {
+    const x = cloudX.value;
+    if (x < -200) {
+      return { opacity: 0, left: -1000, top: 0, width: 0, height: 0 };
+    }
+    const size = cloudSize.value;
+    const dimensions = size === 0 ? { width: 50, height: 25 } : size === 1 ? { width: 80, height: 40 } : { width: 120, height: 50 };
+    return {
+      opacity: cloudOpacity.value,
+      left: x,
+      top: cloudY.value,
+      width: dimensions.width,
+      height: dimensions.height,
+    };
+  });
+  
+  const puff1Style = useAnimatedStyle(() => {
+    const size = cloudSize.value;
+    const puffSize = size === 0 ? 18 : size === 1 ? 28 : 36;
+    return { width: puffSize, height: puffSize, borderRadius: puffSize / 2 };
+  });
+  
+  const puff2Style = useAnimatedStyle(() => {
+    const size = cloudSize.value;
+    const puffSize = size === 0 ? 22 : size === 1 ? 36 : 44;
+    return { width: puffSize, height: puffSize, borderRadius: puffSize / 2 };
+  });
+  
+  const puff3Style = useAnimatedStyle(() => {
+    const size = cloudSize.value;
+    const puffSize = size === 0 ? 16 : size === 1 ? 24 : 32;
+    return { width: puffSize, height: puffSize, borderRadius: puffSize / 2 };
+  });
+  
+  return (
+    <Animated.View style={[animatedCloudStyles.cloud, cloudStyle]}>
+      <Animated.View style={[animatedCloudStyles.puff, animatedCloudStyles.puff1, puff1Style]} />
+      <Animated.View style={[animatedCloudStyles.puff, animatedCloudStyles.puff2, puff2Style]} />
+      <Animated.View style={[animatedCloudStyles.puff, animatedCloudStyles.puff3, puff3Style]} />
+    </Animated.View>
+  );
+}
+
+const animatedCloudStyles = StyleSheet.create({
+  cloud: {
+    position: "absolute",
+    zIndex: 5,
+  },
+  puff: {
+    position: "absolute",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+  puff1: {
+    left: 0,
+    bottom: 0,
+  },
+  puff2: {
+    left: "30%",
+    bottom: "20%",
+  },
+  puff3: {
+    right: 0,
+    bottom: 0,
   },
 });
 
@@ -732,11 +811,42 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const coin7X = useSharedValue(-1000);
   const coin7Y = useSharedValue(0);
   
+  // Individual shared values per cloud slot (for 60fps cloud animation on Android)
+  const MAX_CLOUDS = 6;
+  const cloud0X = useSharedValue(-1000);
+  const cloud0Y = useSharedValue(0);
+  const cloud0Size = useSharedValue(0); // 0=small, 1=medium, 2=large
+  const cloud0Opacity = useSharedValue(0);
+  const cloud1X = useSharedValue(-1000);
+  const cloud1Y = useSharedValue(0);
+  const cloud1Size = useSharedValue(0);
+  const cloud1Opacity = useSharedValue(0);
+  const cloud2X = useSharedValue(-1000);
+  const cloud2Y = useSharedValue(0);
+  const cloud2Size = useSharedValue(0);
+  const cloud2Opacity = useSharedValue(0);
+  const cloud3X = useSharedValue(-1000);
+  const cloud3Y = useSharedValue(0);
+  const cloud3Size = useSharedValue(0);
+  const cloud3Opacity = useSharedValue(0);
+  const cloud4X = useSharedValue(-1000);
+  const cloud4Y = useSharedValue(0);
+  const cloud4Size = useSharedValue(0);
+  const cloud4Opacity = useSharedValue(0);
+  const cloud5X = useSharedValue(-1000);
+  const cloud5Y = useSharedValue(0);
+  const cloud5Size = useSharedValue(0);
+  const cloud5Opacity = useSharedValue(0);
+  
   // Refs to access all shared values by index (for spawn/despawn logic)
   const pipeXSlots = useRef([pipe0X, pipe1X, pipe2X, pipe3X, pipe4X, pipe5X]);
   const pipeHSlots = useRef([pipe0H, pipe1H, pipe2H, pipe3H, pipe4H, pipe5H]);
   const coinXSlots = useRef([coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X]);
   const coinYSlots = useRef([coin0Y, coin1Y, coin2Y, coin3Y, coin4Y, coin5Y, coin6Y, coin7Y]);
+  const cloudXSlots = useRef([cloud0X, cloud1X, cloud2X, cloud3X, cloud4X, cloud5X]);
+  const cloudYSlots = useRef([cloud0Y, cloud1Y, cloud2Y, cloud3Y, cloud4Y, cloud5Y]);
+  const cloudSizeSlots = useRef([cloud0Size, cloud1Size, cloud2Size, cloud3Size, cloud4Size, cloud5Size]);
+  const cloudOpacitySlots = useRef([cloud0Opacity, cloud1Opacity, cloud2Opacity, cloud3Opacity, cloud4Opacity, cloud5Opacity]);
   
   // CRITICAL: Shared values for all game parameters - JS values get frozen in worklets!
   const pipeSpeedSV = useSharedValue(PIPE_SPEED);
@@ -1078,18 +1188,33 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     const maxY = playableHeightRef.current * 0.5;
     const y = Math.floor(Math.random() * (maxY - minY)) + minY;
     const opacity = 0.4 + Math.random() * 0.4;
+    const x = gameWidthRef.current + 100;
     
     const newCloud: Cloud = {
       id: cloudIdRef.current++,
-      x: gameWidthRef.current + 100,
+      x,
       y,
       size,
       opacity,
     };
     
     cloudsRef.current = [...cloudsRef.current, newCloud];
+    
+    // Android: Find empty slot and set individual shared values for 60fps animation
+    if (isAndroid) {
+      const slots = cloudXSlots.current;
+      for (let i = 0; i < MAX_CLOUDS; i++) {
+        if (slots[i].value < -150) {
+          slots[i].value = x;
+          cloudYSlots.current[i].value = y;
+          cloudSizeSlots.current[i].value = size === "small" ? 0 : size === "medium" ? 1 : 2;
+          cloudOpacitySlots.current[i].value = opacity;
+          break;
+        }
+      }
+    }
     // Don't call setClouds here - let the throttled game loop sync to React state
-  }, []);
+  }, [isAndroid]);
   
   const activatePowerUp = useCallback((type: "shield" | "double" | "magnet") => {
     if (gameStateRef.current !== "playing") return;
@@ -1493,6 +1618,35 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (coin6X.value > -100) coin6X.value -= pipeSpeed;
     if (coin7X.value > -100) coin7X.value -= pipeSpeed;
     
+    // Move clouds - 60fps cloud animation on UI thread (CLOUD_SPEED = 1.5)
+    const cloudSpeed = 1.5 * deltaMultiplier;
+    
+    // Move and despawn clouds - reset all shared values when cloud goes off-screen
+    if (cloud0X.value > -200) {
+      cloud0X.value -= cloudSpeed;
+      if (cloud0X.value <= -200) { cloud0X.value = -1000; cloud0Opacity.value = 0; }
+    }
+    if (cloud1X.value > -200) {
+      cloud1X.value -= cloudSpeed;
+      if (cloud1X.value <= -200) { cloud1X.value = -1000; cloud1Opacity.value = 0; }
+    }
+    if (cloud2X.value > -200) {
+      cloud2X.value -= cloudSpeed;
+      if (cloud2X.value <= -200) { cloud2X.value = -1000; cloud2Opacity.value = 0; }
+    }
+    if (cloud3X.value > -200) {
+      cloud3X.value -= cloudSpeed;
+      if (cloud3X.value <= -200) { cloud3X.value = -1000; cloud3Opacity.value = 0; }
+    }
+    if (cloud4X.value > -200) {
+      cloud4X.value -= cloudSpeed;
+      if (cloud4X.value <= -200) { cloud4X.value = -1000; cloud4Opacity.value = 0; }
+    }
+    if (cloud5X.value > -200) {
+      cloud5X.value -= cloudSpeed;
+      if (cloud5X.value <= -200) { cloud5X.value = -1000; cloud5Opacity.value = 0; }
+    }
+    
     // Note: Velocity synced back to JS ref in gameLoop (less frequent, reduces JS bridge overhead)
   }, isAndroid);
   
@@ -1516,15 +1670,35 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (cloudsEnabled) {
       for (let i = 0; i < 4; i++) {
         const sizes: Array<"small" | "medium" | "large"> = ["small", "medium", "large"];
+        const sizeVal = sizes[Math.floor(Math.random() * sizes.length)];
+        const x = Math.random() * gameWidthRef.current;
+        const y = 60 + Math.random() * (playableHeightRef.current * 0.4);
+        const opacity = 0.4 + Math.random() * 0.4;
         initialClouds.push({
           id: cloudIdRef.current++,
-          x: Math.random() * gameWidthRef.current,
-          y: 60 + Math.random() * (playableHeightRef.current * 0.4),
-          size: sizes[Math.floor(Math.random() * sizes.length)],
-          opacity: 0.4 + Math.random() * 0.4,
+          x,
+          y,
+          size: sizeVal,
+          opacity,
         });
+        
+        // Android: Initialize cloud shared values for 60fps animation
+        if (isAndroid && i < MAX_CLOUDS) {
+          cloudXSlots.current[i].value = x;
+          cloudYSlots.current[i].value = y;
+          cloudSizeSlots.current[i].value = sizeVal === "small" ? 0 : sizeVal === "medium" ? 1 : 2;
+          cloudOpacitySlots.current[i].value = opacity;
+        }
       }
     }
+    
+    // Android: Reset remaining cloud slots
+    if (isAndroid) {
+      for (let i = initialClouds.length; i < MAX_CLOUDS; i++) {
+        cloudXSlots.current[i].value = -1000;
+      }
+    }
+    
     cloudsRef.current = initialClouds;
     
     setPipes([]);
@@ -1724,22 +1898,34 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       <Pressable style={styles.gameArea} onPress={jump}>
         <View style={styles.sky} />
         
-        {clouds.map((cloud) => (
-          <View
-            key={cloud.id}
-            style={[
-              styles.cloud,
-              cloud.size === "small" && styles.cloudSmall,
-              cloud.size === "medium" && styles.cloudMedium,
-              cloud.size === "large" && styles.cloudLarge,
-              { left: cloud.x, top: cloud.y, opacity: cloud.opacity },
-            ]}
-          >
-            <View style={styles.cloudPuff1} />
-            <View style={styles.cloudPuff2} />
-            <View style={styles.cloudPuff3} />
-          </View>
-        ))}
+        {/* Clouds - Android uses AnimatedCloudSlot for 60fps, iOS/Web uses React state */}
+        {isAndroid ? (
+          <>
+            <AnimatedCloudSlot cloudX={cloud0X} cloudY={cloud0Y} cloudSize={cloud0Size} cloudOpacity={cloud0Opacity} />
+            <AnimatedCloudSlot cloudX={cloud1X} cloudY={cloud1Y} cloudSize={cloud1Size} cloudOpacity={cloud1Opacity} />
+            <AnimatedCloudSlot cloudX={cloud2X} cloudY={cloud2Y} cloudSize={cloud2Size} cloudOpacity={cloud2Opacity} />
+            <AnimatedCloudSlot cloudX={cloud3X} cloudY={cloud3Y} cloudSize={cloud3Size} cloudOpacity={cloud3Opacity} />
+            <AnimatedCloudSlot cloudX={cloud4X} cloudY={cloud4Y} cloudSize={cloud4Size} cloudOpacity={cloud4Opacity} />
+            <AnimatedCloudSlot cloudX={cloud5X} cloudY={cloud5Y} cloudSize={cloud5Size} cloudOpacity={cloud5Opacity} />
+          </>
+        ) : (
+          clouds.map((cloud) => (
+            <View
+              key={cloud.id}
+              style={[
+                styles.cloud,
+                cloud.size === "small" && styles.cloudSmall,
+                cloud.size === "medium" && styles.cloudMedium,
+                cloud.size === "large" && styles.cloudLarge,
+                { left: cloud.x, top: cloud.y, opacity: cloud.opacity },
+              ]}
+            >
+              <View style={styles.cloudPuff1} />
+              <View style={styles.cloudPuff2} />
+              <View style={styles.cloudPuff3} />
+            </View>
+          ))
+        )}
         
         {/* Android: Use slot-based animated components with individual shared values (zero GC) */}
         {/* iOS/Web: Use React state-based rendering */}
