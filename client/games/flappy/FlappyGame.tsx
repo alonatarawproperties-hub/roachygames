@@ -1885,13 +1885,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
-      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
-      birdRotation.value = withTiming(-20, { duration: 100 });
+      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH;
+      // Immediate rotation for responsive feel (same as iOS)
+      birdRotation.value = -20;
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
-      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
-      birdRotation.value = withTiming(-20, { duration: 100 });
+      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH;
+      // Immediate rotation for responsive feel (same as iOS)
+      birdRotation.value = -20;
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
