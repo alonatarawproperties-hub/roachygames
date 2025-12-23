@@ -24,6 +24,7 @@ import Animated, {
   cancelAnimation,
   Easing,
   interpolate,
+  useFrameCallback,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { FlappyMenuSheet } from "./FlappyMenuSheet";
@@ -483,7 +484,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   }, []);
   
   const birdY = useSharedValue(PLAYABLE_HEIGHT / 2);
-  const birdVelocity = useRef(0);
+  const birdVelocitySV = useSharedValue(0); // Shared value for UI thread access
+  const birdVelocity = useRef(0); // Keep ref for JS thread compatibility
   const birdRotation = useSharedValue(0);
   const groundOffset = useSharedValue(0);
   const wingOpacity = useSharedValue(1);
@@ -541,6 +543,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const renderFrameCounterRef = useRef(0);
   const { cloudsEnabled, trailsEnabled, cloudSpawnInterval, maxTrailParticles } = performanceSettings;
   
+  // Android performance: Use shared values for pipe positions to enable UI thread animation
+  const isAndroid = Platform.OS === "android";
+  const MAX_PIPES = 6;
+  const MAX_COINS = 8;
+  const pipePositionsX = useSharedValue<number[]>(new Array(MAX_PIPES).fill(-1000));
+  const pipePositionsTopHeight = useSharedValue<number[]>(new Array(MAX_PIPES).fill(0));
+  const coinPositionsX = useSharedValue<number[]>(new Array(MAX_COINS).fill(-1000));
+  const coinPositionsY = useSharedValue<number[]>(new Array(MAX_COINS).fill(0));
+  const frameCallbackActive = useSharedValue(false);
+  
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
       switch (type) {
@@ -561,6 +573,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   }, []);
   
   const clearAllTimers = useCallback(() => {
+    // Deactivate UI thread frame callback (Android)
+    frameCallbackActive.value = false;
+    
     if (gameLoopRef.current) {
       cancelAnimationFrame(gameLoopRef.current);
       gameLoopRef.current = null;
@@ -872,25 +887,29 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     // Cap at 5 to prevent teleporting on extreme lag spikes
     const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, Platform.OS === "android" ? 5 : 3);
     
-    birdVelocity.current += GRAVITY * deltaMultiplier;
-    if (birdVelocity.current > MAX_FALL_SPEED) {
-      birdVelocity.current = MAX_FALL_SPEED;
-    }
-    
-    const newY = birdY.value + birdVelocity.current;
-    birdY.value = newY;
-    
-    const targetRotation = Math.min(Math.max(birdVelocity.current * 3, -20), 70);
-    birdRotation.value = withTiming(targetRotation, { duration: 80 });
-    
-    if (newY <= BIRD_SIZE / 2) {
-      birdY.value = BIRD_SIZE / 2;
-      birdVelocity.current = 0;
-    }
-    
-    if (!shieldRef.current && newY >= playableHeightRef.current - BIRD_SIZE / 2) {
-      runOnJS(gameOver)();
-      return;
+    // On Android, bird physics are handled by UI thread (useFrameCallback)
+    // On iOS/web, handle bird physics here on JS thread
+    if (!isAndroid) {
+      birdVelocity.current += GRAVITY * deltaMultiplier;
+      if (birdVelocity.current > MAX_FALL_SPEED) {
+        birdVelocity.current = MAX_FALL_SPEED;
+      }
+      
+      const newY = birdY.value + birdVelocity.current;
+      birdY.value = newY;
+      
+      const targetRotation = Math.min(Math.max(birdVelocity.current * 3, -20), 70);
+      birdRotation.value = withTiming(targetRotation, { duration: 80 });
+      
+      if (newY <= BIRD_SIZE / 2) {
+        birdY.value = BIRD_SIZE / 2;
+        birdVelocity.current = 0;
+      }
+      
+      if (!shieldRef.current && newY >= playableHeightRef.current - BIRD_SIZE / 2) {
+        runOnJS(gameOver)();
+        return;
+      }
     }
     
     const currentPipeSpeed = pipeSpeedRef.current * deltaMultiplier;
@@ -1063,7 +1082,50 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles, isAndroid]);
+  
+  // Sync velocity from shared value to ref (for JS-side logic like collisions)
+  const syncVelocityToRef = useCallback((velocity: number) => {
+    birdVelocity.current = velocity;
+  }, []);
+  
+  // Android UI thread frame callback - ONLY handles bird physics using shared values
+  // Entity updates still happen on JS thread via requestAnimationFrame (but throttled)
+  useFrameCallback((frameInfo) => {
+    'worklet';
+    if (!frameCallbackActive.value) return;
+    
+    const deltaTime = frameInfo.timeSincePreviousFrame ?? 16.67;
+    const deltaMultiplier = Math.min(deltaTime / 16.67, 5);
+    
+    // Update bird physics on UI thread using shared values
+    birdVelocitySV.value += GRAVITY * deltaMultiplier;
+    if (birdVelocitySV.value > MAX_FALL_SPEED) {
+      birdVelocitySV.value = MAX_FALL_SPEED;
+    }
+    
+    const newY = birdY.value + birdVelocitySV.value;
+    birdY.value = newY;
+    
+    // Direct rotation update (no withTiming for performance)
+    const targetRotation = Math.min(Math.max(birdVelocitySV.value * 3, -20), 70);
+    birdRotation.value = targetRotation;
+    
+    // Ceiling check
+    if (newY <= BIRD_SIZE / 2) {
+      birdY.value = BIRD_SIZE / 2;
+      birdVelocitySV.value = 0;
+    }
+    
+    // Sync velocity back to JS ref for collision/entity logic (every frame for accuracy)
+    runOnJS(syncVelocityToRef)(birdVelocitySV.value);
+    
+    // Floor collision - handled via JS callback
+    if (newY >= PLAYABLE_HEIGHT - BIRD_SIZE / 2) {
+      frameCallbackActive.value = false;
+      runOnJS(gameOver)();
+    }
+  }, isAndroid);
   
   const startGame = useCallback(() => {
     clearAllTimers();
@@ -1154,8 +1216,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       }
     }, 1000);
     
+    // On Android: Use UI thread for bird physics (frameCallbackActive) + JS thread for entity updates
+    // On iOS/web: Use JS thread for everything
+    if (isAndroid) {
+      frameCallbackActive.value = true;
+      birdVelocitySV.value = 0;
+    }
+    // Always start JS game loop (needed for entity updates on all platforms)
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive]);
   
   const jump = useCallback(() => {
     if (showMenu) return;
@@ -1163,16 +1232,18 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
+      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
       birdRotation.value = withTiming(-20, { duration: 100 });
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
+      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
       birdRotation.value = withTiming(-20, { duration: 100 });
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, birdVelocitySV]);
   
   useEffect(() => {
     return () => {
