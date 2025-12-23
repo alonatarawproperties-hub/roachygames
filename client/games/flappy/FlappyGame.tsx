@@ -21,6 +21,7 @@ import Animated, {
   withSpring,
   withSequence,
   runOnJS,
+  runOnUI,
   cancelAnimation,
   Easing,
   interpolate,
@@ -1879,26 +1880,39 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
   }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues, androidCollisionCheck]);
   
+  // Android: Direct UI thread update for zero-latency jump response
+  const jumpOnUIThread = useCallback(() => {
+    'worklet';
+    birdVelocitySV.value = JUMP_STRENGTH;
+    birdRotation.value = -20;
+  }, [birdVelocitySV, birdRotation]);
+  
   const jump = useCallback(() => {
     if (showMenu) return;
     
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
-      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH;
-      // Immediate rotation for responsive feel (same as iOS)
-      birdRotation.value = -20;
+      // Android: Run on UI thread for instant response (no JS-to-UI handoff delay)
+      if (isAndroid) {
+        runOnUI(jumpOnUIThread)();
+      } else {
+        birdRotation.value = -20;
+      }
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
-      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH;
-      // Immediate rotation for responsive feel (same as iOS)
-      birdRotation.value = -20;
+      // Android: Run on UI thread for instant response (no JS-to-UI handoff delay)
+      if (isAndroid) {
+        runOnUI(jumpOnUIThread)();
+      } else {
+        birdRotation.value = -20;
+      }
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, birdVelocitySV]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, jumpOnUIThread]);
   
   useEffect(() => {
     return () => {
@@ -1986,7 +2000,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      <Pressable style={styles.gameArea} onPress={jump}>
+      <Pressable style={styles.gameArea} onPressIn={jump}>
         <View style={styles.sky} />
         
         {/* Android: Use slot-based animated components with individual shared values (zero GC) */}
