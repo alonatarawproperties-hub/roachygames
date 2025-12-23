@@ -1392,11 +1392,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     renderFrameCounterRef.current++;
     
     if (isAndroid) {
-      // Android: Pipes/coins render from shared values (no React state updates needed)
-      // Only update powerups via React state (infrequent, few items)
-      if (renderFrameCounterRef.current % 6 === 0) {
-        runOnJS(setPowerUps)(powerUpsRef.current.slice());
-      }
+      // Android: ZERO React state updates during gameplay!
+      // All rendering driven by shared values (pipe0X, coin0X, etc.)
+      // PowerUps handled separately via refs, not rendered via React state
     } else {
       // iOS/Web: Standard React state updates every frame
       runOnJS(setPipes)(pipesRef.current.slice());
