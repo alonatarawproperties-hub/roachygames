@@ -1655,7 +1655,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     const birdTop = currentBirdY - BIRD_SIZE / 2 + 10;
     const birdBottom = currentBirdY + BIRD_SIZE / 2 - 10;
     
-    // Read pipe positions from shared values
+    // Read pipe positions from shared values - use these directly for collision (authoritative source)
     const pipeXVals = [pipe0X.value, pipe1X.value, pipe2X.value, pipe3X.value, pipe4X.value, pipe5X.value];
     const pipeHVals = [pipe0H.value, pipe1H.value, pipe2H.value, pipe3H.value, pipe4H.value, pipe5H.value];
     
@@ -1663,18 +1663,24 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     for (let i = 0; i < pipesRef.current.length && i < MAX_PIPES; i++) {
       if (pipeXVals[i] > -200) {
         pipesRef.current[i].x = pipeXVals[i];
+        pipesRef.current[i].topHeight = pipeHVals[i]; // Also sync topHeight!
       }
     }
     
-    // Check pipe collision (same logic as iOS)
+    // Check pipe collision using shared values directly (authoritative source from UI thread)
     if (!shieldRef.current) {
-      for (let i = 0; i < pipesRef.current.length; i++) {
-        const pipe = pipesRef.current[i];
-        const pipeLeft = pipe.x;
-        const pipeRight = pipe.x + currentPipeWidth;
+      for (let i = 0; i < MAX_PIPES; i++) {
+        const pipeX = pipeXVals[i];
+        const pipeTopHeight = pipeHVals[i];
+        
+        // Skip inactive pipes (off-screen or not yet spawned)
+        if (pipeX < -currentPipeWidth || pipeX > gameWidthRef.current + 100) continue;
+        
+        const pipeLeft = pipeX;
+        const pipeRight = pipeX + currentPipeWidth;
         
         if (birdRight > pipeLeft && birdLeft < pipeRight) {
-          if (birdTop < pipe.topHeight || birdBottom > pipe.topHeight + currentGapSize) {
+          if (birdTop < pipeTopHeight || birdBottom > pipeTopHeight + currentGapSize) {
             gameOver();
             return;
           }
@@ -1696,28 +1702,40 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     const coinXVals = [coin0X.value, coin1X.value, coin2X.value, coin3X.value, coin4X.value, coin5X.value, coin6X.value, coin7X.value];
     const coinYVals = [coin0Y.value, coin1Y.value, coin2Y.value, coin3Y.value, coin4Y.value, coin5Y.value, coin6Y.value, coin7Y.value];
     
-    for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
-      const coin = coinsRef.current[i];
-      if (coin.collected) continue;
+    // Check coin collection using shared values directly (authoritative source from UI thread)
+    for (let i = 0; i < MAX_COINS; i++) {
+      const coinX = coinXVals[i];
+      const coinY = coinYVals[i];
       
-      // Update position from shared value
-      if (coinXVals[i] > -100) {
-        coin.x = coinXVals[i];
-      }
+      // Skip inactive coins (off-screen or not yet spawned)
+      if (coinX < -COIN_SIZE || coinX > gameWidthRef.current + 100) continue;
       
-      const coinLeft = coin.x - COIN_SIZE / 2;
-      const coinRight = coin.x + COIN_SIZE / 2;
-      const coinTop = coin.y - COIN_SIZE / 2;
-      const coinBottom = coin.y + COIN_SIZE / 2;
+      // Check if this coin slot has already been collected (using ref for tracking)
+      const coinRef = coinsRef.current.find(c => 
+        Math.abs(c.x - coinX) < 5 && Math.abs(c.y - coinY) < 5 && !c.collected
+      );
+      if (!coinRef) continue;
+      
+      const coinLeft = coinX - COIN_SIZE / 2;
+      const coinRight = coinX + COIN_SIZE / 2;
+      const coinTop = coinY - COIN_SIZE / 2;
+      const coinBottom = coinY + COIN_SIZE / 2;
       
       if (birdRight > coinLeft && birdLeft < coinRight && birdBottom > coinTop && birdTop < coinBottom) {
-        const points = doublePointsRef.current ? coin.value * 2 : coin.value;
+        const points = doublePointsRef.current ? coinRef.value * 2 : coinRef.value;
         scoreRef.current += points;
-        coin.collected = true;
+        coinRef.collected = true;
         // Hide coin by moving it off-screen in shared value
         coinXSlots.current[i].value = -1000;
         setScore(scoreRef.current);
         playSound("coin");
+      }
+    }
+    
+    // Sync remaining coins from shared values back to refs
+    for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
+      if (coinXVals[i] > -100) {
+        coinsRef.current[i].x = coinXVals[i];
       }
     }
     
