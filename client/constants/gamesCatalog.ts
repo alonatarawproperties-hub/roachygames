@@ -46,7 +46,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     routeName: "FlappyRoachStack",
     isLocked: false,
     isComingSoon: false,
-    isLockedOnAndroid: true,
+    isLockedOnAndroid: false,
     category: "arcade",
     playerCount: "Solo",
     rewards: ["Coins", "High Scores", "Power-ups"],
