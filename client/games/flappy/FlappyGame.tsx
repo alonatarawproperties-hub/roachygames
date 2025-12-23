@@ -1145,9 +1145,28 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
   }, []);
   
+  // Android frame throttle counter - runs collision detection at ~20fps instead of 60fps
+  const androidFrameSkipRef = useRef(0);
+  const ANDROID_FRAME_SKIP = 3; // Run every 3rd frame = ~20fps collision detection
+  
   const gameLoop = useCallback((timestamp: number) => {
     if (gameStateRef.current !== "playing") return;
     
+    // Android: Skip frames to reduce JS thread load
+    // UI thread (useFrameCallback) handles smooth 60fps rendering
+    // JS thread only needs to run collision detection at ~20fps
+    if (isAndroid) {
+      androidFrameSkipRef.current++;
+      if (androidFrameSkipRef.current < ANDROID_FRAME_SKIP) {
+        // Schedule next frame but skip expensive collision work
+        // DON'T update lastFrameTimeRef here - let delta accumulate
+        gameLoopRef.current = requestAnimationFrame(gameLoop);
+        return;
+      }
+      androidFrameSkipRef.current = 0;
+    }
+    
+    // Calculate delta time from last PROCESSED frame (not skipped frame)
     if (lastFrameTimeRef.current === 0) {
       lastFrameTimeRef.current = timestamp;
     }
@@ -1491,6 +1510,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     magnetRef.current = false;
     lastFrameTimeRef.current = 0;
     renderFrameCounterRef.current = 0;
+    androidFrameSkipRef.current = 0;
     
     const initialClouds: Cloud[] = [];
     if (cloudsEnabled) {
