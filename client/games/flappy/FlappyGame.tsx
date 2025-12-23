@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -1880,39 +1881,49 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
   }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues, androidCollisionCheck]);
   
-  // Android: Direct UI thread update for zero-latency jump response
-  const jumpOnUIThread = useCallback(() => {
-    'worklet';
-    birdVelocitySV.value = JUMP_STRENGTH;
-    birdRotation.value = -20;
-  }, [birdVelocitySV, birdRotation]);
-  
-  const jump = useCallback(() => {
+  // JS thread jump handler (called from worklet via runOnJS)
+  const handleJumpJS = useCallback(() => {
     if (showMenu) return;
     
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
-      // Android: Run on UI thread for instant response (no JS-to-UI handoff delay)
-      if (isAndroid) {
-        runOnUI(jumpOnUIThread)();
-      } else {
+      if (!isAndroid) {
         birdRotation.value = -20;
       }
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
-      // Android: Run on UI thread for instant response (no JS-to-UI handoff delay)
-      if (isAndroid) {
-        runOnUI(jumpOnUIThread)();
-      } else {
+      if (!isAndroid) {
         birdRotation.value = -20;
       }
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, jumpOnUIThread]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid]);
+
+  // Web fallback: Regular press handler
+  const jumpWeb = useCallback(() => {
+    handleJumpJS();
+  }, [handleJumpJS]);
+
+  // Native: UI-thread tap gesture for zero-latency response
+  // onStart fires immediately on touch-down, directly on UI thread - no JS bridge delay
+  const tapGesture = useMemo(() => 
+    Gesture.Tap()
+      .onStart(() => {
+        'worklet';
+        // Android: Update shared values directly on UI thread for instant visual response
+        if (isAndroid) {
+          birdVelocitySV.value = JUMP_STRENGTH;
+          birdRotation.value = -20;
+        }
+        // Call JS thread for game state management, sound, etc.
+        runOnJS(handleJumpJS)();
+      }),
+    [isAndroid, birdVelocitySV, birdRotation, handleJumpJS]
+  );
   
   useEffect(() => {
     return () => {
@@ -1998,9 +2009,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     return <GameLoadingSplash progress={loadProgress} />;
   }
   
-  return (
-    <View style={styles.container} onLayout={handleLayout}>
-      <Pressable style={styles.gameArea} onPressIn={jump}>
+  // Game content wrapped by either GestureDetector (native) or Pressable (web)
+  const gameContent = (
+    <>
         <View style={styles.sky} />
         
         {/* Android: Use slot-based animated components with individual shared values (zero GC) */}
@@ -2233,7 +2244,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
             </View>
           </View>
         )}
-      </Pressable>
+    </>
+  );
+  
+  return (
+    <View style={styles.container} onLayout={handleLayout}>
+      {Platform.OS === "web" ? (
+        <Pressable style={styles.gameArea} onPress={jumpWeb}>
+          {gameContent}
+        </Pressable>
+      ) : (
+        <GestureDetector gesture={tapGesture}>
+          <Animated.View style={styles.gameArea}>
+            {gameContent}
+          </Animated.View>
+        </GestureDetector>
+      )}
       
       <ExitButton style={[styles.exitButton, { top: insets.top + 10 }]} onPress={onExit} />
       
