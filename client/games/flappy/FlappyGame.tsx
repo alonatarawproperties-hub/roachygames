@@ -153,6 +153,172 @@ const powerUpIndicatorStyles = StyleSheet.create({
   },
 });
 
+// Android-only animated pipe component that reads from shared values (no React state)
+function AnimatedPipe({ 
+  index, 
+  pipeX, 
+  pipeTopHeight, 
+  pipeWidth, 
+  gapSize, 
+  playableHeight 
+}: { 
+  index: number; 
+  pipeX: Animated.SharedValue<number[]>; 
+  pipeTopHeight: Animated.SharedValue<number[]>; 
+  pipeWidth: number; 
+  gapSize: number; 
+  playableHeight: number;
+}) {
+  const topPipeStyle = useAnimatedStyle(() => {
+    const x = pipeX.value[index];
+    const topHeight = pipeTopHeight.value[index];
+    // Hide if off-screen (x < -100)
+    if (x < -100) {
+      return { opacity: 0, left: -1000, height: 0, width: pipeWidth };
+    }
+    return {
+      opacity: 1,
+      left: x,
+      height: topHeight,
+      width: pipeWidth,
+    };
+  });
+  
+  const bottomPipeStyle = useAnimatedStyle(() => {
+    const x = pipeX.value[index];
+    const topHeight = pipeTopHeight.value[index];
+    if (x < -100) {
+      return { opacity: 0, left: -1000, top: 0, height: 0, width: pipeWidth };
+    }
+    return {
+      opacity: 1,
+      left: x,
+      top: topHeight + gapSize,
+      height: playableHeight - topHeight - gapSize,
+      width: pipeWidth,
+    };
+  });
+  
+  return (
+    <>
+      <Animated.View style={[animatedPipeStyles.pipe, animatedPipeStyles.pipeTop, topPipeStyle]}>
+        <View style={[animatedPipeStyles.pipeCapTop, { width: pipeWidth + 12 }]} />
+        <View style={animatedPipeStyles.pipeHighlight} />
+      </Animated.View>
+      <Animated.View style={[animatedPipeStyles.pipe, animatedPipeStyles.pipeBottom, bottomPipeStyle]}>
+        <View style={[animatedPipeStyles.pipeCapBottom, { width: pipeWidth + 12 }]} />
+        <View style={animatedPipeStyles.pipeHighlight} />
+      </Animated.View>
+    </>
+  );
+}
+
+const animatedPipeStyles = StyleSheet.create({
+  pipe: {
+    position: "absolute",
+    backgroundColor: "#2D5A27",
+    borderWidth: 3,
+    borderColor: "#1E3D1B",
+  },
+  pipeTop: {
+    top: 0,
+    borderTopWidth: 0,
+  },
+  pipeBottom: {
+    borderBottomWidth: 0,
+  },
+  pipeCapTop: {
+    position: "absolute",
+    bottom: -2,
+    left: -6,
+    height: 30,
+    backgroundColor: "#3D7A37",
+    borderWidth: 3,
+    borderColor: "#1E3D1B",
+    borderRadius: 4,
+  },
+  pipeCapBottom: {
+    position: "absolute",
+    top: -2,
+    left: -6,
+    height: 30,
+    backgroundColor: "#3D7A37",
+    borderWidth: 3,
+    borderColor: "#1E3D1B",
+    borderRadius: 4,
+  },
+  pipeHighlight: {
+    position: "absolute",
+    left: 4,
+    top: 0,
+    bottom: 0,
+    width: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 4,
+  },
+});
+
+// Android-only animated coin component that reads from shared values (no React state)
+function AnimatedCoin({ 
+  index, 
+  coinX, 
+  coinY, 
+  coinValues,
+  coinSize 
+}: { 
+  index: number; 
+  coinX: Animated.SharedValue<number[]>; 
+  coinY: Animated.SharedValue<number[]>;
+  coinValues: Animated.SharedValue<number[]>;
+  coinSize: number;
+}) {
+  const coinStyle = useAnimatedStyle(() => {
+    const x = coinX.value[index];
+    const y = coinY.value[index];
+    if (x < -100) {
+      return { opacity: 0, left: -1000, top: 0 };
+    }
+    return {
+      opacity: 1,
+      left: x - coinSize / 2,
+      top: y - coinSize / 2,
+    };
+  });
+  
+  // We need a way to show coin value - use a shared value
+  const valueStyle = useAnimatedStyle(() => {
+    const val = coinValues.value[index];
+    return { opacity: val > 0 ? 1 : 0 };
+  });
+  
+  return (
+    <Animated.View style={[animatedCoinStyles.coin, coinStyle]}>
+      <Animated.View style={valueStyle}>
+        <ThemedText style={animatedCoinStyles.coinText}>1</ThemedText>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+const animatedCoinStyles = StyleSheet.create({
+  coin: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GameColors.gold,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#B8860B",
+  },
+  coinText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#5D4300",
+  },
+});
+
 function GameLoadingSplash({ progress }: { progress: number }) {
   const bobY = useSharedValue(0);
   const rotation = useSharedValue(-5);
@@ -551,7 +717,51 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const pipePositionsTopHeight = useSharedValue<number[]>(new Array(MAX_PIPES).fill(0));
   const coinPositionsX = useSharedValue<number[]>(new Array(MAX_COINS).fill(-1000));
   const coinPositionsY = useSharedValue<number[]>(new Array(MAX_COINS).fill(0));
+  const coinValues = useSharedValue<number[]>(new Array(MAX_COINS).fill(0));
   const frameCallbackActive = useSharedValue(false);
+  
+  // Sync refs to shared values for Android rendering (called from game loop)
+  // This runs on JS thread and updates shared values which trigger UI thread animations
+  const syncEntitiesToSharedValues = useCallback(() => {
+    // Sync pipes - reuse arrays to reduce GC
+    const pipeLen = Math.min(pipesRef.current.length, MAX_PIPES);
+    const newPipeX: number[] = [];
+    const newPipeTopHeight: number[] = [];
+    for (let i = 0; i < MAX_PIPES; i++) {
+      if (i < pipeLen) {
+        newPipeX.push(pipesRef.current[i].x);
+        newPipeTopHeight.push(pipesRef.current[i].topHeight);
+      } else {
+        newPipeX.push(-1000);
+        newPipeTopHeight.push(0);
+      }
+    }
+    pipePositionsX.value = newPipeX;
+    pipePositionsTopHeight.value = newPipeTopHeight;
+    
+    // Sync coins
+    const newCoinX: number[] = [];
+    const newCoinY: number[] = [];
+    const newCoinVals: number[] = [];
+    let coinIdx = 0;
+    for (let i = 0; i < coinsRef.current.length && coinIdx < MAX_COINS; i++) {
+      if (!coinsRef.current[i].collected) {
+        newCoinX.push(coinsRef.current[i].x);
+        newCoinY.push(coinsRef.current[i].y);
+        newCoinVals.push(coinsRef.current[i].value);
+        coinIdx++;
+      }
+    }
+    // Fill remaining slots
+    while (newCoinX.length < MAX_COINS) {
+      newCoinX.push(-1000);
+      newCoinY.push(0);
+      newCoinVals.push(0);
+    }
+    coinPositionsX.value = newCoinX;
+    coinPositionsY.value = newCoinY;
+    coinValues.value = newCoinVals;
+  }, [pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues]);
   
   const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
     if (Platform.OS !== "web") {
@@ -656,13 +866,20 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     setDoublePointsActive(false);
     setMagnetActive(false);
     
+    // Reset shared values for Android animated rendering
+    pipePositionsX.value = new Array(MAX_PIPES).fill(-1000);
+    pipePositionsTopHeight.value = new Array(MAX_PIPES).fill(0);
+    coinPositionsX.value = new Array(MAX_COINS).fill(-1000);
+    coinPositionsY.value = new Array(MAX_COINS).fill(0);
+    coinValues.value = new Array(MAX_COINS).fill(0);
+    
     birdY.value = playableHeightRef.current / 2;
     birdVelocity.current = 0;
     birdRotation.value = 0;
     
     gameStateRef.current = "idle";
     setGameState("idle");
-  }, [clearAllTimers, birdY, birdRotation]);
+  }, [clearAllTimers, birdY, birdRotation, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues]);
   
   const showGameOverScreen = useCallback(() => {
     gameStateRef.current = "gameover";
@@ -1093,21 +1310,24 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       trailParticlesRef.current.length = writeIdx;
     }
     
-    // Throttle React state updates on Android (every 6th frame) to reduce lag
-    // On Android, we update less frequently to reduce GC pressure
+    // Android: Sync to shared values for UI thread rendering (no React state updates for pipes/coins)
+    // iOS/Web: Use React state updates as before
     renderFrameCounterRef.current++;
-    const updateFrequency = isAndroid ? 6 : 1;
     
-    if (renderFrameCounterRef.current % updateFrequency === 0) {
-      // Create shallow copies for React state (required for re-render)
-      // On Android, we batch these updates together to reduce bridge calls
-      const pipesCopy = pipesRef.current.slice();
-      const coinsCopy = coinsRef.current.slice();
-      const powerUpsCopy = powerUpsRef.current.slice();
+    if (isAndroid) {
+      // Android: Sync entity positions to shared values every frame for smooth animation
+      // This avoids React re-renders entirely for pipes and coins
+      syncEntitiesToSharedValues();
       
-      runOnJS(setPipes)(pipesCopy);
-      runOnJS(setCoins)(coinsCopy);
-      runOnJS(setPowerUps)(powerUpsCopy);
+      // Only update powerups via React state (infrequent, few items)
+      if (renderFrameCounterRef.current % 6 === 0) {
+        runOnJS(setPowerUps)(powerUpsRef.current.slice());
+      }
+    } else {
+      // iOS/Web: Standard React state updates every frame
+      runOnJS(setPipes)(pipesRef.current.slice());
+      runOnJS(setCoins)(coinsRef.current.slice());
+      runOnJS(setPowerUps)(powerUpsRef.current.slice());
       
       if (cloudsEnabled) {
         runOnJS(setClouds)(cloudsRef.current.slice());
@@ -1118,7 +1338,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles, isAndroid]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles, isAndroid, syncEntitiesToSharedValues]);
   
   // Sync velocity from shared value to ref (for JS-side logic like collisions)
   const syncVelocityToRef = useCallback((velocity: number) => {
@@ -1387,47 +1607,76 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           </View>
         ))}
         
-        {pipes.map((pipe) => (
-          <React.Fragment key={pipe.id}>
-            <View
-              style={[
-                styles.pipe,
-                styles.pipeTop,
-                { left: pipe.x, height: pipe.topHeight, width: PIPE_WIDTH },
-              ]}
-            >
-              <View style={[styles.pipeCapTop, { width: PIPE_WIDTH + 12 }]} />
-              <View style={styles.pipeHighlight} />
-            </View>
-            <View
-              style={[
-                styles.pipe,
-                styles.pipeBottom,
-                {
-                  left: pipe.x,
-                  top: pipe.topHeight + GAP_SIZE,
-                  height: PLAYABLE_HEIGHT - pipe.topHeight - GAP_SIZE,
-                  width: PIPE_WIDTH,
-                },
-              ]}
-            >
-              <View style={[styles.pipeCapBottom, { width: PIPE_WIDTH + 12 }]} />
-              <View style={styles.pipeHighlight} />
-            </View>
-          </React.Fragment>
-        ))}
-        
-        {coins.map((coin) => (
-          <View
-            key={coin.id}
-            style={[
-              styles.coin,
-              { left: coin.x - COIN_SIZE / 2, top: coin.y - COIN_SIZE / 2 },
-            ]}
-          >
-            <ThemedText style={styles.coinText}>{coin.value}</ThemedText>
-          </View>
-        ))}
+        {/* Android: Use animated components that read from shared values for smooth rendering */}
+        {/* iOS/Web: Use React state-based rendering */}
+        {isAndroid ? (
+          <>
+            {Array.from({ length: MAX_PIPES }).map((_, i) => (
+              <AnimatedPipe
+                key={`pipe-${i}`}
+                index={i}
+                pipeX={pipePositionsX}
+                pipeTopHeight={pipePositionsTopHeight}
+                pipeWidth={PIPE_WIDTH}
+                gapSize={GAP_SIZE}
+                playableHeight={PLAYABLE_HEIGHT}
+              />
+            ))}
+            {Array.from({ length: MAX_COINS }).map((_, i) => (
+              <AnimatedCoin
+                key={`coin-${i}`}
+                index={i}
+                coinX={coinPositionsX}
+                coinY={coinPositionsY}
+                coinValues={coinValues}
+                coinSize={COIN_SIZE}
+              />
+            ))}
+          </>
+        ) : (
+          <>
+            {pipes.map((pipe) => (
+              <React.Fragment key={pipe.id}>
+                <View
+                  style={[
+                    styles.pipe,
+                    styles.pipeTop,
+                    { left: pipe.x, height: pipe.topHeight, width: PIPE_WIDTH },
+                  ]}
+                >
+                  <View style={[styles.pipeCapTop, { width: PIPE_WIDTH + 12 }]} />
+                  <View style={styles.pipeHighlight} />
+                </View>
+                <View
+                  style={[
+                    styles.pipe,
+                    styles.pipeBottom,
+                    {
+                      left: pipe.x,
+                      top: pipe.topHeight + GAP_SIZE,
+                      height: PLAYABLE_HEIGHT - pipe.topHeight - GAP_SIZE,
+                      width: PIPE_WIDTH,
+                    },
+                  ]}
+                >
+                  <View style={[styles.pipeCapBottom, { width: PIPE_WIDTH + 12 }]} />
+                  <View style={styles.pipeHighlight} />
+                </View>
+              </React.Fragment>
+            ))}
+            {coins.map((coin) => (
+              <View
+                key={coin.id}
+                style={[
+                  styles.coin,
+                  { left: coin.x - COIN_SIZE / 2, top: coin.y - COIN_SIZE / 2 },
+                ]}
+              >
+                <ThemedText style={styles.coinText}>{coin.value}</ThemedText>
+              </View>
+            ))}
+          </>
+        )}
         
         {powerUps.map((pu) => (
           <View
