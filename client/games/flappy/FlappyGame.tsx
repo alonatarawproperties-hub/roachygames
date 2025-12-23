@@ -1018,16 +1018,46 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       }
     }
     
-    pipesRef.current = pipesRef.current.filter((pipe) => pipe.x > -currentPipeWidth);
-    coinsRef.current = coinsRef.current.filter((coin) => !coin.collected && coin.x > -COIN_SIZE);
-    powerUpsRef.current = powerUpsRef.current.filter((pu) => !pu.collected && pu.x > -POWERUP_SIZE);
+    // In-place array compaction to avoid GC (no filter() allocations)
+    let pipeWriteIdx = 0;
+    for (let i = 0; i < pipesRef.current.length; i++) {
+      if (pipesRef.current[i].x > -currentPipeWidth) {
+        pipesRef.current[pipeWriteIdx++] = pipesRef.current[i];
+      }
+    }
+    pipesRef.current.length = pipeWriteIdx;
+    
+    let coinWriteIdx = 0;
+    for (let i = 0; i < coinsRef.current.length; i++) {
+      const coin = coinsRef.current[i];
+      if (!coin.collected && coin.x > -COIN_SIZE) {
+        coinsRef.current[coinWriteIdx++] = coin;
+      }
+    }
+    coinsRef.current.length = coinWriteIdx;
+    
+    let puWriteIdx = 0;
+    for (let i = 0; i < powerUpsRef.current.length; i++) {
+      const pu = powerUpsRef.current[i];
+      if (!pu.collected && pu.x > -POWERUP_SIZE) {
+        powerUpsRef.current[puWriteIdx++] = pu;
+      }
+    }
+    powerUpsRef.current.length = puWriteIdx;
     
     // Update clouds in place (mutate to avoid GC)
     if (cloudsEnabled) {
       for (let i = 0; i < cloudsRef.current.length; i++) {
         cloudsRef.current[i].x -= CLOUD_SPEED * deltaMultiplier;
       }
-      cloudsRef.current = cloudsRef.current.filter((cloud) => cloud.x > -200);
+      // In-place compaction for clouds too
+      let cloudWriteIdx = 0;
+      for (let i = 0; i < cloudsRef.current.length; i++) {
+        if (cloudsRef.current[i].x > -200) {
+          cloudsRef.current[cloudWriteIdx++] = cloudsRef.current[i];
+        }
+      }
+      cloudsRef.current.length = cloudWriteIdx;
     }
     
     // Update trail particles in place (mutate to avoid GC)
@@ -1063,15 +1093,21 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       trailParticlesRef.current.length = writeIdx;
     }
     
-    // Throttle React state updates on Android (every 4th frame) to reduce lag
+    // Throttle React state updates on Android (every 6th frame) to reduce lag
+    // On Android, we update less frequently to reduce GC pressure
     renderFrameCounterRef.current++;
-    const updateFrequency = Platform.OS === "android" ? 4 : 1;
+    const updateFrequency = isAndroid ? 6 : 1;
     
     if (renderFrameCounterRef.current % updateFrequency === 0) {
-      // Use slice() instead of spread to create shallow copy (faster)
-      runOnJS(setPipes)(pipesRef.current.slice());
-      runOnJS(setCoins)(coinsRef.current.slice());
-      runOnJS(setPowerUps)(powerUpsRef.current.slice());
+      // Create shallow copies for React state (required for re-render)
+      // On Android, we batch these updates together to reduce bridge calls
+      const pipesCopy = pipesRef.current.slice();
+      const coinsCopy = coinsRef.current.slice();
+      const powerUpsCopy = powerUpsRef.current.slice();
+      
+      runOnJS(setPipes)(pipesCopy);
+      runOnJS(setCoins)(coinsCopy);
+      runOnJS(setPowerUps)(powerUpsCopy);
       
       if (cloudsEnabled) {
         runOnJS(setClouds)(cloudsRef.current.slice());
