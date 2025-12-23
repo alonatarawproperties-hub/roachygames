@@ -1,11 +1,11 @@
 {
-  "id": "fd90550a-d9d0-476f-9cf9-6ad444fb3142",
-  "createdAt": "2025-12-20T16:00:50.847Z",
+  "id": "cf9bd27a-72be-4db4-8b75-d229c8a5e52d",
+  "createdAt": "2025-12-23T05:16:54.966Z",
   "runtimeVersion": "1.0.0",
   "launchAsset": {
-    "key": "bundle-1766246450847-71114",
+    "key": "bundle-1766467014966-5902",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1766246450847-71114/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1766467014966-5902/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -41,14 +41,6 @@
           "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
           "NSLocationAlwaysAndWhenInUseUsageDescription": "Roachy Hunt needs your location to spawn Roachies around you even when the app is in the background.",
           "ITSAppUsesNonExemptEncryption": false,
-          "LSApplicationQueriesSchemes": [
-            "phantom",
-            "solflare",
-            "backpack",
-            "metamask",
-            "trust",
-            "rainbow"
-          ],
           "CFBundleURLTypes": [
             {
               "CFBundleURLSchemes": [
@@ -62,7 +54,7 @@
         "adaptiveIcon": {
           "backgroundColor": "#120a05",
           "foregroundImage": "./assets/images/icon.png",
-          "foregroundImageUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png"
+          "foregroundImageUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png"
         },
         "package": "com.cryptocreatures.app",
         "permissions": [
@@ -82,6 +74,32 @@
                 "scheme": "https",
                 "host": "roachy.games",
                 "pathPrefix": "/app"
+              }
+            ],
+            "category": [
+              "BROWSABLE",
+              "DEFAULT"
+            ]
+          },
+          {
+            "action": "VIEW",
+            "data": [
+              {
+                "scheme": "roachy-games",
+                "host": "oauth2redirect"
+              }
+            ],
+            "category": [
+              "BROWSABLE",
+              "DEFAULT"
+            ]
+          },
+          {
+            "action": "VIEW",
+            "data": [
+              {
+                "scheme": "com.googleusercontent.apps.433710630203-6sf1rqe7cmo6jtmvskngjitv9h3679gh",
+                "pathPrefix": "/oauth2redirect"
               }
             ],
             "category": [
@@ -126,8 +144,7 @@
       "extra": {
         "eas": {
           "projectId": "b771b4a4-642a-40c9-98e4-f7af33384b5d"
-        },
-        "walletConnectProjectId": "${EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID}"
+        }
       },
       "owner": "roachygames",
       "_internal": {
@@ -172,12 +189,12 @@
       "androidStatusBar": {
         "backgroundColor": "#120a05"
       },
-      "iconUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png",
+      "iconUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png",
       "hostUri": "893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/ios"
     },
     "expoGo": {
       "__flipperHack": "React Native packager is running"
     },
-    "scopeKey": "@anonymous/roachy-games-1b38a58d-345d-44fa-8cf9-796a4dd4de62"
+    "scopeKey": "@anonymous/roachy-games-405b32c1-ea5b-443d-bb2b-895e83e2554e"
   }
 }

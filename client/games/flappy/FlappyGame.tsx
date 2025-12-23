@@ -973,8 +973,25 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     pipesRef.current = [...pipesRef.current, newPipe];
-    // Don't call setPipes here - let the throttled game loop sync to React state
-  }, []);
+    
+    // Android: Also add to shared values for UI thread rendering
+    if (isAndroid) {
+      // Find first empty slot in shared values
+      const currentX = pipePositionsX.value;
+      const currentH = pipePositionsTopHeight.value;
+      const newX = [...currentX];
+      const newH = [...currentH];
+      for (let i = 0; i < MAX_PIPES; i++) {
+        if (currentX[i] < -100) {
+          newX[i] = gameWidthRef.current;
+          newH[i] = topHeight;
+          break;
+        }
+      }
+      pipePositionsX.value = newX;
+      pipePositionsTopHeight.value = newH;
+    }
+  }, [isAndroid, pipePositionsX, pipePositionsTopHeight]);
   
   const spawnCoin = useCallback(() => {
     if (gameStateRef.current !== "playing") return;
@@ -993,8 +1010,28 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     coinsRef.current = [...coinsRef.current, newCoin];
-    // Don't call setCoins here - let the throttled game loop sync to React state
-  }, []);
+    
+    // Android: Also add to shared values for UI thread rendering
+    if (isAndroid) {
+      const currentX = coinPositionsX.value;
+      const currentY = coinPositionsY.value;
+      const currentV = coinValues.value;
+      const newX = [...currentX];
+      const newY = [...currentY];
+      const newV = [...currentV];
+      for (let i = 0; i < MAX_COINS; i++) {
+        if (currentX[i] < -100) {
+          newX[i] = gameWidthRef.current;
+          newY[i] = y;
+          newV[i] = value;
+          break;
+        }
+      }
+      coinPositionsX.value = newX;
+      coinPositionsY.value = newY;
+      coinValues.value = newV;
+    }
+  }, [isAndroid, coinPositionsX, coinPositionsY, coinValues]);
   
   const spawnPowerUp = useCallback(() => {
     if (gameStateRef.current !== "playing") return;
@@ -1131,29 +1168,52 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     const currentPipeSpeed = pipeSpeedRef.current * deltaMultiplier;
     
-    // Mutate in place to avoid garbage collection (major Android perf fix)
-    for (let i = 0; i < pipesRef.current.length; i++) {
-      pipesRef.current[i].x -= currentPipeSpeed;
-    }
-    
-    for (let i = 0; i < coinsRef.current.length; i++) {
-      const coin = coinsRef.current[i];
-      coin.x -= currentPipeSpeed;
+    // On Android, entity movement is handled by UI thread (useFrameCallback)
+    // On iOS/web, move entities here on JS thread
+    if (!isAndroid) {
+      // Mutate in place to avoid garbage collection
+      for (let i = 0; i < pipesRef.current.length; i++) {
+        pipesRef.current[i].x -= currentPipeSpeed;
+      }
       
-      if (magnetRef.current && !coin.collected) {
-        const dx = birdXRef.current - coin.x;
-        const dy = birdY.value - coin.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+      for (let i = 0; i < coinsRef.current.length; i++) {
+        const coin = coinsRef.current[i];
+        coin.x -= currentPipeSpeed;
         
-        if (dist < 200 && dist > 0) {
-          coin.x += (dx / dist) * 8 * deltaMultiplier;
-          coin.y += (dy / dist) * 8 * deltaMultiplier;
+        if (magnetRef.current && !coin.collected) {
+          const dx = birdXRef.current - coin.x;
+          const dy = birdY.value - coin.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < 200 && dist > 0) {
+            coin.x += (dx / dist) * 8 * deltaMultiplier;
+            coin.y += (dy / dist) * 8 * deltaMultiplier;
+          }
         }
       }
-    }
-    
-    for (let i = 0; i < powerUpsRef.current.length; i++) {
-      powerUpsRef.current[i].x -= currentPipeSpeed;
+      
+      for (let i = 0; i < powerUpsRef.current.length; i++) {
+        powerUpsRef.current[i].x -= currentPipeSpeed;
+      }
+    } else {
+      // Android: Sync positions from shared values back to refs for collision detection
+      const svPipeX = pipePositionsX.value;
+      const svPipeH = pipePositionsTopHeight.value;
+      const svCoinX = coinPositionsX.value;
+      const svCoinY = coinPositionsY.value;
+      
+      // Update refs from shared values for collision checks
+      for (let i = 0; i < pipesRef.current.length && i < MAX_PIPES; i++) {
+        if (svPipeX[i] > -200) {
+          pipesRef.current[i].x = svPipeX[i];
+        }
+      }
+      for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
+        if (svCoinX[i] > -200) {
+          coinsRef.current[i].x = svCoinX[i];
+          coinsRef.current[i].y = svCoinY[i];
+        }
+      }
     }
     
     const currentBirdX = birdXRef.current;
@@ -1310,15 +1370,12 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       trailParticlesRef.current.length = writeIdx;
     }
     
-    // Android: Sync to shared values for UI thread rendering (no React state updates for pipes/coins)
+    // Android: Entity positions are updated on UI thread via useFrameCallback
     // iOS/Web: Use React state updates as before
     renderFrameCounterRef.current++;
     
     if (isAndroid) {
-      // Android: Sync entity positions to shared values every frame for smooth animation
-      // This avoids React re-renders entirely for pipes and coins
-      syncEntitiesToSharedValues();
-      
+      // Android: Pipes/coins render from shared values (no React state updates needed)
       // Only update powerups via React state (infrequent, few items)
       if (renderFrameCounterRef.current % 6 === 0) {
         runOnJS(setPowerUps)(powerUpsRef.current.slice());
@@ -1338,15 +1395,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles, isAndroid, syncEntitiesToSharedValues]);
+  }, [birdY, birdRotation, gameOver, playSound, activatePowerUp, TRAIL_ASSET, cloudsEnabled, trailsEnabled, maxTrailParticles, isAndroid, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY]);
   
   // Sync velocity from shared value to ref (for JS-side logic like collisions)
   const syncVelocityToRef = useCallback((velocity: number) => {
     birdVelocity.current = velocity;
   }, []);
   
-  // Android UI thread frame callback - ONLY handles bird physics using shared values
-  // Entity updates still happen on JS thread via requestAnimationFrame (but throttled)
+  // Android UI thread frame callback - handles ALL physics on UI thread
+  // This is critical for smooth 60fps on Android - JS thread cannot keep up
   useFrameCallback((frameInfo) => {
     'worklet';
     if (!frameCallbackActive.value) return;
@@ -1373,14 +1430,60 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       birdVelocitySV.value = 0;
     }
     
-    // Sync velocity back to JS ref for collision/entity logic (every frame for accuracy)
-    runOnJS(syncVelocityToRef)(birdVelocitySV.value);
-    
-    // Floor collision - handled via JS callback
+    // Floor collision
     if (newY >= PLAYABLE_HEIGHT - BIRD_SIZE / 2) {
       frameCallbackActive.value = false;
       runOnJS(gameOver)();
+      return;
     }
+    
+    // === MOVE PIPE AND COIN POSITIONS ON UI THREAD ===
+    // This is the key to smooth animation - update shared values directly in worklet
+    const pipeSpeed = pipeSpeedRef.current * deltaMultiplier;
+    const currentPipeX = pipePositionsX.value;
+    const currentPipeTopH = pipePositionsTopHeight.value;
+    const newPipeX: number[] = [];
+    const newPipeTopH: number[] = [];
+    
+    for (let i = 0; i < MAX_PIPES; i++) {
+      const x = currentPipeX[i];
+      if (x > -200) {
+        newPipeX.push(x - pipeSpeed);
+        newPipeTopH.push(currentPipeTopH[i]);
+      } else {
+        newPipeX.push(-1000);
+        newPipeTopH.push(0);
+      }
+    }
+    pipePositionsX.value = newPipeX;
+    pipePositionsTopHeight.value = newPipeTopH;
+    
+    // Move coins on UI thread
+    const currentCoinX = coinPositionsX.value;
+    const currentCoinY = coinPositionsY.value;
+    const currentCoinV = coinValues.value;
+    const newCoinX: number[] = [];
+    const newCoinY: number[] = [];
+    const newCoinV: number[] = [];
+    
+    for (let i = 0; i < MAX_COINS; i++) {
+      const x = currentCoinX[i];
+      if (x > -100) {
+        newCoinX.push(x - pipeSpeed);
+        newCoinY.push(currentCoinY[i]);
+        newCoinV.push(currentCoinV[i]);
+      } else {
+        newCoinX.push(-1000);
+        newCoinY.push(0);
+        newCoinV.push(0);
+      }
+    }
+    coinPositionsX.value = newCoinX;
+    coinPositionsY.value = newCoinY;
+    coinValues.value = newCoinV;
+    
+    // Sync velocity back to JS ref for JS-side logic
+    runOnJS(syncVelocityToRef)(birdVelocitySV.value);
   }, isAndroid);
   
   const startGame = useCallback(() => {
@@ -1426,6 +1529,20 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     birdY.value = playableHeightRef.current / 2;
     birdVelocity.current = 0;
     birdRotation.value = 0;
+    
+    // Android: Initialize shared values for UI thread rendering
+    if (isAndroid) {
+      const emptyPipeX = new Array(MAX_PIPES).fill(-1000);
+      const emptyPipeH = new Array(MAX_PIPES).fill(0);
+      const emptyCoinX = new Array(MAX_COINS).fill(-1000);
+      const emptyCoinY = new Array(MAX_COINS).fill(0);
+      const emptyCoinV = new Array(MAX_COINS).fill(0);
+      pipePositionsX.value = emptyPipeX;
+      pipePositionsTopHeight.value = emptyPipeH;
+      coinPositionsX.value = emptyCoinX;
+      coinPositionsY.value = emptyCoinY;
+      coinValues.value = emptyCoinV;
+    }
     
     groundOffset.value = withRepeat(
       withTiming(-100, { duration: 1000, easing: Easing.linear }),
@@ -1480,7 +1597,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     // Always start JS game loop (needed for entity updates on all platforms)
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive]);
+  }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues]);
   
   const jump = useCallback(() => {
     if (showMenu) return;
