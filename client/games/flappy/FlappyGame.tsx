@@ -738,8 +738,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const coinXSlots = useRef([coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X]);
   const coinYSlots = useRef([coin0Y, coin1Y, coin2Y, coin3Y, coin4Y, coin5Y, coin6Y, coin7Y]);
   
-  // CRITICAL: Shared value for pipe speed - JS refs get frozen in worklets!
+  // CRITICAL: Shared values for all game parameters - JS values get frozen in worklets!
   const pipeSpeedSV = useSharedValue(PIPE_SPEED);
+  const playableHeightSV = useSharedValue(PLAYABLE_HEIGHT);
   
   // Legacy array shared values (kept for iOS/web compatibility)
   const pipePositionsX = useSharedValue<number[]>(new Array(MAX_PIPES).fill(-1000));
@@ -1212,22 +1213,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         powerUpsRef.current[i].x -= currentPipeSpeed;
       }
     } else {
-      // Android: Sync positions from shared values back to refs for collision detection
-      const svPipeX = pipePositionsX.value;
-      const svPipeH = pipePositionsTopHeight.value;
-      const svCoinX = coinPositionsX.value;
-      const svCoinY = coinPositionsY.value;
+      // Android: Sync velocity from shared value back to ref for JS-side logic
+      birdVelocity.current = birdVelocitySV.value;
       
-      // Update refs from shared values for collision checks
+      // Sync pipe positions from individual shared values back to refs for collision detection
+      const pipeXVals = [pipe0X.value, pipe1X.value, pipe2X.value, pipe3X.value, pipe4X.value, pipe5X.value];
       for (let i = 0; i < pipesRef.current.length && i < MAX_PIPES; i++) {
-        if (svPipeX[i] > -200) {
-          pipesRef.current[i].x = svPipeX[i];
+        if (pipeXVals[i] > -200) {
+          pipesRef.current[i].x = pipeXVals[i];
         }
       }
+      
+      // Sync coin positions from individual shared values
+      const coinXVals = [coin0X.value, coin1X.value, coin2X.value, coin3X.value, coin4X.value, coin5X.value, coin6X.value, coin7X.value];
       for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
-        if (svCoinX[i] > -200) {
-          coinsRef.current[i].x = svCoinX[i];
-          coinsRef.current[i].y = svCoinY[i];
+        if (coinXVals[i] > -200) {
+          coinsRef.current[i].x = coinXVals[i];
         }
       }
     }
@@ -1446,8 +1447,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       birdVelocitySV.value = 0;
     }
     
-    // Floor collision
-    if (newY >= PLAYABLE_HEIGHT - BIRD_SIZE / 2) {
+    // Floor collision - use shared value for playable height
+    if (newY >= playableHeightSV.value - BIRD_SIZE / 2) {
       frameCallbackActive.value = false;
       runOnJS(gameOver)();
       return;
@@ -1475,8 +1476,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (coin6X.value > -100) coin6X.value -= pipeSpeed;
     if (coin7X.value > -100) coin7X.value -= pipeSpeed;
     
-    // Sync velocity back to JS ref for JS-side logic
-    runOnJS(syncVelocityToRef)(birdVelocitySV.value);
+    // Note: Velocity synced back to JS ref in gameLoop (less frequent, reduces JS bridge overhead)
   }, isAndroid);
   
   const startGame = useCallback(() => {
@@ -1592,6 +1592,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       frameCallbackActive.value = true;
       birdVelocitySV.value = 0;
       pipeSpeedSV.value = pipeSpeedRef.current; // Sync shared value for worklet
+      playableHeightSV.value = playableHeightRef.current; // Sync for floor collision
     }
     // Always start JS game loop (needed for entity updates on all platforms)
     gameLoopRef.current = requestAnimationFrame(gameLoop);
