@@ -1865,10 +1865,19 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     // On Android: Use UI thread for ALL animation (useFrameCallback) + setInterval for collision (50ms = 20fps)
     // On iOS/web: Use JS thread requestAnimationFrame for everything
     if (isAndroid) {
-      frameCallbackActive.value = true;
+      // CRITICAL: Initialize ALL shared values BEFORE enabling the frame callback
+      // This prevents the first-frame glitch where values jump from defaults to live values
       birdVelocitySV.value = 0;
-      pipeSpeedSV.value = pipeSpeedRef.current; // Sync shared value for worklet
-      playableHeightSV.value = playableHeightRef.current; // Sync for floor collision
+      birdY.value = PLAYABLE_HEIGHT / 2;
+      birdRotation.value = 0;
+      pipeSpeedSV.value = pipeSpeedRef.current;
+      playableHeightSV.value = playableHeightRef.current;
+      
+      // Delay frame callback activation by one frame to ensure shared values are committed
+      requestAnimationFrame(() => {
+        frameCallbackActive.value = true;
+      });
+      
       // Android: Use setInterval for collision detection (50ms = 20fps) instead of requestAnimationFrame
       // This completely frees the JS thread from animation work - only discrete collision checks
       androidCollisionIntervalRef.current = setInterval(() => {
@@ -1881,32 +1890,43 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
   }, [birdY, birdRotation, groundOffset, spawnPipe, spawnCoin, spawnCloud, gameLoop, clearAllTimers, equippedPowerUps, activatePowerUp, userId, isAndroid, frameCallbackActive, pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues, androidCollisionCheck]);
   
-  // JS thread jump handler (called from worklet via runOnJS)
-  const handleJumpJS = useCallback(() => {
+  // Android: Fire-and-forget JS handler for side effects only (sound, game start)
+  // This runs AFTER physics is already updated in the worklet
+  const handleAndroidTapEffects = useCallback(() => {
+    if (showMenu) return;
+    
+    if (gameState === "idle") {
+      startGame();
+      playSound("jump");
+    } else if (gameState === "playing") {
+      playSound("jump");
+    } else if (gameState === "gameover") {
+      resetToIdle();
+    }
+  }, [gameState, startGame, playSound, showMenu, resetToIdle]);
+
+  // iOS: Full JS handler (physics + effects)
+  const handleIOSTap = useCallback(() => {
     if (showMenu) return;
     
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
-      if (!isAndroid) {
-        birdRotation.value = -20;
-      }
+      birdRotation.value = -20;
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
-      if (!isAndroid) {
-        birdRotation.value = -20;
-      }
+      birdRotation.value = -20;
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle]);
 
   // Web fallback: Regular press handler
   const jumpWeb = useCallback(() => {
-    handleJumpJS();
-  }, [handleJumpJS]);
+    handleIOSTap();
+  }, [handleIOSTap]);
 
   // Native: UI-thread tap gesture for zero-latency response
   // onStart fires immediately on touch-down, directly on UI thread - no JS bridge delay
@@ -1915,14 +1935,21 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       .onStart(() => {
         'worklet';
         // Android: Update shared values directly on UI thread for instant visual response
+        // Physics happens HERE - no waiting for JS
         if (isAndroid) {
           birdVelocitySV.value = JUMP_STRENGTH;
           birdRotation.value = -20;
         }
-        // Call JS thread for game state management, sound, etc.
-        runOnJS(handleJumpJS)();
+        // Fire-and-forget: Queue JS side effects (sound, game state) - don't wait for response
+        // Android uses handleAndroidTapEffects (no physics, just effects)
+        // iOS uses handleIOSTap (physics + effects since iOS runs on JS thread anyway)
+        if (isAndroid) {
+          runOnJS(handleAndroidTapEffects)();
+        } else {
+          runOnJS(handleIOSTap)();
+        }
       }),
-    [isAndroid, birdVelocitySV, birdRotation, handleJumpJS]
+    [isAndroid, birdVelocitySV, birdRotation, handleAndroidTapEffects, handleIOSTap]
   );
   
   useEffect(() => {
