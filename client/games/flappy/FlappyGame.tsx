@@ -153,25 +153,23 @@ const powerUpIndicatorStyles = StyleSheet.create({
   },
 });
 
-// Android-only animated pipe component that reads from shared values (no React state)
-function AnimatedPipe({ 
-  index, 
+// Android-only animated pipe component that reads from INDIVIDUAL shared values (no arrays = no GC)
+function AnimatedPipeSlot({ 
   pipeX, 
   pipeTopHeight, 
   pipeWidth, 
   gapSize, 
   playableHeight 
 }: { 
-  index: number; 
-  pipeX: Animated.SharedValue<number[]>; 
-  pipeTopHeight: Animated.SharedValue<number[]>; 
+  pipeX: Animated.SharedValue<number>; 
+  pipeTopHeight: Animated.SharedValue<number>; 
   pipeWidth: number; 
   gapSize: number; 
   playableHeight: number;
 }) {
   const topPipeStyle = useAnimatedStyle(() => {
-    const x = pipeX.value[index];
-    const topHeight = pipeTopHeight.value[index];
+    const x = pipeX.value;
+    const topHeight = pipeTopHeight.value;
     // Hide if off-screen (x < -100)
     if (x < -100) {
       return { opacity: 0, left: -1000, height: 0, width: pipeWidth };
@@ -185,8 +183,8 @@ function AnimatedPipe({
   });
   
   const bottomPipeStyle = useAnimatedStyle(() => {
-    const x = pipeX.value[index];
-    const topHeight = pipeTopHeight.value[index];
+    const x = pipeX.value;
+    const topHeight = pipeTopHeight.value;
     if (x < -100) {
       return { opacity: 0, left: -1000, top: 0, height: 0, width: pipeWidth };
     }
@@ -258,23 +256,19 @@ const animatedPipeStyles = StyleSheet.create({
   },
 });
 
-// Android-only animated coin component that reads from shared values (no React state)
-function AnimatedCoin({ 
-  index, 
+// Android-only animated coin component that reads from INDIVIDUAL shared values (no arrays = no GC)
+function AnimatedCoinSlot({ 
   coinX, 
   coinY, 
-  coinValues,
   coinSize 
 }: { 
-  index: number; 
-  coinX: Animated.SharedValue<number[]>; 
-  coinY: Animated.SharedValue<number[]>;
-  coinValues: Animated.SharedValue<number[]>;
+  coinX: Animated.SharedValue<number>; 
+  coinY: Animated.SharedValue<number>;
   coinSize: number;
 }) {
   const coinStyle = useAnimatedStyle(() => {
-    const x = coinX.value[index];
-    const y = coinY.value[index];
+    const x = coinX.value;
+    const y = coinY.value;
     if (x < -100) {
       return { opacity: 0, left: -1000, top: 0 };
     }
@@ -285,17 +279,9 @@ function AnimatedCoin({
     };
   });
   
-  // We need a way to show coin value - use a shared value
-  const valueStyle = useAnimatedStyle(() => {
-    const val = coinValues.value[index];
-    return { opacity: val > 0 ? 1 : 0 };
-  });
-  
   return (
     <Animated.View style={[animatedCoinStyles.coin, coinStyle]}>
-      <Animated.View style={valueStyle}>
-        <ThemedText style={animatedCoinStyles.coinText}>1</ThemedText>
-      </Animated.View>
+      <ThemedText style={animatedCoinStyles.coinText}>1</ThemedText>
     </Animated.View>
   );
 }
@@ -709,10 +695,53 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const renderFrameCounterRef = useRef(0);
   const { cloudsEnabled, trailsEnabled, cloudSpawnInterval, maxTrailParticles } = performanceSettings;
   
-  // Android performance: Use shared values for pipe positions to enable UI thread animation
+  // Android performance: Per-slot shared values for zero-GC UI thread animation
   const isAndroid = Platform.OS === "android";
   const MAX_PIPES = 6;
   const MAX_COINS = 8;
+  
+  // Individual shared values per pipe slot (no arrays = no GC)
+  const pipe0X = useSharedValue(-1000);
+  const pipe0H = useSharedValue(0);
+  const pipe1X = useSharedValue(-1000);
+  const pipe1H = useSharedValue(0);
+  const pipe2X = useSharedValue(-1000);
+  const pipe2H = useSharedValue(0);
+  const pipe3X = useSharedValue(-1000);
+  const pipe3H = useSharedValue(0);
+  const pipe4X = useSharedValue(-1000);
+  const pipe4H = useSharedValue(0);
+  const pipe5X = useSharedValue(-1000);
+  const pipe5H = useSharedValue(0);
+  
+  // Individual shared values per coin slot
+  const coin0X = useSharedValue(-1000);
+  const coin0Y = useSharedValue(0);
+  const coin1X = useSharedValue(-1000);
+  const coin1Y = useSharedValue(0);
+  const coin2X = useSharedValue(-1000);
+  const coin2Y = useSharedValue(0);
+  const coin3X = useSharedValue(-1000);
+  const coin3Y = useSharedValue(0);
+  const coin4X = useSharedValue(-1000);
+  const coin4Y = useSharedValue(0);
+  const coin5X = useSharedValue(-1000);
+  const coin5Y = useSharedValue(0);
+  const coin6X = useSharedValue(-1000);
+  const coin6Y = useSharedValue(0);
+  const coin7X = useSharedValue(-1000);
+  const coin7Y = useSharedValue(0);
+  
+  // Refs to access all shared values by index (for spawn/despawn logic)
+  const pipeXSlots = useRef([pipe0X, pipe1X, pipe2X, pipe3X, pipe4X, pipe5X]);
+  const pipeHSlots = useRef([pipe0H, pipe1H, pipe2H, pipe3H, pipe4H, pipe5H]);
+  const coinXSlots = useRef([coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X]);
+  const coinYSlots = useRef([coin0Y, coin1Y, coin2Y, coin3Y, coin4Y, coin5Y, coin6Y, coin7Y]);
+  
+  // CRITICAL: Shared value for pipe speed - JS refs get frozen in worklets!
+  const pipeSpeedSV = useSharedValue(PIPE_SPEED);
+  
+  // Legacy array shared values (kept for iOS/web compatibility)
   const pipePositionsX = useSharedValue<number[]>(new Array(MAX_PIPES).fill(-1000));
   const pipePositionsTopHeight = useSharedValue<number[]>(new Array(MAX_PIPES).fill(0));
   const coinPositionsX = useSharedValue<number[]>(new Array(MAX_COINS).fill(-1000));
@@ -974,24 +1003,19 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     pipesRef.current = [...pipesRef.current, newPipe];
     
-    // Android: Also add to shared values for UI thread rendering
+    // Android: Find empty slot and set individual shared values (zero GC)
     if (isAndroid) {
-      // Find first empty slot in shared values
-      const currentX = pipePositionsX.value;
-      const currentH = pipePositionsTopHeight.value;
-      const newX = [...currentX];
-      const newH = [...currentH];
+      const slots = pipeXSlots.current;
+      const heightSlots = pipeHSlots.current;
       for (let i = 0; i < MAX_PIPES; i++) {
-        if (currentX[i] < -100) {
-          newX[i] = gameWidthRef.current;
-          newH[i] = topHeight;
+        if (slots[i].value < -100) {
+          slots[i].value = gameWidthRef.current;
+          heightSlots[i].value = topHeight;
           break;
         }
       }
-      pipePositionsX.value = newX;
-      pipePositionsTopHeight.value = newH;
     }
-  }, [isAndroid, pipePositionsX, pipePositionsTopHeight]);
+  }, [isAndroid]);
   
   const spawnCoin = useCallback(() => {
     if (gameStateRef.current !== "playing") return;
@@ -1011,27 +1035,19 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     coinsRef.current = [...coinsRef.current, newCoin];
     
-    // Android: Also add to shared values for UI thread rendering
+    // Android: Find empty slot and set individual shared values (zero GC)
     if (isAndroid) {
-      const currentX = coinPositionsX.value;
-      const currentY = coinPositionsY.value;
-      const currentV = coinValues.value;
-      const newX = [...currentX];
-      const newY = [...currentY];
-      const newV = [...currentV];
+      const xSlots = coinXSlots.current;
+      const ySlots = coinYSlots.current;
       for (let i = 0; i < MAX_COINS; i++) {
-        if (currentX[i] < -100) {
-          newX[i] = gameWidthRef.current;
-          newY[i] = y;
-          newV[i] = value;
+        if (xSlots[i].value < -100) {
+          xSlots[i].value = gameWidthRef.current;
+          ySlots[i].value = y;
           break;
         }
       }
-      coinPositionsX.value = newX;
-      coinPositionsY.value = newY;
-      coinValues.value = newV;
     }
-  }, [isAndroid, coinPositionsX, coinPositionsY, coinValues]);
+  }, [isAndroid]);
   
   const spawnPowerUp = useCallback(() => {
     if (gameStateRef.current !== "playing") return;
@@ -1438,49 +1454,26 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     // === MOVE PIPE AND COIN POSITIONS ON UI THREAD ===
-    // This is the key to smooth animation - update shared values directly in worklet
-    const pipeSpeed = pipeSpeedRef.current * deltaMultiplier;
-    const currentPipeX = pipePositionsX.value;
-    const currentPipeTopH = pipePositionsTopHeight.value;
-    const newPipeX: number[] = [];
-    const newPipeTopH: number[] = [];
+    // CRITICAL FIX: Use shared value for pipe speed (JS refs get frozen in worklets!)
+    const pipeSpeed = pipeSpeedSV.value * deltaMultiplier;
     
-    for (let i = 0; i < MAX_PIPES; i++) {
-      const x = currentPipeX[i];
-      if (x > -200) {
-        newPipeX.push(x - pipeSpeed);
-        newPipeTopH.push(currentPipeTopH[i]);
-      } else {
-        newPipeX.push(-1000);
-        newPipeTopH.push(0);
-      }
-    }
-    pipePositionsX.value = newPipeX;
-    pipePositionsTopHeight.value = newPipeTopH;
+    // Move pipes - direct mutation of individual shared values (zero GC)
+    if (pipe0X.value > -200) pipe0X.value -= pipeSpeed;
+    if (pipe1X.value > -200) pipe1X.value -= pipeSpeed;
+    if (pipe2X.value > -200) pipe2X.value -= pipeSpeed;
+    if (pipe3X.value > -200) pipe3X.value -= pipeSpeed;
+    if (pipe4X.value > -200) pipe4X.value -= pipeSpeed;
+    if (pipe5X.value > -200) pipe5X.value -= pipeSpeed;
     
-    // Move coins on UI thread
-    const currentCoinX = coinPositionsX.value;
-    const currentCoinY = coinPositionsY.value;
-    const currentCoinV = coinValues.value;
-    const newCoinX: number[] = [];
-    const newCoinY: number[] = [];
-    const newCoinV: number[] = [];
-    
-    for (let i = 0; i < MAX_COINS; i++) {
-      const x = currentCoinX[i];
-      if (x > -100) {
-        newCoinX.push(x - pipeSpeed);
-        newCoinY.push(currentCoinY[i]);
-        newCoinV.push(currentCoinV[i]);
-      } else {
-        newCoinX.push(-1000);
-        newCoinY.push(0);
-        newCoinV.push(0);
-      }
-    }
-    coinPositionsX.value = newCoinX;
-    coinPositionsY.value = newCoinY;
-    coinValues.value = newCoinV;
+    // Move coins - direct mutation of individual shared values (zero GC)
+    if (coin0X.value > -100) coin0X.value -= pipeSpeed;
+    if (coin1X.value > -100) coin1X.value -= pipeSpeed;
+    if (coin2X.value > -100) coin2X.value -= pipeSpeed;
+    if (coin3X.value > -100) coin3X.value -= pipeSpeed;
+    if (coin4X.value > -100) coin4X.value -= pipeSpeed;
+    if (coin5X.value > -100) coin5X.value -= pipeSpeed;
+    if (coin6X.value > -100) coin6X.value -= pipeSpeed;
+    if (coin7X.value > -100) coin7X.value -= pipeSpeed;
     
     // Sync velocity back to JS ref for JS-side logic
     runOnJS(syncVelocityToRef)(birdVelocitySV.value);
@@ -1530,18 +1523,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     birdVelocity.current = 0;
     birdRotation.value = 0;
     
-    // Android: Initialize shared values for UI thread rendering
+    // Android: Reset individual shared values for UI thread rendering (zero GC)
     if (isAndroid) {
-      const emptyPipeX = new Array(MAX_PIPES).fill(-1000);
-      const emptyPipeH = new Array(MAX_PIPES).fill(0);
-      const emptyCoinX = new Array(MAX_COINS).fill(-1000);
-      const emptyCoinY = new Array(MAX_COINS).fill(0);
-      const emptyCoinV = new Array(MAX_COINS).fill(0);
-      pipePositionsX.value = emptyPipeX;
-      pipePositionsTopHeight.value = emptyPipeH;
-      coinPositionsX.value = emptyCoinX;
-      coinPositionsY.value = emptyCoinY;
-      coinValues.value = emptyCoinV;
+      pipe0X.value = -1000; pipe0H.value = 0;
+      pipe1X.value = -1000; pipe1H.value = 0;
+      pipe2X.value = -1000; pipe2H.value = 0;
+      pipe3X.value = -1000; pipe3H.value = 0;
+      pipe4X.value = -1000; pipe4H.value = 0;
+      pipe5X.value = -1000; pipe5H.value = 0;
+      coin0X.value = -1000; coin0Y.value = 0;
+      coin1X.value = -1000; coin1Y.value = 0;
+      coin2X.value = -1000; coin2Y.value = 0;
+      coin3X.value = -1000; coin3Y.value = 0;
+      coin4X.value = -1000; coin4Y.value = 0;
+      coin5X.value = -1000; coin5Y.value = 0;
+      coin6X.value = -1000; coin6Y.value = 0;
+      coin7X.value = -1000; coin7Y.value = 0;
     }
     
     groundOffset.value = withRepeat(
@@ -1594,6 +1591,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (isAndroid) {
       frameCallbackActive.value = true;
       birdVelocitySV.value = 0;
+      pipeSpeedSV.value = pipeSpeedRef.current; // Sync shared value for worklet
     }
     // Always start JS game loop (needed for entity updates on all platforms)
     gameLoopRef.current = requestAnimationFrame(gameLoop);
@@ -1724,31 +1722,26 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           </View>
         ))}
         
-        {/* Android: Use animated components that read from shared values for smooth rendering */}
+        {/* Android: Use slot-based animated components with individual shared values (zero GC) */}
         {/* iOS/Web: Use React state-based rendering */}
         {isAndroid ? (
           <>
-            {Array.from({ length: MAX_PIPES }).map((_, i) => (
-              <AnimatedPipe
-                key={`pipe-${i}`}
-                index={i}
-                pipeX={pipePositionsX}
-                pipeTopHeight={pipePositionsTopHeight}
-                pipeWidth={PIPE_WIDTH}
-                gapSize={GAP_SIZE}
-                playableHeight={PLAYABLE_HEIGHT}
-              />
-            ))}
-            {Array.from({ length: MAX_COINS }).map((_, i) => (
-              <AnimatedCoin
-                key={`coin-${i}`}
-                index={i}
-                coinX={coinPositionsX}
-                coinY={coinPositionsY}
-                coinValues={coinValues}
-                coinSize={COIN_SIZE}
-              />
-            ))}
+            {/* Pipe slots - each reads from its own individual shared value */}
+            <AnimatedPipeSlot pipeX={pipe0X} pipeTopHeight={pipe0H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
+            <AnimatedPipeSlot pipeX={pipe1X} pipeTopHeight={pipe1H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
+            <AnimatedPipeSlot pipeX={pipe2X} pipeTopHeight={pipe2H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
+            <AnimatedPipeSlot pipeX={pipe3X} pipeTopHeight={pipe3H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
+            <AnimatedPipeSlot pipeX={pipe4X} pipeTopHeight={pipe4H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
+            <AnimatedPipeSlot pipeX={pipe5X} pipeTopHeight={pipe5H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
+            {/* Coin slots - each reads from its own individual shared value */}
+            <AnimatedCoinSlot coinX={coin0X} coinY={coin0Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin1X} coinY={coin1Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin2X} coinY={coin2Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin3X} coinY={coin3Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin4X} coinY={coin4Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin5X} coinY={coin5Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin6X} coinY={coin6Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin7X} coinY={coin7Y} coinSize={COIN_SIZE} />
           </>
         ) : (
           <>
