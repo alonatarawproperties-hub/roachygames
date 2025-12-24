@@ -27,6 +27,7 @@ import Animated, {
   useFrameCallback,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlappyMenuSheet } from "./FlappyMenuSheet";
 import { apiRequest } from "@/lib/query-client";
 import { FLAPPY_SKINS, RoachySkin, ALL_SPRITES } from "./flappySkins";
@@ -73,6 +74,40 @@ function ExitButton({ style, onPress }: { style?: any; onPress?: () => void }) {
       onPress={handlePress}
     >
       <Feather name="x" size={24} color="#fff" />
+    </AnimatedPressable>
+  );
+}
+
+function SoundToggleButton({ style, soundEnabled, onToggle }: { style?: any; soundEnabled: boolean; onToggle: () => void }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.85, { damping: 15, stiffness: 300 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 12, stiffness: 200 });
+  };
+
+  const handlePress = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onToggle();
+  };
+
+  return (
+    <AnimatedPressable
+      style={[style, animatedStyle]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+    >
+      <Feather name={soundEnabled ? "volume-2" : "volume-x"} size={22} color="#fff" />
     </AnimatedPressable>
   );
 }
@@ -675,6 +710,23 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const [showMenu, setShowMenu] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>("free");
   const [rankedPeriod, setRankedPeriod] = useState<'daily' | 'weekly' | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  
+  useEffect(() => {
+    AsyncStorage.getItem("flappy_sound_enabled").then((value) => {
+      if (value !== null) {
+        setSoundEnabled(value === "true");
+      }
+    }).catch(() => {});
+  }, []);
+  
+  const handleToggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const newValue = !prev;
+      AsyncStorage.setItem("flappy_sound_enabled", String(newValue)).catch(() => {});
+      return newValue;
+    });
+  }, []);
   const [equippedPowerUps, setEquippedPowerUps] = useState<{
     shield: boolean;
     double: boolean;
@@ -924,7 +976,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     coinValues.value = newCoinVals;
   }, [pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues]);
   
-  const { playSound } = useFlappySounds();
+  const { playSound } = useFlappySounds(soundEnabled);
   
   const clearAllTimers = useCallback(() => {
     // Deactivate UI thread frame callback (Android)
@@ -2169,6 +2221,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       </Pressable>
       
       <ExitButton style={[styles.exitButton, { top: insets.top + 10 }]} onPress={onExit} />
+      <SoundToggleButton 
+        style={[styles.soundButton, { top: insets.top + 10 }]} 
+        soundEnabled={soundEnabled} 
+        onToggle={handleToggleSound} 
+      />
       
       <FlappyMenuSheet
         visible={showMenu}
@@ -2535,6 +2592,17 @@ const styles = StyleSheet.create({
   exitButton: {
     position: "absolute",
     right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 600,
+  },
+  soundButton: {
+    position: "absolute",
+    right: 68,
     width: 44,
     height: 44,
     borderRadius: 22,

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, AudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
 type SoundType = 'jump' | 'coin' | 'hit' | 'powerup';
@@ -12,7 +12,7 @@ const SOUND_URLS = {
   powerup: 'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3',
 };
 
-export function useFlappySounds() {
+export function useFlappySounds(soundEnabled: boolean = true) {
   const jumpPlayer = useAudioPlayer(SOUND_URLS.jump);
   const coinPlayer = useAudioPlayer(SOUND_URLS.coin);
   const hitPlayer = useAudioPlayer(SOUND_URLS.hit);
@@ -24,6 +24,12 @@ export function useFlappySounds() {
     hit: 0,
     powerup: 0,
   });
+
+  useEffect(() => {
+    setAudioModeAsync({
+      playsInSilentMode: true,
+    }).catch(() => {});
+  }, []);
 
   const playSound = useCallback((type: SoundType) => {
     const now = Date.now();
@@ -51,28 +57,32 @@ export function useFlappySounds() {
       }
     }
 
+    if (!soundEnabled) return;
+
     try {
+      let player: AudioPlayer | null = null;
       switch (type) {
         case 'jump':
-          jumpPlayer.seekTo(0);
-          jumpPlayer.play();
+          player = jumpPlayer;
           break;
         case 'coin':
-          coinPlayer.seekTo(0);
-          coinPlayer.play();
+          player = coinPlayer;
           break;
         case 'hit':
-          hitPlayer.seekTo(0);
-          hitPlayer.play();
+          player = hitPlayer;
           break;
         case 'powerup':
-          powerupPlayer.seekTo(0);
-          powerupPlayer.play();
+          player = powerupPlayer;
           break;
+      }
+      
+      if (player) {
+        player.seekTo(0);
+        player.play();
       }
     } catch (error) {
     }
-  }, [jumpPlayer, coinPlayer, hitPlayer, powerupPlayer]);
+  }, [soundEnabled, jumpPlayer, coinPlayer, hitPlayer, powerupPlayer]);
 
   return { playSound };
 }

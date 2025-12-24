@@ -124,7 +124,8 @@
           "cameraPermission": "Allow Roachy Hunt to use your camera to catch Roachies in AR mode."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-audio"
     ],
     "extra": {
       "eas": {
