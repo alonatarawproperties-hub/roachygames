@@ -307,6 +307,7 @@ const animatedCoinStyles = StyleSheet.create({
 });
 
 // Android-only animated cloud component for 60fps cloud animation
+// Matches iOS cloud shapes exactly with overlapping puffs
 function AnimatedCloudSlot({ 
   cloudX, 
   cloudY,
@@ -318,13 +319,15 @@ function AnimatedCloudSlot({
   cloudSize: Animated.SharedValue<number>;
   cloudOpacity: Animated.SharedValue<number>;
 }) {
+  // Cloud dimensions matching iOS: small=60x30, medium=90x45, large=120x60
   const cloudStyle = useAnimatedStyle(() => {
     const x = cloudX.value;
     if (x < -200) {
       return { opacity: 0, left: -1000, top: 0, width: 0, height: 0 };
     }
     const size = cloudSize.value;
-    const dimensions = size === 0 ? { width: 50, height: 25 } : size === 1 ? { width: 80, height: 40 } : { width: 120, height: 50 };
+    // Match iOS cloud sizes exactly
+    const dimensions = size === 0 ? { width: 60, height: 30 } : size === 1 ? { width: 90, height: 45 } : { width: 120, height: 60 };
     return {
       opacity: cloudOpacity.value,
       left: x,
@@ -334,22 +337,39 @@ function AnimatedCloudSlot({
     };
   });
   
+  // Puff1: 40% width, 60% height, positioned at left:0, bottom:0
   const puff1Style = useAnimatedStyle(() => {
     const size = cloudSize.value;
-    const puffSize = size === 0 ? 18 : size === 1 ? 28 : 36;
-    return { width: puffSize, height: puffSize, borderRadius: puffSize / 2 };
+    const dims = size === 0 ? { w: 60, h: 30 } : size === 1 ? { w: 90, h: 45 } : { w: 120, h: 60 };
+    return { 
+      width: dims.w * 0.4, 
+      height: dims.h * 0.6, 
+      borderRadius: 100,
+    };
   });
   
+  // Puff2: 50% width, 100% height, positioned at left:25%, bottom:0 (main center puff)
   const puff2Style = useAnimatedStyle(() => {
     const size = cloudSize.value;
-    const puffSize = size === 0 ? 22 : size === 1 ? 36 : 44;
-    return { width: puffSize, height: puffSize, borderRadius: puffSize / 2 };
+    const dims = size === 0 ? { w: 60, h: 30 } : size === 1 ? { w: 90, h: 45 } : { w: 120, h: 60 };
+    return { 
+      width: dims.w * 0.5, 
+      height: dims.h * 1.0, 
+      borderRadius: 100,
+      left: dims.w * 0.25,
+    };
   });
   
+  // Puff3: 40% width, 70% height, positioned at right:0, bottom:0
   const puff3Style = useAnimatedStyle(() => {
     const size = cloudSize.value;
-    const puffSize = size === 0 ? 16 : size === 1 ? 24 : 32;
-    return { width: puffSize, height: puffSize, borderRadius: puffSize / 2 };
+    const dims = size === 0 ? { w: 60, h: 30 } : size === 1 ? { w: 90, h: 45 } : { w: 120, h: 60 };
+    return { 
+      width: dims.w * 0.4, 
+      height: dims.h * 0.7, 
+      borderRadius: 100,
+      left: dims.w * 0.6, // right:0 equivalent
+    };
   });
   
   return (
@@ -368,19 +388,17 @@ const animatedCloudStyles = StyleSheet.create({
   },
   puff: {
     position: "absolute",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "#fff",
+    bottom: 0,
   },
   puff1: {
     left: 0,
-    bottom: 0,
   },
   puff2: {
-    left: "30%",
-    bottom: "20%",
+    // left set dynamically
   },
   puff3: {
-    right: 0,
-    bottom: 0,
+    // left set dynamically (right:0 equivalent)
   },
 });
 
