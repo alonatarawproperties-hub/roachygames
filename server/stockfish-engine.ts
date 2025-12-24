@@ -138,49 +138,66 @@ class StockfishEngine {
     this.currentDifficulty = difficulty;
   }
 
-  async getBestMove(fen: string, difficulty: BotDifficulty, thinkTimeMs?: number): Promise<EngineMove | null> {
-    if (!this.isReady) {
-      console.warn('[Stockfish] Engine not ready, initializing...');
-      await this.initialize();
+  async getBestMove(fen: string, difficulty: BotDifficulty, thinkTimeMs?: number, retries: number = 2): Promise<EngineMove | null> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        // Check if engine is ready, reinitialize if needed
+        if (!this.isReady || !this.process) {
+          console.warn(`[Stockfish] Engine not ready (attempt ${attempt + 1}/${retries + 1}), reinitializing...`);
+          await this.initialize();
+        }
+
+        const startTime = Date.now();
+        const settings = BOT_DIFFICULTIES[difficulty];
+        
+        // Use difficulty-specific think time if not provided
+        const actualThinkTime = thinkTimeMs ?? settings.thinkTime;
+        
+        await this.setDifficulty(difficulty);
+
+        this.sendCommandNoWait('ucinewgame');
+        this.sendCommandNoWait(`position fen ${fen}`);
+        
+        // Use both depth and movetime for smarter, more consistent play
+        const minDepth = settings.depth ?? 10;
+        const response = await this.sendCommandWait(`go depth ${minDepth} movetime ${actualThinkTime}`);
+        
+        const bestMoveMatch = response.match(/bestmove\s+(\w+)/);
+        if (!bestMoveMatch) {
+          console.error(`[Stockfish] No bestmove found in response (attempt ${attempt + 1}/${retries + 1})`);
+          // Mark engine as not ready and retry
+          this.isReady = false;
+          if (attempt < retries) {
+            continue;
+          }
+          return null;
+        }
+
+        const move = bestMoveMatch[1];
+        const elapsedTime = Date.now() - startTime;
+        
+        const evalMatch = response.match(/score cp (-?\d+)/);
+        const depthMatch = response.match(/info depth (\d+)/);
+        
+        const humanizedThinkTime = Math.max(elapsedTime, 1500 + Math.random() * 1000);
+
+        console.log(`[Stockfish] Best move: ${move} (${elapsedTime}ms, ${difficulty})`);
+
+        return {
+          move,
+          thinkTimeMs: humanizedThinkTime,
+          evaluation: evalMatch ? parseInt(evalMatch[1]) : undefined,
+          depth: depthMatch ? parseInt(depthMatch[1]) : undefined,
+        };
+      } catch (error) {
+        console.error(`[Stockfish] Error on attempt ${attempt + 1}/${retries + 1}:`, error);
+        this.isReady = false;
+        if (attempt === retries) {
+          return null;
+        }
+      }
     }
-
-    const startTime = Date.now();
-    const settings = BOT_DIFFICULTIES[difficulty];
-    
-    // Use difficulty-specific think time if not provided
-    const actualThinkTime = thinkTimeMs ?? settings.thinkTime;
-    
-    await this.setDifficulty(difficulty);
-
-    this.sendCommandNoWait('ucinewgame');
-    this.sendCommandNoWait(`position fen ${fen}`);
-    
-    // Use both depth and movetime for smarter, more consistent play
-    const minDepth = settings.depth ?? 10;
-    const response = await this.sendCommandWait(`go depth ${minDepth} movetime ${actualThinkTime}`);
-    
-    const bestMoveMatch = response.match(/bestmove\s+(\w+)/);
-    if (!bestMoveMatch) {
-      console.error('[Stockfish] No bestmove found in response');
-      return null;
-    }
-
-    const move = bestMoveMatch[1];
-    const elapsedTime = Date.now() - startTime;
-    
-    const evalMatch = response.match(/score cp (-?\d+)/);
-    const depthMatch = response.match(/info depth (\d+)/);
-    
-    const humanizedThinkTime = Math.max(elapsedTime, 1500 + Math.random() * 1000);
-
-    console.log(`[Stockfish] Best move: ${move} (${elapsedTime}ms, ${difficulty})`);
-
-    return {
-      move,
-      thinkTimeMs: humanizedThinkTime,
-      evaluation: evalMatch ? parseInt(evalMatch[1]) : undefined,
-      depth: depthMatch ? parseInt(depthMatch[1]) : undefined,
-    };
+    return null;
   }
 
   async shutdown(): Promise<void> {

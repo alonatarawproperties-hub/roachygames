@@ -637,7 +637,14 @@ export function registerChessRoutes(app: Express) {
       
       if (shouldBotMove) {
         const botDifficulty = (match.botDifficulty as BotDifficulty) || 'magnus';
-        const botResult = await makeStockfishMove(game.fen(), botDifficulty);
+        let botResult = await makeStockfishMove(game.fen(), botDifficulty);
+        
+        // Fallback to internal minimax bot if Stockfish fails
+        if (!botResult) {
+          console.warn('[Chess] Stockfish failed, using fallback minimax bot');
+          botResult = makeBotMove(game);
+        }
+        
         if (botResult) {
           const botMoveUci = botResult.move;
           const botFrom = botMoveUci.slice(0, 2);

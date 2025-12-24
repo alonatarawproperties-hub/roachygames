@@ -111,14 +111,21 @@ export function ChessBoard({
   }, [lastMoveScale]);
   
   useEffect(() => {
+    // Check if this is our own move that we already applied locally
     if (pendingMoveRef.current) {
       pendingMoveRef.current = false;
-      lastFenRef.current = fen;
-      const newGame = new Chess(fen);
-      setGame(newGame);
-      return;
+      
+      // If the incoming FEN matches our local state, skip re-creation
+      // This prevents the "bounce" effect from double-rendering
+      if (fen === game.fen()) {
+        lastFenRef.current = fen;
+        return;
+      }
+      // Otherwise, FEN differs (e.g., server returned bot's move too)
+      // Fall through to update the game state with the new FEN
     }
     
+    // Only update if FEN actually changed (external change like bot move)
     if (fen !== lastFenRef.current) {
       const detectedMove = detectMoveFromFenChange(lastFenRef.current, fen);
       lastFenRef.current = fen;
@@ -133,7 +140,7 @@ export function ChessBoard({
         triggerMoveAnimation();
       }
     }
-  }, [fen, triggerMoveAnimation]);
+  }, [fen, game, triggerMoveAnimation]);
   
   const isFlipped = playerColor === 'black';
   
