@@ -5,20 +5,20 @@ import * as Haptics from 'expo-haptics';
 
 type SoundType = 'jump' | 'coin' | 'hit' | 'die' | 'powerup';
 
-const SOUND_URLS = {
-  jump: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
-  coin: 'https://assets.mixkit.co/active_storage/sfx/888/888-preview.mp3',
-  hit: 'https://assets.mixkit.co/active_storage/sfx/2658/2658-preview.mp3',
-  die: 'https://assets.mixkit.co/active_storage/sfx/470/470-preview.mp3',
-  powerup: 'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3',
+const SOUNDS = {
+  jump: require('@assets/audio/flappy-tap.wav'),
+  coin: require('@assets/audio/flappy-coin.wav'),
+  hit: require('@assets/audio/flappy-die.wav'),
+  die: require('@assets/audio/flappy-die.wav'),
+  powerup: require('@assets/audio/flappy-powerup.wav'),
 };
 
 export function useFlappySounds(soundEnabled: boolean = true) {
-  const jumpPlayer = useAudioPlayer(SOUND_URLS.jump);
-  const coinPlayer = useAudioPlayer(SOUND_URLS.coin);
-  const hitPlayer = useAudioPlayer(SOUND_URLS.hit);
-  const diePlayer = useAudioPlayer(SOUND_URLS.die);
-  const powerupPlayer = useAudioPlayer(SOUND_URLS.powerup);
+  const jumpPlayer = useAudioPlayer(SOUNDS.jump);
+  const coinPlayer = useAudioPlayer(SOUNDS.coin);
+  const hitPlayer = useAudioPlayer(SOUNDS.hit);
+  const diePlayer = useAudioPlayer(SOUNDS.die);
+  const powerupPlayer = useAudioPlayer(SOUNDS.powerup);
   
   const lastPlayTime = useRef<Record<SoundType, number>>({
     jump: 0,
@@ -33,14 +33,19 @@ export function useFlappySounds(soundEnabled: boolean = true) {
       playsInSilentMode: true,
     }).catch(() => {});
     
-    // Set volume levels - lower the jump/wind sound
     if (jumpPlayer) {
-      jumpPlayer.volume = 0.3;
+      jumpPlayer.volume = 0.5;
+    }
+    if (coinPlayer) {
+      coinPlayer.volume = 0.7;
     }
     if (diePlayer) {
       diePlayer.volume = 0.8;
     }
-  }, [jumpPlayer, diePlayer]);
+    if (powerupPlayer) {
+      powerupPlayer.volume = 0.7;
+    }
+  }, [jumpPlayer, coinPlayer, diePlayer, powerupPlayer]);
 
   const playSound = useCallback((type: SoundType) => {
     const now = Date.now();
