@@ -1386,11 +1386,13 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         }
       }
       
-      // Sync coin positions from individual shared values
+      // Sync coin positions from individual shared values (both X and Y for accurate hitbox)
       const coinXVals = [coin0X.value, coin1X.value, coin2X.value, coin3X.value, coin4X.value, coin5X.value, coin6X.value, coin7X.value];
+      const coinYVals = [coin0Y.value, coin1Y.value, coin2Y.value, coin3Y.value, coin4Y.value, coin5Y.value, coin6Y.value, coin7Y.value];
       for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
         if (coinXVals[i] > -200) {
           coinsRef.current[i].x = coinXVals[i];
+          coinsRef.current[i].y = coinYVals[i];
         }
       }
     }
