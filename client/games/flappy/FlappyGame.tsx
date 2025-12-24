@@ -559,6 +559,7 @@ interface Coin {
   y: number;
   value: number;
   collected: boolean;
+  slotIndex?: number; // Android only: tracks which shared value slot this coin uses
 }
 
 interface PowerUp {
@@ -1160,11 +1161,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       y,
       value,
       collected: false,
+      slotIndex: -1, // Will be set on Android
     };
     
-    coinsRef.current = [...coinsRef.current, newCoin];
-    
     // Android: Find empty slot and set individual shared values (zero GC)
+    // Must assign slotIndex BEFORE adding to array so collision detection uses correct slot
     if (isAndroid) {
       const xSlots = coinXSlots.current;
       const ySlots = coinYSlots.current;
@@ -1172,10 +1173,13 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         if (xSlots[i].value < -100) {
           xSlots[i].value = gameWidthRef.current;
           ySlots[i].value = y;
+          newCoin.slotIndex = i; // Track which slot this coin uses
           break;
         }
       }
     }
+    
+    coinsRef.current = [...coinsRef.current, newCoin];
   }, [isAndroid]);
   
   const spawnPowerUp = useCallback(() => {
@@ -1386,13 +1390,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         }
       }
       
-      // Sync coin positions from individual shared values (both X and Y for accurate hitbox)
+      // Sync coin positions from individual shared values using slotIndex (not loop index)
+      // This is critical because array compaction reorders coins but their slots stay the same
       const coinXVals = [coin0X.value, coin1X.value, coin2X.value, coin3X.value, coin4X.value, coin5X.value, coin6X.value, coin7X.value];
       const coinYVals = [coin0Y.value, coin1Y.value, coin2Y.value, coin3Y.value, coin4Y.value, coin5Y.value, coin6Y.value, coin7Y.value];
-      for (let i = 0; i < coinsRef.current.length && i < MAX_COINS; i++) {
-        if (coinXVals[i] > -200) {
-          coinsRef.current[i].x = coinXVals[i];
-          coinsRef.current[i].y = coinYVals[i];
+      for (let i = 0; i < coinsRef.current.length; i++) {
+        const coin = coinsRef.current[i];
+        const slotIdx = coin.slotIndex;
+        if (slotIdx !== undefined && slotIdx >= 0 && slotIdx < MAX_COINS) {
+          coin.x = coinXVals[slotIdx];
+          coin.y = coinYVals[slotIdx];
         }
       }
     }
@@ -1431,6 +1438,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     // Check coin collection (mutate in place)
+    // Android: Reset slot shared values when coin is collected so slot can be reused
+    const coinXSlotVals = isAndroid ? [coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X] : null;
     for (let i = 0; i < coinsRef.current.length; i++) {
       const coin = coinsRef.current[i];
       if (!coin.collected) {
@@ -1448,6 +1457,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           const points = doublePointsRef.current ? coin.value * 2 : coin.value;
           scoreRef.current += points;
           coin.collected = true;
+          // Android: Reset slot shared value so it can be reused
+          if (isAndroid && coinXSlotVals && coin.slotIndex !== undefined && coin.slotIndex >= 0) {
+            coinXSlotVals[coin.slotIndex].value = -1000;
+          }
           runOnJS(setScore)(scoreRef.current);
           runOnJS(playSound)("coin");
         }
@@ -1490,6 +1503,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       const coin = coinsRef.current[i];
       if (!coin.collected && coin.x > -COIN_SIZE) {
         coinsRef.current[coinWriteIdx++] = coin;
+      } else if (isAndroid && coinXSlotVals && coin.slotIndex !== undefined && coin.slotIndex >= 0) {
+        // Android: Reset slot for coins being removed (off-screen or collected)
+        coinXSlotVals[coin.slotIndex].value = -1000;
       }
     }
     coinsRef.current.length = coinWriteIdx;
