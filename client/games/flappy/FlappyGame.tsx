@@ -32,6 +32,7 @@ import { apiRequest } from "@/lib/query-client";
 import { FLAPPY_SKINS, RoachySkin, ALL_SPRITES } from "./flappySkins";
 import { FLAPPY_TRAILS, RoachyTrail, ALL_TRAIL_ASSETS } from "./flappyTrails";
 import { useFlappyTrail } from "@/context/FlappyTrailContext";
+import { useFlappySounds } from "./useFlappySounds";
 
 export { FLAPPY_SKINS, RoachySkin } from "./flappySkins";
 export { FLAPPY_TRAILS, RoachyTrail } from "./flappyTrails";
@@ -923,24 +924,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     coinValues.value = newCoinVals;
   }, [pipePositionsX, pipePositionsTopHeight, coinPositionsX, coinPositionsY, coinValues]);
   
-  const playSound = useCallback((type: "jump" | "coin" | "hit" | "powerup") => {
-    if (Platform.OS !== "web") {
-      switch (type) {
-        case "jump":
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          break;
-        case "coin":
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          break;
-        case "hit":
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          break;
-        case "powerup":
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          break;
-      }
-    }
-  }, []);
+  const { playSound } = useFlappySounds();
   
   const clearAllTimers = useCallback(() => {
     // Deactivate UI thread frame callback (Android)
