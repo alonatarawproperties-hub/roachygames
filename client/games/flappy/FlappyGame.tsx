@@ -1109,7 +1109,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       birdY.value = playableHeightRef.current - BIRD_SIZE / 2;
       birdRotation.value = 90;
       
-      runOnJS(playSound)("hit");
+      runOnJS(playSound)("die");
       
       setTimeout(() => {
         runOnJS(showGameOverScreen)();
