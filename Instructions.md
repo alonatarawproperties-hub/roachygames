@@ -331,6 +331,14 @@ This is already implemented correctly, so the issue is definitely server-side St
 
 ---
 
+## Implementation Status
+
+All fixes have been implemented:
+
+1. **ChessBoard.tsx** - Fixed bouncing by comparing `fen === game.fen()` before skipping state recreation
+2. **stockfish-engine.ts** - Added retry logic (2 retries) with automatic reinitialization
+3. **chess-routes.ts** - Added fallback to internal `makeBotMove()` when Stockfish fails
+
 ## Testing Checklist
 
 - [ ] Move a pawn - no visual bounce
