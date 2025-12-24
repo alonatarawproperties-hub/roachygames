@@ -5,6 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash-native.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#120a05"
+    },
     "scheme": "roachy-games",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#120a05",
