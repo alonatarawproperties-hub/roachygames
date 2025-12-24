@@ -551,6 +551,7 @@ interface Pipe {
   x: number;
   topHeight: number;
   passed: boolean;
+  slotIndex?: number; // Android only: tracks which shared value slot this pipe uses
 }
 
 interface Coin {
@@ -1129,11 +1130,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       x: gameWidthRef.current,
       topHeight,
       passed: false,
+      slotIndex: -1, // Will be set on Android
     };
     
-    pipesRef.current = [...pipesRef.current, newPipe];
-    
     // Android: Find empty slot and set individual shared values (zero GC)
+    // Must assign slotIndex BEFORE adding to array so collision detection uses correct slot
     if (isAndroid) {
       const slots = pipeXSlots.current;
       const heightSlots = pipeHSlots.current;
@@ -1141,10 +1142,13 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         if (slots[i].value < -100) {
           slots[i].value = gameWidthRef.current;
           heightSlots[i].value = topHeight;
+          newPipe.slotIndex = i; // Track which slot this pipe uses
           break;
         }
       }
     }
+    
+    pipesRef.current = [...pipesRef.current, newPipe];
   }, [isAndroid]);
   
   const spawnCoin = useCallback(() => {
@@ -1382,11 +1386,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       // Android: Sync velocity from shared value back to ref for JS-side logic
       birdVelocity.current = birdVelocitySV.value;
       
-      // Sync pipe positions from individual shared values back to refs for collision detection
+      // Sync pipe positions from individual shared values using slotIndex (not loop index)
+      // This is critical because array compaction reorders pipes but their slots stay the same
       const pipeXVals = [pipe0X.value, pipe1X.value, pipe2X.value, pipe3X.value, pipe4X.value, pipe5X.value];
-      for (let i = 0; i < pipesRef.current.length && i < MAX_PIPES; i++) {
-        if (pipeXVals[i] > -200) {
-          pipesRef.current[i].x = pipeXVals[i];
+      for (let i = 0; i < pipesRef.current.length; i++) {
+        const pipe = pipesRef.current[i];
+        const slotIdx = pipe.slotIndex;
+        if (slotIdx !== undefined && slotIdx >= 0 && slotIdx < MAX_PIPES) {
+          pipe.x = pipeXVals[slotIdx];
         }
       }
       
@@ -1490,10 +1497,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     // In-place array compaction to avoid GC (no filter() allocations)
+    // Android: Reset slot shared values when pipes go off-screen so slots can be reused
+    const pipeXSlotVals = isAndroid ? [pipe0X, pipe1X, pipe2X, pipe3X, pipe4X, pipe5X] : null;
     let pipeWriteIdx = 0;
     for (let i = 0; i < pipesRef.current.length; i++) {
-      if (pipesRef.current[i].x > -currentPipeWidth) {
-        pipesRef.current[pipeWriteIdx++] = pipesRef.current[i];
+      const pipe = pipesRef.current[i];
+      if (pipe.x > -currentPipeWidth) {
+        pipesRef.current[pipeWriteIdx++] = pipe;
+      } else if (isAndroid && pipeXSlotVals && pipe.slotIndex !== undefined && pipe.slotIndex >= 0) {
+        // Android: Reset slot for pipes going off-screen
+        pipeXSlotVals[pipe.slotIndex].value = -1000;
       }
     }
     pipesRef.current.length = pipeWriteIdx;
