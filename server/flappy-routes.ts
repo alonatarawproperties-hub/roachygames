@@ -655,6 +655,105 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
+  // Competition leaderboard - returns top 10 + user rank for daily/weekly
+  app.get("/api/flappy/ranked/leaderboard", async (req: Request, res: Response) => {
+    try {
+      const { period, userId } = req.query;
+      
+      if (!period || (period !== 'daily' && period !== 'weekly')) {
+        return res.status(400).json({ success: false, error: "Invalid period. Use 'daily' or 'weekly'" });
+      }
+      
+      const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
+      
+      // Get top 10 entries with user info
+      const topEntries = await db.select({
+        id: flappyRankedEntries.id,
+        userId: flappyRankedEntries.userId,
+        bestScore: flappyRankedEntries.bestScore,
+        gamesPlayed: flappyRankedEntries.gamesPlayed,
+      })
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.period, period),
+          eq(flappyRankedEntries.periodDate, periodDate)
+        ))
+        .orderBy(desc(flappyRankedEntries.bestScore))
+        .limit(10);
+      
+      // Fetch display names for top entries
+      const leaderboard = await Promise.all(topEntries.map(async (entry, index) => {
+        const userRecord = await db.select({ displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, entry.userId))
+          .limit(1);
+        
+        return {
+          rank: index + 1,
+          userId: entry.userId,
+          displayName: userRecord[0]?.displayName || 'Anonymous',
+          score: entry.bestScore,
+          gamesPlayed: entry.gamesPlayed,
+        };
+      }));
+      
+      // Check if user is in top 10, if not get their rank
+      let userRankInfo = null;
+      if (userId && typeof userId === 'string') {
+        const isInTop10 = leaderboard.some(e => e.userId === userId);
+        
+        if (!isInTop10) {
+          const userEntry = await db.select({
+            bestScore: flappyRankedEntries.bestScore,
+            gamesPlayed: flappyRankedEntries.gamesPlayed,
+          })
+            .from(flappyRankedEntries)
+            .where(and(
+              eq(flappyRankedEntries.userId, userId),
+              eq(flappyRankedEntries.period, period),
+              eq(flappyRankedEntries.periodDate, periodDate)
+            ))
+            .limit(1);
+          
+          if (userEntry.length > 0) {
+            // Calculate user's rank
+            const rankResult = await db.select({ count: sql<number>`count(*)` })
+              .from(flappyRankedEntries)
+              .where(and(
+                eq(flappyRankedEntries.period, period),
+                eq(flappyRankedEntries.periodDate, periodDate),
+                sql`${flappyRankedEntries.bestScore} > ${userEntry[0].bestScore}`
+              ));
+            
+            const userRecord = await db.select({ displayName: users.displayName })
+              .from(users)
+              .where(eq(users.id, userId))
+              .limit(1);
+            
+            userRankInfo = {
+              rank: Number(rankResult[0]?.count || 0) + 1,
+              userId,
+              displayName: userRecord[0]?.displayName || 'Anonymous',
+              score: userEntry[0].bestScore,
+              gamesPlayed: userEntry[0].gamesPlayed,
+            };
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        period,
+        periodDate,
+        leaderboard,
+        userRankInfo,
+      });
+    } catch (error) {
+      console.error("Competition leaderboard error:", error);
+      res.status(500).json({ success: false, error: "Failed to fetch competition leaderboard" });
+    }
+  });
+
   app.get("/api/flappy/ranked/status", async (req: Request, res: Response) => {
     try {
       const { userId } = req.query;

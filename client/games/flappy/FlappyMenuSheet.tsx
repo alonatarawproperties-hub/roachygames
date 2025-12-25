@@ -187,11 +187,6 @@ export function FlappyMenuSheet({
     height: sheetHeight.value,
   }));
 
-  const { data: leaderboardData, isLoading: leaderboardLoading } = useQuery<{ success: boolean; leaderboard: LeaderboardEntry[] }>({
-    queryKey: ["/api/flappy/leaderboard"],
-    enabled: visible && activeTab === "leaderboards",
-  });
-
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery<{ success: boolean; inventory: PowerUpInventory }>({
     queryKey: ["/api/flappy/inventory", userId],
     enabled: visible && activeTab === "loadout" && !!userId,
@@ -277,8 +272,6 @@ export function FlappyMenuSheet({
           <View style={styles.content}>
             {activeTab === "leaderboards" ? (
               <LeaderboardsTab
-                leaderboard={leaderboardData?.leaderboard || []}
-                isLoading={leaderboardLoading}
                 rankedStatus={rankedStatus}
                 userId={userId}
                 chyBalance={chyBalance}
@@ -478,13 +471,19 @@ function CompetitionCard({
       </View>
       
       {hasJoined ? (
-        <Pressable 
-          style={styles.playNowButton} 
-          onPress={(e) => { e.stopPropagation(); onEnter(); }}
-        >
-          <Feather name="play" size={16} color="#000" />
-          <ThemedText style={styles.playNowButtonText}>Play Now</ThemedText>
-        </Pressable>
+        <View style={styles.joinedButtonContainer}>
+          <View style={styles.joinedBadge}>
+            <Feather name="check-circle" size={14} color={GameColors.gold} />
+            <ThemedText style={styles.joinedBadgeText}>Joined</ThemedText>
+          </View>
+          <Pressable 
+            style={styles.playNowButton} 
+            onPress={(e) => { e.stopPropagation(); onEnter(); }}
+          >
+            <Feather name="play" size={16} color="#000" />
+            <ThemedText style={styles.playNowButtonText}>Play</ThemedText>
+          </Pressable>
+        </View>
       ) : (
         <Pressable
           style={[styles.enterButton, !canEnter && styles.disabledButton]}
@@ -508,9 +507,23 @@ function CompetitionCard({
   );
 }
 
+interface CompetitionLeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  score: number;
+  gamesPlayed: number;
+}
+
+interface CompetitionLeaderboardResponse {
+  success: boolean;
+  period: string;
+  periodDate: string;
+  leaderboard: CompetitionLeaderboardEntry[];
+  userRankInfo: CompetitionLeaderboardEntry | null;
+}
+
 function LeaderboardsTab({
-  leaderboard,
-  isLoading,
   rankedStatus,
   userId,
   chyBalance,
@@ -522,8 +535,6 @@ function LeaderboardsTab({
   isEntering,
   entryError,
 }: {
-  leaderboard: any[];
-  isLoading: boolean;
   rankedStatus: RankedStatusResponse | undefined;
   userId: string | null;
   chyBalance: number;
@@ -535,7 +546,13 @@ function LeaderboardsTab({
   isEntering: boolean;
   entryError?: string;
 }) {
-  const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly' | null>(null);
+  const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly'>('daily');
+  
+  // Fetch competition-specific leaderboard
+  const { data: competitionLeaderboard, isLoading: leaderboardLoading } = useQuery<CompetitionLeaderboardResponse>({
+    queryKey: [`/api/flappy/ranked/leaderboard?period=${selectedCompetition}&userId=${userId || ''}`],
+    enabled: !!selectedCompetition,
+  });
   
   const spinValue = useSharedValue(0);
   
@@ -631,7 +648,7 @@ function LeaderboardsTab({
           isEntering={isEntering}
           isSelected={selectedCompetition === 'daily'}
           onEnter={() => onPlayRanked('daily')}
-          onSelect={() => setSelectedCompetition(selectedCompetition === 'daily' ? null : 'daily')}
+          onSelect={() => setSelectedCompetition('daily')}
         />
         
         <CompetitionCard
@@ -648,7 +665,7 @@ function LeaderboardsTab({
           isEntering={isEntering}
           isSelected={selectedCompetition === 'weekly'}
           onEnter={() => onPlayRanked('weekly')}
-          onSelect={() => setSelectedCompetition(selectedCompetition === 'weekly' ? null : 'weekly')}
+          onSelect={() => setSelectedCompetition('weekly')}
         />
         
         {entryError ? (
@@ -709,21 +726,36 @@ function LeaderboardsTab({
       ) : null}
 
       <View style={styles.leaderboardSection}>
-        <ThemedText style={styles.sectionTitle}>Top Players</ThemedText>
-        {isLoading ? (
+        <ThemedText style={styles.sectionTitle}>
+          {selectedCompetition === 'daily' ? 'Daily' : 'Weekly'} Leaderboard
+        </ThemedText>
+        {leaderboardLoading ? (
           <ActivityIndicator color={GameColors.gold} style={{ marginTop: 20 }} />
-        ) : leaderboard.length === 0 ? (
+        ) : !competitionLeaderboard?.leaderboard || competitionLeaderboard.leaderboard.length === 0 ? (
           <ThemedText style={styles.emptyText}>No scores yet - be the first!</ThemedText>
         ) : (
-          leaderboard.slice(0, 10).map((entry, index) => (
-            <LeaderboardEntry
-              key={entry.id || index}
-              rank={index + 1}
-              name={entry.displayName || "Anonymous"}
-              score={entry.bestScore}
-              isCurrentUser={entry.userId === userId}
-            />
-          ))
+          <>
+            {competitionLeaderboard.leaderboard.map((entry: CompetitionLeaderboardEntry) => (
+              <LeaderboardEntry
+                key={entry.userId}
+                rank={entry.rank}
+                name={entry.displayName || "Anonymous"}
+                score={entry.score}
+                isCurrentUser={entry.userId === userId}
+              />
+            ))}
+            {competitionLeaderboard.userRankInfo && competitionLeaderboard.userRankInfo.rank > 10 ? (
+              <View style={styles.userRankBelowTop10}>
+                <ThemedText style={styles.userRankDivider}>...</ThemedText>
+                <LeaderboardEntry
+                  rank={competitionLeaderboard.userRankInfo.rank}
+                  name={competitionLeaderboard.userRankInfo.displayName || "You"}
+                  score={competitionLeaderboard.userRankInfo.score}
+                  isCurrentUser={true}
+                />
+              </View>
+            ) : null}
+          </>
         )}
       </View>
     </ScrollView>
@@ -1517,20 +1549,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  joinedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    backgroundColor: "rgba(255, 215, 0, 0.1)",
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-  },
-  joinedText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: GameColors.gold,
-  },
   enterButton: {
     backgroundColor: GameColors.diamond,
     paddingVertical: Spacing.sm,
@@ -1615,6 +1633,15 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     textAlign: "center",
     marginTop: Spacing.lg,
+  },
+  userRankBelowTop10: {
+    marginTop: Spacing.sm,
+  },
+  userRankDivider: {
+    textAlign: "center",
+    color: GameColors.textSecondary,
+    fontSize: 14,
+    marginVertical: Spacing.xs,
   },
   powerUpGrid: {
     gap: Spacing.sm,
@@ -1785,5 +1812,50 @@ const styles = StyleSheet.create({
   freeBadge: {
     fontSize: 10,
     color: GameColors.textSecondary,
+  },
+  joinedButtonContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  joinedBadge: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+  },
+  joinedBadgeText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GameColors.gold,
+  },
+  userRankRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+    borderStyle: "dashed",
+  },
+  userRankLabel: {
+    fontSize: 13,
+    color: GameColors.gold,
+    fontWeight: "600",
+  },
+  competitionLeaderboardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
   },
 });
