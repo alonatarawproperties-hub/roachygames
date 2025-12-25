@@ -111,36 +111,34 @@ export function ChessBoard({
   }, [lastMoveScale]);
   
   useEffect(() => {
-    // Check if this is our own move that we already applied locally
-    if (pendingMoveRef.current) {
-      pendingMoveRef.current = false;
-      
-      // If the incoming FEN matches our local state, skip re-creation
-      // This prevents the "bounce" effect from double-rendering
-      if (fen === game.fen()) {
-        lastFenRef.current = fen;
-        return;
-      }
-      // Otherwise, FEN differs (e.g., server returned bot's move too)
-      // Fall through to update the game state with the new FEN
+    // Always sync game state from authoritative FEN prop
+    // Skip only if this is truly the same position we already have
+    if (fen === lastFenRef.current) {
+      return;
     }
     
-    // Only update if FEN actually changed (external change like bot move)
-    if (fen !== lastFenRef.current) {
-      const detectedMove = detectMoveFromFenChange(lastFenRef.current, fen);
-      lastFenRef.current = fen;
-      const newGame = new Chess(fen);
-      setGame(newGame);
-      setSelectedSquare(null);
-      setValidMoves([]);
-      
-      if (detectedMove) {
-        setLastMove(detectedMove);
-        lastMoveSquareRef.current = detectedMove.to;
-        triggerMoveAnimation();
-      }
+    // Detect the move for highlighting before updating refs
+    const detectedMove = detectMoveFromFenChange(lastFenRef.current, fen);
+    const wasOurMove = pendingMoveRef.current;
+    
+    // Update refs
+    lastFenRef.current = fen;
+    pendingMoveRef.current = false;
+    
+    // Always create fresh Chess instance from authoritative FEN
+    // This ensures board state is always in sync with server
+    const newGame = new Chess(fen);
+    setGame(newGame);
+    setSelectedSquare(null);
+    setValidMoves([]);
+    
+    // Only animate and highlight for external moves (bot moves), not our own
+    if (detectedMove && !wasOurMove) {
+      setLastMove(detectedMove);
+      lastMoveSquareRef.current = detectedMove.to;
+      triggerMoveAnimation();
     }
-  }, [fen, game, triggerMoveAnimation]);
+  }, [fen, triggerMoveAnimation]);
   
   const isFlipped = playerColor === 'black';
   
