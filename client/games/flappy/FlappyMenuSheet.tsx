@@ -195,6 +195,7 @@ export function FlappyMenuSheet({
   const { data: rankedStatus } = useQuery<RankedStatusResponse>({
     queryKey: [`/api/flappy/ranked/status?userId=${userId || ''}`],
     enabled: visible && activeTab === "leaderboards",
+    staleTime: 0, // Always refetch to ensure fresh data after games
   });
 
   // Use webapp balances for real CHY from roachy.games
@@ -548,10 +549,11 @@ function LeaderboardsTab({
 }) {
   const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly'>('daily');
   
-  // Fetch competition-specific leaderboard
-  const { data: competitionLeaderboard, isLoading: leaderboardLoading } = useQuery<CompetitionLeaderboardResponse>({
+  // Fetch competition-specific leaderboard - always refetch to ensure fresh data
+  const { data: competitionLeaderboard, isLoading: leaderboardLoading, refetch: refetchLeaderboard } = useQuery<CompetitionLeaderboardResponse>({
     queryKey: [`/api/flappy/ranked/leaderboard?period=${selectedCompetition}&userId=${userId || ''}`],
     enabled: !!selectedCompetition,
+    staleTime: 0, // Always consider stale - force refetch on mount
   });
   
   const spinValue = useSharedValue(0);

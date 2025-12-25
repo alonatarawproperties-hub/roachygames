@@ -205,6 +205,8 @@ export function registerFlappyRoutes(app: Express) {
       const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
       const authenticatedUserId = (req as any).userId;
       
+      console.log(`[Flappy Score] Received: userId=${userId}, score=${score}, isRanked=${isRanked}, rankedPeriod=${rankedPeriod}, authUser=${authenticatedUserId}`);
+      
       if (!userId || score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
@@ -316,6 +318,7 @@ export function registerFlappyRoutes(app: Express) {
       // Update competition entry if this is a ranked game
       if (isRanked && rankedPeriod) {
         const periodDate = rankedPeriod === 'daily' ? today : getWeekNumber();
+        console.log(`[Flappy Score] Ranked game - looking for entry: userId=${userId}, period=${rankedPeriod}, periodDate=${periodDate}`);
         
         // Find the user's entry in the competition
         const entryResult = await db.select()
@@ -327,10 +330,13 @@ export function registerFlappyRoutes(app: Express) {
           ))
           .limit(1);
         
+        console.log(`[Flappy Score] Entry found: ${entryResult.length > 0 ? 'YES' : 'NO'}, entryId=${entryResult[0]?.id || 'none'}, currentBest=${entryResult[0]?.bestScore ?? 'N/A'}`);
+        
         if (entryResult.length > 0) {
           const entry = entryResult[0];
           // Update best score if this score is higher
           if (score > entry.bestScore) {
+            console.log(`[Flappy Score] Updating bestScore from ${entry.bestScore} to ${score}`);
             await db.update(flappyRankedEntries)
               .set({ 
                 bestScore: score, 
@@ -338,6 +344,7 @@ export function registerFlappyRoutes(app: Express) {
               })
               .where(eq(flappyRankedEntries.id, entry.id));
           } else {
+            console.log(`[Flappy Score] Score ${score} not higher than best ${entry.bestScore}, just incrementing games`);
             // Just increment games played
             await db.update(flappyRankedEntries)
               .set({ 
@@ -345,6 +352,8 @@ export function registerFlappyRoutes(app: Express) {
               })
               .where(eq(flappyRankedEntries.id, entry.id));
           }
+        } else {
+          console.log(`[Flappy Score] WARNING: No entry found for ranked game! User may not have joined competition.`);
         }
       }
       
@@ -666,6 +675,7 @@ export function registerFlappyRoutes(app: Express) {
       }
       
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
+      console.log(`[Flappy Leaderboard] Fetching: period=${period}, periodDate=${periodDate}, userId=${userId}`);
       
       // Get top 10 entries with user info
       const topEntries = await db.select({
@@ -681,6 +691,8 @@ export function registerFlappyRoutes(app: Express) {
         ))
         .orderBy(desc(flappyRankedEntries.bestScore))
         .limit(10);
+      
+      console.log(`[Flappy Leaderboard] Found ${topEntries.length} entries:`, topEntries.map(e => ({ id: e.id, bestScore: e.bestScore })));
       
       // Fetch display names for top entries
       const leaderboard = await Promise.all(topEntries.map(async (entry, index) => {
