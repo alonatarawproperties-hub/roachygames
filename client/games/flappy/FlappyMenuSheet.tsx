@@ -477,7 +477,7 @@ function CompetitionCard({
             <ThemedText style={styles.joinedBadgeText}>Joined</ThemedText>
           </View>
           <Pressable 
-            style={styles.playNowButton} 
+            style={styles.playNowButtonWide} 
             onPress={(e) => { e.stopPropagation(); onEnter(); }}
           >
             <Feather name="play" size={16} color="#000" />
@@ -1829,6 +1829,16 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: GameColors.gold,
+  },
+  playNowButtonWide: {
+    flex: 2,
+    backgroundColor: GameColors.gold,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
   },
   joinedBadgeText: {
     fontSize: 13,
