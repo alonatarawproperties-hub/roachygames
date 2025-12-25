@@ -236,10 +236,11 @@ export function registerFlappyRoutes(app: Express) {
         }
         // Clean up the session
         endGameSession(sessionId);
-      } else if (validatedScore > 500) {
-        // High scores without session are suspicious
+      } else if (validatedScore > 5000) {
+        // Only flag extremely high scores without session as suspicious
+        // Normal gameplay scores (even high ones) are allowed to reduce friction
         logSecurityEvent("high_score_no_session", userId, { score: validatedScore }, "warn");
-        return res.status(400).json({ success: false, error: "Session required for high scores" });
+        return res.status(400).json({ success: false, error: "Session required for extremely high scores" });
       }
       
       await db.insert(flappyScores).values({

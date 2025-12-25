@@ -1,4 +1,15 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+
+const AUTH_TOKEN_KEY = "roachy_auth_token";
+
+async function getAuthToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  }
+  return SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+}
 
 /**
  * Gets the base URL for the Express API server (game backend)
@@ -83,6 +94,12 @@ export async function apiRequest(
   if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
     headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
   }
+  
+  // Add JWT auth token if available
+  const authToken = await getAuthToken();
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
 
   const res = await fetch(url, {
     method,
@@ -109,6 +126,12 @@ export const getQueryFn: <T>(options: {
     // Add API secret for authenticated endpoints
     if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
       headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+    }
+    
+    // Add JWT auth token if available
+    const authToken = await getAuthToken();
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
     }
 
     const res = await fetch(url, {
