@@ -37,6 +37,7 @@ export function ChessGameScreen() {
   const [opponentName, setOpponentName] = useState('Opponent');
   const [moveStartTime, setMoveStartTime] = useState(Date.now());
   const [lastSyncedTurn, setLastSyncedTurn] = useState<string | null>(null);
+  const [isMovePending, setIsMovePending] = useState(false);
   
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const backgroundTimeRef = useRef<number | null>(null);
@@ -71,7 +72,12 @@ export function ChessGameScreen() {
       }
       
       setIsMyTurn(myTurn);
-      setCurrentFen(match.fen);
+      
+      // Only update FEN from polling if we're not waiting for a move response
+      // This prevents race condition where polling returns old state before mutation completes
+      if (!isMovePending) {
+        setCurrentFen(match.fen);
+      }
       
       const opponent = isPlayer1 ? match.player2Wallet : match.player1Wallet;
       opponentWalletRef.current = opponent; // Store opponent wallet for timeout handling
@@ -85,7 +91,7 @@ export function ChessGameScreen() {
         setPlayer2Time(match.player2TimeRemaining);
       }
     }
-  }, [matchData, walletAddress, lastSyncedTurn]);
+  }, [matchData, walletAddress, lastSyncedTurn, isMovePending]);
   
   // Track if we've already triggered timeout to prevent multiple calls
   const timeoutTriggeredRef = useRef(false);
@@ -276,6 +282,8 @@ export function ChessGameScreen() {
       return res.json();
     },
     onMutate: () => {
+      // Mark move as pending to prevent polling from overwriting our local state
+      setIsMovePending(true);
       // Immediately switch turn to opponent after player makes a move
       // This prevents player's timer from ticking while waiting for bot response
       setIsMyTurn(false);
@@ -300,7 +308,13 @@ export function ChessGameScreen() {
           setWinReason(data.reason);
         }
       }
+      // Clear pending flag - mutation is complete
+      setIsMovePending(false);
       queryClient.invalidateQueries({ queryKey: ['/api/chess/match', matchId] });
+    },
+    onError: () => {
+      // Clear pending flag on error so polling can resume
+      setIsMovePending(false);
     },
   });
   
