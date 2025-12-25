@@ -358,8 +358,8 @@ function formatCountdown(ms: number): string {
   return `${hours}h ${minutes}m`;
 }
 
-// Beta: Flappy competitions are locked - only free play available
-const FLAPPY_COMPETITIONS_LOCKED = true;
+// Flappy ranked competitions are now enabled
+const FLAPPY_COMPETITIONS_LOCKED = false;
 
 function CompetitionCard({
   title,

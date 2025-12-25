@@ -509,8 +509,8 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  // Beta: Block all flappy ranked competitions
-  const FLAPPY_COMPETITIONS_LOCKED = true;
+  // Beta: Flappy ranked competitions are now enabled
+  const FLAPPY_COMPETITIONS_LOCKED = false;
 
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
