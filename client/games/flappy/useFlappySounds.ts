@@ -7,10 +7,10 @@ type SoundType = 'jump' | 'coin' | 'hit' | 'die' | 'powerup';
 
 const SOUNDS = {
   jump: require('@assets/audio/flappy-tap.wav'),
-  coin: require('@assets/audio/flappy-coin.wav'),
-  hit: require('@assets/audio/flappy-die.wav'),
-  die: require('@assets/audio/flappy-die.wav'),
-  powerup: require('@assets/audio/flappy-powerup.wav'),
+  coin: require('@assets/audio/flappy-coin.mp3'),
+  hit: require('@assets/audio/flappy-die.mp3'),
+  die: require('@assets/audio/flappy-die.mp3'),
+  powerup: require('@assets/audio/flappy-powerup.mp3'),
 };
 
 export function useFlappySounds(soundEnabled: boolean = true) {
@@ -34,16 +34,16 @@ export function useFlappySounds(soundEnabled: boolean = true) {
     }).catch(() => {});
     
     if (jumpPlayer) {
-      jumpPlayer.volume = 0.5;
+      jumpPlayer.volume = 0.6;
     }
     if (coinPlayer) {
-      coinPlayer.volume = 0.7;
+      coinPlayer.volume = 0.6;
     }
     if (diePlayer) {
-      diePlayer.volume = 0.8;
+      diePlayer.volume = 0.6;
     }
     if (powerupPlayer) {
-      powerupPlayer.volume = 0.7;
+      powerupPlayer.volume = 0.6;
     }
   }, [jumpPlayer, coinPlayer, diePlayer, powerupPlayer]);
 
