@@ -163,19 +163,28 @@ export function ChessBoard({
         try {
           const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
           if (move) {
+            // Store the new FEN immediately after our move
+            // This is crucial: when the server responds with bot's move,
+            // we'll detect the move by comparing this FEN to the server's FEN
+            const fenAfterOurMove = game.fen();
+            lastFenRef.current = fenAfterOurMove;
+            
+            // Mark player's move for highlighting
             setLastMove({ from: selectedSquare, to: square });
             lastMoveSquareRef.current = square;
             triggerMoveAnimation();
             setSelectedSquare(null);
             setValidMoves([]);
-            pendingMoveRef.current = true;
+            
+            // Force a re-render to show our move immediately
+            setGame(new Chess(fenAfterOurMove));
             
             if (onMove) {
               onMove({
                 from: selectedSquare,
                 to: square,
                 san: move.san,
-                fen: game.fen(),
+                fen: fenAfterOurMove,
                 promotion: move.promotion,
               });
             }
