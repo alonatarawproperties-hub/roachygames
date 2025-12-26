@@ -241,7 +241,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let redirectUri: string;
       if (Platform.OS === "ios" || Platform.OS === "android") {
         // Native clients use reversed client ID as URL scheme
-        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
+        // Format: scheme://host/path (note: double slash is required for Android)
+        redirectUri = `${reversedClientId}://oauth2redirect/google`;
       } else {
         // Web fallback
         redirectUri = AuthSession.makeRedirectUri({
