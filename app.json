@@ -88,9 +88,7 @@
           "action": "VIEW",
           "data": [
             {
-              "scheme": "com.googleusercontent.apps.433710630203-6sf1rqe7cmo6jtmvskngjitv9h3679gh",
-              "host": "oauth2redirect",
-              "pathPrefix": "/google"
+              "scheme": "com.googleusercontent.apps.433710630203-6sf1rqe7cmo6jtmvskngjitv9h3679gh"
             }
           ],
           "category": [
