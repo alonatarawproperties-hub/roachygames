@@ -1,11 +1,11 @@
 {
-  "id": "0755c989-dc91-4c65-b9bf-189156c749eb",
-  "createdAt": "2025-12-26T06:14:51.850Z",
+  "id": "340868ea-1eeb-4b64-bbb2-b4154244d1e2",
+  "createdAt": "2025-12-26T06:35:52.385Z",
   "runtimeVersion": "1.0.0",
   "launchAsset": {
-    "key": "bundle-1766729691850-7253",
+    "key": "bundle-1766730952385-9424",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1766729691850-7253/_expo/static/js/android/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1766730952385-9424/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
