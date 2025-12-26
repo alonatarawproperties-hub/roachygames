@@ -33,6 +33,7 @@ import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
 import { useAuth } from "@/context/AuthContext";
 import { spendChy } from "@/lib/webapp-api";
+import { useActiveCompetitions, Competition } from "@/hooks/useCompetitions";
 
 // God accounts have access to ALL skins without purchasing
 const GOD_ACCOUNTS = [
@@ -108,6 +109,7 @@ interface FlappyMenuSheetProps {
   onPlayRanked: (period: 'daily' | 'weekly') => void;
   onPlayFree: () => void;
   onPlayCompetition?: () => void;
+  onPlayBossChallenge?: (competition: Competition) => void;
   onEquipPowerUp: (type: "shield" | "double" | "magnet") => void;
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
   selectedSkin: RoachySkin;
@@ -129,6 +131,7 @@ export function FlappyMenuSheet({
   onPlayRanked,
   onPlayFree,
   onPlayCompetition,
+  onPlayBossChallenge,
   onEquipPowerUp,
   equippedPowerUps,
   selectedSkin,
@@ -317,6 +320,10 @@ export function FlappyMenuSheet({
                     onClose();
                   }}
                   onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
+                  onPlayBossChallenge={(competition) => {
+                    onPlayBossChallenge?.(competition);
+                    onClose();
+                  }}
                   isEntering={enterRankedMutation.isPending}
                   entryError={enterRankedMutation.error?.message}
                 />
@@ -701,6 +708,90 @@ interface CompetitionLeaderboardResponse {
   userRankInfo: CompetitionLeaderboardEntry | null;
 }
 
+function formatTimeRemaining(endsAt: string): string {
+  const endDate = new Date(endsAt);
+  const now = new Date();
+  const diffMs = endDate.getTime() - now.getTime();
+  
+  if (diffMs <= 0) return "Ended";
+  
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days}d ${remainingHours}h`;
+  }
+  
+  return `${hours}h ${minutes}m`;
+}
+
+function BossChallengeCard({ 
+  competition, 
+  onPlay 
+}: { 
+  competition: Competition;
+  onPlay: () => void;
+}) {
+  const ChyCoinIconSource = require("@/assets/chy-coin-icon.png");
+  
+  return (
+    <View style={styles.bossChallengeCard}>
+      <View style={styles.bossChallengeHeader}>
+        <View style={styles.bossChallengeIconContainer}>
+          <Feather name="zap" size={20} color={GameColors.gold} />
+        </View>
+        <View style={styles.bossChallengeInfo}>
+          <ThemedText style={styles.bossChallengeTitle}>{competition.name}</ThemedText>
+          <View style={styles.bossChallengeBadge}>
+            <View style={styles.liveDot} />
+            <ThemedText style={styles.bossChallengeBadgeText}>LIVE</ThemedText>
+          </View>
+        </View>
+        <View style={styles.bossChallengeTimer}>
+          <Feather name="clock" size={12} color={GameColors.textSecondary} />
+          <ThemedText style={styles.bossChallengeTimerText}>
+            {formatTimeRemaining(competition.endsAt)}
+          </ThemedText>
+        </View>
+      </View>
+      
+      <View style={styles.bossChallengeStats}>
+        <View style={styles.bossChallengeStatItem}>
+          <ThemedText style={styles.bossChallengeStatValue}>
+            {competition.currentEntries || 0}
+          </ThemedText>
+          <ThemedText style={styles.bossChallengeStatLabel}>Players</ThemedText>
+        </View>
+        <View style={styles.bossChallengeStatItem}>
+          <View style={styles.bossChallengeStatValueRow}>
+            <Image source={ChyCoinIconSource} style={styles.coinIconTiny} contentFit="contain" />
+            <ThemedText style={styles.bossChallengeStatValue}>
+              {competition.prizePool}
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.bossChallengeStatLabel}>Prize Pool</ThemedText>
+        </View>
+        <View style={styles.bossChallengeStatItem}>
+          <View style={styles.bossChallengeStatValueRow}>
+            <Image source={ChyCoinIconSource} style={styles.coinIconTiny} contentFit="contain" />
+            <ThemedText style={styles.bossChallengeStatValue}>
+              {competition.entryFee}
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.bossChallengeStatLabel}>Entry Fee</ThemedText>
+        </View>
+      </View>
+      
+      <Pressable style={styles.bossChallengePlayButton} onPress={onPlay}>
+        <Feather name="play" size={16} color={GameColors.background} />
+        <ThemedText style={styles.bossChallengePlayButtonText}>Play</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
 function LeaderboardsTab({
   rankedStatus,
   userId,
@@ -710,6 +801,7 @@ function LeaderboardsTab({
   onRefreshBalance,
   onPlayFree,
   onPlayRanked,
+  onPlayBossChallenge,
   isEntering,
   entryError,
 }: {
@@ -721,9 +813,11 @@ function LeaderboardsTab({
   onRefreshBalance: () => void;
   onPlayFree: () => void;
   onPlayRanked: (period: 'daily' | 'weekly') => void;
+  onPlayBossChallenge: (competition: Competition) => void;
   isEntering: boolean;
   entryError?: string;
 }) {
+  const { data: bossCompetitions, isLoading: bossLoading } = useActiveCompetitions();
   const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly'>('daily');
   
   // Fetch competition-specific leaderboard - always refetch to ensure fresh data
@@ -881,6 +975,27 @@ function LeaderboardsTab({
         {entryError ? (
           <ThemedText style={styles.errorText}>{entryError}</ThemedText>
         ) : null}
+
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Boss Challenges</ThemedText>
+        <ThemedText style={styles.competitionHint}>Limited-time special events from roachy.games</ThemedText>
+        
+        {bossLoading ? (
+          <ActivityIndicator color={GameColors.gold} style={{ marginVertical: Spacing.lg }} />
+        ) : bossCompetitions && bossCompetitions.length > 0 ? (
+          bossCompetitions.map((comp) => (
+            <BossChallengeCard
+              key={comp.id}
+              competition={comp}
+              onPlay={() => onPlayBossChallenge(comp)}
+            />
+          ))
+        ) : (
+          <View style={styles.noBossChallenges}>
+            <Feather name="zap" size={24} color={GameColors.textSecondary} />
+            <ThemedText style={styles.noBossChallengesText}>No active boss challenges</ThemedText>
+            <ThemedText style={styles.noBossChallengesSubtext}>Check back soon for special events!</ThemedText>
+          </View>
+        )}
       </View>
 
       {selectedInfo && selectedInfo.hasJoined ? (
@@ -2185,5 +2300,127 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  noBossChallenges: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  noBossChallengesText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  noBossChallengesSubtext: {
+    fontSize: 12,
+    color: "#666",
+  },
+  bossChallengeCard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+  },
+  bossChallengeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  bossChallengeIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bossChallengeInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  bossChallengeTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GameColors.text,
+  },
+  bossChallengeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#22c55e",
+  },
+  bossChallengeBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#22c55e",
+  },
+  bossChallengeTimer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GameColors.surfaceLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  bossChallengeTimerText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: GameColors.textSecondary,
+  },
+  bossChallengeStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: GameColors.surfaceLight,
+  },
+  bossChallengeStatItem: {
+    alignItems: "center",
+    gap: 2,
+  },
+  bossChallengeStatValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  bossChallengeStatValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  bossChallengeStatLabel: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+  },
+  coinIconTiny: {
+    width: 14,
+    height: 14,
+  },
+  bossChallengePlayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.gold,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  bossChallengePlayButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GameColors.background,
   },
 });

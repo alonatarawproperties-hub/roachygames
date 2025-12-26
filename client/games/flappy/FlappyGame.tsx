@@ -758,6 +758,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const [showMenu, setShowMenu] = useState(!!competitionId);
   const [gameMode, setGameMode] = useState<GameMode>(competitionId ? "competition" : "free");
   const [rankedPeriod, setRankedPeriod] = useState<'daily' | 'weekly' | null>(null);
+  const [activeCompetitionId, setActiveCompetitionId] = useState<string | null>(competitionId);
+  const [activeCompetitionName, setActiveCompetitionName] = useState<string | null>(competitionName);
   const [soundEnabled, setSoundEnabled] = useState(true);
   
   useEffect(() => {
@@ -1149,17 +1151,17 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     if (onScoreSubmit && finalScore > 0) {
-      const isCompetition = !!competitionId;
+      const isCompetition = !!activeCompetitionId;
       onScoreSubmit({
         score: finalScore,
         isRanked: gameMode === "ranked" || isCompetition,
         rankedPeriod: isCompetition ? null : rankedPeriod,
         runId: runIdRef.current,
         isCompetition,
-        competitionId: competitionId,
+        competitionId: activeCompetitionId,
       });
     }
-  }, [highScore, onScoreSubmit, gameMode, rankedPeriod, competitionId]);
+  }, [highScore, onScoreSubmit, gameMode, rankedPeriod, activeCompetitionId]);
   
   const deathLoop = useCallback(() => {
     if (gameStateRef.current !== "dying") return;
@@ -2379,19 +2381,30 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         visible={showMenu}
         onClose={() => setShowMenu(false)}
         userId={userId}
-        competitionId={competitionId}
-        competitionName={competitionName}
+        competitionId={activeCompetitionId}
+        competitionName={activeCompetitionName}
         onPlayRanked={(period: 'daily' | 'weekly') => {
+          setActiveCompetitionId(null);
+          setActiveCompetitionName(null);
           setGameMode("ranked");
           setRankedPeriod(period);
           setShowMenu(false);
         }}
         onPlayFree={() => {
+          setActiveCompetitionId(null);
+          setActiveCompetitionName(null);
           setGameMode("free");
           setRankedPeriod(null);
           setShowMenu(false);
         }}
         onPlayCompetition={() => {
+          setGameMode("competition");
+          setRankedPeriod(null);
+          setShowMenu(false);
+        }}
+        onPlayBossChallenge={(competition) => {
+          setActiveCompetitionId(competition.id);
+          setActiveCompetitionName(competition.name);
           setGameMode("competition");
           setRankedPeriod(null);
           setShowMenu(false);
