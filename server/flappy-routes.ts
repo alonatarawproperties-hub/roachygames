@@ -202,24 +202,26 @@ export function registerFlappyRoutes(app: Express) {
   // Score submission with anti-cheat validation - REQUIRES AUTHENTICATION (no guest bypass)
   app.post("/api/flappy/score", rateLimit({ windowMs: 60000, max: 60 }), requireAuth, async (req: Request, res: Response) => {
     try {
-      const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
+      const { userId: bodyUserId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
       const authenticatedUserId = (req as any).userId;
       
+      // IMPORTANT: Always use the authenticated userId from JWT, not from request body
+      // This ensures we're using the verified user identity
+      const userId = authenticatedUserId;
+      
       console.log(`[Flappy Score] ====== SCORE SUBMISSION ======`);
-      console.log(`[Flappy Score] Request userId: ${userId}`);
-      console.log(`[Flappy Score] Authenticated userId: ${authenticatedUserId}`);
+      console.log(`[Flappy Score] Body userId: ${bodyUserId}`);
+      console.log(`[Flappy Score] JWT userId (using): ${userId}`);
       console.log(`[Flappy Score] Score: ${score}, isRanked: ${isRanked}, period: ${rankedPeriod}`);
       console.log(`[Flappy Score] Timestamp: ${new Date().toISOString()}`);
       
-      if (!userId || score === undefined) {
+      if (score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
       
-      // SECURITY: Always verify authenticated user matches claimed userId
-      // No guest bypass - requireAuth ensures we always have authenticatedUserId
-      if (authenticatedUserId !== userId) {
-        logSecurityEvent("score_submit_user_mismatch", authenticatedUserId, { requestedUserId: userId, score }, "critical");
-        return res.status(403).json({ success: false, error: "Unauthorized user" });
+      // Log if there's a mismatch for debugging, but still proceed with authenticated userId
+      if (bodyUserId && authenticatedUserId !== bodyUserId) {
+        console.warn(`[Flappy Score] UserId mismatch - body: ${bodyUserId}, JWT: ${authenticatedUserId}. Using JWT userId.`);
       }
       
       // Validate score is a reasonable number

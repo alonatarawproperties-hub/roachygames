@@ -73,22 +73,28 @@ export function FlappyRoachScreen() {
       const data = await response.json();
       console.log(`[ScoreSubmit] API response:`, data);
       
-      // Invalidate ALL flappy ranked queries to ensure fresh data after each game
-      queryClient.invalidateQueries({ predicate: (query) => {
-        const key = query.queryKey[0];
-        return typeof key === 'string' && (
-          key.includes('/api/flappy/ranked/status') ||
-          key.includes('/api/flappy/ranked/leaderboard')
-        );
-      }});
-      queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
-      
-      console.log(`[ScoreSubmit] Success! Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
+      if (data.success) {
+        // Invalidate ALL flappy ranked queries to ensure fresh data after each game
+        queryClient.invalidateQueries({ predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && (
+            key.includes('/api/flappy/ranked/status') ||
+            key.includes('/api/flappy/ranked/leaderboard')
+          );
+        }});
+        queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
+        
+        console.log(`[ScoreSubmit] Success! Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
+      } else {
+        console.error(`[ScoreSubmit] Server returned error:`, data.error);
+      }
     } catch (error: any) {
-      console.error("[ScoreSubmit] FAILED:", error?.message || error);
-      // Log the full error for debugging
-      if (error?.message?.includes("401")) {
-        console.error("[ScoreSubmit] Auth token expired or invalid - user needs to re-login");
+      const errorMsg = error?.message || String(error);
+      console.error("[ScoreSubmit] FAILED:", errorMsg);
+      
+      // Log auth errors specifically for debugging
+      if (errorMsg.includes("401") || errorMsg.includes("403")) {
+        console.error("[ScoreSubmit] AUTH ERROR - Token may be expired. User ID:", user.id);
       }
     }
   }, [user?.id, queryClient]);
