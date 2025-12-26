@@ -605,19 +605,16 @@ export function registerFlappyRoutes(app: Express) {
       
       if (webappUserId) {
         console.log(`[Flappy] Using frontend-provided webappUserId: ${webappUserId}`);
-        // Direct balance fetch using webappUserId
-        const balanceResult = await webappRequest("GET", `/api/web/users/${webappUserId}/balances`);
-        console.log(`[Flappy] Direct balance API response:`, JSON.stringify(balanceResult));
+        // Use wallet-balance endpoint (same as client) for accurate on-chain CHY balance
+        const balanceResult = await webappRequest("GET", `/api/web/users/${webappUserId}/wallet-balance`);
+        console.log(`[Flappy] Wallet-balance API response:`, JSON.stringify(balanceResult));
         if (balanceResult.status === 200 && balanceResult.data) {
-          // Try multiple possible response formats
-          chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? balanceResult.data?.balance ?? 0;
-          // Only mark as fetched if we got a real balance (> 0) or the fetch was successful
-          if (chyBalance > 0 || balanceResult.data.hasOwnProperty('chyBalance') || balanceResult.data.hasOwnProperty('chy')) {
-            balanceFetched = true;
-          }
-          console.log(`[Flappy] Direct balance fetch for ${webappUserId}: ${chyBalance} CHY (fetched: ${balanceFetched})`);
+          // wallet-balance returns chyBalance directly
+          chyBalance = balanceResult.data?.chyBalance ?? 0;
+          balanceFetched = true;
+          console.log(`[Flappy] Wallet-balance fetch for ${webappUserId}: ${chyBalance} CHY`);
         } else {
-          console.log(`[Flappy] Direct balance fetch failed, will try OAuth exchange:`, balanceResult);
+          console.log(`[Flappy] Wallet-balance fetch failed, will try OAuth exchange:`, balanceResult);
         }
       }
       
@@ -675,9 +672,11 @@ export function registerFlappyRoutes(app: Express) {
         if (exchangeResult.status === 200 && exchangeResult.data?.success) {
           effectiveWebappUserId = exchangeResult.data.user?.id;
           if (effectiveWebappUserId) {
-            const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/balances`);
+            // Use wallet-balance endpoint (same as client) for accurate on-chain CHY balance
+            const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
+            console.log(`[Flappy] OAuth fallback wallet-balance response:`, JSON.stringify(balanceResult));
             if (balanceResult.status === 200) {
-              chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? 0;
+              chyBalance = balanceResult.data?.chyBalance ?? 0;
             }
           }
         }
