@@ -48,11 +48,35 @@ export interface SubmitScoreResponse {
   error?: string;
 }
 
+interface ActiveCompetitionsResponse {
+  success: boolean;
+  competitions: Competition[];
+}
+
 export function useActiveCompetitions() {
-  return useQuery<Competition[]>({
+  return useQuery<Competition[], Error>({
     queryKey: ["/api/competitions/active"],
     staleTime: 60_000,
     refetchInterval: 60_000,
+    select: (data: any) => {
+      if (data?.competitions && Array.isArray(data.competitions)) {
+        return data.competitions.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          entryFee: c.entryFee ?? 0,
+          prizePool: c.prizePool ?? 0,
+          startsAt: c.startsAt,
+          endsAt: c.endsAt,
+          maxEntries: c.maxEntries,
+          currentEntries: c.participantCount ?? c.currentEntries,
+        }));
+      }
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return [];
+    },
   });
 }
 
