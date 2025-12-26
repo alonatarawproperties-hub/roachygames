@@ -192,11 +192,22 @@ export function FlappyMenuSheet({
     enabled: visible && activeTab === "loadout" && !!userId,
   });
 
-  const { data: rankedStatus } = useQuery<RankedStatusResponse>({
+  const { data: rankedStatus, refetch: refetchStatus } = useQuery<RankedStatusResponse>({
     queryKey: [`/api/flappy/ranked/status?userId=${userId || ''}`],
     enabled: visible && activeTab === "leaderboards",
     staleTime: 0, // Always refetch to ensure fresh data after games
+    refetchOnMount: 'always', // Always refetch when sheet opens
   });
+  
+  // Force refetch status and leaderboard data when menu sheet becomes visible
+  React.useEffect(() => {
+    if (visible && activeTab === "leaderboards") {
+      console.log('[FlappyMenu] Sheet visible - refetching ranked status and leaderboards');
+      refetchStatus();
+      // Also invalidate leaderboard queries to force fresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/flappy/ranked/leaderboard'] });
+    }
+  }, [visible, activeTab, refetchStatus, queryClient]);
 
   // Use webapp balances for real CHY from roachy.games
   const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances, invalidateBalances } = useWebappBalances();
@@ -554,7 +565,16 @@ function LeaderboardsTab({
     queryKey: [`/api/flappy/ranked/leaderboard?period=${selectedCompetition}&userId=${userId || ''}`],
     enabled: !!selectedCompetition,
     staleTime: 0, // Always consider stale - force refetch on mount
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
+  
+  // Force refetch leaderboard when competition selection changes or when component first renders
+  React.useEffect(() => {
+    if (selectedCompetition) {
+      console.log(`[FlappyMenu] Refetching leaderboard for ${selectedCompetition}`);
+      refetchLeaderboard();
+    }
+  }, [selectedCompetition, refetchLeaderboard]);
   
   const spinValue = useSharedValue(0);
   

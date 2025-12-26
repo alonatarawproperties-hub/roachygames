@@ -772,6 +772,7 @@ export function registerFlappyRoutes(app: Express) {
       const { userId } = req.query;
       const today = getTodayDate();
       const weekNumber = getWeekNumber();
+      console.log(`[Flappy Status] Fetching for userId=${userId}, today=${today}, weekNumber=${weekNumber}`);
       
       const dailyParticipants = await db.select({ count: sql<number>`count(*)` })
         .from(flappyRankedEntries)
