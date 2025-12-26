@@ -239,9 +239,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const reversedClientId = clientId.split(".").reverse().join(".");
       
       let redirectUri: string;
-      if (Platform.OS === "ios" || Platform.OS === "android") {
-        // Native clients use reversed client ID as URL scheme
-        // Format: scheme://host/path (note: double slash is required for Android)
+      if (Platform.OS === "ios") {
+        // iOS uses single slash format: scheme:/path
+        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
+      } else if (Platform.OS === "android") {
+        // Android requires double slash format: scheme://host/path
         redirectUri = `${reversedClientId}://oauth2redirect/google`;
       } else {
         // Web fallback
