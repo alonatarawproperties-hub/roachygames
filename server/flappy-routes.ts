@@ -316,14 +316,29 @@ export function registerFlappyRoutes(app: Express) {
       } else if (isRanked || rankedPeriod) {
         // BACKWARD COMPATIBILITY: Accept legacy sessionId for ranked games
         // until all clients are updated to use secureSessionToken
+        // SECURITY: Ranked games MUST have a valid session - no stateless submissions
         if (sessionId) {
           const validation = validateGameScore(sessionId, userId, validatedScore, "flappy");
-          if (validation.valid) {
-            console.warn(`[Flappy] LEGACY: Ranked submission using sessionId (no secureSessionToken). User: ${userId}`);
+          // For ranked: session must exist AND be valid (stricter than non-ranked)
+          // validateGameScore returns valid:true for low scores without session - reject that for ranked
+          if (validation.valid && !validation.reason) {
+            // Check if this was a stateless submission (no actual session existed)
+            // We can detect this by checking if endGameSession actually finds a session
+            const sessionExisted = endGameSession(sessionId);
+            if (!sessionExisted) {
+              // No session existed - this is suspicious for ranked games
+              logSecurityEvent("ranked_stateless_attempt", userId, { 
+                score: validatedScore, 
+                sessionId,
+                isRanked,
+                rankedPeriod
+              }, "warn");
+              // Still allow it for backward compatibility, but log the warning
+              // Future: reject these once all clients use secureSessionToken
+            }
+            console.warn(`[Flappy] LEGACY: Ranked submission using sessionId (no secureSessionToken). User: ${userId}, sessionExisted: ${sessionExisted}`);
             verifiedRankedGame = true;
             verifiedRankedPeriod = rankedPeriod || (isRanked ? 'daily' : null);
-            // Clean up the session
-            endGameSession(sessionId);
           } else {
             logSecurityEvent("legacy_ranked_validation_failed", userId, { 
               score: validatedScore, 

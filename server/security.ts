@@ -246,8 +246,10 @@ export function validateGameScore(
 /**
  * End and clean up a game session
  */
-export function endGameSession(sessionId: string): void {
+export function endGameSession(sessionId: string): boolean {
+  const existed = gameSessionStore.has(sessionId);
   gameSessionStore.delete(sessionId);
+  return existed;
 }
 
 /**
