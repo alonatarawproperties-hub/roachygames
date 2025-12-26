@@ -1599,10 +1599,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       const pipe = pipesRef.current[i];
       if (pipe.x > -currentPipeWidth) {
         pipesRef.current[pipeWriteIdx++] = pipe;
-      } else if (isAndroid && pipeXSlotVals && pipe.slotIndex !== undefined && pipe.slotIndex >= 0) {
-        // Android: Reset slot for pipes going off-screen
-        pipeXSlotVals[pipe.slotIndex].value = -1000;
       }
+      // Android: Slot reset now handled by UI thread frame callback (no cross-thread conflict)
     }
     pipesRef.current.length = pipeWriteIdx;
     
@@ -1611,10 +1609,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       const coin = coinsRef.current[i];
       if (!coin.collected && coin.x > -COIN_SIZE) {
         coinsRef.current[coinWriteIdx++] = coin;
-      } else if (isAndroid && coinXSlotVals && coin.slotIndex !== undefined && coin.slotIndex >= 0) {
-        // Android: Reset slot for coins being removed (off-screen or collected)
-        coinXSlotVals[coin.slotIndex].value = -1000;
       }
+      // Android: Slot reset now handled by UI thread frame callback (no cross-thread conflict)
     }
     coinsRef.current.length = coinWriteIdx;
     
@@ -1745,12 +1741,20 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     const pipeSpeed = pipeSpeedSV.value * deltaMultiplier;
     
     // Move pipes - direct mutation of individual shared values (zero GC)
-    if (pipe0X.value > -200) pipe0X.value -= pipeSpeed;
-    if (pipe1X.value > -200) pipe1X.value -= pipeSpeed;
-    if (pipe2X.value > -200) pipe2X.value -= pipeSpeed;
-    if (pipe3X.value > -200) pipe3X.value -= pipeSpeed;
-    if (pipe4X.value > -200) pipe4X.value -= pipeSpeed;
-    if (pipe5X.value > -200) pipe5X.value -= pipeSpeed;
+    // CRITICAL: Also reset slots on UI thread to avoid cross-thread race condition
+    // When pipe goes past -100, reset to -1000 (ready for reuse at < -500)
+    if (pipe0X.value > -100) pipe0X.value -= pipeSpeed;
+    else if (pipe0X.value > -1000) pipe0X.value = -1000;
+    if (pipe1X.value > -100) pipe1X.value -= pipeSpeed;
+    else if (pipe1X.value > -1000) pipe1X.value = -1000;
+    if (pipe2X.value > -100) pipe2X.value -= pipeSpeed;
+    else if (pipe2X.value > -1000) pipe2X.value = -1000;
+    if (pipe3X.value > -100) pipe3X.value -= pipeSpeed;
+    else if (pipe3X.value > -1000) pipe3X.value = -1000;
+    if (pipe4X.value > -100) pipe4X.value -= pipeSpeed;
+    else if (pipe4X.value > -1000) pipe4X.value = -1000;
+    if (pipe5X.value > -100) pipe5X.value -= pipeSpeed;
+    else if (pipe5X.value > -1000) pipe5X.value = -1000;
     
     // === ANDROID-ONLY UI THREAD COLLISION DETECTION ===
     // CRITICAL FIX: Check pipe collisions at 60fps on UI thread for instant game over
@@ -1792,14 +1796,23 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     // Move coins - direct mutation of individual shared values (zero GC)
+    // CRITICAL: Also reset slots on UI thread to avoid cross-thread race condition
     if (coin0X.value > -100) coin0X.value -= pipeSpeed;
+    else if (coin0X.value > -1000) coin0X.value = -1000;
     if (coin1X.value > -100) coin1X.value -= pipeSpeed;
+    else if (coin1X.value > -1000) coin1X.value = -1000;
     if (coin2X.value > -100) coin2X.value -= pipeSpeed;
+    else if (coin2X.value > -1000) coin2X.value = -1000;
     if (coin3X.value > -100) coin3X.value -= pipeSpeed;
+    else if (coin3X.value > -1000) coin3X.value = -1000;
     if (coin4X.value > -100) coin4X.value -= pipeSpeed;
+    else if (coin4X.value > -1000) coin4X.value = -1000;
     if (coin5X.value > -100) coin5X.value -= pipeSpeed;
+    else if (coin5X.value > -1000) coin5X.value = -1000;
     if (coin6X.value > -100) coin6X.value -= pipeSpeed;
+    else if (coin6X.value > -1000) coin6X.value = -1000;
     if (coin7X.value > -100) coin7X.value -= pipeSpeed;
+    else if (coin7X.value > -1000) coin7X.value = -1000;
     
     // Move clouds - 60fps cloud animation on UI thread (CLOUD_SPEED = 1.5)
     const cloudSpeed = 1.5 * deltaMultiplier;
@@ -1983,13 +1996,23 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (gameState === "idle") {
       startGame();
       birdVelocity.current = JUMP_STRENGTH;
-      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
-      birdRotation.value = withTiming(-20, { duration: 100 });
+      if (isAndroid) {
+        // Android: Direct write for instant response - frame callback handles rotation
+        birdVelocitySV.value = JUMP_STRENGTH;
+        birdRotation.value = -20; // Instant, no withTiming (frame callback updates smoothly)
+      } else {
+        birdRotation.value = withTiming(-20, { duration: 100 });
+      }
       playSound("jump");
     } else if (gameState === "playing") {
       birdVelocity.current = JUMP_STRENGTH;
-      if (isAndroid) birdVelocitySV.value = JUMP_STRENGTH; // Sync shared value for UI thread
-      birdRotation.value = withTiming(-20, { duration: 100 });
+      if (isAndroid) {
+        // Android: Direct write for instant response - frame callback handles rotation
+        birdVelocitySV.value = JUMP_STRENGTH;
+        birdRotation.value = -20; // Instant, no withTiming
+      } else {
+        birdRotation.value = withTiming(-20, { duration: 100 });
+      }
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
