@@ -314,29 +314,15 @@ export function registerFlappyRoutes(app: Express) {
           return res.status(400).json({ success: false, error: sessionValidation.error || "Session validation failed" });
         }
       } else if (isRanked || rankedPeriod) {
-        // BACKWARD COMPATIBILITY: Accept legacy sessionId for ranked games
-        // until all clients are updated to use secureSessionToken
-        // SECURITY: Ranked games MUST have a valid session - no stateless submissions
+        // BACKWARD COMPATIBILITY: Accept ranked submissions without sessions
+        // The current Play Store/TestFlight builds do NOT send sessionId
+        // TODO: Once a new client build is released with session support, require sessions
         if (sessionId) {
+          // Client provided a sessionId - validate it
           const validation = validateGameScore(sessionId, userId, validatedScore, "flappy");
-          // For ranked: session must exist AND be valid (stricter than non-ranked)
-          // validateGameScore returns valid:true for low scores without session - reject that for ranked
           if (validation.valid && !validation.reason) {
-            // Check if this was a stateless submission (no actual session existed)
-            // We can detect this by checking if endGameSession actually finds a session
             const sessionExisted = endGameSession(sessionId);
-            if (!sessionExisted) {
-              // No session existed - this is suspicious for ranked games
-              logSecurityEvent("ranked_stateless_attempt", userId, { 
-                score: validatedScore, 
-                sessionId,
-                isRanked,
-                rankedPeriod
-              }, "warn");
-              // Still allow it for backward compatibility, but log the warning
-              // Future: reject these once all clients use secureSessionToken
-            }
-            console.warn(`[Flappy] LEGACY: Ranked submission using sessionId (no secureSessionToken). User: ${userId}, sessionExisted: ${sessionExisted}`);
+            console.warn(`[Flappy] LEGACY: Ranked submission with sessionId. User: ${userId}, sessionExisted: ${sessionExisted}`);
             verifiedRankedGame = true;
             verifiedRankedPeriod = rankedPeriod || (isRanked ? 'daily' : null);
           } else {
@@ -348,15 +334,17 @@ export function registerFlappyRoutes(app: Express) {
             return res.status(400).json({ success: false, error: "Score validation failed" });
           }
         } else {
-          // No session token AND no sessionId - REJECT
-          const securityCtx = extractSecurityContext(req, userId);
-          await logSecureEvent(
-            "ranked_without_session",
-            "critical",
-            `User ${userId} attempted ranked submission without any session. isRanked=${isRanked}, period=${rankedPeriod}`,
-            securityCtx
-          );
-          return res.status(400).json({ success: false, error: "Session required for ranked games" });
+          // TEMPORARY: Allow ranked without session for backward compatibility
+          // Current mobile builds don't call session/start, so sessionId is never sent
+          // Log this for monitoring - once client is updated, this branch should be removed
+          console.warn(`[Flappy] LEGACY: Ranked submission WITHOUT session. User: ${userId}, score: ${validatedScore}, period: ${rankedPeriod}`);
+          logSecurityEvent("ranked_without_session_legacy", userId, { 
+            score: validatedScore, 
+            isRanked,
+            rankedPeriod
+          }, "warn");
+          verifiedRankedGame = true;
+          verifiedRankedPeriod = rankedPeriod || (isRanked ? 'daily' : null);
         }
       }
       
