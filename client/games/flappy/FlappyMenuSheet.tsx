@@ -103,8 +103,11 @@ interface FlappyMenuSheetProps {
   visible: boolean;
   onClose: () => void;
   userId: string | null;
+  competitionId?: string | null;
+  competitionName?: string | null;
   onPlayRanked: (period: 'daily' | 'weekly') => void;
   onPlayFree: () => void;
+  onPlayCompetition?: () => void;
   onEquipPowerUp: (type: "shield" | "double" | "magnet") => void;
   equippedPowerUps: { shield: boolean; double: boolean; magnet: boolean };
   selectedSkin: RoachySkin;
@@ -121,8 +124,11 @@ export function FlappyMenuSheet({
   visible,
   onClose,
   userId,
+  competitionId,
+  competitionName,
   onPlayRanked,
   onPlayFree,
+  onPlayCompetition,
   onEquipPowerUp,
   equippedPowerUps,
   selectedSkin,
@@ -130,6 +136,7 @@ export function FlappyMenuSheet({
   selectedTrail,
   onSelectTrail,
 }: FlappyMenuSheetProps) {
+  const isCompetitionMode = !!competitionId;
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>("leaderboards");
   const queryClient = useQueryClient();
@@ -283,21 +290,37 @@ export function FlappyMenuSheet({
 
           <View style={styles.content}>
             {activeTab === "leaderboards" ? (
-              <LeaderboardsTab
-                rankedStatus={rankedStatus}
-                userId={userId}
-                chyBalance={chyBalance}
-                balanceLoading={balanceLoading}
-                onRefreshBalance={() => refetchBalances()}
-                balanceFetching={balanceFetching}
-                onPlayFree={() => {
-                  onPlayFree();
-                  onClose();
-                }}
-                onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
-                isEntering={enterRankedMutation.isPending}
-                entryError={enterRankedMutation.error?.message}
-              />
+              isCompetitionMode ? (
+                <WebappCompetitionTab
+                  competitionId={competitionId!}
+                  competitionName={competitionName || "Competition"}
+                  userId={userId}
+                  chyBalance={chyBalance}
+                  balanceLoading={balanceLoading}
+                  balanceFetching={balanceFetching}
+                  onRefreshBalance={() => refetchBalances()}
+                  onPlayCompetition={() => {
+                    onPlayCompetition?.();
+                    onClose();
+                  }}
+                />
+              ) : (
+                <LeaderboardsTab
+                  rankedStatus={rankedStatus}
+                  userId={userId}
+                  chyBalance={chyBalance}
+                  balanceLoading={balanceLoading}
+                  onRefreshBalance={() => refetchBalances()}
+                  balanceFetching={balanceFetching}
+                  onPlayFree={() => {
+                    onPlayFree();
+                    onClose();
+                  }}
+                  onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
+                  isEntering={enterRankedMutation.isPending}
+                  entryError={enterRankedMutation.error?.message}
+                />
+              )
             ) : (
               <LoadoutTab
                 inventory={inventoryData?.inventory}
@@ -516,6 +539,149 @@ function CompetitionCard({
         </Pressable>
       )}
     </Pressable>
+  );
+}
+
+interface WebappCompetitionLeaderboardEntry {
+  rank: number;
+  walletAddress: string;
+  displayName: string;
+  score: number;
+  submittedAt: string;
+}
+
+interface WebappCompetitionLeaderboardResponse {
+  success: boolean;
+  competitionId: string;
+  leaderboard: WebappCompetitionLeaderboardEntry[];
+  totalEntries: number;
+}
+
+function WebappCompetitionTab({
+  competitionId,
+  competitionName,
+  userId,
+  chyBalance,
+  balanceLoading,
+  balanceFetching,
+  onRefreshBalance,
+  onPlayCompetition,
+}: {
+  competitionId: string;
+  competitionName: string;
+  userId: string | null;
+  chyBalance: number;
+  balanceLoading: boolean;
+  balanceFetching: boolean;
+  onRefreshBalance: () => void;
+  onPlayCompetition: () => void;
+}) {
+  const { data: leaderboardData, isLoading: leaderboardLoading } = useQuery<WebappCompetitionLeaderboardResponse>({
+    queryKey: ["/api/competitions", competitionId, "leaderboard"],
+    enabled: !!competitionId,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
+  const spinValue = useSharedValue(0);
+  
+  React.useEffect(() => {
+    if (balanceFetching) {
+      spinValue.value = withRepeat(
+        withTiming(1, { duration: 800, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      spinValue.value = 0;
+    }
+  }, [balanceFetching]);
+  
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinValue.value * 360}deg` }],
+  }));
+
+  return (
+    <ScrollView 
+      style={styles.tabContent} 
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {userId ? (
+        <View style={styles.balanceCard}>
+          <View style={styles.balanceHeader}>
+            <ThemedText style={styles.balanceCardLabel}>Your Balance</ThemedText>
+            <Pressable style={styles.refreshBalanceButton} onPress={onRefreshBalance} disabled={balanceFetching}>
+              <Animated.View style={spinStyle}>
+                <Feather name="refresh-cw" size={16} color={GameColors.background} />
+              </Animated.View>
+            </Pressable>
+          </View>
+          <View style={styles.balanceRow}>
+            <Image source={ChyCoinIcon} style={styles.chyCoinIconLarge} contentFit="contain" />
+            {balanceLoading || balanceFetching ? (
+              <ActivityIndicator size="small" color={GameColors.gold} />
+            ) : (
+              <ThemedText style={styles.balanceValue}>{chyBalance} CHY</ThemedText>
+            )}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={styles.webappCompetitionHeader}>
+        <View style={styles.webappCompetitionTitleRow}>
+          <Feather name="award" size={24} color={GameColors.gold} />
+          <ThemedText style={styles.webappCompetitionTitleText}>{competitionName}</ThemedText>
+        </View>
+        <View style={styles.webappLiveIndicator}>
+          <View style={styles.webappLiveDot} />
+          <ThemedText style={styles.webappLiveText}>LIVE</ThemedText>
+        </View>
+      </View>
+
+      <Pressable
+        style={styles.playCompetitionButton}
+        onPress={onPlayCompetition}
+      >
+        <Feather name="play" size={20} color="#000" />
+        <ThemedText style={styles.playCompetitionButtonText}>Play Competition</ThemedText>
+      </Pressable>
+
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Leaderboard</ThemedText>
+
+      {leaderboardLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={GameColors.gold} />
+        </View>
+      ) : leaderboardData?.leaderboard && leaderboardData.leaderboard.length > 0 ? (
+        <View style={styles.leaderboardList}>
+          {leaderboardData.leaderboard.map((entry) => (
+            <View key={`${entry.walletAddress}-${entry.rank}`} style={styles.webappLeaderboardRow}>
+              <View style={[
+                styles.rankBadge, 
+                entry.rank === 1 && styles.webappRankGold,
+                entry.rank === 2 && styles.webappRankSilver,
+                entry.rank === 3 && styles.webappRankBronze,
+              ]}>
+                <ThemedText style={styles.rankText}>#{entry.rank}</ThemedText>
+              </View>
+              <View style={styles.webappPlayerInfo}>
+                <ThemedText style={styles.webappPlayerName} numberOfLines={1}>
+                  {entry.displayName || `${entry.walletAddress.slice(0, 4)}...${entry.walletAddress.slice(-4)}`}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.webappScoreText}>{entry.score.toLocaleString()}</ThemedText>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.emptyLeaderboard}>
+          <Feather name="users" size={32} color="#666" />
+          <ThemedText style={styles.emptyText}>No scores yet</ThemedText>
+          <ThemedText style={styles.webappEmptySubtext}>Be the first to compete!</ThemedText>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
@@ -1912,5 +2078,112 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: Spacing.sm,
+  },
+  webappCompetitionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: GameColors.surface,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  webappCompetitionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  webappCompetitionTitleText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.gold,
+    flex: 1,
+  },
+  webappLiveIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0, 200, 83, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  webappLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#00C853",
+  },
+  webappLiveText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#00C853",
+  },
+  playCompetitionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: GameColors.gold,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  playCompetitionButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#000",
+  },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  leaderboardList: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  webappLeaderboardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: GameColors.surfaceLight,
+  },
+  webappRankGold: {
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
+  },
+  webappRankSilver: {
+    backgroundColor: "rgba(192, 192, 192, 0.3)",
+  },
+  webappRankBronze: {
+    backgroundColor: "rgba(205, 127, 50, 0.3)",
+  },
+  webappPlayerInfo: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  webappPlayerName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: GameColors.text,
+  },
+  webappScoreText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  webappEmptySubtext: {
+    fontSize: 12,
+    color: "#666",
+  },
+  emptyLeaderboard: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: "center",
+    gap: Spacing.sm,
   },
 });

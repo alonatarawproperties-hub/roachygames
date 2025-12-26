@@ -23,7 +23,7 @@ export type RootStackParamList = {
   Auth: undefined;
   ArcadeHome: undefined;
   RoachyHuntStack: undefined;
-  FlappyRoachStack: undefined;
+  FlappyRoachStack: { competitionId?: string; competitionName?: string } | undefined;
   RoachyMateStack: undefined;
   RoachyBattlesStack: undefined;
   Catch: { creature: WildCreature };

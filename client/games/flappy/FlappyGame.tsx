@@ -658,7 +658,7 @@ const TRAIL_PARTICLE_FADE_SPEED = 0.04;
 
 type GameState = "idle" | "playing" | "dying" | "gameover";
 
-type GameMode = "free" | "ranked";
+type GameMode = "free" | "ranked" | "competition";
 
 interface PerformanceSettings {
   cloudsEnabled: boolean;
@@ -755,8 +755,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const [doubleTimeLeft, setDoubleTimeLeft] = useState(0);
   const [magnetTimeLeft, setMagnetTimeLeft] = useState(0);
   
-  const [showMenu, setShowMenu] = useState(false);
-  const [gameMode, setGameMode] = useState<GameMode>("free");
+  const [showMenu, setShowMenu] = useState(!!competitionId);
+  const [gameMode, setGameMode] = useState<GameMode>(competitionId ? "competition" : "free");
   const [rankedPeriod, setRankedPeriod] = useState<'daily' | 'weekly' | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   
@@ -2379,6 +2379,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         visible={showMenu}
         onClose={() => setShowMenu(false)}
         userId={userId}
+        competitionId={competitionId}
+        competitionName={competitionName}
         onPlayRanked={(period: 'daily' | 'weekly') => {
           setGameMode("ranked");
           setRankedPeriod(period);
@@ -2386,6 +2388,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         }}
         onPlayFree={() => {
           setGameMode("free");
+          setRankedPeriod(null);
+          setShowMenu(false);
+        }}
+        onPlayCompetition={() => {
+          setGameMode("competition");
           setRankedPeriod(null);
           setShowMenu(false);
         }}
