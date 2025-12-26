@@ -21,6 +21,7 @@ import Animated, {
   withSpring,
   withSequence,
   runOnJS,
+  runOnUI,
   cancelAnimation,
   Easing,
   interpolate,
@@ -924,6 +925,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   // CRITICAL: Shared values for all game parameters - JS values get frozen in worklets!
   const pipeSpeedSV = useSharedValue(PIPE_SPEED);
   const playableHeightSV = useSharedValue(PLAYABLE_HEIGHT);
+  const gapSizeSV = useSharedValue(GAP_SIZE);
+  const pipeWidthSV = useSharedValue(PIPE_WIDTH);
+  const birdXSV = useSharedValue(birdXRef.current);
+  const shieldActiveSV = useSharedValue(false); // For UI thread collision detection
   
   // Legacy array shared values (kept for iOS/web compatibility)
   const pipePositionsX = useSharedValue<number[]>(new Array(MAX_PIPES).fill(-1000));
@@ -1169,16 +1174,24 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       slotIndex: -1, // Will be set on Android
     };
     
-    // Android: Find empty slot and set individual shared values (zero GC)
-    // Must assign slotIndex BEFORE adding to array so collision detection uses correct slot
+    // Android: Find empty slot and set individual shared values atomically on UI thread
+    // CRITICAL FIX: Using runOnUI ensures both X and height are set in the same frame,
+    // preventing invisible pipes (height=0 while X is valid)
     if (isAndroid) {
       const slots = pipeXSlots.current;
       const heightSlots = pipeHSlots.current;
       for (let i = 0; i < MAX_PIPES; i++) {
         if (slots[i].value < -100) {
-          slots[i].value = gameWidthRef.current;
-          heightSlots[i].value = topHeight;
           newPipe.slotIndex = i; // Track which slot this pipe uses
+          const slotX = slots[i];
+          const slotH = heightSlots[i];
+          const newX = gameWidthRef.current;
+          // Set both values atomically on UI thread to prevent render race
+          runOnUI(() => {
+            'worklet';
+            slotH.value = topHeight;
+            slotX.value = newX;
+          })();
           break;
         }
       }
@@ -1287,12 +1300,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       case "shield":
         if (shieldTimerRef.current) clearTimeout(shieldTimerRef.current);
         shieldRef.current = true;
+        shieldActiveSV.value = true; // Sync to UI thread for collision detection
         shieldEndTimeRef.current = now + 5000;
         setShieldActive(true);
         setShieldTimeLeft(5);
         shieldTimerRef.current = setTimeout(() => {
           if (gameStateRef.current === "playing") {
             shieldRef.current = false;
+            shieldActiveSV.value = false; // Sync to UI thread for collision detection
             shieldEndTimeRef.current = 0;
             setShieldActive(false);
             setShieldTimeLeft(0);
@@ -1693,6 +1708,45 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (pipe4X.value > -200) pipe4X.value -= pipeSpeed;
     if (pipe5X.value > -200) pipe5X.value -= pipeSpeed;
     
+    // === ANDROID-ONLY UI THREAD COLLISION DETECTION ===
+    // CRITICAL FIX: Check pipe collisions at 60fps on UI thread for instant game over
+    // This prevents the 2-3 frame delay caused by JS thread frame skipping
+    if (!shieldActiveSV.value) {
+      const birdCenterY = birdY.value;
+      const birdX = birdXSV.value;
+      const halfBird = 25; // BIRD_SIZE / 2
+      const hitboxMargin = 10; // Shrink hitbox slightly for fair gameplay
+      const birdLeft = birdX - halfBird + hitboxMargin;
+      const birdRight = birdX + halfBird - hitboxMargin;
+      const birdTop = birdCenterY - halfBird + hitboxMargin;
+      const birdBottom = birdCenterY + halfBird - hitboxMargin;
+      const currentPipeWidth = pipeWidthSV.value;
+      const currentGapSize = gapSizeSV.value;
+      
+      // Check all 6 pipe slots for collision
+      const pipeXValues = [pipe0X.value, pipe1X.value, pipe2X.value, pipe3X.value, pipe4X.value, pipe5X.value];
+      const pipeHValues = [pipe0H.value, pipe1H.value, pipe2H.value, pipe3H.value, pipe4H.value, pipe5H.value];
+      
+      for (let i = 0; i < 6; i++) {
+        const pipeX = pipeXValues[i];
+        if (pipeX < -100 || pipeX > 500) continue; // Skip inactive or far pipes
+        
+        const pipeLeft = pipeX;
+        const pipeRight = pipeX + currentPipeWidth;
+        
+        // Check horizontal overlap
+        if (birdRight > pipeLeft && birdLeft < pipeRight) {
+          const topHeight = pipeHValues[i];
+          // Hit top pipe or bottom pipe?
+          if (birdTop < topHeight || birdBottom > topHeight + currentGapSize) {
+            frameCallbackActive.value = false;
+            runOnJS(gameOver)();
+            return;
+          }
+        }
+      }
+    }
+    
     // Move coins - direct mutation of individual shared values (zero GC)
     if (coin0X.value > -100) coin0X.value -= pipeSpeed;
     if (coin1X.value > -100) coin1X.value -= pipeSpeed;
@@ -1870,6 +1924,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       birdVelocitySV.value = 0;
       pipeSpeedSV.value = pipeSpeedRef.current; // Sync shared value for worklet
       playableHeightSV.value = playableHeightRef.current; // Sync for floor collision
+      gapSizeSV.value = gapSizeRef.current; // Sync for UI thread collision
+      pipeWidthSV.value = pipeWidthRef.current; // Sync for UI thread collision
+      birdXSV.value = birdXRef.current; // Sync bird X position
+      shieldActiveSV.value = false; // Reset shield state
     }
     // Always start JS game loop (needed for entity updates on all platforms)
     gameLoopRef.current = requestAnimationFrame(gameLoop);
