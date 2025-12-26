@@ -230,11 +230,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Google validates via SHA-1 fingerprint registered in Cloud Console
         clientId = GOOGLE_CLIENT_ID_ANDROID || "";
         const reversedClientId = clientId.split(".").reverse().join(".");
-        // Use makeRedirectUri to properly construct the URI for Android
-        redirectUri = AuthSession.makeRedirectUri({
-          scheme: reversedClientId,
-          path: "oauth2redirect/google",
-        });
+        // Construct redirect URI explicitly to match app.json intent filter
+        // Format: scheme://host/path where host=oauth2redirect, path=/google
+        redirectUri = `${reversedClientId}://oauth2redirect/google`;
       } else if (Platform.OS === "ios") {
         // iOS: Use iOS client ID with reversed scheme
         clientId = GOOGLE_CLIENT_ID_IOS || "";
