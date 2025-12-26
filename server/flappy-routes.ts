@@ -353,7 +353,18 @@ export function registerFlappyRoutes(app: Express) {
               .where(eq(flappyRankedEntries.id, entry.id));
           }
         } else {
-          console.log(`[Flappy Score] WARNING: No entry found for ranked game! User may not have joined competition.`);
+          // UPSERT: Create entry if it doesn't exist (fixes score not recording bug)
+          console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}`);
+          const ENTRY_FEE = rankedPeriod === 'daily' ? 1 : 3;
+          await db.insert(flappyRankedEntries).values({
+            userId,
+            period: rankedPeriod,
+            periodDate,
+            entryFee: ENTRY_FEE,
+            bestScore: score,
+            gamesPlayed: 1,
+          });
+          console.log(`[Flappy Score] Entry created successfully for ${rankedPeriod} competition`);
         }
       }
       
