@@ -601,6 +601,7 @@ export function registerFlappyRoutes(app: Express) {
       // If webappUserId is provided from frontend, use it directly for faster balance lookup
       let chyBalance = 0;
       let effectiveWebappUserId = webappUserId;
+      let balanceFetched = false;
       
       if (webappUserId) {
         console.log(`[Flappy] Using frontend-provided webappUserId: ${webappUserId}`);
@@ -608,11 +609,15 @@ export function registerFlappyRoutes(app: Express) {
         const balanceResult = await webappRequest("GET", `/api/web/users/${webappUserId}/balances`);
         if (balanceResult.status === 200) {
           chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? 0;
+          balanceFetched = true;
           console.log(`[Flappy] Direct balance fetch for ${webappUserId}: ${chyBalance} CHY`);
         } else {
-          console.log(`[Flappy] Direct balance fetch failed:`, balanceResult);
+          console.log(`[Flappy] Direct balance fetch failed, will try OAuth exchange:`, balanceResult);
         }
-      } else {
+      }
+      
+      // Fallback: If no webappUserId OR direct fetch failed, try OAuth exchange
+      if (!balanceFetched) {
         // Fallback: Look up user and do OAuth exchange
         let user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
         
