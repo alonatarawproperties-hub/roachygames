@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useState, useRef } from "react";
 import { View, StyleSheet, Platform, ActivityIndicator, Pressable, Modal, Text, Alert } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { FlappyGame } from "@/games/flappy/FlappyGame";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { FlappyGame, ScoreSubmitData } from "@/games/flappy/FlappyGame";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/query-client";
@@ -13,11 +13,20 @@ import { GameColors, Colors } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+type FlappyRoachParams = {
+  FlappyRoach: {
+    competitionId?: string;
+    competitionName?: string;
+  };
+};
+
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff: 1s, 2s, 4s
 
 export function FlappyRoachScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<FlappyRoachParams, 'FlappyRoach'>>();
+  const { competitionId, competitionName } = route.params ?? {};
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const { equippedSkin, isLoading: skinLoading } = useFlappySkin();
@@ -54,9 +63,12 @@ export function FlappyRoachScreen() {
     (navigation as any).navigate('ArcadeHome');
   };
 
-  const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => {
+  const handleScoreSubmit = useCallback(async (data: ScoreSubmitData) => {
+    const { score, isRanked, rankedPeriod, runId, isCompetition, competitionId: submittedCompetitionId } = data;
+    
     console.log(`[ScoreSubmit] ====== SCORE SUBMISSION START ======`);
     console.log(`[ScoreSubmit] user.id=${user?.id}, score=${score}, isRanked=${isRanked}, period=${rankedPeriod}`);
+    console.log(`[ScoreSubmit] isCompetition=${isCompetition}, competitionId=${submittedCompetitionId}, runId=${runId}`);
     console.log(`[ScoreSubmit] Timestamp: ${new Date().toISOString()}`);
     
     if (!user?.id || isGuest) {
@@ -71,42 +83,63 @@ export function FlappyRoachScreen() {
       try {
         console.log(`[ScoreSubmit] Attempt ${attempt + 1}/${MAX_RETRIES}`);
         
-        const response = await apiRequest("POST", "/api/flappy/score", {
-          userId: user.id,
-          score,
-          coinsCollected: 0,
-          isRanked,
-          rankedPeriod: isRanked ? rankedPeriod : null,
-          chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
-        });
-        
-        const data = await response.json();
-        console.log(`[ScoreSubmit] Response:`, JSON.stringify(data));
-        
-        if (data.success) {
-          // Invalidate ALL flappy ranked queries to ensure fresh data
-          queryClient.invalidateQueries({ predicate: (query) => {
-            const key = query.queryKey[0];
-            return typeof key === 'string' && (
-              key.includes('/api/flappy/ranked/status') ||
-              key.includes('/api/flappy/ranked/leaderboard')
-            );
-          }});
-          queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
+        if (isCompetition && submittedCompetitionId) {
+          const response = await apiRequest("POST", "/api/competitions/submit-score", {
+            competitionId: submittedCompetitionId,
+            walletAddress: user.walletAddress || user.id,
+            displayName: user.displayName || "Anonymous",
+            score,
+            runId,
+          });
           
-          console.log(`[ScoreSubmit] SUCCESS - Score ${score} saved (ranked: ${isRanked})`);
-          return; // Success! Exit the retry loop
+          const result = await response.json();
+          console.log(`[ScoreSubmit] Competition response:`, JSON.stringify(result));
+          
+          if (result.success) {
+            queryClient.invalidateQueries({
+              queryKey: ["/api/competitions", submittedCompetitionId, "leaderboard"],
+            });
+            console.log(`[ScoreSubmit] SUCCESS - Competition score ${score} submitted`);
+            return;
+          } else {
+            lastError = new Error(result.error || "Competition submission failed");
+            console.error(`[ScoreSubmit] Competition error: ${result.error}`);
+          }
         } else {
-          // Server returned error in response body
-          lastError = new Error(data.error || "Unknown server error");
-          console.error(`[ScoreSubmit] Server error: ${data.error}`);
+          const response = await apiRequest("POST", "/api/flappy/score", {
+            userId: user.id,
+            score,
+            coinsCollected: 0,
+            isRanked,
+            rankedPeriod: isRanked ? rankedPeriod : null,
+            chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
+          });
+          
+          const result = await response.json();
+          console.log(`[ScoreSubmit] Response:`, JSON.stringify(result));
+          
+          if (result.success) {
+            queryClient.invalidateQueries({ predicate: (query) => {
+              const key = query.queryKey[0];
+              return typeof key === 'string' && (
+                key.includes('/api/flappy/ranked/status') ||
+                key.includes('/api/flappy/ranked/leaderboard')
+              );
+            }});
+            queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
+            
+            console.log(`[ScoreSubmit] SUCCESS - Score ${score} saved (ranked: ${isRanked})`);
+            return;
+          } else {
+            lastError = new Error(result.error || "Unknown server error");
+            console.error(`[ScoreSubmit] Server error: ${result.error}`);
+          }
         }
       } catch (error: any) {
         lastError = error;
         const errorMsg = error?.message || String(error);
         console.error(`[ScoreSubmit] Attempt ${attempt + 1} failed: ${errorMsg}`);
         
-        // Don't retry on auth errors - user needs to re-login
         if (errorMsg.includes("401") || errorMsg.includes("403")) {
           console.error("[ScoreSubmit] AUTH ERROR - Session expired. User must re-login.");
           Alert.alert(
@@ -114,11 +147,15 @@ export function FlappyRoachScreen() {
             "Your login session has expired. Please log out and log back in to save your scores.",
             [{ text: "OK" }]
           );
-          return; // Don't retry auth errors
+          return;
+        }
+        
+        if (errorMsg.includes("409")) {
+          console.log("[ScoreSubmit] Duplicate submission detected (409) - score already saved");
+          return;
         }
       }
       
-      // Wait before retrying (except on last attempt)
       if (attempt < MAX_RETRIES - 1) {
         const delay = RETRY_DELAYS[attempt] || 4000;
         console.log(`[ScoreSubmit] Waiting ${delay}ms before retry...`);
@@ -126,18 +163,18 @@ export function FlappyRoachScreen() {
       }
     }
     
-    // All retries failed
     console.error(`[ScoreSubmit] FAILED after ${MAX_RETRIES} attempts`);
     
-    if (isRanked) {
-      // Only show alert for ranked games where score matters
+    if (isRanked || isCompetition) {
       Alert.alert(
         "Score Save Failed",
-        "We couldn't save your ranked score. Please check your internet connection and try again.",
+        isCompetition 
+          ? "We couldn't submit your competition score. Please check your internet connection."
+          : "We couldn't save your ranked score. Please check your internet connection and try again.",
         [{ text: "OK" }]
       );
     }
-  }, [user?.id, isGuest, queryClient]);
+  }, [user?.id, user?.walletAddress, user?.displayName, isGuest, queryClient]);
 
   const handleModeSelect = (newMode: PerformanceMode) => {
     setMode(newMode);
@@ -161,6 +198,8 @@ export function FlappyRoachScreen() {
         skin={equippedSkin}
         trail={equippedTrail}
         performanceSettings={settings}
+        competitionId={competitionId}
+        competitionName={competitionName}
       />
       
       <Pressable 

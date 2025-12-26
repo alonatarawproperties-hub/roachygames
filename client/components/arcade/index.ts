@@ -15,3 +15,4 @@ export { NFTGallery } from "./NFTGallery";
 export { WebCTA, WebCTACompact, WebCTABanner } from "./WebCTA";
 export { EventsCalendar } from "./EventsCalendar";
 export { FriendActivity } from "./FriendActivity";
+export { CompetitionsCard } from "./CompetitionsCard";

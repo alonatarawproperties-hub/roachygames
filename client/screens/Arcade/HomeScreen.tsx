@@ -22,6 +22,7 @@ import {
   OnboardingFlow,
   ActivityHistory,
   WebCTABanner,
+  CompetitionsCard,
 } from "@/components/arcade";
 import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
 import { UpdateBanner } from "@/components/UpdateBanner";
@@ -1423,6 +1424,23 @@ export function ArcadeHomeScreen() {
                 />
                 <View style={styles.sectionSpacer} />
                 <EarningsTracker />
+                <View style={styles.sectionSpacer} />
+                <CompetitionsCard
+                  onCompetitionPress={(competition) => {
+                    if (competition.status === "active") {
+                      (navigation as any).navigate("FlappyRoachStack", {
+                        competitionId: competition.id,
+                        competitionName: competition.name,
+                      });
+                    } else {
+                      Alert.alert(
+                        competition.name,
+                        `Entry Fee: ${competition.entryFee} CHY\nPrize Pool: ${competition.prizePool} CHY\nStatus: ${competition.status}`,
+                        [{ text: "OK" }]
+                      );
+                    }
+                  }}
+                />
               </>
             )}
 

@@ -30,6 +30,7 @@ import Animated, {
   useFrameCallback,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import * as Crypto from "expo-crypto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlappyMenuSheet } from "./FlappyMenuSheet";
 import { apiRequest } from "@/lib/query-client";
@@ -673,16 +674,27 @@ const DEFAULT_PERFORMANCE: PerformanceSettings = {
   maxTrailParticles: 12,
 };
 
+export interface ScoreSubmitData {
+  score: number;
+  isRanked: boolean;
+  rankedPeriod?: 'daily' | 'weekly' | null;
+  runId: string;
+  isCompetition: boolean;
+  competitionId?: string | null;
+}
+
 interface FlappyGameProps {
   onExit?: () => void;
-  onScoreSubmit?: (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => void;
+  onScoreSubmit?: (data: ScoreSubmitData) => void;
   userId?: string | null;
   skin?: RoachySkin;
   trail?: RoachyTrail;
   performanceSettings?: PerformanceSettings;
+  competitionId?: string | null;
+  competitionName?: string | null;
 }
 
-export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default", trail = "none", performanceSettings = DEFAULT_PERFORMANCE }: FlappyGameProps) {
+export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "default", trail = "none", performanceSettings = DEFAULT_PERFORMANCE, competitionId = null, competitionName = null }: FlappyGameProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
@@ -860,6 +872,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const magnetRef = useRef(false);
   const scoreRef = useRef(0);
   const gameStateRef = useRef<GameState>("idle");
+  const runIdRef = useRef<string>("");
   
   const playableHeightRef = useRef(PLAYABLE_HEIGHT);
   playableHeightRef.current = PLAYABLE_HEIGHT;
@@ -1136,9 +1149,17 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     if (onScoreSubmit && finalScore > 0) {
-      onScoreSubmit(finalScore, gameMode === "ranked", rankedPeriod);
+      const isCompetition = !!competitionId;
+      onScoreSubmit({
+        score: finalScore,
+        isRanked: gameMode === "ranked" || isCompetition,
+        rankedPeriod: isCompetition ? null : rankedPeriod,
+        runId: runIdRef.current,
+        isCompetition,
+        competitionId: competitionId,
+      });
     }
-  }, [highScore, onScoreSubmit, gameMode, rankedPeriod]);
+  }, [highScore, onScoreSubmit, gameMode, rankedPeriod, competitionId]);
   
   const deathLoop = useCallback(() => {
     if (gameStateRef.current !== "dying") return;
@@ -1848,6 +1869,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   const startGame = useCallback(() => {
     clearAllTimers();
+    
+    runIdRef.current = Crypto.randomUUID();
     
     pipesRef.current = [];
     coinsRef.current = [];
