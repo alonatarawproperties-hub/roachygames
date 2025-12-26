@@ -17,6 +17,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedProps,
+  useDerivedValue,
   withTiming,
   withRepeat,
   withSpring,
@@ -321,27 +322,25 @@ function AnimatedCoinSlot({
     };
   });
   
+  // Use useDerivedValue to get the value as a worklet-accessible number
+  const currentValue = useDerivedValue(() => coinValue.value);
+  
   // Show correct value by opacity - only one visible at a time
-  // This is the most reliable way on Android without GC pressure
+  // Use display: 'none' vs 'flex' for more reliable switching on Android
   const style1 = useAnimatedStyle(() => ({ 
-    opacity: coinValue.value === 1 ? 1 : 0,
-    position: 'absolute' as const,
+    display: currentValue.value === 1 ? 'flex' : 'none',
   }));
   const style2 = useAnimatedStyle(() => ({ 
-    opacity: coinValue.value === 2 ? 1 : 0,
-    position: 'absolute' as const,
+    display: currentValue.value === 2 ? 'flex' : 'none',
   }));
   const style3 = useAnimatedStyle(() => ({ 
-    opacity: coinValue.value === 3 ? 1 : 0,
-    position: 'absolute' as const,
+    display: currentValue.value === 3 ? 'flex' : 'none',
   }));
   const style4 = useAnimatedStyle(() => ({ 
-    opacity: coinValue.value === 4 ? 1 : 0,
-    position: 'absolute' as const,
+    display: currentValue.value === 4 ? 'flex' : 'none',
   }));
   const style5 = useAnimatedStyle(() => ({ 
-    opacity: coinValue.value === 5 ? 1 : 0,
-    position: 'absolute' as const,
+    display: currentValue.value === 5 ? 'flex' : 'none',
   }));
   
   return (
