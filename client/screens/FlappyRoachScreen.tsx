@@ -67,9 +67,14 @@ export function FlappyRoachScreen() {
         chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
       });
       
-      queryClient.invalidateQueries({ queryKey: [`/api/flappy/ranked/status?userId=${user.id}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/flappy/ranked/leaderboard?period=daily&userId=${user.id}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/flappy/ranked/leaderboard?period=weekly&userId=${user.id}`] });
+      // Invalidate ALL flappy ranked queries to ensure fresh data after each game
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && (
+          key.includes('/api/flappy/ranked/status') ||
+          key.includes('/api/flappy/ranked/leaderboard')
+        );
+      }});
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
       
       console.log(`Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
