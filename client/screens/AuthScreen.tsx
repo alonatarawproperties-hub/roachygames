@@ -575,26 +575,14 @@ export function AuthScreen() {
 
         <View style={styles.authSection}>
           <GlassCard>
-            {Platform.OS === "android" ? (
-              <View style={styles.lockedButtonContainer}>
-                <View style={[styles.lockedButton]}>
-                  <GoogleLogo size={24} />
-                  <ThemedText style={styles.lockedButtonText}>Continue with Google</ThemedText>
-                  <View style={styles.comingSoonBadge}>
-                    <ThemedText style={styles.comingSoonText}>Soon</ThemedText>
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <PrimaryButton
-                onPress={handleGoogleAuth}
-                disabled={isDisabled}
-                loading={isGoogleLoading}
-                icon={<GoogleLogo size={24} />}
-              >
-                {isGoogleLoading ? "Signing in..." : "Continue with Google"}
-              </PrimaryButton>
-            )}
+            <PrimaryButton
+              onPress={handleGoogleAuth}
+              disabled={isDisabled}
+              loading={isGoogleLoading}
+              icon={<GoogleLogo size={24} />}
+            >
+              {isGoogleLoading ? "Signing in..." : "Continue with Google"}
+            </PrimaryButton>
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
