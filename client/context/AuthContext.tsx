@@ -219,19 +219,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[Auth] Android Client ID:", GOOGLE_CLIENT_ID_ANDROID?.substring(0, 20) + "...");
       console.log("[Auth] Web Client ID:", GOOGLE_CLIENT_ID_WEB?.substring(0, 20) + "...");
 
-      // Platform-specific OAuth configuration
-      // Android: Use Android client ID with reversed scheme (Google's installed app flow)
-      // iOS: Use iOS client ID with reversed scheme
+      // For browser-based OAuth (expo-auth-session), use Web client ID on Android
+      // Android client IDs only work with native Google Sign-In SDK, not browser flows
+      // iOS client IDs work with reversed scheme since iOS handles deep links differently
       let clientId: string;
       let redirectUri: string;
       
       if (Platform.OS === "android") {
-        // Android: Use Android client ID with reversed scheme
-        clientId = GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID_IOS || "";
-        const reversedClientId = clientId.split(".").reverse().join(".");
-        redirectUri = `${reversedClientId}://oauth2redirect/google`;
+        // Android browser-based OAuth: Use Web client ID with Expo auth proxy
+        clientId = GOOGLE_CLIENT_ID_WEB || "";
+        // Use Expo's auth proxy which handles the redirect properly
+        redirectUri = AuthSession.makeRedirectUri({
+          native: "roachy-games://oauth",
+          // This generates: https://auth.expo.io/@roachygames/roachy-games
+        });
       } else if (Platform.OS === "ios") {
-        // iOS: Use iOS client ID with reversed scheme (single slash for iOS)
+        // iOS: Use iOS client ID with reversed scheme (works natively)
         clientId = GOOGLE_CLIENT_ID_IOS || "";
         const reversedClientId = clientId.split(".").reverse().join(".");
         redirectUri = `${reversedClientId}:/oauth2redirect/google`;
