@@ -219,35 +219,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[Auth] Android Client ID:", GOOGLE_CLIENT_ID_ANDROID?.substring(0, 20) + "...");
       console.log("[Auth] Web Client ID:", GOOGLE_CLIENT_ID_WEB?.substring(0, 20) + "...");
 
-      // Use expo-auth-session's Google provider which handles redirect URIs correctly
-      // For Android: Uses Expo auth proxy with Web client ID
-      // For iOS: Uses iOS client ID with reversed scheme
+      // Platform-specific OAuth configuration
+      // Android: Use Android client ID with reversed scheme (Google's installed app flow)
+      // iOS: Use iOS client ID with reversed scheme
+      let clientId: string;
       let redirectUri: string;
       
       if (Platform.OS === "android") {
-        // Android production: Use Expo auth proxy (required for Web client + custom scheme)
-        redirectUri = AuthSession.makeRedirectUri({
-          native: "roachy-games://oauth",
-          // Use expo proxy for production Android builds
-          preferLocalhost: false,
-        });
+        // Android: Use Android client ID with reversed scheme
+        clientId = GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID_IOS || "";
+        const reversedClientId = clientId.split(".").reverse().join(".");
+        redirectUri = `${reversedClientId}://oauth2redirect/google`;
       } else if (Platform.OS === "ios") {
-        // iOS: Use reversed client ID scheme
-        const iosClientId = GOOGLE_CLIENT_ID_IOS || "";
-        const reversedClientId = iosClientId.split(".").reverse().join(".");
+        // iOS: Use iOS client ID with reversed scheme (single slash for iOS)
+        clientId = GOOGLE_CLIENT_ID_IOS || "";
+        const reversedClientId = clientId.split(".").reverse().join(".");
         redirectUri = `${reversedClientId}:/oauth2redirect/google`;
       } else {
         // Web fallback
+        clientId = GOOGLE_CLIENT_ID_WEB || GOOGLE_CLIENT_ID_IOS || "";
         redirectUri = AuthSession.makeRedirectUri({ preferLocalhost: true });
       }
       
+      console.log("[Auth] Using client ID:", clientId?.substring(0, 30) + "...");
       console.log("[Auth] Using redirect URI:", redirectUri);
 
-      // Create auth request using Google provider configuration
+      // Create auth request with platform-specific client ID
       const request = new AuthSession.AuthRequest({
-        clientId: Platform.OS === "android" 
-          ? (GOOGLE_CLIENT_ID_WEB || GOOGLE_CLIENT_ID_IOS || "") // Android uses Web client for OAuth
-          : (GOOGLE_CLIENT_ID_IOS || ""),
+        clientId,
         scopes: ["openid", "profile", "email"],
         redirectUri,
         responseType: AuthSession.ResponseType.Code,
@@ -279,10 +278,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           code: result.params.code,
           codeVerifier: request.codeVerifier,
           redirectUri,
-          // Send client ID used so server knows which to use for token exchange
-          clientId: Platform.OS === "android" 
-            ? (GOOGLE_CLIENT_ID_WEB || GOOGLE_CLIENT_ID_IOS)
-            : GOOGLE_CLIENT_ID_IOS,
+          // Send the client ID used for this request
+          clientId,
         });
 
         const data = await response.json();
