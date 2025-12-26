@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
 import * as AuthSession from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
@@ -14,21 +15,8 @@ const USER_DATA_KEY = "roachy_user_data";
 // Google OAuth Client IDs (platform-specific)
 const GOOGLE_CLIENT_ID_IOS = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_ID_ANDROID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID;
-
-// Get platform-specific client ID
-const getGoogleClientId = () => {
-  if (Platform.OS === "android") {
-    return GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID_IOS;
-  }
-  return GOOGLE_CLIENT_ID_IOS;
-};
-
-// Google OAuth discovery document
-const discovery = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
-  revocationEndpoint: "https://oauth2.googleapis.com/revoke",
-};
+// Web client ID needed for Android token exchange (uses web flow internally)
+const GOOGLE_CLIENT_ID_WEB = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB;
 
 export interface AuthUser {
   id: string;
@@ -226,42 +214,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = useCallback(async () => {
     try {
-      const clientId = getGoogleClientId();
-      if (!clientId) {
-        return { success: false, error: "Google sign-in not configured" };
-      }
+      console.log("[Auth] Starting Google OAuth, Platform:", Platform.OS);
+      console.log("[Auth] iOS Client ID:", GOOGLE_CLIENT_ID_IOS?.substring(0, 20) + "...");
+      console.log("[Auth] Android Client ID:", GOOGLE_CLIENT_ID_ANDROID?.substring(0, 20) + "...");
+      console.log("[Auth] Web Client ID:", GOOGLE_CLIENT_ID_WEB?.substring(0, 20) + "...");
 
-      console.log("[Auth] Starting Google OAuth with PKCE, Platform:", Platform.OS);
-      console.log("[Auth] Using client ID:", clientId.substring(0, 20) + "...");
-
-      // Platform-specific redirect URIs:
-      // iOS & Android: Use reversed client ID scheme (required by Google for native clients)
-      const reversedClientId = clientId.split(".").reverse().join(".");
+      // Use expo-auth-session's Google provider which handles redirect URIs correctly
+      // For Android: Uses Web client ID with proper redirect handling
+      // For iOS: Uses iOS client ID with reversed scheme
+      const redirectUri = AuthSession.makeRedirectUri({
+        scheme: "roachy-games",
+        path: "oauth",
+      });
       
-      let redirectUri: string;
-      if (Platform.OS === "ios") {
-        // iOS uses single slash format: scheme:/path
-        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
-      } else if (Platform.OS === "android") {
-        // Android requires double slash format: scheme://host/path
-        redirectUri = `${reversedClientId}://oauth2redirect/google`;
-      } else {
-        // Web fallback
-        redirectUri = AuthSession.makeRedirectUri({
-          preferLocalhost: true,
-        });
-      }
+      console.log("[Auth] Using redirect URI:", redirectUri);
 
-      console.log("[Auth] Google OAuth redirect URI:", redirectUri);
-
-      // Use authorization code flow with PKCE (required for iOS native clients)
+      // Create auth request using Google provider configuration
       const request = new AuthSession.AuthRequest({
-        clientId,
+        clientId: Platform.OS === "android" 
+          ? (GOOGLE_CLIENT_ID_WEB || GOOGLE_CLIENT_ID_IOS || "") // Android uses Web client for OAuth
+          : (GOOGLE_CLIENT_ID_IOS || ""),
         scopes: ["openid", "profile", "email"],
         redirectUri,
         responseType: AuthSession.ResponseType.Code,
         usePKCE: true,
       });
+
+      const discovery = {
+        authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+        tokenEndpoint: "https://oauth2.googleapis.com/token",
+        revocationEndpoint: "https://oauth2.googleapis.com/revoke",
+      };
 
       const result = await request.promptAsync(discovery);
 
@@ -282,6 +265,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           code: result.params.code,
           codeVerifier: request.codeVerifier,
           redirectUri,
+          // Send client ID used so server knows which to use for token exchange
+          clientId: Platform.OS === "android" 
+            ? (GOOGLE_CLIENT_ID_WEB || GOOGLE_CLIENT_ID_IOS)
+            : GOOGLE_CLIENT_ID_IOS,
         });
 
         const data = await response.json();

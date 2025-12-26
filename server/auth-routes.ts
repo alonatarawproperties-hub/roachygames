@@ -232,22 +232,28 @@ router.get("/google/callback", async (req: Request, res: Response) => {
 // Exchange authorization code for tokens (PKCE flow for native iOS/Android)
 router.post("/google-code", async (req: Request, res: Response) => {
   try {
-    const { code, codeVerifier, redirectUri } = req.body;
+    const { code, codeVerifier, redirectUri, clientId: requestClientId } = req.body;
 
     if (!code || !codeVerifier || !redirectUri) {
       return res.status(400).json({ error: "Authorization code, code verifier, and redirect URI are required" });
     }
 
-    // Determine which client ID to use based on redirect URI pattern
-    // Both iOS and Android now use reversed client ID scheme
-    // Check which reversed client ID is in the redirectUri to determine which one to use
+    // Use client ID from request if provided (new flow), otherwise detect from redirect URI (legacy)
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB;
     const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID;
     const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
     
     let clientId: string | undefined;
-    if (androidClientId && redirectUri.includes(androidClientId.split(".").reverse().join("."))) {
+    
+    if (requestClientId) {
+      // New flow: client explicitly sends which client ID was used
+      clientId = requestClientId;
+      console.log("[Auth] Using client-provided client ID:", clientId?.substring(0, 20) + "...");
+    } else if (androidClientId && redirectUri.includes(androidClientId.split(".").reverse().join("."))) {
+      // Legacy: detect from redirect URI (Android native)
       clientId = androidClientId;
     } else {
+      // Legacy: default to iOS
       clientId = iosClientId;
     }
     
@@ -255,7 +261,7 @@ router.post("/google-code", async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Google OAuth not configured" });
     }
     
-    const isAndroid = androidClientId && redirectUri.includes(androidClientId.split(".").reverse().join("."));
+    const isAndroid = redirectUri.includes("roachy-games://") || (androidClientId && redirectUri.includes(androidClientId.split(".").reverse().join(".")));
     console.log("[Auth] Token exchange using client ID:", clientId.substring(0, 20) + "...", "isAndroid:", isAndroid);
 
     // Exchange authorization code for tokens
