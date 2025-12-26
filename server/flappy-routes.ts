@@ -7,6 +7,8 @@ import {
   flappyRankedCompetitions,
   flappyRankedEntries,
   users,
+  chyTransactions,
+  gameSessionTokens,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
@@ -22,6 +24,16 @@ import {
   sanitizeNumber,
   sanitizeUUID
 } from "./security";
+import {
+  checkRateLimit,
+  extractSecurityContext,
+  generateIdempotencyKey,
+  logSecurityEvent as logSecureEvent,
+  createGameSession as createSecureGameSession,
+  validateAndConsumeGameSession,
+  calculatePrizeForRank,
+  PRIZE_DISTRIBUTION,
+} from "./secure-economy";
 
 // Helper to fetch CHY balance from webapp using googleId/email
 async function getWebappChyBalanceForUser(user: { googleId: string | null; email: string | null; displayName: string | null }): Promise<number> {
@@ -253,6 +265,17 @@ export function registerFlappyRoutes(app: Express) {
         console.warn(`[Flappy Score] UserId mismatch - body: ${bodyUserId}, JWT: ${authenticatedUserId}. Using JWT userId.`);
       }
       
+      // SECURITY: Rate limiting for score submissions
+      const rateLimitResult = await checkRateLimit(userId, "flappy/score");
+      if (!rateLimitResult.allowed) {
+        console.log(`[Flappy] Score rate limit exceeded for user ${userId}`);
+        return res.status(429).json({ 
+          success: false, 
+          error: `Too many score submissions. Please wait ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter
+        });
+      }
+      
       // Validate score is a reasonable number
       const validatedScore = sanitizeNumber(score, 0, 10000);
       if (validatedScore === null) {
@@ -260,8 +283,47 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Invalid score value" });
       }
       
-      // Validate score against game session if provided
-      if (sessionId) {
+      // SECURITY: Server-side ranked game validation
+      // CRITICAL: The ranked flag must be derived server-side from session validation,
+      // NOT trusted from client. This prevents bypass attacks where client sets 
+      // isRanked=false but rankedPeriod='daily' to skip session check.
+      const { secureSessionToken } = req.body;
+      let verifiedRankedGame = false; // Only set TRUE after successful session validation
+      let verifiedRankedPeriod: string | null = null;
+      
+      if (secureSessionToken) {
+        // Validate the session token - this proves the game was legitimately started
+        const sessionValidation = await validateAndConsumeGameSession(secureSessionToken, userId, validatedScore);
+        if (sessionValidation.valid && sessionValidation.session) {
+          // Session is valid - use session's period as the authoritative ranked period
+          verifiedRankedGame = true;
+          verifiedRankedPeriod = sessionValidation.session.period || rankedPeriod;
+          console.log(`[Flappy] Secure session validated for ranked score: ${validatedScore}, period: ${verifiedRankedPeriod}`);
+        } else {
+          // Session validation failed
+          const securityCtx = extractSecurityContext(req, userId);
+          await logSecureEvent(
+            "secure_session_validation_failed",
+            "critical",
+            `User ${userId} failed session validation: ${sessionValidation.error}`,
+            securityCtx
+          );
+          return res.status(400).json({ success: false, error: sessionValidation.error || "Session validation failed" });
+        }
+      } else if (isRanked || rankedPeriod) {
+        // Client claims ranked but no session token - REJECT
+        const securityCtx = extractSecurityContext(req, userId);
+        await logSecureEvent(
+          "ranked_without_session",
+          "critical",
+          `User ${userId} attempted ranked submission without session token. isRanked=${isRanked}, period=${rankedPeriod}`,
+          securityCtx
+        );
+        return res.status(400).json({ success: false, error: "Session token required for ranked games" });
+      }
+      
+      // Legacy session validation for non-ranked games only
+      if (!verifiedRankedGame && sessionId) {
         const validation = validateGameScore(sessionId, userId, validatedScore, "flappy");
         if (!validation.valid) {
           logSecurityEvent("score_validation_failed", userId, { 
@@ -273,18 +335,18 @@ export function registerFlappyRoutes(app: Express) {
         }
         // Clean up the session
         endGameSession(sessionId);
-      } else if (validatedScore > 5000) {
-        // Only flag extremely high scores without session as suspicious
-        // Normal gameplay scores (even high ones) are allowed to reduce friction
+      } else if (validatedScore > 5000 && !verifiedRankedGame) {
+        // Only flag extremely high scores without session as suspicious (non-ranked only)
         logSecurityEvent("high_score_no_session", userId, { score: validatedScore }, "warn");
         return res.status(400).json({ success: false, error: "Session required for extremely high scores" });
       }
       
+      // Use server-verified ranked status, NOT client-provided isRanked
       await db.insert(flappyScores).values({
         userId,
         score,
         coinsCollected,
-        isRanked,
+        isRanked: verifiedRankedGame, // Server-verified, not client value
         chyEntryFee,
       });
       
@@ -304,7 +366,7 @@ export function registerFlappyRoutes(app: Express) {
         const isNewDay = current.dailyBestDate !== today;
         const isNewWeek = !current.weeklyBestDate || current.weeklyBestDate < weekStart;
         
-        console.log(`[Flappy Score] ATOMIC UPDATE: adding ${score} (day=${isNewDay}, week=${isNewWeek}, ranked=${isRanked})`);
+        console.log(`[Flappy Score] ATOMIC UPDATE: adding ${score} (day=${isNewDay}, week=${isNewWeek}, verifiedRanked=${verifiedRankedGame})`);
         
         await db.update(flappyLeaderboard)
           .set({
@@ -312,8 +374,8 @@ export function registerFlappyRoutes(app: Express) {
             bestScore: sql`${flappyLeaderboard.bestScore} + ${score}`,
             totalGamesPlayed: sql`${flappyLeaderboard.totalGamesPlayed} + 1`,
             totalCoinsCollected: sql`${flappyLeaderboard.totalCoinsCollected} + ${coinsCollected}`,
-            // ATOMIC: Add to ranked score only if this is a ranked game
-            ...(isRanked ? {
+            // ATOMIC: Add to ranked score only if this is a SERVER-VERIFIED ranked game
+            ...(verifiedRankedGame ? {
               totalRankedGames: sql`${flappyLeaderboard.totalRankedGames} + 1`,
               bestRankedScore: sql`${flappyLeaderboard.bestRankedScore} + ${score}`,
             } : {}),
@@ -337,9 +399,9 @@ export function registerFlappyRoutes(app: Express) {
           userId,
           displayName: user[0]?.displayName || null,
           bestScore: score,
-          bestRankedScore: isRanked ? score : 0,
+          bestRankedScore: verifiedRankedGame ? score : 0,
           totalGamesPlayed: 1,
-          totalRankedGames: isRanked ? 1 : 0,
+          totalRankedGames: verifiedRankedGame ? 1 : 0,
           totalCoinsCollected: coinsCollected,
           dailyBestScore: score,
           dailyBestDate: today,
@@ -348,17 +410,19 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
-      // Update competition entry if this is a ranked game
-      if (isRanked && rankedPeriod) {
-        const periodDate = rankedPeriod === 'daily' ? today : getWeekNumber();
-        console.log(`[Flappy Score] Ranked game - looking for entry: userId=${userId}, period=${rankedPeriod}, periodDate=${periodDate}`);
+      // Update competition entry if this is a SERVER-VERIFIED ranked game
+      // SECURITY: verifiedRankedGame is ONLY true if session token was validated successfully
+      // This completely prevents bypass attacks - client values are never trusted
+      if (verifiedRankedGame && verifiedRankedPeriod) {
+        const periodDate = verifiedRankedPeriod === 'daily' ? today : getWeekNumber();
+        console.log(`[Flappy Score] Verified ranked game - looking for entry: userId=${userId}, period=${verifiedRankedPeriod}, periodDate=${periodDate}`);
         
-        // Find the user's entry in the competition
+        // Find the user's entry in the competition using SERVER-VERIFIED period
         const entryResult = await db.select()
           .from(flappyRankedEntries)
           .where(and(
             eq(flappyRankedEntries.userId, userId),
-            eq(flappyRankedEntries.period, rankedPeriod),
+            eq(flappyRankedEntries.period, verifiedRankedPeriod),
             eq(flappyRankedEntries.periodDate, periodDate)
           ))
           .limit(1);
@@ -378,16 +442,16 @@ export function registerFlappyRoutes(app: Express) {
         } else {
           // UPSERT: Create entry if it doesn't exist (fixes score not recording bug)
           console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}`);
-          const ENTRY_FEE = rankedPeriod === 'daily' ? 1 : 3;
+          const ENTRY_FEE = verifiedRankedPeriod === 'daily' ? 1 : 3;
           await db.insert(flappyRankedEntries).values({
             userId,
-            period: rankedPeriod,
+            period: verifiedRankedPeriod,
             periodDate,
             entryFee: ENTRY_FEE,
             bestScore: score,
             gamesPlayed: 1,
           });
-          console.log(`[Flappy Score] Entry created successfully for ${rankedPeriod} competition`);
+          console.log(`[Flappy Score] Entry created successfully for ${verifiedRankedPeriod} competition`);
         }
       }
       
@@ -395,7 +459,7 @@ export function registerFlappyRoutes(app: Express) {
         userId,
         "game",
         "Flappy Roachy",
-        `Score: ${score} points${isRanked ? " (Ranked)" : ""}`,
+        `Score: ${score} points${verifiedRankedGame ? " (Ranked)" : ""}`,
         coinsCollected,
         "coins"
       );
@@ -558,7 +622,7 @@ export function registerFlappyRoutes(app: Express) {
 
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
-      const { userId, period = 'daily', webappUserId } = req.body;
+      const { userId, period = 'daily', webappUserId, idempotencyKey: clientIdempotencyKey } = req.body;
       
       // Beta block - no flappy competitions during beta
       if (FLAPPY_COMPETITIONS_LOCKED) {
@@ -576,8 +640,56 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Invalid period" });
       }
       
+      // SECURITY: Rate limiting
+      const rateLimitResult = await checkRateLimit(userId, "flappy/enter");
+      if (!rateLimitResult.allowed) {
+        console.log(`[Flappy] Rate limit exceeded for user ${userId}`);
+        return res.status(429).json({ 
+          success: false, 
+          error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter
+        });
+      }
+      
       const ENTRY_FEE = period === 'daily' ? 1 : 3;
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
+      
+      // SECURITY: Generate idempotency key for this entry
+      const idempotencyKey = clientIdempotencyKey || generateIdempotencyKey(
+        userId, 
+        'entry_fee', 
+        `${period}:${periodDate}`,
+        ENTRY_FEE
+      );
+      
+      // Check for duplicate transaction (replay attack prevention)
+      const existingTx = await db.query.chyTransactions.findFirst({
+        where: eq(chyTransactions.idempotencyKey, idempotencyKey),
+      });
+      
+      if (existingTx) {
+        console.log(`[Flappy] Duplicate entry attempt detected: ${idempotencyKey}`);
+        // Find the existing entry and return it (idempotent response)
+        const existingEntry = await db.select()
+          .from(flappyRankedEntries)
+          .where(and(
+            eq(flappyRankedEntries.userId, userId),
+            eq(flappyRankedEntries.period, period),
+            eq(flappyRankedEntries.periodDate, periodDate)
+          ))
+          .limit(1);
+        
+        if (existingEntry.length > 0) {
+          return res.json({ 
+            success: true, 
+            alreadyJoined: true,
+            entryId: existingEntry[0].id,
+            period,
+            periodDate,
+            isDuplicate: true,
+          });
+        }
+      }
       
       const existingEntry = await db.select()
         .from(flappyRankedEntries)
@@ -702,16 +814,53 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Could not verify webapp account" });
       }
       
+      // ATOMIC TRANSACTION: Deduct entry fee AND create entry in single transaction
+      const securityCtx = extractSecurityContext(req, userId);
+      securityCtx.webappUserId = effectiveWebappUserId;
+      
       // Deduct entry fee via webapp using webappUserId directly
       const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
         userId: effectiveWebappUserId,
         amount: ENTRY_FEE,
         reason: `Flappy ${period} competition entry`,
+        idempotencyKey, // Pass idempotency key to webapp
       });
       
       if (deductResult.status !== 200 || !deductResult.data?.success) {
         console.error(`[Flappy] Failed to deduct CHY:`, deductResult);
+        await logSecureEvent(
+          "entry_fee_deduct_failed",
+          "warning",
+          `User ${userId} failed to deduct entry fee: ${JSON.stringify(deductResult.data)}`,
+          securityCtx
+        );
         return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
+      }
+      
+      // Record transaction in local ledger (for audit trail)
+      try {
+        await db.insert(chyTransactions).values({
+          userId,
+          webappUserId: effectiveWebappUserId,
+          txType: 'entry_fee',
+          amount: -ENTRY_FEE, // Negative for debit
+          balanceBefore: chyBalance,
+          balanceAfter: chyBalance - ENTRY_FEE,
+          referenceId: `${period}:${periodDate}`,
+          referenceType: `flappy_${period}`,
+          idempotencyKey,
+          clientIp: securityCtx.clientIp,
+          userAgent: securityCtx.userAgent,
+          deviceFingerprint: securityCtx.deviceFingerprint,
+        });
+        console.log(`[Flappy] Entry fee recorded in ledger: ${idempotencyKey}`);
+      } catch (ledgerError: any) {
+        // If ledger insert fails due to duplicate key, that's expected for replays
+        if (ledgerError.code === '23505') {
+          console.log(`[Flappy] Duplicate ledger entry (expected for idempotent replay)`);
+        } else {
+          console.error(`[Flappy] Ledger insert error:`, ledgerError);
+        }
       }
       
       const [newEntry] = await db.insert(flappyRankedEntries).values({
@@ -723,6 +872,15 @@ export function registerFlappyRoutes(app: Express) {
         gamesPlayed: 0,
       }).returning();
       
+      // Create game session token for this competition
+      const { sessionToken, expiresAt } = await createSecureGameSession(
+        userId,
+        'flappy',
+        newEntry.id,
+        period,
+        periodDate
+      );
+      
       res.json({ 
         success: true, 
         alreadyJoined: false,
@@ -731,6 +889,8 @@ export function registerFlappyRoutes(app: Express) {
         entryId: newEntry.id,
         period,
         periodDate,
+        sessionToken, // Client should include this in score submissions
+        sessionExpiresAt: expiresAt.toISOString(),
       });
     } catch (error) {
       console.error("Ranked entry error:", error);

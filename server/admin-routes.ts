@@ -11,9 +11,14 @@ import {
   huntLeaderboard,
   huntEconomyStats,
   huntEggs,
+  chyTransactions,
+  securityAuditLog,
+  gameSessionTokens,
+  rateLimitTracking,
 } from "@shared/schema";
 import { desc, eq, sql, and, gte, lte, count } from "drizzle-orm";
 import { getSecurityLogs, getSecurityStats } from "./security";
+import { reconcileBalance, getTransactionHistory } from "./secure-economy";
 
 function adminAuth(req: Request, res: Response, next: NextFunction) {
   const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
@@ -517,6 +522,225 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("[Admin] Security alerts error:", error);
       res.status(500).json({ error: "Failed to fetch security alerts" });
+    }
+  });
+
+  // ===============================
+  // CHY TRANSACTION MONITORING
+  // ===============================
+
+  // Get CHY transaction ledger (all transactions)
+  app.get("/api/admin/chy/transactions", adminAuth, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const userId = req.query.userId as string | undefined;
+      const txType = req.query.txType as string | undefined;
+
+      // Build filter conditions
+      const conditions = [];
+      if (userId) {
+        conditions.push(eq(chyTransactions.userId, userId));
+      }
+      if (txType) {
+        conditions.push(eq(chyTransactions.txType, txType));
+      }
+
+      let transactions;
+      let totalCount;
+      
+      // Handle filters - single condition doesn't need and()
+      const whereClause = conditions.length === 1 
+        ? conditions[0] 
+        : conditions.length > 1 
+          ? and(...conditions) 
+          : undefined;
+      
+      if (whereClause) {
+        transactions = await db.select().from(chyTransactions)
+          .where(whereClause)
+          .orderBy(desc(chyTransactions.createdAt))
+          .limit(limit)
+          .offset(offset);
+        [totalCount] = await db.select({ count: count() }).from(chyTransactions)
+          .where(whereClause);
+      } else {
+        transactions = await db.select().from(chyTransactions)
+          .orderBy(desc(chyTransactions.createdAt))
+          .limit(limit)
+          .offset(offset);
+        [totalCount] = await db.select({ count: count() }).from(chyTransactions);
+      }
+
+      res.json({
+        transactions,
+        filters: { userId, txType },
+        pagination: {
+          total: totalCount?.count || 0,
+          limit,
+          offset,
+          hasMore: offset + transactions.length < (totalCount?.count || 0),
+        },
+      });
+    } catch (error) {
+      console.error("[Admin] CHY transactions error:", error);
+      res.status(500).json({ error: "Failed to fetch CHY transactions" });
+    }
+  });
+
+  // Get transaction history for specific user
+  app.get("/api/admin/chy/transactions/:userId", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+
+      const transactions = await getTransactionHistory(userId, limit);
+      
+      res.json({
+        userId,
+        transactions,
+        count: transactions.length,
+      });
+    } catch (error) {
+      console.error("[Admin] User CHY transactions error:", error);
+      res.status(500).json({ error: "Failed to fetch user transactions" });
+    }
+  });
+
+  // Reconcile user balance (check ledger vs stored balance)
+  app.get("/api/admin/chy/reconcile/:userId", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const result = await reconcileBalance(userId);
+      
+      res.json({
+        userId,
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[Admin] Reconciliation error:", error);
+      res.status(500).json({ error: "Failed to reconcile balance" });
+    }
+  });
+
+  // Get security audit log (persistent database log)
+  app.get("/api/admin/security/audit", adminAuth, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const severity = req.query.severity as string | undefined;
+      const eventType = req.query.eventType as string | undefined;
+      const userId = req.query.userId as string | undefined;
+
+      // Build filter conditions
+      const conditions = [];
+      if (severity) {
+        conditions.push(eq(securityAuditLog.severity, severity));
+      }
+      if (eventType) {
+        conditions.push(eq(securityAuditLog.eventType, eventType));
+      }
+      if (userId) {
+        conditions.push(eq(securityAuditLog.userId, userId));
+      }
+
+      // Handle filters - single condition doesn't need and()
+      const whereClause = conditions.length === 1 
+        ? conditions[0] 
+        : conditions.length > 1 
+          ? and(...conditions) 
+          : undefined;
+
+      let logs;
+      if (whereClause) {
+        logs = await db.select().from(securityAuditLog)
+          .where(whereClause)
+          .orderBy(desc(securityAuditLog.createdAt))
+          .limit(limit)
+          .offset(offset);
+      } else {
+        logs = await db.select().from(securityAuditLog)
+          .orderBy(desc(securityAuditLog.createdAt))
+          .limit(limit)
+          .offset(offset);
+      }
+
+      res.json({
+        logs,
+        count: logs.length,
+        filters: { severity, eventType, userId, limit, offset },
+      });
+    } catch (error) {
+      console.error("[Admin] Security audit error:", error);
+      res.status(500).json({ error: "Failed to fetch security audit log" });
+    }
+  });
+
+  // Get active game sessions (for fraud detection)
+  app.get("/api/admin/sessions/active", adminAuth, async (req, res) => {
+    try {
+      const now = new Date();
+      const activeSessions = await db.select()
+        .from(gameSessionTokens)
+        .where(and(
+          gte(gameSessionTokens.expiresAt, now),
+          sql`${gameSessionTokens.usedAt} IS NULL`
+        ))
+        .orderBy(desc(gameSessionTokens.startedAt))
+        .limit(100);
+
+      res.json({
+        sessions: activeSessions,
+        count: activeSessions.length,
+      });
+    } catch (error) {
+      console.error("[Admin] Active sessions error:", error);
+      res.status(500).json({ error: "Failed to fetch active sessions" });
+    }
+  });
+
+  // Get rate limit violations
+  app.get("/api/admin/ratelimit/violations", adminAuth, async (req, res) => {
+    try {
+      const highViolations = await db.select()
+        .from(rateLimitTracking)
+        .where(gte(rateLimitTracking.requestCount, 50))
+        .orderBy(desc(rateLimitTracking.requestCount))
+        .limit(50);
+
+      res.json({
+        violations: highViolations,
+        count: highViolations.length,
+      });
+    } catch (error) {
+      console.error("[Admin] Rate limit violations error:", error);
+      res.status(500).json({ error: "Failed to fetch rate limit data" });
+    }
+  });
+
+  // CHY economy summary
+  app.get("/api/admin/chy/summary", adminAuth, async (req, res) => {
+    try {
+      const [totalTransactions] = await db.select({ count: count() }).from(chyTransactions);
+      
+      const entryFees = await db.select({
+        total: sql<number>`SUM(ABS(amount))`,
+      }).from(chyTransactions).where(eq(chyTransactions.txType, 'entry_fee'));
+      
+      const payouts = await db.select({
+        total: sql<number>`SUM(amount)`,
+      }).from(chyTransactions).where(eq(chyTransactions.txType, 'prize_payout'));
+
+      res.json({
+        totalTransactions: totalTransactions?.count || 0,
+        totalEntryFees: entryFees[0]?.total || 0,
+        totalPayouts: payouts[0]?.total || 0,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[Admin] CHY summary error:", error);
+      res.status(500).json({ error: "Failed to fetch CHY summary" });
     }
   });
 

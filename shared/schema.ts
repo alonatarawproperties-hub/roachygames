@@ -750,3 +750,92 @@ export type FlappyRankedCompetition = typeof flappyRankedCompetitions.$inferSele
 export type InsertFlappyRankedCompetition = z.infer<typeof insertFlappyRankedCompetitionSchema>;
 export type FlappyRankedEntry = typeof flappyRankedEntries.$inferSelect;
 export type InsertFlappyRankedEntry = z.infer<typeof insertFlappyRankedEntrySchema>;
+
+// ========================================
+// CHY SECURITY: Transaction Ledger
+// Append-only ledger for all CHY mutations
+// ========================================
+
+export const CHY_TX_TYPES = [
+  'entry_fee',        // Competition entry
+  'prize_payout',     // Competition winnings
+  'daily_bonus',      // Daily login bonus
+  'refund',           // Entry fee refund
+  'admin_adjustment', // Admin manual adjustment
+  'webapp_sync',      // Sync from webapp
+] as const;
+export type ChyTxType = typeof CHY_TX_TYPES[number];
+
+export const chyTransactions = pgTable("chy_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // User identification
+  userId: varchar("user_id").notNull(),
+  webappUserId: varchar("webapp_user_id"),
+  
+  // Transaction details
+  txType: text("tx_type").notNull(), // CHY_TX_TYPES
+  amount: integer("amount").notNull(), // Positive for credit, negative for debit
+  balanceBefore: integer("balance_before").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  
+  // Reference data
+  referenceId: varchar("reference_id"), // Competition ID, game session, etc.
+  referenceType: text("reference_type"), // 'flappy_daily', 'flappy_weekly', etc.
+  
+  // Idempotency
+  idempotencyKey: varchar("idempotency_key").unique(),
+  
+  // Security metadata
+  clientIp: text("client_ip"),
+  userAgent: text("user_agent"),
+  deviceFingerprint: text("device_fingerprint"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+// Rate limiting tracking per endpoint
+export const rateLimitTracking = pgTable("rate_limit_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  requestCount: integer("request_count").notNull().default(1),
+  windowStart: timestamp("window_start").notNull().default(sql`now()`),
+  lastRequest: timestamp("last_request").notNull().default(sql`now()`),
+}, (table) => ({
+  userEndpointUnique: unique().on(table.userId, table.endpoint),
+}));
+
+// Game session tokens for score validation
+export const gameSessionTokens = pgTable("game_session_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  sessionToken: varchar("session_token").notNull().unique(),
+  gameType: text("game_type").notNull(), // 'flappy', 'chess', etc.
+  competitionId: varchar("competition_id"),
+  period: text("period"),
+  periodDate: text("period_date"),
+  maxScore: integer("max_score"), // Server-calculated max possible score
+  startedAt: timestamp("started_at").notNull().default(sql`now()`),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"), // Null until score submitted
+  score: integer("score"), // Submitted score
+  isValid: boolean("is_valid"), // Server validation result
+});
+
+// Security audit log for suspicious activity
+export const securityAuditLog = pgTable("security_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  eventType: text("event_type").notNull(), // 'rate_limit', 'replay_attempt', 'suspicious_score', etc.
+  severity: text("severity").notNull().default('info'), // 'info', 'warning', 'critical'
+  details: text("details"),
+  clientIp: text("client_ip"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export type ChyTransaction = typeof chyTransactions.$inferSelect;
+export type RateLimitTracking = typeof rateLimitTracking.$inferSelect;
+export type GameSessionToken = typeof gameSessionTokens.$inferSelect;
+export type SecurityAuditLog = typeof securityAuditLog.$inferSelect;
