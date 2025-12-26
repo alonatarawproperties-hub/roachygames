@@ -214,8 +214,11 @@ export function registerFlappyRoutes(app: Express) {
   // Score submission with anti-cheat validation - REQUIRES AUTHENTICATION (no guest bypass)
   app.post("/api/flappy/score", rateLimit({ windowMs: 60000, max: 60 }), requireAuth, async (req: Request, res: Response) => {
     try {
-      const { userId: bodyUserId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
+      const { userId: bodyUserId, score, coinsCollected: rawCoins = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
       const authenticatedUserId = (req as any).userId;
+      
+      // SECURITY: Sanitize coinsCollected - max 1000 per game (realistic limit)
+      const coinsCollected = Math.min(Math.max(0, Math.floor(Number(rawCoins) || 0)), 1000);
       
       // IMPORTANT: Always use the authenticated userId from JWT, not from request body
       // This ensures we're using the verified user identity
