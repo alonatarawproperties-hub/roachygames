@@ -56,8 +56,8 @@ export function TokenBalanceCard({
     return num.toLocaleString();
   };
 
-  const handleClaimOnWeb = async () => {
-    await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
+  const handleGetMoreChy = async () => {
+    await WebBrowser.openBrowserAsync("https://roachy.games/roachyswap");
   };
 
   if (isGuest) {
@@ -150,9 +150,9 @@ export function TokenBalanceCard({
         </View>
       </View>
 
-      <Pressable style={styles.claimButton} onPress={handleClaimOnWeb}>
-        <Feather name="external-link" size={16} color={GameColors.gold} />
-        <ThemedText style={styles.claimButtonText}>Claim Rewards on Web</ThemedText>
+      <Pressable style={styles.claimButton} onPress={handleGetMoreChy}>
+        <Feather name="shopping-cart" size={16} color={GameColors.gold} />
+        <ThemedText style={styles.claimButtonText}>Get More CHY</ThemedText>
       </Pressable>
     </View>
   );

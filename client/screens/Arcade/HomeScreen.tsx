@@ -1678,47 +1678,32 @@ export function ArcadeHomeScreen() {
 
         {activeTab === "Rewards" && (
           <View style={styles.tabContent}>
-            <View style={styles.rewardsBanner}>
-              <Feather name="award" size={48} color={GameColors.gold} />
-              <ThemedText style={styles.rewardsTitle}>Rewards Center</ThemedText>
-              <ThemedText style={styles.rewardsSubtitle}>
-                Earn rewards by playing games across the arcade
+            <View style={styles.comingSoonContainer}>
+              <View style={styles.comingSoonIconWrapper}>
+                <Feather name="lock" size={32} color={GameColors.gold} />
+              </View>
+              <View style={styles.rewardsComingSoonBadge}>
+                <ThemedText style={styles.rewardsComingSoonBadgeText}>COMING SOON</ThemedText>
+              </View>
+              <ThemedText style={styles.comingSoonTitle}>Rewards Center</ThemedText>
+              <ThemedText style={styles.comingSoonSubtitle}>
+                Exciting rewards are on the way! Stay tuned for exclusive prizes, achievements, and more.
               </ThemedText>
-            </View>
-
-            <DailyBonusCard 
-              userId={user?.id ?? null}
-              isConnected={!!user && !isGuest}
-              isGuest={isGuest}
-              onSignIn={handleGuestSignIn}
-            />
-
-            <View style={styles.rewardsSection}>
-              <EarningsTracker />
-            </View>
-
-            <View style={styles.rewardsSection}>
-              <ThemedText style={styles.sectionTitle}>Your Games</ThemedText>
-              <ThemedText style={styles.rewardsHint}>
-                View leaderboards and achievements inside each game
-              </ThemedText>
-              <View style={styles.gameShortcuts}>
-                {GAMES_CATALOG.filter(g => !isGameLockedForPlatform(g)).map((game) => (
-                  <Pressable
-                    key={game.id}
-                    style={styles.gameShortcut}
-                    onPress={() => handleGamePress(game.routeName)}
-                  >
-                    <View style={styles.gameShortcutIcon}>
-                      <Feather name={game.iconName as any} size={24} color={GameColors.gold} />
-                    </View>
-                    <ThemedText style={styles.gameShortcutTitle}>{game.title}</ThemedText>
-                    <Feather name="chevron-right" size={16} color={GameColors.textSecondary} />
-                  </Pressable>
-                ))}
+              <View style={styles.comingSoonFeatures}>
+                <View style={styles.comingSoonFeatureItem}>
+                  <Feather name="gift" size={20} color={GameColors.gold} />
+                  <ThemedText style={styles.comingSoonFeatureText}>Daily Bonuses</ThemedText>
+                </View>
+                <View style={styles.comingSoonFeatureItem}>
+                  <Feather name="award" size={20} color={GameColors.gold} />
+                  <ThemedText style={styles.comingSoonFeatureText}>Achievements</ThemedText>
+                </View>
+                <View style={styles.comingSoonFeatureItem}>
+                  <Feather name="star" size={20} color={GameColors.gold} />
+                  <ThemedText style={styles.comingSoonFeatureText}>Exclusive Prizes</ThemedText>
+                </View>
               </View>
             </View>
-
           </View>
         )}
 
@@ -1964,6 +1949,69 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.sm,
     paddingHorizontal: Spacing.xl,
+  },
+  comingSoonContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["2xl"],
+    paddingHorizontal: Spacing.xl,
+  },
+  comingSoonIconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: GameColors.gold + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+    borderWidth: 2,
+    borderColor: GameColors.gold + "30",
+  },
+  rewardsComingSoonBadge: {
+    backgroundColor: GameColors.gold + "20",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.md,
+  },
+  rewardsComingSoonBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: GameColors.gold,
+    letterSpacing: 1.5,
+  },
+  comingSoonTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  comingSoonSubtitle: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.xl,
+  },
+  comingSoonFeatures: {
+    width: "100%",
+    gap: Spacing.md,
+  },
+  comingSoonFeatureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: GameColors.surface,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "20",
+  },
+  comingSoonFeatureText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: GameColors.textPrimary,
   },
   rewardsSection: {
     marginBottom: Spacing.xl,
