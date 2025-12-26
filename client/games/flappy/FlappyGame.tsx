@@ -1218,25 +1218,20 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       slotIndex: -1, // Will be set on Android
     };
     
-    // Android: Find empty slot and set individual shared values atomically on UI thread
-    // CRITICAL FIX: Use -500 threshold to ensure slot is truly off-screen before reuse
-    // This prevents race condition where slot is marked empty but still rendering
+    // Android: Find empty slot and set individual shared values SYNCHRONOUSLY
+    // CRITICAL FIX: Don't use runOnUI - it's async and causes 1-frame flicker
+    // Shared values can be written from JS thread directly
     if (isAndroid) {
       const slots = pipeXSlots.current;
       const heightSlots = pipeHSlots.current;
       for (let i = 0; i < MAX_PIPES; i++) {
         // Use -500 threshold (way off-screen) to prevent slot reuse race condition
         if (slots[i].value < -500) {
-          newPipe.slotIndex = i; // Track which slot this pipe uses
-          const slotX = slots[i];
-          const slotH = heightSlots[i];
-          const newX = gameWidthRef.current;
+          newPipe.slotIndex = i;
           // Set height FIRST, then X - ensures pipe is visible when X becomes valid
-          runOnUI(() => {
-            'worklet';
-            slotH.value = topHeight;
-            slotX.value = newX;
-          })();
+          // These writes are synchronous and immediate - no async delay
+          heightSlots[i].value = topHeight;
+          slots[i].value = gameWidthRef.current;
           break;
         }
       }
@@ -1262,20 +1257,20 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       slotIndex: -1, // Will be set on Android
     };
     
-    // Android: Find empty slot and set individual shared values (zero GC)
-    // Must assign slotIndex BEFORE adding to array so collision detection uses correct slot
-    // Use -500 threshold to match pipe threshold and prevent race conditions
+    // Android: Find empty slot and set individual shared values SYNCHRONOUSLY
+    // CRITICAL: No runOnUI - shared values written directly from JS thread
+    // Set value and Y first, then X (X triggers visibility in render)
     if (isAndroid) {
       const xSlots = coinXSlots.current;
       const ySlots = coinYSlots.current;
       const vSlots = coinVSlots.current;
       for (let i = 0; i < MAX_COINS; i++) {
         if (xSlots[i].value < -500) {
-          // Set value and Y first, then X (X triggers visibility)
+          newCoin.slotIndex = i;
+          // Set value and Y first, then X (X > -100 triggers visibility)
           vSlots[i].value = value;
           ySlots[i].value = y;
           xSlots[i].value = gameWidthRef.current;
-          newCoin.slotIndex = i; // Track which slot this coin uses
           break;
         }
       }
