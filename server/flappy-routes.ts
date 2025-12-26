@@ -314,15 +314,35 @@ export function registerFlappyRoutes(app: Express) {
           return res.status(400).json({ success: false, error: sessionValidation.error || "Session validation failed" });
         }
       } else if (isRanked || rankedPeriod) {
-        // Client claims ranked but no session token - REJECT
-        const securityCtx = extractSecurityContext(req, userId);
-        await logSecureEvent(
-          "ranked_without_session",
-          "critical",
-          `User ${userId} attempted ranked submission without session token. isRanked=${isRanked}, period=${rankedPeriod}`,
-          securityCtx
-        );
-        return res.status(400).json({ success: false, error: "Session token required for ranked games" });
+        // BACKWARD COMPATIBILITY: Accept legacy sessionId for ranked games
+        // until all clients are updated to use secureSessionToken
+        if (sessionId) {
+          const validation = validateGameScore(sessionId, userId, validatedScore, "flappy");
+          if (validation.valid) {
+            console.warn(`[Flappy] LEGACY: Ranked submission using sessionId (no secureSessionToken). User: ${userId}`);
+            verifiedRankedGame = true;
+            verifiedRankedPeriod = rankedPeriod || (isRanked ? 'daily' : null);
+            // Clean up the session
+            endGameSession(sessionId);
+          } else {
+            logSecurityEvent("legacy_ranked_validation_failed", userId, { 
+              score: validatedScore, 
+              sessionId, 
+              reason: validation.reason 
+            }, "critical");
+            return res.status(400).json({ success: false, error: "Score validation failed" });
+          }
+        } else {
+          // No session token AND no sessionId - REJECT
+          const securityCtx = extractSecurityContext(req, userId);
+          await logSecureEvent(
+            "ranked_without_session",
+            "critical",
+            `User ${userId} attempted ranked submission without any session. isRanked=${isRanked}, period=${rankedPeriod}`,
+            securityCtx
+          );
+          return res.status(400).json({ success: false, error: "Session required for ranked games" });
+        }
       }
       
       // Legacy session validation for non-ranked games only
