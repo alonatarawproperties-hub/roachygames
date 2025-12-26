@@ -298,39 +298,37 @@ export function registerFlappyRoutes(app: Express) {
       
       if (existing.length > 0) {
         const current = existing[0];
-        const updates: any = {
-          totalGamesPlayed: current.totalGamesPlayed + 1,
-          totalCoinsCollected: current.totalCoinsCollected + coinsCollected,
-          updatedAt: new Date(),
-        };
         
-        if (score > current.bestScore) {
-          updates.bestScore = score;
-        }
+        // Use ATOMIC SQL updates to prevent race conditions under concurrent submissions
+        // This is critical for money-bearing competitions with thousands of players
+        const isNewDay = current.dailyBestDate !== today;
+        const isNewWeek = !current.weeklyBestDate || current.weeklyBestDate < weekStart;
         
-        if (isRanked) {
-          updates.totalRankedGames = current.totalRankedGames + 1;
-          if (score > current.bestRankedScore) {
-            updates.bestRankedScore = score;
-          }
-        }
-        
-        if (current.dailyBestDate !== today) {
-          updates.dailyBestScore = score;
-          updates.dailyBestDate = today;
-        } else if (score > current.dailyBestScore) {
-          updates.dailyBestScore = score;
-        }
-        
-        if (!current.weeklyBestDate || current.weeklyBestDate < weekStart) {
-          updates.weeklyBestScore = score;
-          updates.weeklyBestDate = today;
-        } else if (score > current.weeklyBestScore) {
-          updates.weeklyBestScore = score;
-        }
+        console.log(`[Flappy Score] ATOMIC UPDATE: adding ${score} (day=${isNewDay}, week=${isNewWeek}, ranked=${isRanked})`);
         
         await db.update(flappyLeaderboard)
-          .set(updates)
+          .set({
+            // ATOMIC: Always add to existing score
+            bestScore: sql`${flappyLeaderboard.bestScore} + ${score}`,
+            totalGamesPlayed: sql`${flappyLeaderboard.totalGamesPlayed} + 1`,
+            totalCoinsCollected: sql`${flappyLeaderboard.totalCoinsCollected} + ${coinsCollected}`,
+            // ATOMIC: Add to ranked score only if this is a ranked game
+            ...(isRanked ? {
+              totalRankedGames: sql`${flappyLeaderboard.totalRankedGames} + 1`,
+              bestRankedScore: sql`${flappyLeaderboard.bestRankedScore} + ${score}`,
+            } : {}),
+            // ATOMIC: Daily score - reset if new day, otherwise add
+            dailyBestScore: isNewDay 
+              ? score 
+              : sql`${flappyLeaderboard.dailyBestScore} + ${score}`,
+            dailyBestDate: today,
+            // ATOMIC: Weekly score - reset if new week, otherwise add
+            weeklyBestScore: isNewWeek 
+              ? score 
+              : sql`${flappyLeaderboard.weeklyBestScore} + ${score}`,
+            weeklyBestDate: today,
+            updatedAt: new Date(),
+          })
           .where(eq(flappyLeaderboard.userId, userId));
       } else {
         const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -369,24 +367,14 @@ export function registerFlappyRoutes(app: Express) {
         
         if (entryResult.length > 0) {
           const entry = entryResult[0];
-          // Update best score if this score is higher
-          if (score > entry.bestScore) {
-            console.log(`[Flappy Score] Updating bestScore from ${entry.bestScore} to ${score}`);
-            await db.update(flappyRankedEntries)
-              .set({ 
-                bestScore: score, 
-                gamesPlayed: entry.gamesPlayed + 1
-              })
-              .where(eq(flappyRankedEntries.id, entry.id));
-          } else {
-            console.log(`[Flappy Score] Score ${score} not higher than best ${entry.bestScore}, just incrementing games`);
-            // Just increment games played
-            await db.update(flappyRankedEntries)
-              .set({ 
-                gamesPlayed: entry.gamesPlayed + 1
-              })
-              .where(eq(flappyRankedEntries.id, entry.id));
-          }
+          // ATOMIC: Accumulate score directly in SQL to prevent race conditions
+          console.log(`[Flappy Score] ATOMIC RANKED UPDATE: adding ${score} to entry ${entry.id}`);
+          await db.update(flappyRankedEntries)
+            .set({ 
+              bestScore: sql`${flappyRankedEntries.bestScore} + ${score}`,
+              gamesPlayed: sql`${flappyRankedEntries.gamesPlayed} + 1`
+            })
+            .where(eq(flappyRankedEntries.id, entry.id));
         } else {
           // UPSERT: Create entry if it doesn't exist (fixes score not recording bug)
           console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}`);
