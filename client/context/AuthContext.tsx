@@ -220,12 +220,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[Auth] Web Client ID:", GOOGLE_CLIENT_ID_WEB?.substring(0, 20) + "...");
 
       // Use expo-auth-session's Google provider which handles redirect URIs correctly
-      // For Android: Uses Web client ID with proper redirect handling
+      // For Android: Uses Expo auth proxy with Web client ID
       // For iOS: Uses iOS client ID with reversed scheme
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: "roachy-games",
-        path: "oauth",
-      });
+      let redirectUri: string;
+      
+      if (Platform.OS === "android") {
+        // Android production: Use Expo auth proxy (required for Web client + custom scheme)
+        redirectUri = AuthSession.makeRedirectUri({
+          native: "roachy-games://oauth",
+          // Use expo proxy for production Android builds
+          preferLocalhost: false,
+        });
+      } else if (Platform.OS === "ios") {
+        // iOS: Use reversed client ID scheme
+        const iosClientId = GOOGLE_CLIENT_ID_IOS || "";
+        const reversedClientId = iosClientId.split(".").reverse().join(".");
+        redirectUri = `${reversedClientId}:/oauth2redirect/google`;
+      } else {
+        // Web fallback
+        redirectUri = AuthSession.makeRedirectUri({ preferLocalhost: true });
+      }
       
       console.log("[Auth] Using redirect URI:", redirectUri);
 
