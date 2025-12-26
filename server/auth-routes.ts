@@ -294,12 +294,17 @@ router.post("/google-code", async (req: Request, res: Response) => {
     const verifiedDisplayName = tokenInfo.name;
     const verifiedAvatarUrl = tokenInfo.picture;
 
+    console.log(`[Auth Google] Looking up user - googleId: ${verifiedGoogleId}, email: ${verifiedEmail}`);
+    
     let [user] = await db.select().from(users).where(eq(users.googleId, verifiedGoogleId)).limit(1);
+    console.log(`[Auth Google] User by googleId: ${user ? user.id : 'NOT FOUND'}`);
 
     if (!user) {
       const [existingEmailUser] = await db.select().from(users).where(eq(users.email, verifiedEmail)).limit(1);
+      console.log(`[Auth Google] User by email: ${existingEmailUser ? existingEmailUser.id : 'NOT FOUND'}`);
       
       if (existingEmailUser) {
+        console.log(`[Auth Google] Linking googleId to existing email user ${existingEmailUser.id}`);
         [user] = await db.update(users)
           .set({ 
             googleId: verifiedGoogleId, 
@@ -311,22 +316,36 @@ router.post("/google-code", async (req: Request, res: Response) => {
           .where(eq(users.id, existingEmailUser.id))
           .returning();
       } else {
-        [user] = await db.insert(users).values({
-          email: verifiedEmail,
-          googleId: verifiedGoogleId,
-          displayName: verifiedDisplayName || verifiedEmail.split("@")[0],
-          avatarUrl: verifiedAvatarUrl,
-          authProvider: "google",
-          chyBalance: 100,
-          diamondBalance: 0,
-          lastLoginAt: new Date(),
-        }).returning();
+        console.log(`[Auth Google] *** CREATING NEW USER: ${verifiedEmail} ***`);
+        try {
+          [user] = await db.insert(users).values({
+            email: verifiedEmail,
+            googleId: verifiedGoogleId,
+            displayName: verifiedDisplayName || verifiedEmail.split("@")[0],
+            avatarUrl: verifiedAvatarUrl,
+            authProvider: "google",
+            chyBalance: 100,
+            diamondBalance: 0,
+            lastLoginAt: new Date(),
+          }).returning();
+          console.log(`[Auth Google] *** USER CREATED: ${user?.id} ***`);
+        } catch (createErr: any) {
+          console.error(`[Auth Google] *** USER CREATE FAILED: ${createErr.message} ***`);
+          // Retry lookup in case of race condition
+          [user] = await db.select().from(users).where(eq(users.email, verifiedEmail)).limit(1);
+          if (!user) {
+            return res.status(500).json({ error: "Failed to create user account" });
+          }
+        }
       }
     } else {
+      console.log(`[Auth Google] Existing user login: ${user.id}`);
       await db.update(users)
         .set({ lastLoginAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, user.id));
     }
+    
+    console.log(`[Auth Google] Login complete: userId=${user?.id}`);
 
     const token = generateToken({
       userId: user.id,
@@ -376,12 +395,17 @@ router.post("/google", async (req: Request, res: Response) => {
     const verifiedDisplayName = tokenInfo.name;
     const verifiedAvatarUrl = tokenInfo.picture;
 
+    console.log(`[Auth Google] Looking up user - googleId: ${verifiedGoogleId}, email: ${verifiedEmail}`);
+    
     let [user] = await db.select().from(users).where(eq(users.googleId, verifiedGoogleId)).limit(1);
+    console.log(`[Auth Google] User by googleId: ${user ? user.id : 'NOT FOUND'}`);
 
     if (!user) {
       const [existingEmailUser] = await db.select().from(users).where(eq(users.email, verifiedEmail)).limit(1);
+      console.log(`[Auth Google] User by email: ${existingEmailUser ? existingEmailUser.id : 'NOT FOUND'}`);
       
       if (existingEmailUser) {
+        console.log(`[Auth Google] Linking googleId to existing email user ${existingEmailUser.id}`);
         [user] = await db.update(users)
           .set({ 
             googleId: verifiedGoogleId, 
@@ -393,22 +417,36 @@ router.post("/google", async (req: Request, res: Response) => {
           .where(eq(users.id, existingEmailUser.id))
           .returning();
       } else {
-        [user] = await db.insert(users).values({
-          email: verifiedEmail,
-          googleId: verifiedGoogleId,
-          displayName: verifiedDisplayName || verifiedEmail.split("@")[0],
-          avatarUrl: verifiedAvatarUrl,
-          authProvider: "google",
-          chyBalance: 100,
-          diamondBalance: 0,
-          lastLoginAt: new Date(),
-        }).returning();
+        console.log(`[Auth Google] *** CREATING NEW USER: ${verifiedEmail} ***`);
+        try {
+          [user] = await db.insert(users).values({
+            email: verifiedEmail,
+            googleId: verifiedGoogleId,
+            displayName: verifiedDisplayName || verifiedEmail.split("@")[0],
+            avatarUrl: verifiedAvatarUrl,
+            authProvider: "google",
+            chyBalance: 100,
+            diamondBalance: 0,
+            lastLoginAt: new Date(),
+          }).returning();
+          console.log(`[Auth Google] *** USER CREATED: ${user?.id} ***`);
+        } catch (createErr: any) {
+          console.error(`[Auth Google] *** USER CREATE FAILED: ${createErr.message} ***`);
+          // Retry lookup in case of race condition
+          [user] = await db.select().from(users).where(eq(users.email, verifiedEmail)).limit(1);
+          if (!user) {
+            return res.status(500).json({ error: "Failed to create user account" });
+          }
+        }
       }
     } else {
+      console.log(`[Auth Google] Existing user login: ${user.id}`);
       await db.update(users)
         .set({ lastLoginAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, user.id));
     }
+    
+    console.log(`[Auth Google] Login complete: userId=${user?.id}`);
 
     const token = generateToken({
       userId: user.id,

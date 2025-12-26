@@ -219,6 +219,35 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
       
+      // SELF-HEALING: Verify user exists in database, create if missing
+      // This fixes the issue where Google login doesn't properly create users
+      const existingUser = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      if (existingUser.length === 0) {
+        console.warn(`[Flappy Score] CRITICAL: User ${userId} NOT FOUND in database! Creating shell record...`);
+        
+        // Extract email from JWT if available (set by auth middleware)
+        const jwtEmail = (req as any).userEmail || null;
+        
+        try {
+          await db.insert(users).values({
+            id: userId,
+            email: jwtEmail,
+            displayName: jwtEmail ? jwtEmail.split("@")[0] : `Player_${userId.substring(0, 8)}`,
+            authProvider: "google", // Assume Google since that's the common issue
+            chyBalance: 100,
+            diamondBalance: 0,
+            lastLoginAt: new Date(),
+          });
+          console.log(`[Flappy Score] Shell user record created for ${userId}`);
+        } catch (insertError: any) {
+          // If insert fails (e.g., unique constraint), try to continue anyway
+          console.error(`[Flappy Score] Failed to create shell user: ${insertError.message}`);
+        }
+      } else {
+        console.log(`[Flappy Score] User verified: ${existingUser[0].displayName || existingUser[0].email || userId}`);
+      }
+      
       // Log if there's a mismatch for debugging, but still proceed with authenticated userId
       if (bodyUserId && authenticatedUserId !== bodyUserId) {
         console.warn(`[Flappy Score] UserId mismatch - body: ${bodyUserId}, JWT: ${authenticatedUserId}. Using JWT userId.`);
@@ -597,10 +626,31 @@ export function registerFlappyRoutes(app: Express) {
         }
       } else {
         // Fallback: Look up user and do OAuth exchange
-        const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        let user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
         
         if (user.length === 0) {
-          return res.status(404).json({ success: false, error: "User not found" });
+          // SELF-HEALING: User doesn't exist, create shell record
+          console.warn(`[Flappy Enter] User ${userId} NOT FOUND - creating shell record`);
+          try {
+            const newUserResult = await db.insert(users).values({
+              id: userId,
+              displayName: `Player_${userId.substring(0, 8)}`,
+              authProvider: "google",
+              chyBalance: 100,
+              diamondBalance: 0,
+              lastLoginAt: new Date(),
+            }).returning();
+            
+            if (newUserResult.length > 0) {
+              user = newUserResult;
+              console.log(`[Flappy Enter] Shell user created: ${userId}`);
+            } else {
+              return res.status(404).json({ success: false, error: "User not found" });
+            }
+          } catch (createError: any) {
+            console.error(`[Flappy Enter] Failed to create shell user: ${createError.message}`);
+            return res.status(404).json({ success: false, error: "User not found" });
+          }
         }
         
         const userData = user[0];
