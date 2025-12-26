@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback, useState } from "react";
-import { View, StyleSheet, Platform, ActivityIndicator, Pressable, Modal, Text } from "react-native";
+import React, { useEffect, useCallback, useState, useRef } from "react";
+import { View, StyleSheet, Platform, ActivityIndicator, Pressable, Modal, Text, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { FlappyGame } from "@/games/flappy/FlappyGame";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -12,6 +12,9 @@ import { usePerformanceSettings, PerformanceMode } from "@/hooks/usePerformanceS
 import { GameColors, Colors } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff: 1s, 2s, 4s
 
 export function FlappyRoachScreen() {
   const navigation = useNavigation();
@@ -52,50 +55,87 @@ export function FlappyRoachScreen() {
   };
 
   const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => {
-    console.log(`[ScoreSubmit] Starting: user.id=${user?.id}, score=${score}, isRanked=${isRanked}, period=${rankedPeriod}`);
+    console.log(`[ScoreSubmit] ====== SCORE SUBMISSION START ======`);
+    console.log(`[ScoreSubmit] user.id=${user?.id}, score=${score}, isRanked=${isRanked}, period=${rankedPeriod}`);
+    console.log(`[ScoreSubmit] Timestamp: ${new Date().toISOString()}`);
     
     if (!user?.id) {
-      console.log("[ScoreSubmit] Guest score (not saved):", score);
+      console.log("[ScoreSubmit] Guest user - score not saved");
       return;
     }
     
-    try {
-      console.log(`[ScoreSubmit] Calling API with userId=${user.id}`);
-      const response = await apiRequest("POST", "/api/flappy/score", {
-        userId: user.id,
-        score,
-        coinsCollected: 0,
-        isRanked,
-        rankedPeriod: isRanked ? rankedPeriod : null,
-        chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
-      });
-      
-      const data = await response.json();
-      console.log(`[ScoreSubmit] API response:`, data);
-      
-      if (data.success) {
-        // Invalidate ALL flappy ranked queries to ensure fresh data after each game
-        queryClient.invalidateQueries({ predicate: (query) => {
-          const key = query.queryKey[0];
-          return typeof key === 'string' && (
-            key.includes('/api/flappy/ranked/status') ||
-            key.includes('/api/flappy/ranked/leaderboard')
-          );
-        }});
-        queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
+    // Retry logic with exponential backoff
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[ScoreSubmit] Attempt ${attempt + 1}/${MAX_RETRIES}`);
         
-        console.log(`[ScoreSubmit] Success! Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
-      } else {
-        console.error(`[ScoreSubmit] Server returned error:`, data.error);
+        const response = await apiRequest("POST", "/api/flappy/score", {
+          userId: user.id,
+          score,
+          coinsCollected: 0,
+          isRanked,
+          rankedPeriod: isRanked ? rankedPeriod : null,
+          chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
+        });
+        
+        const data = await response.json();
+        console.log(`[ScoreSubmit] Response:`, JSON.stringify(data));
+        
+        if (data.success) {
+          // Invalidate ALL flappy ranked queries to ensure fresh data
+          queryClient.invalidateQueries({ predicate: (query) => {
+            const key = query.queryKey[0];
+            return typeof key === 'string' && (
+              key.includes('/api/flappy/ranked/status') ||
+              key.includes('/api/flappy/ranked/leaderboard')
+            );
+          }});
+          queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
+          
+          console.log(`[ScoreSubmit] SUCCESS - Score ${score} saved (ranked: ${isRanked})`);
+          return; // Success! Exit the retry loop
+        } else {
+          // Server returned error in response body
+          lastError = new Error(data.error || "Unknown server error");
+          console.error(`[ScoreSubmit] Server error: ${data.error}`);
+        }
+      } catch (error: any) {
+        lastError = error;
+        const errorMsg = error?.message || String(error);
+        console.error(`[ScoreSubmit] Attempt ${attempt + 1} failed: ${errorMsg}`);
+        
+        // Don't retry on auth errors - user needs to re-login
+        if (errorMsg.includes("401") || errorMsg.includes("403")) {
+          console.error("[ScoreSubmit] AUTH ERROR - Session expired. User must re-login.");
+          Alert.alert(
+            "Session Expired",
+            "Your login session has expired. Please log out and log back in to save your scores.",
+            [{ text: "OK" }]
+          );
+          return; // Don't retry auth errors
+        }
       }
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error);
-      console.error("[ScoreSubmit] FAILED:", errorMsg);
       
-      // Log auth errors specifically for debugging
-      if (errorMsg.includes("401") || errorMsg.includes("403")) {
-        console.error("[ScoreSubmit] AUTH ERROR - Token may be expired. User ID:", user.id);
+      // Wait before retrying (except on last attempt)
+      if (attempt < MAX_RETRIES - 1) {
+        const delay = RETRY_DELAYS[attempt] || 4000;
+        console.log(`[ScoreSubmit] Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
+    }
+    
+    // All retries failed
+    console.error(`[ScoreSubmit] FAILED after ${MAX_RETRIES} attempts`);
+    
+    if (isRanked) {
+      // Only show alert for ranked games where score matters
+      Alert.alert(
+        "Score Save Failed",
+        "We couldn't save your ranked score. Please check your internet connection and try again.",
+        [{ text: "OK" }]
+      );
     }
   }, [user?.id, queryClient]);
 
