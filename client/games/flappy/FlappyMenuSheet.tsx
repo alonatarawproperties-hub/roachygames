@@ -602,12 +602,34 @@ function LeaderboardsTab({
 
   const selectedInfo = selectedCompetition === 'daily' ? daily : selectedCompetition === 'weekly' ? weekly : null;
   
+  // Prize distribution for top 20 (decreasing percentages)
+  const PRIZE_PERCENTAGES: Record<number, number> = {
+    1: 0.25,   // 25%
+    2: 0.15,   // 15%
+    3: 0.10,   // 10%
+    4: 0.07,   // 7%
+    5: 0.06,   // 6%
+    6: 0.05,   // 5%
+    7: 0.04,   // 4%
+    8: 0.04,   // 4%
+    9: 0.03,   // 3%
+    10: 0.03,  // 3%
+    11: 0.018, // 1.8%
+    12: 0.018,
+    13: 0.018,
+    14: 0.018,
+    15: 0.018,
+    16: 0.018,
+    17: 0.018,
+    18: 0.018,
+    19: 0.018,
+    20: 0.018,
+  };
+  
   const calculatePrize = (rank: number, prizePool: number, participants: number): number => {
-    if (rank === 0 || participants === 0) return 0;
-    if (rank === 1) return Math.floor(prizePool * 0.5);
-    if (rank === 2) return Math.floor(prizePool * 0.3);
-    if (rank === 3) return Math.floor(prizePool * 0.15);
-    return 0;
+    if (rank === 0 || participants === 0 || rank > 20) return 0;
+    const percentage = PRIZE_PERCENTAGES[rank] || 0;
+    return Math.floor(prizePool * percentage);
   };
 
   return (
@@ -708,32 +730,33 @@ function LeaderboardsTab({
               label="Your Prize" 
               value={calculatePrize(selectedInfo.userRank, selectedInfo.prizePool, selectedInfo.participants)} 
               icon="hexagon"
-              highlight={selectedInfo.userRank > 0 && selectedInfo.userRank <= 3}
+              highlight={selectedInfo.userRank > 0 && selectedInfo.userRank <= 20}
             />
           </View>
           <View style={styles.prizeBreakdown}>
-            <ThemedText style={styles.prizeBreakdownTitle}>Prize Distribution</ThemedText>
-            <View style={styles.prizeRow}>
-              <ThemedText style={styles.prizeRankText}>1st Place</ThemedText>
-              <View style={styles.prizeValueRow}>
-                <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
-                <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.5)}</ThemedText>
+            <ThemedText style={styles.prizeBreakdownTitle}>Prize Distribution (Top 20)</ThemedText>
+            {[
+              { label: "1st Place", pct: 0.25 },
+              { label: "2nd Place", pct: 0.15 },
+              { label: "3rd Place", pct: 0.10 },
+              { label: "4th Place", pct: 0.07 },
+              { label: "5th Place", pct: 0.06 },
+              { label: "6th Place", pct: 0.05 },
+              { label: "7th-8th", pct: 0.04 },
+              { label: "9th-10th", pct: 0.03 },
+              { label: "11th-20th", pct: 0.018 },
+            ].map((item, idx) => (
+              <View key={idx} style={styles.prizeRow}>
+                <ThemedText style={styles.prizeRankText}>{item.label}</ThemedText>
+                <View style={styles.prizeValueRow}>
+                  <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
+                  <ThemedText style={styles.prizeValueText}>
+                    {Math.floor((selectedInfo.prizePool || 0) * item.pct)}
+                    {item.label.includes("-") ? " each" : ""}
+                  </ThemedText>
+                </View>
               </View>
-            </View>
-            <View style={styles.prizeRow}>
-              <ThemedText style={styles.prizeRankText}>2nd Place</ThemedText>
-              <View style={styles.prizeValueRow}>
-                <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
-                <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.3)}</ThemedText>
-              </View>
-            </View>
-            <View style={styles.prizeRow}>
-              <ThemedText style={styles.prizeRankText}>3rd Place</ThemedText>
-              <View style={styles.prizeValueRow}>
-                <Image source={ChyCoinIcon} style={styles.coinIconSmallImage} contentFit="contain" />
-                <ThemedText style={styles.prizeValueText}>{Math.floor((selectedInfo.prizePool || 0) * 0.15)}</ThemedText>
-              </View>
-            </View>
+            ))}
           </View>
         </View>
       ) : selectedInfo && !selectedInfo.hasJoined ? (
