@@ -6,7 +6,6 @@ import {
   Platform,
   ActivityIndicator,
   useWindowDimensions,
-  TextInput,
 } from "react-native";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
@@ -297,6 +296,7 @@ const animatedPipeStyles = StyleSheet.create({
 });
 
 // Android-only animated coin component that reads from INDIVIDUAL shared values (no arrays = no GC)
+// Uses opacity-based value switching since AnimatedTextInput doesn't work on Android
 function AnimatedCoinSlot({ 
   coinX, 
   coinY, 
@@ -321,30 +321,39 @@ function AnimatedCoinSlot({
     };
   });
   
-  // Use useAnimatedProps to drive text content from shared value
-  // This runs entirely on UI thread without JS bridge hops
-  const animatedTextProps = useAnimatedProps(() => {
-    return {
-      text: `${coinValue.value || 1}`,
-    } as { text: string };
-  });
+  // Show correct value by opacity - only one visible at a time
+  // This is the most reliable way on Android without GC pressure
+  const style1 = useAnimatedStyle(() => ({ 
+    opacity: coinValue.value === 1 ? 1 : 0,
+    position: 'absolute' as const,
+  }));
+  const style2 = useAnimatedStyle(() => ({ 
+    opacity: coinValue.value === 2 ? 1 : 0,
+    position: 'absolute' as const,
+  }));
+  const style3 = useAnimatedStyle(() => ({ 
+    opacity: coinValue.value === 3 ? 1 : 0,
+    position: 'absolute' as const,
+  }));
+  const style4 = useAnimatedStyle(() => ({ 
+    opacity: coinValue.value === 4 ? 1 : 0,
+    position: 'absolute' as const,
+  }));
+  const style5 = useAnimatedStyle(() => ({ 
+    opacity: coinValue.value === 5 ? 1 : 0,
+    position: 'absolute' as const,
+  }));
   
   return (
     <Animated.View style={[animatedCoinStyles.coin, coinStyle]} pointerEvents="none">
-      <AnimatedTextInput
-        style={animatedCoinStyles.coinText}
-        animatedProps={animatedTextProps}
-        editable={false}
-        caretHidden={true}
-        pointerEvents="none"
-        defaultValue="1"
-      />
+      <Animated.Text style={[animatedCoinStyles.coinText, style1]}>1</Animated.Text>
+      <Animated.Text style={[animatedCoinStyles.coinText, style2]}>2</Animated.Text>
+      <Animated.Text style={[animatedCoinStyles.coinText, style3]}>3</Animated.Text>
+      <Animated.Text style={[animatedCoinStyles.coinText, style4]}>4</Animated.Text>
+      <Animated.Text style={[animatedCoinStyles.coinText, style5]}>5</Animated.Text>
     </Animated.View>
   );
 }
-
-// TextInput can have animated text prop - regular Text cannot
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 const animatedCoinStyles = StyleSheet.create({
   coin: {
@@ -1211,18 +1220,19 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     };
     
     // Android: Find empty slot and set individual shared values atomically on UI thread
-    // CRITICAL FIX: Using runOnUI ensures both X and height are set in the same frame,
-    // preventing invisible pipes (height=0 while X is valid)
+    // CRITICAL FIX: Use -500 threshold to ensure slot is truly off-screen before reuse
+    // This prevents race condition where slot is marked empty but still rendering
     if (isAndroid) {
       const slots = pipeXSlots.current;
       const heightSlots = pipeHSlots.current;
       for (let i = 0; i < MAX_PIPES; i++) {
-        if (slots[i].value < -100) {
+        // Use -500 threshold (way off-screen) to prevent slot reuse race condition
+        if (slots[i].value < -500) {
           newPipe.slotIndex = i; // Track which slot this pipe uses
           const slotX = slots[i];
           const slotH = heightSlots[i];
           const newX = gameWidthRef.current;
-          // Set both values atomically on UI thread to prevent render race
+          // Set height FIRST, then X - ensures pipe is visible when X becomes valid
           runOnUI(() => {
             'worklet';
             slotH.value = topHeight;
@@ -1255,15 +1265,17 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     // Android: Find empty slot and set individual shared values (zero GC)
     // Must assign slotIndex BEFORE adding to array so collision detection uses correct slot
+    // Use -500 threshold to match pipe threshold and prevent race conditions
     if (isAndroid) {
       const xSlots = coinXSlots.current;
       const ySlots = coinYSlots.current;
       const vSlots = coinVSlots.current;
       for (let i = 0; i < MAX_COINS; i++) {
-        if (xSlots[i].value < -100) {
-          xSlots[i].value = gameWidthRef.current;
-          ySlots[i].value = y;
+        if (xSlots[i].value < -500) {
+          // Set value and Y first, then X (X triggers visibility)
           vSlots[i].value = value;
+          ySlots[i].value = y;
+          xSlots[i].value = gameWidthRef.current;
           newCoin.slotIndex = i; // Track which slot this coin uses
           break;
         }
