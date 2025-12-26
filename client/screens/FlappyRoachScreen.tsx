@@ -18,7 +18,7 @@ const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff: 1s, 2s, 4s
 
 export function FlappyRoachScreen() {
   const navigation = useNavigation();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const { equippedSkin, isLoading: skinLoading } = useFlappySkin();
   const { equippedTrail, isLoading: trailLoading } = useFlappyTrail();
@@ -59,8 +59,8 @@ export function FlappyRoachScreen() {
     console.log(`[ScoreSubmit] user.id=${user?.id}, score=${score}, isRanked=${isRanked}, period=${rankedPeriod}`);
     console.log(`[ScoreSubmit] Timestamp: ${new Date().toISOString()}`);
     
-    if (!user?.id) {
-      console.log("[ScoreSubmit] Guest user - score not saved");
+    if (!user?.id || isGuest) {
+      console.log("[ScoreSubmit] Guest user - score not saved (guests cannot save scores)");
       return;
     }
     
@@ -137,7 +137,7 @@ export function FlappyRoachScreen() {
         [{ text: "OK" }]
       );
     }
-  }, [user?.id, queryClient]);
+  }, [user?.id, isGuest, queryClient]);
 
   const handleModeSelect = (newMode: PerformanceMode) => {
     setMode(newMode);
