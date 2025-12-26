@@ -6,6 +6,7 @@ import {
   Platform,
   ActivityIndicator,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
@@ -16,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedProps,
   withTiming,
   withRepeat,
   withSpring,
@@ -298,10 +300,12 @@ const animatedPipeStyles = StyleSheet.create({
 function AnimatedCoinSlot({ 
   coinX, 
   coinY, 
+  coinValue,
   coinSize 
 }: { 
   coinX: Animated.SharedValue<number>; 
   coinY: Animated.SharedValue<number>;
+  coinValue: Animated.SharedValue<number>;
   coinSize: number;
 }) {
   const coinStyle = useAnimatedStyle(() => {
@@ -317,12 +321,30 @@ function AnimatedCoinSlot({
     };
   });
   
+  // Use useAnimatedProps to drive text content from shared value
+  // This runs entirely on UI thread without JS bridge hops
+  const animatedTextProps = useAnimatedProps(() => {
+    return {
+      text: `${coinValue.value || 1}`,
+    } as { text: string };
+  });
+  
   return (
-    <Animated.View style={[animatedCoinStyles.coin, coinStyle]}>
-      <ThemedText style={animatedCoinStyles.coinText}>1</ThemedText>
+    <Animated.View style={[animatedCoinStyles.coin, coinStyle]} pointerEvents="none">
+      <AnimatedTextInput
+        style={animatedCoinStyles.coinText}
+        animatedProps={animatedTextProps}
+        editable={false}
+        caretHidden={true}
+        pointerEvents="none"
+        defaultValue="1"
+      />
     </Animated.View>
   );
 }
+
+// TextInput can have animated text prop - regular Text cannot
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 const animatedCoinStyles = StyleSheet.create({
   coin: {
@@ -340,6 +362,11 @@ const animatedCoinStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     color: "#5D4300",
+    textAlign: "center",
+    padding: 0,
+    margin: 0,
+    width: 22,
+    height: 22,
   },
 });
 
@@ -870,20 +897,28 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   // Individual shared values per coin slot
   const coin0X = useSharedValue(-1000);
   const coin0Y = useSharedValue(0);
+  const coin0V = useSharedValue(1);
   const coin1X = useSharedValue(-1000);
   const coin1Y = useSharedValue(0);
+  const coin1V = useSharedValue(1);
   const coin2X = useSharedValue(-1000);
   const coin2Y = useSharedValue(0);
+  const coin2V = useSharedValue(1);
   const coin3X = useSharedValue(-1000);
   const coin3Y = useSharedValue(0);
+  const coin3V = useSharedValue(1);
   const coin4X = useSharedValue(-1000);
   const coin4Y = useSharedValue(0);
+  const coin4V = useSharedValue(1);
   const coin5X = useSharedValue(-1000);
   const coin5Y = useSharedValue(0);
+  const coin5V = useSharedValue(1);
   const coin6X = useSharedValue(-1000);
   const coin6Y = useSharedValue(0);
+  const coin6V = useSharedValue(1);
   const coin7X = useSharedValue(-1000);
   const coin7Y = useSharedValue(0);
+  const coin7V = useSharedValue(1);
   
   // Individual shared values per cloud slot (for 60fps cloud animation on Android)
   const MAX_CLOUDS = 6;
@@ -917,6 +952,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const pipeHSlots = useRef([pipe0H, pipe1H, pipe2H, pipe3H, pipe4H, pipe5H]);
   const coinXSlots = useRef([coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X]);
   const coinYSlots = useRef([coin0Y, coin1Y, coin2Y, coin3Y, coin4Y, coin5Y, coin6Y, coin7Y]);
+  const coinVSlots = useRef([coin0V, coin1V, coin2V, coin3V, coin4V, coin5V, coin6V, coin7V]);
   const cloudXSlots = useRef([cloud0X, cloud1X, cloud2X, cloud3X, cloud4X, cloud5X]);
   const cloudYSlots = useRef([cloud0Y, cloud1Y, cloud2Y, cloud3Y, cloud4Y, cloud5Y]);
   const cloudSizeSlots = useRef([cloud0Size, cloud1Size, cloud2Size, cloud3Size, cloud4Size, cloud5Size]);
@@ -1222,10 +1258,12 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (isAndroid) {
       const xSlots = coinXSlots.current;
       const ySlots = coinYSlots.current;
+      const vSlots = coinVSlots.current;
       for (let i = 0; i < MAX_COINS; i++) {
         if (xSlots[i].value < -100) {
           xSlots[i].value = gameWidthRef.current;
           ySlots[i].value = y;
+          vSlots[i].value = value;
           newCoin.slotIndex = i; // Track which slot this coin uses
           break;
         }
@@ -2082,14 +2120,14 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
             <AnimatedPipeSlot pipeX={pipe4X} pipeTopHeight={pipe4H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
             <AnimatedPipeSlot pipeX={pipe5X} pipeTopHeight={pipe5H} pipeWidth={PIPE_WIDTH} gapSize={GAP_SIZE} playableHeight={PLAYABLE_HEIGHT} />
             {/* Coin slots - each reads from its own individual shared value */}
-            <AnimatedCoinSlot coinX={coin0X} coinY={coin0Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin1X} coinY={coin1Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin2X} coinY={coin2Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin3X} coinY={coin3Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin4X} coinY={coin4Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin5X} coinY={coin5Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin6X} coinY={coin6Y} coinSize={COIN_SIZE} />
-            <AnimatedCoinSlot coinX={coin7X} coinY={coin7Y} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin0X} coinY={coin0Y} coinValue={coin0V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin1X} coinY={coin1Y} coinValue={coin1V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin2X} coinY={coin2Y} coinValue={coin2V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin3X} coinY={coin3Y} coinValue={coin3V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin4X} coinY={coin4Y} coinValue={coin4V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin5X} coinY={coin5Y} coinValue={coin5V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin6X} coinY={coin6Y} coinValue={coin6V} coinSize={COIN_SIZE} />
+            <AnimatedCoinSlot coinX={coin7X} coinY={coin7Y} coinValue={coin7V} coinSize={COIN_SIZE} />
           </>
         ) : (
           <>
