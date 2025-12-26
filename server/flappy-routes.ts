@@ -205,7 +205,11 @@ export function registerFlappyRoutes(app: Express) {
       const { userId, score, coinsCollected = 0, isRanked = false, rankedPeriod = null, chyEntryFee = 0, sessionId } = req.body;
       const authenticatedUserId = (req as any).userId;
       
-      console.log(`[Flappy Score] Received: userId=${userId}, score=${score}, isRanked=${isRanked}, rankedPeriod=${rankedPeriod}, authUser=${authenticatedUserId}`);
+      console.log(`[Flappy Score] ====== SCORE SUBMISSION ======`);
+      console.log(`[Flappy Score] Request userId: ${userId}`);
+      console.log(`[Flappy Score] Authenticated userId: ${authenticatedUserId}`);
+      console.log(`[Flappy Score] Score: ${score}, isRanked: ${isRanked}, period: ${rankedPeriod}`);
+      console.log(`[Flappy Score] Timestamp: ${new Date().toISOString()}`);
       
       if (!userId || score === undefined) {
         return res.status(400).json({ success: false, error: "Missing required fields" });

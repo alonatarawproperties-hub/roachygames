@@ -78,8 +78,10 @@ export function verifyToken(token: string): JWTPayload | null {
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
+  const requestPath = req.path;
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.log(`[Auth] REJECTED ${requestPath}: No Bearer token`);
     return res.status(401).json({ success: false, error: "Authentication required" });
   }
 
@@ -87,9 +89,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const payload = verifyToken(token);
   
   if (!payload) {
+    console.log(`[Auth] REJECTED ${requestPath}: Token invalid/expired`);
     return res.status(401).json({ success: false, error: "Invalid or expired token" });
   }
 
+  console.log(`[Auth] OK ${requestPath}: userId=${payload.userId}`);
+  
   // Attach user info to request
   (req as any).userId = payload.userId;
   (req as any).userEmail = payload.email;

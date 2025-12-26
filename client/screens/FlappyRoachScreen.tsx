@@ -52,13 +52,16 @@ export function FlappyRoachScreen() {
   };
 
   const handleScoreSubmit = useCallback(async (score: number, isRanked: boolean, rankedPeriod?: 'daily' | 'weekly' | null) => {
+    console.log(`[ScoreSubmit] Starting: user.id=${user?.id}, score=${score}, isRanked=${isRanked}, period=${rankedPeriod}`);
+    
     if (!user?.id) {
-      console.log("Guest score (not saved):", score);
+      console.log("[ScoreSubmit] Guest score (not saved):", score);
       return;
     }
     
     try {
-      await apiRequest("POST", "/api/flappy/score", {
+      console.log(`[ScoreSubmit] Calling API with userId=${user.id}`);
+      const response = await apiRequest("POST", "/api/flappy/score", {
         userId: user.id,
         score,
         coinsCollected: 0,
@@ -66,6 +69,9 @@ export function FlappyRoachScreen() {
         rankedPeriod: isRanked ? rankedPeriod : null,
         chyEntryFee: isRanked ? (rankedPeriod === 'weekly' ? 3 : 1) : 0,
       });
+      
+      const data = await response.json();
+      console.log(`[ScoreSubmit] API response:`, data);
       
       // Invalidate ALL flappy ranked queries to ensure fresh data after each game
       queryClient.invalidateQueries({ predicate: (query) => {
@@ -77,9 +83,13 @@ export function FlappyRoachScreen() {
       }});
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/inventory", user.id] });
       
-      console.log(`Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
-    } catch (error) {
-      console.error("Failed to submit score:", error);
+      console.log(`[ScoreSubmit] Success! Score ${score} submitted (ranked: ${isRanked}, period: ${rankedPeriod})`);
+    } catch (error: any) {
+      console.error("[ScoreSubmit] FAILED:", error?.message || error);
+      // Log the full error for debugging
+      if (error?.message?.includes("401")) {
+        console.error("[ScoreSubmit] Auth token expired or invalid - user needs to re-login");
+      }
     }
   }, [user?.id, queryClient]);
 
