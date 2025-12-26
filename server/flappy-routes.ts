@@ -607,10 +607,15 @@ export function registerFlappyRoutes(app: Express) {
         console.log(`[Flappy] Using frontend-provided webappUserId: ${webappUserId}`);
         // Direct balance fetch using webappUserId
         const balanceResult = await webappRequest("GET", `/api/web/users/${webappUserId}/balances`);
-        if (balanceResult.status === 200) {
-          chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? 0;
-          balanceFetched = true;
-          console.log(`[Flappy] Direct balance fetch for ${webappUserId}: ${chyBalance} CHY`);
+        console.log(`[Flappy] Direct balance API response:`, JSON.stringify(balanceResult));
+        if (balanceResult.status === 200 && balanceResult.data) {
+          // Try multiple possible response formats
+          chyBalance = balanceResult.data?.chyBalance ?? balanceResult.data?.chy ?? balanceResult.data?.balance ?? 0;
+          // Only mark as fetched if we got a real balance (> 0) or the fetch was successful
+          if (chyBalance > 0 || balanceResult.data.hasOwnProperty('chyBalance') || balanceResult.data.hasOwnProperty('chy')) {
+            balanceFetched = true;
+          }
+          console.log(`[Flappy] Direct balance fetch for ${webappUserId}: ${chyBalance} CHY (fetched: ${balanceFetched})`);
         } else {
           console.log(`[Flappy] Direct balance fetch failed, will try OAuth exchange:`, balanceResult);
         }
@@ -682,7 +687,16 @@ export function registerFlappyRoutes(app: Express) {
       console.log(`[Flappy] Final balance check: ${chyBalance} CHY, entry fee: ${ENTRY_FEE}`);
       
       if (chyBalance < ENTRY_FEE) {
-        return res.status(400).json({ success: false, error: "Not enough CHY" });
+        // Include debug info in error for troubleshooting
+        return res.status(400).json({ 
+          success: false, 
+          error: `Not enough CHY (have: ${chyBalance}, need: ${ENTRY_FEE})`,
+          debug: {
+            webappUserIdProvided: !!webappUserId,
+            effectiveWebappUserId: effectiveWebappUserId || null,
+            balanceFetched: chyBalance,
+          }
+        });
       }
       
       if (!effectiveWebappUserId) {
