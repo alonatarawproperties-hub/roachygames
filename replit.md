@@ -66,3 +66,19 @@ The mobile app integrates with `roachy.games` (webapp) for token trading (redire
 - **Web App (roachy.games):** Handles landing page, marketplace, trading, analytics.
 - **Shared Identity:** Wallet address serves as the universal user ID.
 - **Integration Points:** Marketplace button, Deep Linking (`roachy-games://` scheme, `https://roachy.games/app/*` links), Universal Links (iOS), Intent Filters (Android).
+
+### Force Update System
+- **Purpose:** Block outdated native builds from accessing the app until users update via TestFlight/Play Store.
+- **Trigger:** Webapp controls version requirements remotely via `/api/mobile/config` endpoint.
+- **Behavior:** Blocking screen shown ONLY in lobby/home screens and at game entry - NEVER during active gameplay.
+- **Webapp API Contract:** The webapp should expose `GET /api/mobile/config` returning:
+  ```json
+  {
+    "minRequiredVersion": "1.0.0",
+    "iosStoreUrl": "https://testflight.apple.com/join/YOUR_CODE",
+    "androidStoreUrl": "https://play.google.com/store/apps/details?id=com.cryptocreatures.app",
+    "message": "A new major update is available. Please update to continue using Roachy Games."
+  }
+  ```
+- **Fallback:** If webapp is unavailable, defaults to `minRequiredVersion: "0.0.0"` (no blocking).
+- **Protected Screens:** ArcadeHomeScreen, FlappyRoachScreen (checked at entry, before gameplay starts).

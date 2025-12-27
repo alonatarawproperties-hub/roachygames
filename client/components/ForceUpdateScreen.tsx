@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { GameColors, Spacing, BorderRadius } from '@/constants/theme';
 
-const AppIcon = require('@/assets/images/icon.png');
+const AppIcon = require('../../assets/images/icon.png');
 
 interface ForceUpdateScreenProps {
   currentVersion: string;
