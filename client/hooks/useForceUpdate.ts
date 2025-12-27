@@ -5,6 +5,7 @@ import { getApiUrl } from '@/lib/query-client';
 
 interface VersionConfig {
   minRequiredVersion: string;
+  minRequiredBuildNumber?: number;
   iosStoreUrl?: string;
   androidStoreUrl?: string;
   message?: string;
@@ -14,7 +15,9 @@ interface ForceUpdateState {
   isUpdateRequired: boolean;
   isLoading: boolean;
   currentVersion: string;
+  currentBuildNumber: string;
   requiredVersion: string;
+  requiredBuildNumber: number;
   message: string;
   storeUrl: string | null;
 }
@@ -42,7 +45,9 @@ export function useForceUpdate(): ForceUpdateState & { checkForUpdate: () => Pro
     isUpdateRequired: false,
     isLoading: true,
     currentVersion: '0.0.0',
+    currentBuildNumber: '0',
     requiredVersion: '0.0.0',
+    requiredBuildNumber: 0,
     message: '',
     storeUrl: null,
   });
@@ -52,6 +57,13 @@ export function useForceUpdate(): ForceUpdateState & { checkForUpdate: () => Pro
       return '999.999.999';
     }
     return Application.nativeApplicationVersion || '0.0.0';
+  }, []);
+
+  const getCurrentBuildNumber = useCallback((): string => {
+    if (Platform.OS === 'web') {
+      return '999999';
+    }
+    return Application.nativeBuildVersion || '0';
   }, []);
 
   const getStoreUrl = useCallback((): string => {
@@ -84,18 +96,29 @@ export function useForceUpdate(): ForceUpdateState & { checkForUpdate: () => Pro
 
       const config: VersionConfig = await response.json();
       const currentVersion = getCurrentVersion();
+      const currentBuildNumber = getCurrentBuildNumber();
       const requiredVersion = config.minRequiredVersion || '0.0.0';
+      const requiredBuildNumber = config.minRequiredBuildNumber || 0;
       
-      const comparison = compareVersions(currentVersion, requiredVersion);
-      const isUpdateRequired = comparison < 0;
-
-      console.log(`[ForceUpdate] Current: ${currentVersion}, Required: ${requiredVersion}, Update needed: ${isUpdateRequired}`);
+      let isUpdateRequired = false;
+      
+      if (requiredBuildNumber > 0) {
+        const currentBuildNum = parseInt(currentBuildNumber, 10) || 0;
+        isUpdateRequired = currentBuildNum < requiredBuildNumber;
+        console.log(`[ForceUpdate] Build check - Current: ${currentBuildNum}, Required: ${requiredBuildNumber}, Update needed: ${isUpdateRequired}`);
+      } else {
+        const comparison = compareVersions(currentVersion, requiredVersion);
+        isUpdateRequired = comparison < 0;
+        console.log(`[ForceUpdate] Version check - Current: ${currentVersion}, Required: ${requiredVersion}, Update needed: ${isUpdateRequired}`);
+      }
 
       setState({
         isUpdateRequired,
         isLoading: false,
         currentVersion,
+        currentBuildNumber,
         requiredVersion,
+        requiredBuildNumber,
         message: config.message || 'A new major update is available. Please update to continue using Roachy Games.',
         storeUrl: Platform.OS === 'ios' 
           ? (config.iosStoreUrl || TESTFLIGHT_URL) 
@@ -105,7 +128,7 @@ export function useForceUpdate(): ForceUpdateState & { checkForUpdate: () => Pro
       console.log('[ForceUpdate] Error checking version:', error);
       setState(prev => ({ ...prev, isLoading: false, isUpdateRequired: false }));
     }
-  }, [getCurrentVersion]);
+  }, [getCurrentVersion, getCurrentBuildNumber]);
 
   const openStore = useCallback(() => {
     const url = state.storeUrl || getStoreUrl();

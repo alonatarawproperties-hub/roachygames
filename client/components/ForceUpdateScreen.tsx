@@ -11,14 +11,18 @@ const AppIcon = require('../../assets/images/icon.png');
 
 interface ForceUpdateScreenProps {
   currentVersion: string;
+  currentBuildNumber?: string;
   requiredVersion: string;
+  requiredBuildNumber?: number;
   message: string;
   onUpdate: () => void;
 }
 
 export function ForceUpdateScreen({
   currentVersion,
+  currentBuildNumber,
   requiredVersion,
+  requiredBuildNumber,
   message,
   onUpdate,
 }: ForceUpdateScreenProps) {
@@ -49,11 +53,15 @@ export function ForceUpdateScreen({
         <View style={styles.versionInfo}>
           <View style={styles.versionRow}>
             <ThemedText style={styles.versionLabel}>Your version:</ThemedText>
-            <ThemedText style={styles.versionValue}>{currentVersion}</ThemedText>
+            <ThemedText style={styles.versionValue}>
+              {currentVersion}{currentBuildNumber ? ` (${currentBuildNumber})` : ''}
+            </ThemedText>
           </View>
           <View style={styles.versionRow}>
             <ThemedText style={styles.versionLabel}>Required:</ThemedText>
-            <ThemedText style={[styles.versionValue, styles.requiredVersion]}>{requiredVersion}</ThemedText>
+            <ThemedText style={[styles.versionValue, styles.requiredVersion]}>
+              {requiredVersion}{requiredBuildNumber ? ` (${requiredBuildNumber})` : ''}
+            </ThemedText>
           </View>
         </View>
         

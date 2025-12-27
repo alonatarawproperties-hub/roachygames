@@ -75,10 +75,12 @@ The mobile app integrates with `roachy.games` (webapp) for token trading (redire
   ```json
   {
     "minRequiredVersion": "1.0.0",
+    "minRequiredBuildNumber": 171,
     "iosStoreUrl": "https://testflight.apple.com/join/YOUR_CODE",
     "androidStoreUrl": "https://play.google.com/store/apps/details?id=com.cryptocreatures.app",
     "message": "A new major update is available. Please update to continue using Roachy Games."
   }
   ```
-- **Fallback:** If webapp is unavailable, defaults to `minRequiredVersion: "0.0.0"` (no blocking).
+- **Version Check Logic:** If `minRequiredBuildNumber` > 0, compares build numbers (e.g., 171). Otherwise, compares version strings (e.g., "1.0.0").
+- **Fallback:** If webapp is unavailable, defaults to `minRequiredVersion: "0.0.0"` and `minRequiredBuildNumber: 0` (no blocking).
 - **Protected Screens:** ArcadeHomeScreen, FlappyRoachScreen (checked at entry, before gameplay starts).
