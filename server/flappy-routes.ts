@@ -115,6 +115,12 @@ async function deductWebappChy(user: { googleId: string | null; email: string | 
 }
 
 export function registerFlappyRoutes(app: Express) {
+  // Feature flag: Use webapp as source of truth for competition entry/scores/leaderboard
+  const USE_WEBAPP_COMPETITIONS = true;
+  
+  // Beta: Flappy ranked competitions are now enabled
+  const FLAPPY_COMPETITIONS_LOCKED = false;
+  
   app.get("/api/flappy/leaderboard", async (req: Request, res: Response) => {
     try {
       const { period = "alltime", limit = 50 } = req.query;
@@ -440,44 +446,64 @@ export function registerFlappyRoutes(app: Express) {
       // SECURITY: verifiedRankedGame is ONLY true if session token was validated successfully
       // This completely prevents bypass attacks - client values are never trusted
       if (verifiedRankedGame && verifiedRankedPeriod) {
-        const periodDate = verifiedRankedPeriod === 'daily' ? today : getWeekNumber();
-        console.log(`[Flappy Score] Verified ranked game - looking for entry: userId=${userId}, period=${verifiedRankedPeriod}, periodDate=${periodDate}`);
-        
-        // Find the user's entry in the competition using SERVER-VERIFIED period
-        const entryResult = await db.select()
-          .from(flappyRankedEntries)
-          .where(and(
-            eq(flappyRankedEntries.userId, userId),
-            eq(flappyRankedEntries.period, verifiedRankedPeriod),
-            eq(flappyRankedEntries.periodDate, periodDate)
-          ))
-          .limit(1);
-        
-        console.log(`[Flappy Score] Entry found: ${entryResult.length > 0 ? 'YES' : 'NO'}, entryId=${entryResult[0]?.id || 'none'}, currentBest=${entryResult[0]?.bestScore ?? 'N/A'}`);
-        
-        if (entryResult.length > 0) {
-          const entry = entryResult[0];
-          // ATOMIC: Accumulate score directly in SQL to prevent race conditions
-          console.log(`[Flappy Score] ATOMIC RANKED UPDATE: adding ${score} to entry ${entry.id}`);
-          await db.update(flappyRankedEntries)
-            .set({ 
-              bestScore: sql`${flappyRankedEntries.bestScore} + ${score}`,
-              gamesPlayed: sql`${flappyRankedEntries.gamesPlayed} + 1`
-            })
-            .where(eq(flappyRankedEntries.id, entry.id));
-        } else {
-          // UPSERT: Create entry if it doesn't exist (fixes score not recording bug)
-          console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}`);
-          const ENTRY_FEE = verifiedRankedPeriod === 'daily' ? 1 : 3;
-          await db.insert(flappyRankedEntries).values({
+        // NEW: Proxy ranked score submission to webapp (source of truth for competitions)
+        if (USE_WEBAPP_COMPETITIONS) {
+          const { webappUserId } = req.body;
+          console.log(`[Flappy Score] Proxying ranked score to webapp: userId=${userId}, webappUserId=${webappUserId}, score=${score}, period=${verifiedRankedPeriod}`);
+          
+          const webappScoreResult = await webappRequest("POST", "/api/flappy/competitions/submit-score", {
             userId,
+            webappUserId,
             period: verifiedRankedPeriod,
-            periodDate,
-            entryFee: ENTRY_FEE,
-            bestScore: score,
-            gamesPlayed: 1,
+            score,
           });
-          console.log(`[Flappy Score] Entry created successfully for ${verifiedRankedPeriod} competition`);
+          
+          console.log(`[Flappy Score] Webapp score submission response:`, JSON.stringify(webappScoreResult));
+          
+          if (webappScoreResult.status !== 200 || !webappScoreResult.data?.success) {
+            console.error(`[Flappy Score] Webapp score submission failed:`, webappScoreResult.data);
+          }
+        } else {
+          // LEGACY: Local database storage (when webapp competitions disabled)
+          const periodDate = verifiedRankedPeriod === 'daily' ? today : getWeekNumber();
+          console.log(`[Flappy Score] Verified ranked game - looking for entry: userId=${userId}, period=${verifiedRankedPeriod}, periodDate=${periodDate}`);
+          
+          // Find the user's entry in the competition using SERVER-VERIFIED period
+          const entryResult = await db.select()
+            .from(flappyRankedEntries)
+            .where(and(
+              eq(flappyRankedEntries.userId, userId),
+              eq(flappyRankedEntries.period, verifiedRankedPeriod),
+              eq(flappyRankedEntries.periodDate, periodDate)
+            ))
+            .limit(1);
+          
+          console.log(`[Flappy Score] Entry found: ${entryResult.length > 0 ? 'YES' : 'NO'}, entryId=${entryResult[0]?.id || 'none'}, currentBest=${entryResult[0]?.bestScore ?? 'N/A'}`);
+          
+          if (entryResult.length > 0) {
+            const entry = entryResult[0];
+            // ATOMIC: Accumulate score directly in SQL to prevent race conditions
+            console.log(`[Flappy Score] ATOMIC RANKED UPDATE: adding ${score} to entry ${entry.id}`);
+            await db.update(flappyRankedEntries)
+              .set({ 
+                bestScore: sql`${flappyRankedEntries.bestScore} + ${score}`,
+                gamesPlayed: sql`${flappyRankedEntries.gamesPlayed} + 1`
+              })
+              .where(eq(flappyRankedEntries.id, entry.id));
+          } else {
+            // UPSERT: Create entry if it doesn't exist (fixes score not recording bug)
+            console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}`);
+            const ENTRY_FEE = verifiedRankedPeriod === 'daily' ? 1 : 3;
+            await db.insert(flappyRankedEntries).values({
+              userId,
+              period: verifiedRankedPeriod,
+              periodDate,
+              entryFee: ENTRY_FEE,
+              bestScore: score,
+              gamesPlayed: 1,
+            });
+            console.log(`[Flappy Score] Entry created successfully for ${verifiedRankedPeriod} competition`);
+          }
         }
       }
       
@@ -643,9 +669,6 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  // Beta: Flappy ranked competitions are now enabled
-  const FLAPPY_COMPETITIONS_LOCKED = false;
-
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
       const { userId, period = 'daily', webappUserId, idempotencyKey: clientIdempotencyKey } = req.body;
@@ -674,6 +697,35 @@ export function registerFlappyRoutes(app: Express) {
           success: false, 
           error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
           retryAfter: rateLimitResult.retryAfter
+        });
+      }
+      
+      // NEW: Proxy to webapp for competition entry
+      if (USE_WEBAPP_COMPETITIONS) {
+        console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}`);
+        
+        const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
+          userId,
+          period,
+          webappUserId,
+          idempotencyKey: clientIdempotencyKey,
+        });
+        
+        console.log(`[Flappy] Webapp entry response:`, JSON.stringify(webappResult));
+        
+        if (webappResult.status === 200 && webappResult.data) {
+          return res.json(webappResult.data);
+        }
+        
+        // Handle specific error cases
+        if (webappResult.status === 400) {
+          return res.status(400).json(webappResult.data);
+        }
+        
+        // Fallback error
+        return res.status(webappResult.status || 500).json({ 
+          success: false, 
+          error: webappResult.data?.error || "Failed to enter competition via webapp" 
         });
       }
       
@@ -927,10 +979,33 @@ export function registerFlappyRoutes(app: Express) {
   // Competition leaderboard - returns top 10 + user rank for daily/weekly
   app.get("/api/flappy/ranked/leaderboard", async (req: Request, res: Response) => {
     try {
-      const { period, userId } = req.query;
+      const { period, userId, webappUserId } = req.query;
       
       if (!period || (period !== 'daily' && period !== 'weekly')) {
         return res.status(400).json({ success: false, error: "Invalid period. Use 'daily' or 'weekly'" });
+      }
+      
+      // NEW: Proxy to webapp for leaderboard
+      if (USE_WEBAPP_COMPETITIONS) {
+        console.log(`[Flappy Leaderboard] Proxying to webapp: period=${period}, userId=${userId}, webappUserId=${webappUserId}`);
+        
+        const queryParams = new URLSearchParams();
+        queryParams.set('period', period as string);
+        if (userId) queryParams.set('userId', userId as string);
+        if (webappUserId) queryParams.set('webappUserId', webappUserId as string);
+        
+        const webappResult = await webappRequest("GET", `/api/flappy/competitions/leaderboard?${queryParams.toString()}`);
+        
+        console.log(`[Flappy Leaderboard] Webapp response status: ${webappResult.status}`);
+        
+        if (webappResult.status === 200 && webappResult.data) {
+          return res.json(webappResult.data);
+        }
+        
+        return res.status(webappResult.status || 500).json({ 
+          success: false, 
+          error: webappResult.data?.error || "Failed to fetch leaderboard from webapp" 
+        });
       }
       
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
