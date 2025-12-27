@@ -1237,34 +1237,31 @@ export function registerFlappyRoutes(app: Express) {
       
       const dailyParticipantCount = Number(dailyParticipants[0]?.count || 0);
       const weeklyParticipantCount = Number(weeklyParticipants[0]?.count || 0);
-      const dailyPrizePool = dailyParticipantCount * 2;
-      const weeklyPrizePool = weeklyParticipantCount * 5;
+      
+      // When webapp is unavailable, return null for daily/weekly
+      // The frontend will use data from /api/competitions/active instead
+      // This ensures webapp is single source of truth for competition config
+      console.log(`[Flappy Status] Webapp unavailable, returning user-specific data only`);
       
       res.json({
         success: true,
         daily: {
-          entryFee: 2,
-          participants: dailyParticipantCount,
-          prizePool: dailyPrizePool,
-          topScore: dailyTopScore[0]?.bestScore || 0,
-          endsIn: getTimeUntilMidnight(),
+          // Entry fee and prize pool come from /api/competitions/active
+          // Here we only provide user-specific data
           hasJoined: hasJoinedDaily,
           periodDate: today,
           userScore: userDailyScore,
           userRank: userDailyRank,
-          isPerpetual: true,
+          topScore: dailyTopScore[0]?.bestScore || 0,
+          participants: dailyParticipantCount,
         },
         weekly: {
-          entryFee: 5,
-          participants: weeklyParticipantCount,
-          prizePool: weeklyPrizePool,
-          topScore: weeklyTopScore[0]?.bestScore || 0,
-          endsIn: getTimeUntilWeekEnd(),
           hasJoined: hasJoinedWeekly,
           periodDate: weekNumber,
           userScore: userWeeklyScore,
           userRank: userWeeklyRank,
-          isPerpetual: true,
+          topScore: weeklyTopScore[0]?.bestScore || 0,
+          participants: weeklyParticipantCount,
         },
       });
     } catch (error) {
