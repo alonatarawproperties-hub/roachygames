@@ -869,39 +869,12 @@ function LeaderboardsTab({
   }));
   
   // Webapp is the single source of truth for ALL competitions - no mobile fallback
-  // For daily/weekly competitions, calculate time until next reset boundary (perpetual model)
-  // Daily resets at midnight UTC, weekly resets Monday 00:00 UTC
+  // Use webapp's endsAt for countdown - it knows the exact reset time
   const getEndsIn = (comp: Competition | undefined) => {
-    if (!comp) return 0;
-    
-    // For perpetual daily/weekly competitions, calculate time until next reset
-    if (comp.period === 'daily') {
-      const now = new Date();
-      const nextMidnightUtc = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1, // Next day
-        0, 0, 0, 0
-      ));
-      return Math.max(0, Math.floor((nextMidnightUtc.getTime() - now.getTime()) / 1000));
-    }
-    
-    if (comp.period === 'weekly') {
-      const now = new Date();
-      const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 1 = Monday
-      const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek); // Days until next Monday
-      const nextMondayUtc = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + daysUntilMonday,
-        0, 0, 0, 0
-      ));
-      return Math.max(0, Math.floor((nextMondayUtc.getTime() - now.getTime()) / 1000));
-    }
-    
-    // For one-time competitions, use the webapp's endsAt
-    if (!comp.endsAt) return 0;
-    return Math.max(0, Math.floor((new Date(comp.endsAt).getTime() - Date.now()) / 1000));
+    if (!comp || !comp.endsAt) return 0;
+    // Use webapp's endsAt directly - it has the correct reset time configured
+    const msRemaining = new Date(comp.endsAt).getTime() - Date.now();
+    return Math.max(0, Math.floor(msRemaining / 1000));
   };
   
   // Check if competition is actually closed (not just time-based for perpetual competitions)
@@ -916,12 +889,13 @@ function LeaderboardsTab({
   };
   
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
+  // Prize pool comes directly from webapp - it already includes basePrizeBoost + entry fees
   const daily = useMemo(() => {
     if (!webappDaily) return undefined;
     return {
       entryFee: webappDaily.entryFee || 0,
       participants: webappDaily.currentEntries || 0,
-      prizePool: webappDaily.prizePool + (webappDaily.basePrizeBoost || 0),
+      prizePool: webappDaily.prizePool || (webappDaily.basePrizeBoost || 0),
       topScore: 0,
       endsIn: getEndsIn(webappDaily),
       hasJoined: false, // TODO: Track join status via webapp
@@ -939,7 +913,7 @@ function LeaderboardsTab({
     return {
       entryFee: webappWeekly.entryFee || 0,
       participants: webappWeekly.currentEntries || 0,
-      prizePool: webappWeekly.prizePool + (webappWeekly.basePrizeBoost || 0),
+      prizePool: webappWeekly.prizePool || (webappWeekly.basePrizeBoost || 0),
       topScore: 0,
       endsIn: getEndsIn(webappWeekly),
       hasJoined: false,
