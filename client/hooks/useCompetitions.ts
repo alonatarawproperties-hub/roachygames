@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
 import * as Crypto from "expo-crypto";
 
+export type CompetitionType = "ranked" | "boss";
+export type CompetitionPeriod = "daily" | "weekly" | "one-time";
+
 export interface Competition {
   id: string;
   name: string;
@@ -12,6 +15,9 @@ export interface Competition {
   endsAt: string;
   maxEntries?: number;
   currentEntries?: number;
+  type?: CompetitionType;
+  period?: CompetitionPeriod;
+  basePrizeBoost?: number;
 }
 
 export interface LeaderboardEntry {
@@ -70,6 +76,9 @@ export function useActiveCompetitions() {
           endsAt: c.endsAt,
           maxEntries: c.maxEntries,
           currentEntries: c.participantCount ?? c.currentEntries,
+          type: c.type ?? "boss",
+          period: c.period ?? "one-time",
+          basePrizeBoost: c.basePrizeBoost ?? 0,
         }));
       }
       if (Array.isArray(data)) {
@@ -78,6 +87,21 @@ export function useActiveCompetitions() {
       return [];
     },
   });
+}
+
+export function filterRankedCompetitions(competitions: Competition[]): Competition[] {
+  return competitions.filter((c) => c.type === "ranked");
+}
+
+export function filterBossCompetitions(competitions: Competition[]): Competition[] {
+  return competitions.filter((c) => c.type === "boss" || !c.type);
+}
+
+export function getRankedByPeriod(
+  competitions: Competition[],
+  period: "daily" | "weekly"
+): Competition | undefined {
+  return competitions.find((c) => c.type === "ranked" && c.period === period);
 }
 
 export function useCompetition(competitionId: string | null) {
