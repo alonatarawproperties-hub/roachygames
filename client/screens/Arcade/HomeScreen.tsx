@@ -52,6 +52,8 @@ import { FLAPPY_TRAILS } from "@/games/flappy/flappyTrails";
 import { Image as ExpoImage } from "expo-image";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
 import { useUserNfts } from "@/hooks/useUserNfts";
+import { useForceUpdate } from "@/hooks/useForceUpdate";
+import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EGGS_REQUIRED = 10;
@@ -1116,6 +1118,8 @@ export function ArcadeHomeScreen() {
     getTypeMetadata,
     refetch: refetchInventory,
   } = useArcadeInventory();
+  
+  const forceUpdate = useForceUpdate();
 
   // Fetch live player counts for games
   const { data: playerCountsData } = useQuery<{ success: boolean; counts: Record<string, number> }>({
@@ -1359,6 +1363,17 @@ export function ArcadeHomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert("Notifications", "Coming soon!");
   };
+
+  if (forceUpdate.isUpdateRequired && !forceUpdate.isLoading) {
+    return (
+      <ForceUpdateScreen
+        currentVersion={forceUpdate.currentVersion}
+        requiredVersion={forceUpdate.requiredVersion}
+        message={forceUpdate.message}
+        onUpdate={forceUpdate.openStore}
+      />
+    );
+  }
 
   if (showOnboarding === null) {
     return (

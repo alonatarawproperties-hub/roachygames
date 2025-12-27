@@ -1,4 +1,4 @@
-export type RoachyTrail = "none";
+export type RoachyTrail = "none" | "breeze";
 
 export interface TrailDefinition {
   id: RoachyTrail;
@@ -16,10 +16,18 @@ export const FLAPPY_TRAILS: Record<RoachyTrail, TrailDefinition> = {
     asset: null,
     isNFT: false,
   },
+  breeze: {
+    id: "breeze",
+    name: "Breeze",
+    rarity: "common",
+    asset: null,
+    isNFT: false,
+  },
 };
 
 export const ALL_TRAIL_ASSETS: any[] = [];
 
 export const TRAIL_NFT_MAPPING: Record<RoachyTrail, string> = {
   none: "",
+  breeze: "",
 };
