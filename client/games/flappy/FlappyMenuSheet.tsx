@@ -382,15 +382,19 @@ function TabButton({
   );
 }
 
-function formatCountdown(ms: number): string {
-  if (ms <= 0) return "Ended";
+function formatCountdown(ms: number, isPerpetual: boolean = false): string {
+  if (ms <= 0) {
+    // For perpetual competitions, show "Resets soon" instead of "Ended"
+    return isPerpetual ? "Resets soon" : "Ended";
+  }
   const hours = Math.floor(ms / (1000 * 60 * 60));
   const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  const prefix = isPerpetual ? "Resets " : "";
   if (hours > 24) {
     const days = Math.floor(hours / 24);
-    return `${days}d ${hours % 24}h`;
+    return `${prefix}${days}d ${hours % 24}h`;
   }
-  return `${hours}h ${minutes}m`;
+  return `${prefix}${hours}h ${minutes}m`;
 }
 
 // Flappy ranked competitions are now enabled
@@ -409,6 +413,7 @@ function CompetitionCard({
   userId,
   isEntering,
   isSelected,
+  isPerpetual,
   onEnter,
   onSelect,
 }: {
@@ -424,6 +429,7 @@ function CompetitionCard({
   userId: string | null;
   isEntering: boolean;
   isSelected: boolean;
+  isPerpetual?: boolean;
   onEnter: () => void;
   onSelect: () => void;
 }) {
@@ -487,7 +493,7 @@ function CompetitionCard({
         </View>
         <View style={styles.countdownBadge}>
           <Feather name="clock" size={12} color={GameColors.textSecondary} />
-          <ThemedText style={styles.countdownText}>{formatCountdown(endsIn)}</ThemedText>
+          <ThemedText style={styles.countdownText}>{formatCountdown(endsIn, isPerpetual)}</ThemedText>
         </View>
       </View>
       
@@ -863,10 +869,50 @@ function LeaderboardsTab({
   }));
   
   // Webapp is the single source of truth for ALL competitions - no mobile fallback
-  // Convert webapp competition to UI format
+  // For daily/weekly competitions, calculate time until next reset boundary (perpetual model)
+  // Daily resets at midnight UTC, weekly resets Monday 00:00 UTC
   const getEndsIn = (comp: Competition | undefined) => {
-    if (!comp?.endsAt) return 0;
+    if (!comp) return 0;
+    
+    // For perpetual daily/weekly competitions, calculate time until next reset
+    if (comp.period === 'daily') {
+      const now = new Date();
+      const nextMidnightUtc = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1, // Next day
+        0, 0, 0, 0
+      ));
+      return Math.max(0, Math.floor((nextMidnightUtc.getTime() - now.getTime()) / 1000));
+    }
+    
+    if (comp.period === 'weekly') {
+      const now = new Date();
+      const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 1 = Monday
+      const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek); // Days until next Monday
+      const nextMondayUtc = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + daysUntilMonday,
+        0, 0, 0, 0
+      ));
+      return Math.max(0, Math.floor((nextMondayUtc.getTime() - now.getTime()) / 1000));
+    }
+    
+    // For one-time competitions, use the webapp's endsAt
+    if (!comp.endsAt) return 0;
     return Math.max(0, Math.floor((new Date(comp.endsAt).getTime() - Date.now()) / 1000));
+  };
+  
+  // Check if competition is actually closed (not just time-based for perpetual competitions)
+  const isCompetitionActive = (comp: Competition | undefined) => {
+    if (!comp) return false;
+    // Daily/weekly are always active (perpetual)
+    if (comp.period === 'daily' || comp.period === 'weekly') {
+      return comp.status === 'active' || comp.status === 'scheduled';
+    }
+    // For one-time, check status
+    return comp.status === 'active';
   };
   
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
@@ -883,6 +929,8 @@ function LeaderboardsTab({
       userScore: 0,
       userRank: 0,
       competitionId: webappDaily.id,
+      isActive: isCompetitionActive(webappDaily),
+      isPerpetual: true, // Daily is perpetual
     };
   }, [webappDaily]);
   
@@ -899,6 +947,8 @@ function LeaderboardsTab({
       userScore: 0,
       userRank: 0,
       competitionId: webappWeekly.id,
+      isActive: isCompetitionActive(webappWeekly),
+      isPerpetual: true, // Weekly is perpetual
     };
   }, [webappWeekly]);
   
@@ -1017,6 +1067,7 @@ function LeaderboardsTab({
                 userId={userId}
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'daily'}
+                isPerpetual={daily.isPerpetual}
                 onEnter={() => onPlayRanked('daily')}
                 onSelect={() => setSelectedCompetition('daily')}
               />
@@ -1036,6 +1087,7 @@ function LeaderboardsTab({
                 userId={userId}
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'weekly'}
+                isPerpetual={weekly.isPerpetual}
                 onEnter={() => onPlayRanked('weekly')}
                 onSelect={() => setSelectedCompetition('weekly')}
               />
