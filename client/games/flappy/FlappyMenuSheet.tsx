@@ -877,55 +877,48 @@ function LeaderboardsTab({
     transform: [{ rotate: `${spinValue.value * 360}deg` }],
   }));
   
-  // Use webapp ranked data when available, otherwise fallback to mobile-only data
-  const mobileDaily = rankedStatus?.daily;
-  const mobileWeekly = rankedStatus?.weekly;
-  
-  // Convert webapp competition to UI format when available
+  // Webapp is the single source of truth for ALL competitions - no mobile fallback
+  // Convert webapp competition to UI format
   const getEndsIn = (comp: Competition | undefined) => {
     if (!comp?.endsAt) return 0;
     return Math.max(0, Math.floor((new Date(comp.endsAt).getTime() - Date.now()) / 1000));
   };
   
-  // Merge webapp and mobile data - prefer webapp when available
+  // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
   const daily = useMemo(() => {
-    if (webappDaily) {
-      return {
-        entryFee: webappDaily.entryFee,
-        participants: webappDaily.currentEntries || 0,
-        prizePool: webappDaily.prizePool + (webappDaily.basePrizeBoost || 0),
-        topScore: 0,
-        endsIn: getEndsIn(webappDaily),
-        hasJoined: mobileDaily?.hasJoined || false, // User join status still from mobile
-        periodDate: mobileDaily?.periodDate || '',
-        userScore: mobileDaily?.userScore || 0,
-        userRank: mobileDaily?.userRank || 0,
-        competitionId: webappDaily.id, // Track webapp competition ID
-      };
-    }
-    return mobileDaily ? { ...mobileDaily, competitionId: undefined } : undefined;
-  }, [webappDaily, mobileDaily]);
+    if (!webappDaily) return undefined;
+    return {
+      entryFee: webappDaily.entryFee || 0,
+      participants: webappDaily.currentEntries || 0,
+      prizePool: webappDaily.prizePool + (webappDaily.basePrizeBoost || 0),
+      topScore: 0,
+      endsIn: getEndsIn(webappDaily),
+      hasJoined: false, // TODO: Track join status via webapp
+      periodDate: '',
+      userScore: 0,
+      userRank: 0,
+      competitionId: webappDaily.id,
+    };
+  }, [webappDaily]);
   
   const weekly = useMemo(() => {
-    if (webappWeekly) {
-      return {
-        entryFee: webappWeekly.entryFee,
-        participants: webappWeekly.currentEntries || 0,
-        prizePool: webappWeekly.prizePool + (webappWeekly.basePrizeBoost || 0),
-        topScore: 0,
-        endsIn: getEndsIn(webappWeekly),
-        hasJoined: mobileWeekly?.hasJoined || false,
-        periodDate: mobileWeekly?.periodDate || '',
-        userScore: mobileWeekly?.userScore || 0,
-        userRank: mobileWeekly?.userRank || 0,
-        competitionId: webappWeekly.id,
-      };
-    }
-    return mobileWeekly ? { ...mobileWeekly, competitionId: undefined } : undefined;
-  }, [webappWeekly, mobileWeekly]);
+    if (!webappWeekly) return undefined;
+    return {
+      entryFee: webappWeekly.entryFee || 0,
+      participants: webappWeekly.currentEntries || 0,
+      prizePool: webappWeekly.prizePool + (webappWeekly.basePrizeBoost || 0),
+      topScore: 0,
+      endsIn: getEndsIn(webappWeekly),
+      hasJoined: false,
+      periodDate: '',
+      userScore: 0,
+      userRank: 0,
+      competitionId: webappWeekly.id,
+    };
+  }, [webappWeekly]);
   
-  const canEnterDaily = userId && chyBalance >= (daily?.entryFee || 1) && !isEntering && !daily?.hasJoined;
-  const canEnterWeekly = userId && chyBalance >= (weekly?.entryFee || 3) && !isEntering && !weekly?.hasJoined;
+  const canEnterDaily = userId && daily && chyBalance >= daily.entryFee && !isEntering && !daily.hasJoined;
+  const canEnterWeekly = userId && weekly && chyBalance >= weekly.entryFee && !isEntering && !weekly.hasJoined;
 
   const selectedInfo = selectedCompetition === 'daily' ? daily : selectedCompetition === 'weekly' ? weekly : null;
   
@@ -1005,39 +998,55 @@ function LeaderboardsTab({
         <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Ranked Competitions</ThemedText>
         <ThemedText style={styles.competitionHint}>Tap a competition to see your stats</ThemedText>
         
-        <CompetitionCard
-          title="Daily Challenge"
-          icon="sun"
-          entryFee={daily?.entryFee || 1}
-          participants={daily?.participants || 0}
-          prizePool={daily?.prizePool || 0}
-          endsIn={daily?.endsIn || 0}
-          hasJoined={daily?.hasJoined || false}
-          canEnter={!!canEnterDaily}
-          chyBalance={chyBalance}
-          userId={userId}
-          isEntering={isEntering}
-          isSelected={selectedCompetition === 'daily'}
-          onEnter={() => onPlayRanked('daily')}
-          onSelect={() => setSelectedCompetition('daily')}
-        />
-        
-        <CompetitionCard
-          title="Weekly Championship"
-          icon="calendar"
-          entryFee={weekly?.entryFee || 3}
-          participants={weekly?.participants || 0}
-          prizePool={weekly?.prizePool || 0}
-          endsIn={weekly?.endsIn || 0}
-          hasJoined={weekly?.hasJoined || false}
-          canEnter={!!canEnterWeekly}
-          chyBalance={chyBalance}
-          userId={userId}
-          isEntering={isEntering}
-          isSelected={selectedCompetition === 'weekly'}
-          onEnter={() => onPlayRanked('weekly')}
-          onSelect={() => setSelectedCompetition('weekly')}
-        />
+        {competitionsLoading ? (
+          <ActivityIndicator color={GameColors.gold} style={{ marginVertical: Spacing.lg }} />
+        ) : daily || weekly ? (
+          <>
+            {daily ? (
+              <CompetitionCard
+                title="Daily Challenge"
+                icon="sun"
+                entryFee={daily.entryFee}
+                participants={daily.participants}
+                prizePool={daily.prizePool}
+                endsIn={daily.endsIn}
+                hasJoined={daily.hasJoined}
+                canEnter={!!canEnterDaily}
+                chyBalance={chyBalance}
+                userId={userId}
+                isEntering={isEntering}
+                isSelected={selectedCompetition === 'daily'}
+                onEnter={() => onPlayRanked('daily')}
+                onSelect={() => setSelectedCompetition('daily')}
+              />
+            ) : null}
+            
+            {weekly ? (
+              <CompetitionCard
+                title="Weekly Championship"
+                icon="calendar"
+                entryFee={weekly.entryFee}
+                participants={weekly.participants}
+                prizePool={weekly.prizePool}
+                endsIn={weekly.endsIn}
+                hasJoined={weekly.hasJoined}
+                canEnter={!!canEnterWeekly}
+                chyBalance={chyBalance}
+                userId={userId}
+                isEntering={isEntering}
+                isSelected={selectedCompetition === 'weekly'}
+                onEnter={() => onPlayRanked('weekly')}
+                onSelect={() => setSelectedCompetition('weekly')}
+              />
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.noBossChallenges}>
+            <Feather name="award" size={24} color={GameColors.textSecondary} />
+            <ThemedText style={styles.noBossChallengesText}>No ranked competitions active</ThemedText>
+            <ThemedText style={styles.noBossChallengesSubtext}>Check roachy.games for upcoming events!</ThemedText>
+          </View>
+        )}
         
         {entryError ? (
           <ThemedText style={styles.errorText}>{entryError}</ThemedText>
