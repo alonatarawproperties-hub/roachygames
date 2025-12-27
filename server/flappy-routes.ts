@@ -116,7 +116,10 @@ async function deductWebappChy(user: { googleId: string | null; email: string | 
 
 export function registerFlappyRoutes(app: Express) {
   // Feature flag: Use webapp as source of truth for competition entry/scores/leaderboard
-  const USE_WEBAPP_COMPETITIONS = true;
+  // Webapp is source of truth for competition CONFIG (what competitions exist, entry fees)
+  // But operations (join, score, stats) are handled locally to ensure CHY deduction works
+  const USE_WEBAPP_COMPETITIONS_CONFIG = true;  // Get competition list from webapp
+  const USE_WEBAPP_COMPETITIONS_OPERATIONS = false;  // Handle join/score/stats locally
   
   // Beta: Flappy ranked competitions are now enabled
   const FLAPPY_COMPETITIONS_LOCKED = false;
@@ -447,7 +450,7 @@ export function registerFlappyRoutes(app: Express) {
       // This completely prevents bypass attacks - client values are never trusted
       if (verifiedRankedGame && verifiedRankedPeriod) {
         // NEW: Proxy ranked score submission to webapp (source of truth for competitions)
-        if (USE_WEBAPP_COMPETITIONS) {
+        if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
           const { webappUserId } = req.body;
           console.log(`[Flappy Score] Proxying ranked score to webapp: userId=${userId}, webappUserId=${webappUserId}, score=${score}, period=${verifiedRankedPeriod}`);
           
@@ -700,8 +703,8 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
-      // NEW: Proxy to webapp for competition entry
-      if (USE_WEBAPP_COMPETITIONS) {
+      // NEW: Proxy to webapp for competition entry (disabled - handle locally for reliable CHY deduction)
+      if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
         console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}`);
         
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
@@ -729,7 +732,11 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
-      const ENTRY_FEE = period === 'daily' ? 1 : 3;
+      // Get entry fee from request body (sent by client from webapp competition config)
+      // Client gets entryFee from webapp's /api/competitions/active endpoint
+      const { entryFee: clientEntryFee } = req.body;
+      const ENTRY_FEE = typeof clientEntryFee === 'number' && clientEntryFee >= 0 ? clientEntryFee : (period === 'daily' ? 2 : 5);
+      console.log(`[Flappy] Entry fee from client: ${clientEntryFee}, using: ${ENTRY_FEE}`);
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
       
       // SECURITY: Generate idempotency key for this entry
@@ -985,8 +992,8 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Invalid period. Use 'daily' or 'weekly'" });
       }
       
-      // NEW: Proxy to webapp for leaderboard
-      if (USE_WEBAPP_COMPETITIONS) {
+      // NEW: Proxy to webapp for leaderboard (disabled - use local data)
+      if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
         console.log(`[Flappy Leaderboard] Proxying to webapp: period=${period}, userId=${userId}, webappUserId=${webappUserId}`);
         
         const queryParams = new URLSearchParams();
@@ -1105,7 +1112,7 @@ export function registerFlappyRoutes(app: Express) {
     try {
       const { userId, webappUserId } = req.query;
       
-      if (USE_WEBAPP_COMPETITIONS) {
+      if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
         console.log(`[Flappy Status] Proxying to webapp: userId=${userId}, webappUserId=${webappUserId}`);
         
         const webappResult = await webappRequest(

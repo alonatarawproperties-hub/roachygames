@@ -106,7 +106,7 @@ interface FlappyMenuSheetProps {
   userId: string | null;
   competitionId?: string | null;
   competitionName?: string | null;
-  onPlayRanked: (period: 'daily' | 'weekly') => void;
+  onPlayRanked: (period: 'daily' | 'weekly', entryFee?: number) => void;
   onPlayFree: () => void;
   onPlayCompetition?: () => void;
   onPlayBossChallenge?: (competition: Competition) => void;
@@ -223,15 +223,17 @@ export function FlappyMenuSheet({
   const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances, invalidateBalances } = useWebappBalances();
 
   const enterRankedMutation = useMutation({
-    mutationFn: async (period: 'daily' | 'weekly') => {
+    mutationFn: async ({ period, entryFee }: { period: 'daily' | 'weekly'; entryFee?: number }) => {
       // Backend handles CHY deduction via webapp API - pass webappUserId for direct balance lookup
+      // Pass entryFee from webapp competition config to ensure correct deduction amount
       return apiRequest("POST", "/api/flappy/ranked/enter", { 
         userId, 
         period,
-        webappUserId: user?.webappUserId 
+        webappUserId: user?.webappUserId,
+        entryFee, // From webapp competition config
       });
     },
-    onSuccess: (data: any, period: 'daily' | 'weekly') => {
+    onSuccess: (data: any, { period }: { period: 'daily' | 'weekly'; entryFee?: number }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
       invalidateBalances(); // Refresh CHY balance from webapp after backend deduction
       onPlayRanked(period);
@@ -319,7 +321,7 @@ export function FlappyMenuSheet({
                     onPlayFree();
                     onClose();
                   }}
-                  onPlayRanked={(period: 'daily' | 'weekly') => enterRankedMutation.mutate(period)}
+                  onPlayRanked={(period: 'daily' | 'weekly', entryFee?: number) => enterRankedMutation.mutate({ period, entryFee })}
                   onPlayBossChallenge={(competition) => {
                     onPlayBossChallenge?.(competition);
                     onClose();
@@ -818,7 +820,7 @@ function LeaderboardsTab({
   balanceFetching: boolean;
   onRefreshBalance: () => void;
   onPlayFree: () => void;
-  onPlayRanked: (period: 'daily' | 'weekly') => void;
+  onPlayRanked: (period: 'daily' | 'weekly', entryFee?: number) => void;
   onPlayBossChallenge: (competition: Competition) => void;
   isEntering: boolean;
   entryError?: string;
@@ -1043,7 +1045,7 @@ function LeaderboardsTab({
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'daily'}
                 isPerpetual={daily.isPerpetual}
-                onEnter={() => onPlayRanked('daily')}
+                onEnter={() => onPlayRanked('daily', daily.entryFee)}
                 onSelect={() => setSelectedCompetition('daily')}
               />
             ) : null}
@@ -1063,7 +1065,7 @@ function LeaderboardsTab({
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'weekly'}
                 isPerpetual={weekly.isPerpetual}
-                onEnter={() => onPlayRanked('weekly')}
+                onEnter={() => onPlayRanked('weekly', weekly.entryFee)}
                 onSelect={() => setSelectedCompetition('weekly')}
               />
             ) : null}
