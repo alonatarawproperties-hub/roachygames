@@ -111,4 +111,27 @@ export function registerWebappRoutes(app: Express) {
   });
 
   app.use("/api/webapp", router);
+  
+  app.get("/api/mobile/config", async (req: Request, res: Response) => {
+    try {
+      const result = await webappRequest("GET", "/api/mobile/config");
+      if (result.status === 200 && result.data) {
+        return res.status(200).json(result.data);
+      }
+      return res.status(200).json({
+        minRequiredVersion: "0.0.0",
+        iosStoreUrl: "https://testflight.apple.com/join/YOUR_CODE",
+        androidStoreUrl: "https://play.google.com/store/apps/details?id=com.cryptocreatures.app",
+        message: "A new major update is available. Please update to continue using Roachy Games."
+      });
+    } catch (error) {
+      console.error("[MobileConfig] Error fetching config:", error);
+      return res.status(200).json({
+        minRequiredVersion: "0.0.0",
+        iosStoreUrl: "https://testflight.apple.com/join/YOUR_CODE",
+        androidStoreUrl: "https://play.google.com/store/apps/details?id=com.cryptocreatures.app",
+        message: "A new major update is available. Please update to continue using Roachy Games."
+      });
+    }
+  });
 }
