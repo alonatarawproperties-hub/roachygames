@@ -1364,18 +1364,7 @@ export function ArcadeHomeScreen() {
     Alert.alert("Notifications", "Coming soon!");
   };
 
-  if (forceUpdate.isUpdateRequired && !forceUpdate.isLoading) {
-    return (
-      <ForceUpdateScreen
-        currentVersion={forceUpdate.currentVersion}
-        requiredVersion={forceUpdate.requiredVersion}
-        message={forceUpdate.message}
-        onUpdate={forceUpdate.openStore}
-      />
-    );
-  }
-
-  if (showOnboarding === null) {
+  if (forceUpdate.isLoading || showOnboarding === null) {
     return (
       <ThemedView style={styles.container}>
         <LinearGradient
@@ -1386,6 +1375,17 @@ export function ArcadeHomeScreen() {
           <ActivityIndicator size="large" color={GameColors.gold} />
         </View>
       </ThemedView>
+    );
+  }
+
+  if (forceUpdate.isUpdateRequired) {
+    return (
+      <ForceUpdateScreen
+        currentVersion={forceUpdate.currentVersion}
+        requiredVersion={forceUpdate.requiredVersion}
+        message={forceUpdate.message}
+        onUpdate={forceUpdate.openStore}
+      />
     );
   }
 

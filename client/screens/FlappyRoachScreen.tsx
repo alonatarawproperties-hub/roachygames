@@ -12,6 +12,8 @@ import { usePerformanceSettings, PerformanceMode } from "@/hooks/usePerformanceS
 import { GameColors, Colors } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useForceUpdate } from "@/hooks/useForceUpdate";
+import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
 
 type FlappyRoachParams = {
   FlappyRoach: {
@@ -34,6 +36,7 @@ export function FlappyRoachScreen() {
   const { mode, setMode, settings, isLoading: perfLoading } = usePerformanceSettings();
   const [showSettings, setShowSettings] = useState(false);
   const insets = useSafeAreaInsets();
+  const forceUpdate = useForceUpdate();
 
   useEffect(() => {
     async function lockOrientation() {
@@ -181,11 +184,22 @@ export function FlappyRoachScreen() {
     setShowSettings(false);
   };
 
-  if (skinLoading || trailLoading || perfLoading) {
+  if (forceUpdate.isLoading || skinLoading || trailLoading || perfLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={GameColors.gold} />
       </View>
+    );
+  }
+
+  if (forceUpdate.isUpdateRequired) {
+    return (
+      <ForceUpdateScreen
+        currentVersion={forceUpdate.currentVersion}
+        requiredVersion={forceUpdate.requiredVersion}
+        message={forceUpdate.message}
+        onUpdate={forceUpdate.openStore}
+      />
     );
   }
 
