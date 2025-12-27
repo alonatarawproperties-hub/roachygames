@@ -35,6 +35,9 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
+        // Hide native splash immediately so AnimatedSplash takes over
+        await SplashScreen.hideAsync();
+        
         if (Platform.OS !== 'web' && !__DEV__) {
           console.log('[App] Checking for OTA updates...');
           const update = await Updates.checkForUpdateAsync();
@@ -59,18 +62,21 @@ export default function App() {
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
-    if (appIsReady) {
-      await SplashScreen.hideAsync();
-    }
-  }, [appIsReady]);
-
-  const handleSplashComplete = useCallback(() => {
-    setShowAnimatedSplash(false);
+    // Native splash already hidden in prepare()
   }, []);
 
-  if (!appIsReady) {
-    return null;
-  }
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
+  
+  const handleSplashComplete = useCallback(() => {
+    setSplashAnimationDone(true);
+  }, []);
+  
+  // Only hide animated splash when both animation is done AND app is ready
+  useEffect(() => {
+    if (appIsReady && splashAnimationDone) {
+      setShowAnimatedSplash(false);
+    }
+  }, [appIsReady, splashAnimationDone]);
 
   return (
     <ErrorBoundary>
