@@ -203,10 +203,10 @@ export function FlappyMenuSheet({
   });
 
   const { data: rankedStatus, refetch: refetchStatus } = useQuery<RankedStatusResponse>({
-    queryKey: [`/api/flappy/ranked/status?userId=${userId || ''}`],
+    queryKey: [`/api/flappy/ranked/status?userId=${userId || ''}&webappUserId=${user?.webappUserId || ''}`],
     enabled: visible && activeTab === "leaderboards",
-    staleTime: 0, // Always refetch to ensure fresh data after games
-    refetchOnMount: 'always', // Always refetch when sheet opens
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
   
   // Force refetch status and leaderboard data when menu sheet becomes visible

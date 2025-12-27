@@ -1103,10 +1103,51 @@ export function registerFlappyRoutes(app: Express) {
 
   app.get("/api/flappy/ranked/status", async (req: Request, res: Response) => {
     try {
-      const { userId } = req.query;
+      const { userId, webappUserId } = req.query;
+      
+      if (USE_WEBAPP_COMPETITIONS) {
+        console.log(`[Flappy Status] Proxying to webapp: userId=${userId}, webappUserId=${webappUserId}`);
+        
+        const webappResult = await webappRequest(
+          "GET", 
+          `/api/flappy/competitions/status?userId=${userId || ''}&webappUserId=${webappUserId || ''}`
+        );
+        
+        if (webappResult.status === 200 && webappResult.data?.success) {
+          console.log(`[Flappy Status] Webapp response:`, JSON.stringify(webappResult.data));
+          
+          const formatPeriod = (period: any) => {
+            if (!period) return null;
+            return {
+              entryFee: period.entryFee ?? 2,
+              participants: period.participants ?? 0,
+              prizePool: period.prizePool ?? 0,
+              topScore: period.topScore ?? 0,
+              endsIn: period.secondsUntilReset ? period.secondsUntilReset * 1000 : period.endsIn ?? getTimeUntilMidnight(),
+              hasJoined: period.hasJoined ?? false,
+              periodDate: period.periodDate ?? getTodayDate(),
+              userScore: period.userScore ?? 0,
+              userRank: period.userRank ?? 0,
+              isPerpetual: period.isPerpetual ?? true,
+              competitionId: period.competitionId,
+              name: period.name,
+              prizeBreakdown: period.prizeBreakdown,
+            };
+          };
+          
+          return res.json({
+            success: true,
+            daily: formatPeriod(webappResult.data.daily),
+            weekly: formatPeriod(webappResult.data.weekly),
+          });
+        }
+        
+        console.warn(`[Flappy Status] Webapp unavailable, falling back to local data:`, webappResult);
+      }
+      
       const today = getTodayDate();
       const weekNumber = getWeekNumber();
-      console.log(`[Flappy Status] Fetching for userId=${userId}, today=${today}, weekNumber=${weekNumber}`);
+      console.log(`[Flappy Status] Using local data: userId=${userId}, today=${today}, weekNumber=${weekNumber}`);
       
       const dailyParticipants = await db.select({ count: sql<number>`count(*)` })
         .from(flappyRankedEntries)
@@ -1196,13 +1237,13 @@ export function registerFlappyRoutes(app: Express) {
       
       const dailyParticipantCount = Number(dailyParticipants[0]?.count || 0);
       const weeklyParticipantCount = Number(weeklyParticipants[0]?.count || 0);
-      const dailyPrizePool = dailyParticipantCount * 1;
-      const weeklyPrizePool = weeklyParticipantCount * 3;
+      const dailyPrizePool = dailyParticipantCount * 2;
+      const weeklyPrizePool = weeklyParticipantCount * 5;
       
       res.json({
         success: true,
         daily: {
-          entryFee: 1,
+          entryFee: 2,
           participants: dailyParticipantCount,
           prizePool: dailyPrizePool,
           topScore: dailyTopScore[0]?.bestScore || 0,
@@ -1211,9 +1252,10 @@ export function registerFlappyRoutes(app: Express) {
           periodDate: today,
           userScore: userDailyScore,
           userRank: userDailyRank,
+          isPerpetual: true,
         },
         weekly: {
-          entryFee: 3,
+          entryFee: 5,
           participants: weeklyParticipantCount,
           prizePool: weeklyPrizePool,
           topScore: weeklyTopScore[0]?.bestScore || 0,
@@ -1222,6 +1264,7 @@ export function registerFlappyRoutes(app: Express) {
           periodDate: weekNumber,
           userScore: userWeeklyScore,
           userRank: userWeeklyRank,
+          isPerpetual: true,
         },
       });
     } catch (error) {
