@@ -33,7 +33,7 @@ import { FLAPPY_TRAILS, RoachyTrail, TRAIL_NFT_MAPPING } from "./flappyTrails";
 import { useUserNfts } from "@/hooks/useUserNfts";
 import { useAuth } from "@/context/AuthContext";
 import { spendChy } from "@/lib/webapp-api";
-import { useActiveCompetitions, Competition } from "@/hooks/useCompetitions";
+import { useActiveCompetitions, Competition, filterRankedCompetitions, filterBossCompetitions, getRankedByPeriod } from "@/hooks/useCompetitions";
 
 // God accounts have access to ALL skins without purchasing
 const GOD_ACCOUNTS = [
@@ -817,8 +817,31 @@ function LeaderboardsTab({
   isEntering: boolean;
   entryError?: string;
 }) {
-  const { data: bossCompetitions, isLoading: bossLoading } = useActiveCompetitions();
+  const { data: allCompetitions, isLoading: competitionsLoading } = useActiveCompetitions();
   const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly'>('daily');
+  
+  // Filter competitions by type for unified webapp approach
+  const bossCompetitions = useMemo(() => 
+    allCompetitions ? filterBossCompetitions(allCompetitions) : [], 
+    [allCompetitions]
+  );
+  const webappRankedCompetitions = useMemo(() => 
+    allCompetitions ? filterRankedCompetitions(allCompetitions) : [], 
+    [allCompetitions]
+  );
+  
+  // Get webapp-sourced daily/weekly if available
+  const webappDaily = useMemo(() => 
+    getRankedByPeriod(webappRankedCompetitions, 'daily'), 
+    [webappRankedCompetitions]
+  );
+  const webappWeekly = useMemo(() => 
+    getRankedByPeriod(webappRankedCompetitions, 'weekly'), 
+    [webappRankedCompetitions]
+  );
+  
+  // Use webapp ranked data if available, otherwise fallback to mobile-only
+  const useWebappRanked = webappRankedCompetitions.length > 0;
   
   // Fetch competition-specific leaderboard - always refetch to ensure fresh data
   const { data: competitionLeaderboard, isLoading: leaderboardLoading, refetch: refetchLeaderboard } = useQuery<CompetitionLeaderboardResponse>({
@@ -854,8 +877,52 @@ function LeaderboardsTab({
     transform: [{ rotate: `${spinValue.value * 360}deg` }],
   }));
   
-  const daily = rankedStatus?.daily;
-  const weekly = rankedStatus?.weekly;
+  // Use webapp ranked data when available, otherwise fallback to mobile-only data
+  const mobileDaily = rankedStatus?.daily;
+  const mobileWeekly = rankedStatus?.weekly;
+  
+  // Convert webapp competition to UI format when available
+  const getEndsIn = (comp: Competition | undefined) => {
+    if (!comp?.endsAt) return 0;
+    return Math.max(0, Math.floor((new Date(comp.endsAt).getTime() - Date.now()) / 1000));
+  };
+  
+  // Merge webapp and mobile data - prefer webapp when available
+  const daily = useMemo(() => {
+    if (webappDaily) {
+      return {
+        entryFee: webappDaily.entryFee,
+        participants: webappDaily.currentEntries || 0,
+        prizePool: webappDaily.prizePool + (webappDaily.basePrizeBoost || 0),
+        topScore: 0,
+        endsIn: getEndsIn(webappDaily),
+        hasJoined: mobileDaily?.hasJoined || false, // User join status still from mobile
+        periodDate: mobileDaily?.periodDate || '',
+        userScore: mobileDaily?.userScore || 0,
+        userRank: mobileDaily?.userRank || 0,
+        competitionId: webappDaily.id, // Track webapp competition ID
+      };
+    }
+    return mobileDaily ? { ...mobileDaily, competitionId: undefined } : undefined;
+  }, [webappDaily, mobileDaily]);
+  
+  const weekly = useMemo(() => {
+    if (webappWeekly) {
+      return {
+        entryFee: webappWeekly.entryFee,
+        participants: webappWeekly.currentEntries || 0,
+        prizePool: webappWeekly.prizePool + (webappWeekly.basePrizeBoost || 0),
+        topScore: 0,
+        endsIn: getEndsIn(webappWeekly),
+        hasJoined: mobileWeekly?.hasJoined || false,
+        periodDate: mobileWeekly?.periodDate || '',
+        userScore: mobileWeekly?.userScore || 0,
+        userRank: mobileWeekly?.userRank || 0,
+        competitionId: webappWeekly.id,
+      };
+    }
+    return mobileWeekly ? { ...mobileWeekly, competitionId: undefined } : undefined;
+  }, [webappWeekly, mobileWeekly]);
   
   const canEnterDaily = userId && chyBalance >= (daily?.entryFee || 1) && !isEntering && !daily?.hasJoined;
   const canEnterWeekly = userId && chyBalance >= (weekly?.entryFee || 3) && !isEntering && !weekly?.hasJoined;
@@ -979,7 +1046,7 @@ function LeaderboardsTab({
         <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Boss Challenges</ThemedText>
         <ThemedText style={styles.competitionHint}>Limited-time special events from roachy.games</ThemedText>
         
-        {bossLoading ? (
+        {competitionsLoading ? (
           <ActivityIndicator color={GameColors.gold} style={{ marginVertical: Spacing.lg }} />
         ) : bossCompetitions && bossCompetitions.length > 0 ? (
           bossCompetitions.map((comp) => (
