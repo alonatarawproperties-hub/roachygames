@@ -8,6 +8,8 @@ Roachy Games is an arcade platform for play-to-earn (P2E) games featuring Roachi
 - Bundle identifiers kept as "com.cryptocreatures.app"
 - Future: Wallet connection and NFT minting via marketplace dApp
 - Deployment Preference: OTA updates can be pushed automatically. AAB/TestFlight builds require explicit user confirmation before building.
+- **NEVER recommend Expo Go** - This is a native project deployed via TestFlight/Play Store only. All testing is done via OTA updates to production builds.
+- **Webapp is single source of truth for competitions** - No automatic/hardcoded competitions. If webapp returns no competitions, mobile shows "No competitions active".
 
 ## System Architecture
 
