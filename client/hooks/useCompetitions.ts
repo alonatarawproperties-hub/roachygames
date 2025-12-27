@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
 import * as Crypto from "expo-crypto";
 
-export type CompetitionType = "ranked" | "boss";
+export type CompetitionType = "ranked" | "boss" | "custom";
 export type CompetitionPeriod = "daily" | "weekly" | "one-time";
 
 export interface Competition {
@@ -94,7 +94,8 @@ export function filterRankedCompetitions(competitions: Competition[]): Competiti
 }
 
 export function filterBossCompetitions(competitions: Competition[]): Competition[] {
-  return competitions.filter((c) => c.type === "boss" || !c.type);
+  // Boss challenges include type: "boss", "custom", or undefined (default to boss)
+  return competitions.filter((c) => c.type === "boss" || c.type === "custom" || !c.type);
 }
 
 export function getRankedByPeriod(
