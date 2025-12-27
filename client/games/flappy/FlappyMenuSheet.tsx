@@ -818,7 +818,8 @@ function LeaderboardsTab({
   entryError?: string;
 }) {
   const { data: allCompetitions, isLoading: competitionsLoading } = useActiveCompetitions();
-  const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly'>('daily');
+  // Only set when user explicitly taps a competition - null means no leaderboard shown
+  const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly' | null>(null);
   
   // Filter competitions by type for unified webapp approach
   const bossCompetitions = useMemo(() => 
@@ -842,22 +843,6 @@ function LeaderboardsTab({
   
   // Use webapp ranked data if available, otherwise fallback to mobile-only
   const useWebappRanked = webappRankedCompetitions.length > 0;
-  
-  // Fetch competition-specific leaderboard - always refetch to ensure fresh data
-  const { data: competitionLeaderboard, isLoading: leaderboardLoading, refetch: refetchLeaderboard } = useQuery<CompetitionLeaderboardResponse>({
-    queryKey: [`/api/flappy/ranked/leaderboard?period=${selectedCompetition}&userId=${userId || ''}`],
-    enabled: !!selectedCompetition,
-    staleTime: 0, // Always consider stale - force refetch on mount
-    refetchOnMount: 'always', // Always refetch when component mounts
-  });
-  
-  // Force refetch leaderboard when competition selection changes or when component first renders
-  React.useEffect(() => {
-    if (selectedCompetition) {
-      console.log(`[FlappyMenu] Refetching leaderboard for ${selectedCompetition}`);
-      refetchLeaderboard();
-    }
-  }, [selectedCompetition, refetchLeaderboard]);
   
   const spinValue = useSharedValue(0);
   
@@ -921,6 +906,22 @@ function LeaderboardsTab({
   const canEnterWeekly = userId && weekly && chyBalance >= weekly.entryFee && !isEntering && !weekly.hasJoined;
 
   const selectedInfo = selectedCompetition === 'daily' ? daily : selectedCompetition === 'weekly' ? weekly : null;
+  
+  // Fetch competition-specific leaderboard - only when a competition is explicitly selected AND exists
+  const { data: competitionLeaderboard, isLoading: leaderboardLoading, refetch: refetchLeaderboard } = useQuery<CompetitionLeaderboardResponse>({
+    queryKey: [`/api/flappy/ranked/leaderboard?period=${selectedCompetition}&userId=${userId || ''}`],
+    enabled: !!selectedCompetition && (selectedCompetition === 'daily' ? !!daily : !!weekly),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+  
+  // Force refetch leaderboard when competition selection changes
+  React.useEffect(() => {
+    if (selectedCompetition && (selectedCompetition === 'daily' ? daily : weekly)) {
+      console.log(`[FlappyMenu] Refetching leaderboard for ${selectedCompetition}`);
+      refetchLeaderboard();
+    }
+  }, [selectedCompetition, daily, weekly, refetchLeaderboard]);
   
   // Prize distribution for top 20 (decreasing percentages)
   const PRIZE_PERCENTAGES: Record<number, number> = {
@@ -1127,39 +1128,42 @@ function LeaderboardsTab({
         </View>
       ) : null}
 
-      <View style={styles.leaderboardSection}>
-        <ThemedText style={styles.sectionTitle}>
-          {selectedCompetition === 'daily' ? 'Daily' : 'Weekly'} Leaderboard
-        </ThemedText>
-        {leaderboardLoading ? (
-          <ActivityIndicator color={GameColors.gold} style={{ marginTop: 20 }} />
-        ) : !competitionLeaderboard?.leaderboard || competitionLeaderboard.leaderboard.length === 0 ? (
-          <ThemedText style={styles.emptyText}>No scores yet - be the first!</ThemedText>
-        ) : (
-          <>
-            {competitionLeaderboard.leaderboard.map((entry: CompetitionLeaderboardEntry) => (
-              <LeaderboardEntry
-                key={entry.userId}
-                rank={entry.rank}
-                name={entry.displayName || "Anonymous"}
-                score={entry.score}
-                isCurrentUser={entry.userId === userId}
-              />
-            ))}
-            {competitionLeaderboard.userRankInfo && competitionLeaderboard.userRankInfo.rank > 10 ? (
-              <View style={styles.userRankBelowTop10}>
-                <ThemedText style={styles.userRankDivider}>...</ThemedText>
+      {/* Only show leaderboard when user explicitly selects a competition */}
+      {selectedCompetition && (selectedCompetition === 'daily' ? daily : weekly) ? (
+        <View style={styles.leaderboardSection}>
+          <ThemedText style={styles.sectionTitle}>
+            {selectedCompetition === 'daily' ? 'Daily' : 'Weekly'} Leaderboard
+          </ThemedText>
+          {leaderboardLoading ? (
+            <ActivityIndicator color={GameColors.gold} style={{ marginTop: 20 }} />
+          ) : !competitionLeaderboard?.leaderboard || competitionLeaderboard.leaderboard.length === 0 ? (
+            <ThemedText style={styles.emptyText}>No scores yet - be the first!</ThemedText>
+          ) : (
+            <>
+              {competitionLeaderboard.leaderboard.map((entry: CompetitionLeaderboardEntry) => (
                 <LeaderboardEntry
-                  rank={competitionLeaderboard.userRankInfo.rank}
-                  name={competitionLeaderboard.userRankInfo.displayName || "You"}
-                  score={competitionLeaderboard.userRankInfo.score}
-                  isCurrentUser={true}
+                  key={entry.userId}
+                  rank={entry.rank}
+                  name={entry.displayName || "Anonymous"}
+                  score={entry.score}
+                  isCurrentUser={entry.userId === userId}
                 />
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
+              ))}
+              {competitionLeaderboard.userRankInfo && competitionLeaderboard.userRankInfo.rank > 10 ? (
+                <View style={styles.userRankBelowTop10}>
+                  <ThemedText style={styles.userRankDivider}>...</ThemedText>
+                  <LeaderboardEntry
+                    rank={competitionLeaderboard.userRankInfo.rank}
+                    name={competitionLeaderboard.userRankInfo.displayName || "You"}
+                    score={competitionLeaderboard.userRankInfo.score}
+                    isCurrentUser={true}
+                  />
+                </View>
+              ) : null}
+            </>
+          )}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
