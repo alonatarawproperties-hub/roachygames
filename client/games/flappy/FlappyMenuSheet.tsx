@@ -890,23 +890,24 @@ function LeaderboardsTab({
   
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
   // Prize pool comes directly from webapp - it already includes basePrizeBoost + entry fees
+  // hasJoined comes from rankedStatus (proxied from webapp /status endpoint)
   const daily = useMemo(() => {
     if (!webappDaily) return undefined;
     return {
       entryFee: webappDaily.entryFee || 0,
       participants: webappDaily.currentEntries || 0,
       prizePool: webappDaily.prizePool || (webappDaily.basePrizeBoost || 0),
-      topScore: 0,
+      topScore: rankedStatus?.daily?.topScore || 0,
       endsIn: getEndsIn(webappDaily),
-      hasJoined: false, // TODO: Track join status via webapp
-      periodDate: '',
-      userScore: 0,
-      userRank: 0,
+      hasJoined: rankedStatus?.daily?.hasJoined ?? false,
+      periodDate: rankedStatus?.daily?.periodDate || '',
+      userScore: rankedStatus?.daily?.userScore || 0,
+      userRank: rankedStatus?.daily?.userRank || 0,
       competitionId: webappDaily.id,
       isActive: isCompetitionActive(webappDaily),
-      isPerpetual: true, // Daily is perpetual
+      isPerpetual: true,
     };
-  }, [webappDaily]);
+  }, [webappDaily, rankedStatus]);
   
   const weekly = useMemo(() => {
     if (!webappWeekly) return undefined;
@@ -914,17 +915,17 @@ function LeaderboardsTab({
       entryFee: webappWeekly.entryFee || 0,
       participants: webappWeekly.currentEntries || 0,
       prizePool: webappWeekly.prizePool || (webappWeekly.basePrizeBoost || 0),
-      topScore: 0,
+      topScore: rankedStatus?.weekly?.topScore || 0,
       endsIn: getEndsIn(webappWeekly),
-      hasJoined: false,
-      periodDate: '',
-      userScore: 0,
-      userRank: 0,
+      hasJoined: rankedStatus?.weekly?.hasJoined ?? false,
+      periodDate: rankedStatus?.weekly?.periodDate || '',
+      userScore: rankedStatus?.weekly?.userScore || 0,
+      userRank: rankedStatus?.weekly?.userRank || 0,
       competitionId: webappWeekly.id,
       isActive: isCompetitionActive(webappWeekly),
-      isPerpetual: true, // Weekly is perpetual
+      isPerpetual: true,
     };
-  }, [webappWeekly]);
+  }, [webappWeekly, rankedStatus]);
   
   const canEnterDaily = userId && daily && chyBalance >= daily.entryFee && !isEntering && !daily.hasJoined;
   const canEnterWeekly = userId && weekly && chyBalance >= weekly.entryFee && !isEntering && !weekly.hasJoined;
