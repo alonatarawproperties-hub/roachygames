@@ -10,19 +10,11 @@ import { GameColors, Spacing, BorderRadius } from '@/constants/theme';
 const AppIcon = require('../../assets/images/icon.png');
 
 interface ForceUpdateScreenProps {
-  currentVersion: string;
-  currentBuildNumber?: string;
-  requiredVersion: string;
-  requiredBuildNumber?: number;
   message: string;
   onUpdate: () => void;
 }
 
 export function ForceUpdateScreen({
-  currentVersion,
-  currentBuildNumber,
-  requiredVersion,
-  requiredBuildNumber,
   message,
   onUpdate,
 }: ForceUpdateScreenProps) {
@@ -49,21 +41,6 @@ export function ForceUpdateScreen({
         <ThemedText style={styles.title}>New Version Available</ThemedText>
         
         <ThemedText style={styles.message}>{message}</ThemedText>
-        
-        <View style={styles.versionInfo}>
-          <View style={styles.versionRow}>
-            <ThemedText style={styles.versionLabel}>Your version:</ThemedText>
-            <ThemedText style={styles.versionValue}>
-              {currentVersion}{currentBuildNumber ? ` (${currentBuildNumber})` : ''}
-            </ThemedText>
-          </View>
-          <View style={styles.versionRow}>
-            <ThemedText style={styles.versionLabel}>Required:</ThemedText>
-            <ThemedText style={[styles.versionValue, styles.requiredVersion]}>
-              {requiredVersion}{requiredBuildNumber ? ` (${requiredBuildNumber})` : ''}
-            </ThemedText>
-          </View>
-        </View>
         
         <Pressable style={styles.updateButton} onPress={onUpdate}>
           <Feather 
@@ -123,47 +100,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: GameColors.gold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: GameColors.textPrimary,
+    fontWeight: '700',
+    color: '#fff',
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
   message: {
     fontSize: 16,
-    color: GameColors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: Spacing.xl,
-  },
-  versionInfo: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    width: '100%',
-    marginBottom: Spacing.xl,
-  },
-  versionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  versionLabel: {
-    fontSize: 14,
-    color: GameColors.textSecondary,
-  },
-  versionValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: GameColors.textPrimary,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  requiredVersion: {
-    color: GameColors.gold,
+    paddingHorizontal: Spacing.md,
   },
   updateButton: {
     flexDirection: 'row',
@@ -173,18 +125,19 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.gold,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: BorderRadius.md,
-    width: '100%',
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
+    minWidth: 220,
   },
   updateButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
     color: GameColors.background,
   },
   disclaimer: {
-    fontSize: 12,
+    fontSize: 13,
     color: 'rgba(255, 255, 255, 0.4)',
     textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
 });

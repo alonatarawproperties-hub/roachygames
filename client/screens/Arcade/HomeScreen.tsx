@@ -1381,10 +1381,6 @@ export function ArcadeHomeScreen() {
   if (forceUpdate.isUpdateRequired) {
     return (
       <ForceUpdateScreen
-        currentVersion={forceUpdate.currentVersion}
-        currentBuildNumber={forceUpdate.currentBuildNumber}
-        requiredVersion={forceUpdate.requiredVersion}
-        requiredBuildNumber={forceUpdate.requiredBuildNumber}
         message={forceUpdate.message}
         onUpdate={forceUpdate.openStore}
       />

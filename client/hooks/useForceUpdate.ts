@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform, Linking } from 'react-native';
-import * as Application from 'expo-application';
 import { getApiUrl } from '@/lib/query-client';
 
-interface VersionConfig {
-  minRequiredVersion: string;
-  minRequiredBuildNumber?: number;
+interface MobileConfig {
+  iosLocked: boolean;
+  androidLocked: boolean;
   iosStoreUrl?: string;
   androidStoreUrl?: string;
   message?: string;
@@ -14,27 +13,8 @@ interface VersionConfig {
 interface ForceUpdateState {
   isUpdateRequired: boolean;
   isLoading: boolean;
-  currentVersion: string;
-  currentBuildNumber: string;
-  requiredVersion: string;
-  requiredBuildNumber: number;
   message: string;
   storeUrl: string | null;
-}
-
-function compareVersions(current: string, required: string): number {
-  const currentParts = current.split('.').map(Number);
-  const requiredParts = required.split('.').map(Number);
-  
-  for (let i = 0; i < Math.max(currentParts.length, requiredParts.length); i++) {
-    const currentPart = currentParts[i] || 0;
-    const requiredPart = requiredParts[i] || 0;
-    
-    if (currentPart < requiredPart) return -1;
-    if (currentPart > requiredPart) return 1;
-  }
-  
-  return 0;
 }
 
 const TESTFLIGHT_URL = 'https://testflight.apple.com/join/YOUR_CODE';
@@ -44,27 +24,9 @@ export function useForceUpdate(): ForceUpdateState & { checkForUpdate: () => Pro
   const [state, setState] = useState<ForceUpdateState>({
     isUpdateRequired: false,
     isLoading: true,
-    currentVersion: '0.0.0',
-    currentBuildNumber: '0',
-    requiredVersion: '0.0.0',
-    requiredBuildNumber: 0,
     message: '',
     storeUrl: null,
   });
-
-  const getCurrentVersion = useCallback((): string => {
-    if (Platform.OS === 'web') {
-      return '999.999.999';
-    }
-    return Application.nativeApplicationVersion || '0.0.0';
-  }, []);
-
-  const getCurrentBuildNumber = useCallback((): string => {
-    if (Platform.OS === 'web') {
-      return '999999';
-    }
-    return Application.nativeBuildVersion || '0';
-  }, []);
 
   const getStoreUrl = useCallback((): string => {
     if (Platform.OS === 'ios') {
@@ -89,46 +51,30 @@ export function useForceUpdate(): ForceUpdateState & { checkForUpdate: () => Pro
       });
 
       if (!response.ok) {
-        console.log('[ForceUpdate] Config endpoint not available, skipping version check');
+        console.log('[ForceUpdate] Config endpoint not available, skipping update check');
         setState(prev => ({ ...prev, isLoading: false, isUpdateRequired: false }));
         return;
       }
 
-      const config: VersionConfig = await response.json();
-      const currentVersion = getCurrentVersion();
-      const currentBuildNumber = getCurrentBuildNumber();
-      const requiredVersion = config.minRequiredVersion || '0.0.0';
-      const requiredBuildNumber = config.minRequiredBuildNumber || 0;
+      const config: MobileConfig = await response.json();
       
-      let isUpdateRequired = false;
+      const isLocked = Platform.OS === 'ios' ? config.iosLocked : config.androidLocked;
       
-      if (requiredBuildNumber > 0) {
-        const currentBuildNum = parseInt(currentBuildNumber, 10) || 0;
-        isUpdateRequired = currentBuildNum < requiredBuildNumber;
-        console.log(`[ForceUpdate] Build check - Current: ${currentBuildNum}, Required: ${requiredBuildNumber}, Update needed: ${isUpdateRequired}`);
-      } else {
-        const comparison = compareVersions(currentVersion, requiredVersion);
-        isUpdateRequired = comparison < 0;
-        console.log(`[ForceUpdate] Version check - Current: ${currentVersion}, Required: ${requiredVersion}, Update needed: ${isUpdateRequired}`);
-      }
+      console.log(`[ForceUpdate] Platform: ${Platform.OS}, Locked: ${isLocked}`);
 
       setState({
-        isUpdateRequired,
+        isUpdateRequired: isLocked,
         isLoading: false,
-        currentVersion,
-        currentBuildNumber,
-        requiredVersion,
-        requiredBuildNumber,
-        message: config.message || 'A new major update is available. Please update to continue using Roachy Games.',
+        message: config.message || 'A new update is available. Please update to continue using Roachy Games.',
         storeUrl: Platform.OS === 'ios' 
           ? (config.iosStoreUrl || TESTFLIGHT_URL) 
           : (config.androidStoreUrl || PLAY_STORE_URL),
       });
     } catch (error) {
-      console.log('[ForceUpdate] Error checking version:', error);
+      console.log('[ForceUpdate] Error checking config:', error);
       setState(prev => ({ ...prev, isLoading: false, isUpdateRequired: false }));
     }
-  }, [getCurrentVersion, getCurrentBuildNumber]);
+  }, []);
 
   const openStore = useCallback(() => {
     const url = state.storeUrl || getStoreUrl();

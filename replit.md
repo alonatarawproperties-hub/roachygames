@@ -69,18 +69,18 @@ The mobile app integrates with `roachy.games` (webapp) for token trading (redire
 
 ### Force Update System
 - **Purpose:** Block outdated native builds from accessing the app until users update via TestFlight/Play Store.
-- **Trigger:** Webapp controls version requirements remotely via `/api/mobile/config` endpoint.
+- **Trigger:** Webapp controls platform locks remotely via `/api/mobile/config` endpoint using simple toggle buttons.
 - **Behavior:** Blocking screen shown ONLY in lobby/home screens and at game entry - NEVER during active gameplay.
 - **Webapp API Contract:** The webapp should expose `GET /api/mobile/config` returning:
   ```json
   {
-    "minRequiredVersion": "1.0.0",
-    "minRequiredBuildNumber": 171,
+    "iosLocked": false,
+    "androidLocked": false,
     "iosStoreUrl": "https://testflight.apple.com/join/YOUR_CODE",
     "androidStoreUrl": "https://play.google.com/store/apps/details?id=com.cryptocreatures.app",
-    "message": "A new major update is available. Please update to continue using Roachy Games."
+    "message": "A new update is available. Please update to continue using Roachy Games."
   }
   ```
-- **Version Check Logic:** If `minRequiredBuildNumber` > 0, compares build numbers (e.g., 171). Otherwise, compares version strings (e.g., "1.0.0").
-- **Fallback:** If webapp is unavailable, defaults to `minRequiredVersion: "0.0.0"` and `minRequiredBuildNumber: 0` (no blocking).
+- **How to use:** When you release a new native build, toggle `iosLocked: true` or `androidLocked: true` to force users to update. Toggle back to `false` once everyone has updated.
+- **Fallback:** If webapp is unavailable, defaults to unlocked (no blocking).
 - **Protected Screens:** ArcadeHomeScreen, FlappyRoachScreen (checked at entry, before gameplay starts).
