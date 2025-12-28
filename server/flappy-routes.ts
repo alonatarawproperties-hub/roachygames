@@ -734,16 +734,39 @@ export function registerFlappyRoutes(app: Express) {
       
       // Get entry fee from request body (sent by client from webapp competition config)
       // Client gets entryFee from webapp's /api/competitions/active endpoint
-      const { entryFee: clientEntryFee } = req.body;
+      const { entryFee: clientEntryFee, competitionId: clientCompetitionId } = req.body;
       const ENTRY_FEE = typeof clientEntryFee === 'number' && clientEntryFee >= 0 ? clientEntryFee : (period === 'daily' ? 2 : 5);
       console.log(`[Flappy] Entry fee from client: ${clientEntryFee}, using: ${ENTRY_FEE}`);
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
       
-      // SECURITY: Generate idempotency key for this entry
+      // CRITICAL: Get current competition ID from webapp or client
+      let currentCompetitionId: string | null = clientCompetitionId || null;
+      if (!currentCompetitionId) {
+        try {
+          const activeComps = await webappRequest("GET", "/api/mobile/competitions/active");
+          if (activeComps.status === 200 && activeComps.data?.success) {
+            const competitions = activeComps.data.competitions || [];
+            const comp = competitions.find((c: any) => c.period === period && c.type === 'ranked');
+            currentCompetitionId = comp?.id || null;
+            console.log(`[Flappy Enter] Current ${period} competition ID from webapp: ${currentCompetitionId}`);
+          }
+        } catch (compError) {
+          console.log(`[Flappy Enter] Could not fetch active competitions:`, compError);
+        }
+      } else {
+        console.log(`[Flappy Enter] Using client-provided competition ID: ${currentCompetitionId}`);
+      }
+      
+      // Build where clause for existing entry checks - use competitionId if available
+      const entryWhereClause = currentCompetitionId
+        ? and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.competitionId, currentCompetitionId))
+        : and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.periodDate, periodDate));
+      
+      // SECURITY: Generate idempotency key for this entry (use competitionId for uniqueness)
       const idempotencyKey = clientIdempotencyKey || generateIdempotencyKey(
         userId, 
         'entry_fee', 
-        `${period}:${periodDate}`,
+        `${period}:${currentCompetitionId || periodDate}`,
         ENTRY_FEE
       );
       
@@ -757,11 +780,7 @@ export function registerFlappyRoutes(app: Express) {
         // Find the existing entry and return it (idempotent response)
         const existingEntry = await db.select()
           .from(flappyRankedEntries)
-          .where(and(
-            eq(flappyRankedEntries.userId, userId),
-            eq(flappyRankedEntries.period, period),
-            eq(flappyRankedEntries.periodDate, periodDate)
-          ))
+          .where(entryWhereClause)
           .limit(1);
         
         if (existingEntry.length > 0) {
@@ -771,6 +790,7 @@ export function registerFlappyRoutes(app: Express) {
             entryId: existingEntry[0].id,
             period,
             periodDate,
+            competitionId: currentCompetitionId,
             isDuplicate: true,
           });
         }
@@ -778,11 +798,7 @@ export function registerFlappyRoutes(app: Express) {
       
       const existingEntry = await db.select()
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.userId, userId),
-          eq(flappyRankedEntries.period, period),
-          eq(flappyRankedEntries.periodDate, periodDate)
-        ))
+        .where(entryWhereClause)
         .limit(1);
       
       if (existingEntry.length > 0) {
@@ -792,6 +808,16 @@ export function registerFlappyRoutes(app: Express) {
           entryId: existingEntry[0].id,
           period,
           periodDate,
+          competitionId: currentCompetitionId,
+        });
+      }
+      
+      // CRITICAL: If no competitionId, entry cannot proceed
+      if (!currentCompetitionId) {
+        console.error(`[Flappy Enter] No active competition found for period ${period}`);
+        return res.status(400).json({ 
+          success: false, 
+          error: "No active competition found. Please refresh and try again." 
         });
       }
       
@@ -1242,7 +1268,27 @@ export function registerFlappyRoutes(app: Express) {
       }
       
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
-      console.log(`[Flappy Leaderboard] Fetching: period=${period}, periodDate=${periodDate}, userId=${userId}`);
+      
+      // CRITICAL: Fetch current competition ID from webapp to query correct entries
+      let currentCompetitionId: string | null = null;
+      try {
+        const activeComps = await webappRequest("GET", "/api/mobile/competitions/active");
+        if (activeComps.status === 200 && activeComps.data?.success) {
+          const competitions = activeComps.data.competitions || [];
+          const comp = competitions.find((c: any) => c.period === period && c.type === 'ranked');
+          currentCompetitionId = comp?.id || null;
+          console.log(`[Flappy Leaderboard] Current ${period} competition ID: ${currentCompetitionId}`);
+        }
+      } catch (compError) {
+        console.log(`[Flappy Leaderboard] Could not fetch active competitions:`, compError);
+      }
+      
+      console.log(`[Flappy Leaderboard] Fetching: period=${period}, competitionId=${currentCompetitionId}, periodDate=${periodDate}, userId=${userId}`);
+      
+      // Build where clause - use competitionId if available, fallback to periodDate
+      const whereClause = currentCompetitionId
+        ? and(eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.competitionId, currentCompetitionId))
+        : and(eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.periodDate, periodDate));
       
       // Get top 10 entries with user info
       const topEntries = await db.select({
@@ -1252,10 +1298,7 @@ export function registerFlappyRoutes(app: Express) {
         gamesPlayed: flappyRankedEntries.gamesPlayed,
       })
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.period, period),
-          eq(flappyRankedEntries.periodDate, periodDate)
-        ))
+        .where(whereClause)
         .orderBy(desc(flappyRankedEntries.bestScore))
         .limit(10);
       
@@ -1283,25 +1326,25 @@ export function registerFlappyRoutes(app: Express) {
         const isInTop10 = leaderboard.some(e => e.userId === userId);
         
         if (!isInTop10) {
+          // Use competitionId if available for user rank lookup
+          const userWhereClause = currentCompetitionId
+            ? and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.competitionId, currentCompetitionId))
+            : and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.periodDate, periodDate));
+          
           const userEntry = await db.select({
             bestScore: flappyRankedEntries.bestScore,
             gamesPlayed: flappyRankedEntries.gamesPlayed,
           })
             .from(flappyRankedEntries)
-            .where(and(
-              eq(flappyRankedEntries.userId, userId),
-              eq(flappyRankedEntries.period, period),
-              eq(flappyRankedEntries.periodDate, periodDate)
-            ))
+            .where(userWhereClause)
             .limit(1);
           
           if (userEntry.length > 0) {
-            // Calculate user's rank
+            // Calculate user's rank using same where clause base
             const rankResult = await db.select({ count: sql<number>`count(*)` })
               .from(flappyRankedEntries)
               .where(and(
-                eq(flappyRankedEntries.period, period),
-                eq(flappyRankedEntries.periodDate, periodDate),
+                whereClause,
                 sql`${flappyRankedEntries.bestScore} > ${userEntry[0].bestScore}`
               ));
             
