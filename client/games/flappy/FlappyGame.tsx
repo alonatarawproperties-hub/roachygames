@@ -1601,14 +1601,16 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     // Check coin collection (mutate in place)
     // Android: Reset slot shared values when coin is collected so slot can be reused
+    // Android: Expand coin hitbox by 8px to compensate for frame sync delays
+    const coinHitboxExpand = isAndroid ? 8 : 0;
     const coinXSlotVals = isAndroid ? [coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X] : null;
     for (let i = 0; i < coinsRef.current.length; i++) {
       const coin = coinsRef.current[i];
       if (!coin.collected) {
-        const coinLeft = coin.x - COIN_SIZE / 2;
-        const coinRight = coin.x + COIN_SIZE / 2;
-        const coinTop = coin.y - COIN_SIZE / 2;
-        const coinBottom = coin.y + COIN_SIZE / 2;
+        const coinLeft = coin.x - COIN_SIZE / 2 - coinHitboxExpand;
+        const coinRight = coin.x + COIN_SIZE / 2 + coinHitboxExpand;
+        const coinTop = coin.y - COIN_SIZE / 2 - coinHitboxExpand;
+        const coinBottom = coin.y + COIN_SIZE / 2 + coinHitboxExpand;
         
         if (
           birdRight > coinLeft &&
