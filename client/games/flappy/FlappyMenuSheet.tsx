@@ -896,6 +896,7 @@ function LeaderboardsTab({
   const daily = useMemo(() => {
     if (!webappDaily) return undefined;
     return {
+      name: webappDaily.name || 'Daily Challenge',
       entryFee: webappDaily.entryFee || 0,
       participants: webappDaily.currentEntries || 0,
       prizePool: webappDaily.prizePool || (webappDaily.basePrizeBoost || 0),
@@ -914,6 +915,7 @@ function LeaderboardsTab({
   const weekly = useMemo(() => {
     if (!webappWeekly) return undefined;
     return {
+      name: webappWeekly.name || 'Weekly Championship',
       entryFee: webappWeekly.entryFee || 0,
       participants: webappWeekly.currentEntries || 0,
       prizePool: webappWeekly.prizePool || (webappWeekly.basePrizeBoost || 0),
@@ -1032,7 +1034,7 @@ function LeaderboardsTab({
           <>
             {daily ? (
               <CompetitionCard
-                title="Daily Challenge"
+                title={daily.name}
                 icon="sun"
                 entryFee={daily.entryFee}
                 participants={daily.participants}
@@ -1052,7 +1054,7 @@ function LeaderboardsTab({
             
             {weekly ? (
               <CompetitionCard
-                title="Weekly Championship"
+                title={weekly.name}
                 icon="calendar"
                 entryFee={weekly.entryFee}
                 participants={weekly.participants}
