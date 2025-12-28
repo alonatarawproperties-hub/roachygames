@@ -1121,6 +1121,27 @@ export function registerFlappyRoutes(app: Express) {
       
       console.log(`[Flappy Boss] Entry created: entryId=${newEntry.id}, competitionId=${competitionId}`);
       
+      // Create game session token for boss challenge (same as ranked)
+      const { sessionToken, expiresAt } = await createSecureGameSession(
+        userId,
+        'flappy',
+        newEntry.id,
+        'boss',
+        competitionId
+      );
+      
+      // Notify webapp to increment player count
+      try {
+        await webappRequest("POST", "/api/flappy/competitions/join", {
+          competitionId,
+          webappUserId: effectiveWebappUserId,
+          mobileUserId: userId,
+        });
+        console.log(`[Flappy Boss] Notified webapp of join: competitionId=${competitionId}`);
+      } catch (webappError) {
+        console.log(`[Flappy Boss] Webapp join notification failed (non-critical):`, webappError);
+      }
+      
       res.json({ 
         success: true, 
         alreadyJoined: false,
@@ -1128,6 +1149,8 @@ export function registerFlappyRoutes(app: Express) {
         newBalance: chyBalance - ENTRY_FEE,
         entryId: newEntry.id,
         competitionId,
+        sessionToken,
+        sessionExpiresAt: expiresAt.toISOString(),
       });
     } catch (error) {
       console.error("Boss challenge entry error:", error);

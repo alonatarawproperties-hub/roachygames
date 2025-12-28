@@ -2342,7 +2342,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
               <ThemedText style={styles.subtitle}>
                 {gameMode === "ranked" 
                   ? (activeCompetitionName || (rankedPeriod === 'daily' ? "Daily Challenge" : "Weekly Championship"))
-                  : "Free Play"}
+                  : gameMode === "competition" 
+                    ? (activeCompetitionName || "Boss Challenge")
+                    : "Free Play"}
               </ThemedText>
               <View style={styles.instructionRow}>
                 <Feather name="zap" size={20} color={GameColors.gold} />
