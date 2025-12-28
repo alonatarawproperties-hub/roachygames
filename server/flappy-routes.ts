@@ -469,15 +469,30 @@ export function registerFlappyRoutes(app: Express) {
         } else {
           // LEGACY: Local database storage (when webapp competitions disabled)
           const periodDate = verifiedRankedPeriod === 'daily' ? today : getWeekNumber();
-          console.log(`[Flappy Score] Verified ranked game - looking for entry: userId=${userId}, period=${verifiedRankedPeriod}, periodDate=${periodDate}`);
           
-          // Find the user's entry in the competition using SERVER-VERIFIED period
+          // CRITICAL: Get current competition ID from webapp (source of truth)
+          let currentCompetitionId: string | null = null;
+          try {
+            const competitionEndpoint = verifiedRankedPeriod === 'daily' 
+              ? '/api/mobile/competitions/active?type=daily'
+              : '/api/mobile/competitions/active?type=weekly';
+            const compResult = await webappRequest("GET", competitionEndpoint);
+            if (compResult.status === 200 && compResult.data?.competition?.id) {
+              currentCompetitionId = compResult.data.competition.id;
+            }
+          } catch (err) {
+            console.error(`[Flappy Score] Failed to fetch competition ID:`, err);
+          }
+          
+          console.log(`[Flappy Score] Verified ranked game - looking for entry: userId=${userId}, period=${verifiedRankedPeriod}, periodDate=${periodDate}, competitionId=${currentCompetitionId}`);
+          
+          // Find the user's entry in the competition using SERVER-VERIFIED period AND competitionId
           const entryResult = await db.select()
             .from(flappyRankedEntries)
             .where(and(
               eq(flappyRankedEntries.userId, userId),
               eq(flappyRankedEntries.period, verifiedRankedPeriod),
-              eq(flappyRankedEntries.periodDate, periodDate)
+              currentCompetitionId ? eq(flappyRankedEntries.competitionId, currentCompetitionId) : eq(flappyRankedEntries.periodDate, periodDate)
             ))
             .limit(1);
           
@@ -495,12 +510,13 @@ export function registerFlappyRoutes(app: Express) {
               .where(eq(flappyRankedEntries.id, entry.id));
           } else {
             // UPSERT: Create entry if it doesn't exist (fixes score not recording bug)
-            console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}`);
+            console.log(`[Flappy Score] No entry found - CREATING new entry with score ${score}, competitionId=${currentCompetitionId}`);
             const ENTRY_FEE = verifiedRankedPeriod === 'daily' ? 1 : 3;
             await db.insert(flappyRankedEntries).values({
               userId,
               period: verifiedRankedPeriod,
               periodDate,
+              competitionId: currentCompetitionId,
               entryFee: ENTRY_FEE,
               bestScore: score,
               gamesPlayed: 1,
