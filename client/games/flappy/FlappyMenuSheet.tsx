@@ -202,10 +202,11 @@ export function FlappyMenuSheet({
     enabled: visible && activeTab === "loadout" && !!userId,
   });
 
-  const { data: rankedStatus, refetch: refetchStatus } = useQuery<RankedStatusResponse>({
+  const { data: rankedStatus, refetch: refetchStatus, isLoading: rankedStatusLoading, isFetching: rankedStatusFetching } = useQuery<RankedStatusResponse>({
     queryKey: [`/api/flappy/ranked/status?userId=${userId || ''}&webappUserId=${user?.webappUserId || ''}`],
-    enabled: visible && activeTab === "leaderboards",
+    enabled: visible && activeTab === "leaderboards" && !!userId,
     staleTime: 0,
+    gcTime: 0, // Don't cache - always fetch fresh data
     refetchOnMount: 'always',
   });
   
@@ -313,6 +314,7 @@ export function FlappyMenuSheet({
               ) : (
                 <LeaderboardsTab
                   rankedStatus={rankedStatus}
+                  rankedStatusLoading={rankedStatusLoading || rankedStatusFetching}
                   userId={userId}
                   chyBalance={chyBalance}
                   balanceLoading={balanceLoading}
@@ -809,6 +811,7 @@ function BossChallengeCard({
 
 function LeaderboardsTab({
   rankedStatus,
+  rankedStatusLoading,
   userId,
   chyBalance,
   balanceLoading,
@@ -822,6 +825,7 @@ function LeaderboardsTab({
   entryError,
 }: {
   rankedStatus: RankedStatusResponse | undefined;
+  rankedStatusLoading: boolean;
   userId: string | null;
   chyBalance: number;
   balanceLoading: boolean;
@@ -922,8 +926,11 @@ function LeaderboardsTab({
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
   // Prize pool comes directly from webapp - it already includes basePrizeBoost + entry fees
   // hasJoined comes from rankedStatus (proxied from webapp /status endpoint)
+  // CRITICAL: hasJoined must be FALSE while loading to prevent false "Joined" state
   const daily = useMemo(() => {
     if (!webappDaily) return undefined;
+    // Force hasJoined to false if status is still loading - prevents showing "Joined" prematurely
+    const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.daily?.hasJoined ?? false);
     return {
       name: webappDaily.name || 'Daily Challenge',
       entryFee: webappDaily.entryFee || 0,
@@ -931,7 +938,7 @@ function LeaderboardsTab({
       prizePool: webappDaily.prizePool || (webappDaily.basePrizeBoost || 0),
       topScore: rankedStatus?.daily?.topScore || 0,
       endsIn: getEndsIn(webappDaily),
-      hasJoined: rankedStatus?.daily?.hasJoined ?? false,
+      hasJoined: hasJoinedValue,
       periodDate: rankedStatus?.daily?.periodDate || '',
       userScore: rankedStatus?.daily?.userScore || 0,
       userRank: rankedStatus?.daily?.userRank || 0,
@@ -939,10 +946,12 @@ function LeaderboardsTab({
       isActive: isCompetitionActive(webappDaily),
       isPerpetual: true,
     };
-  }, [webappDaily, rankedStatus]);
+  }, [webappDaily, rankedStatus, rankedStatusLoading]);
   
   const weekly = useMemo(() => {
     if (!webappWeekly) return undefined;
+    // Force hasJoined to false if status is still loading - prevents showing "Joined" prematurely
+    const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.weekly?.hasJoined ?? false);
     return {
       name: webappWeekly.name || 'Weekly Championship',
       entryFee: webappWeekly.entryFee || 0,
@@ -950,7 +959,7 @@ function LeaderboardsTab({
       prizePool: webappWeekly.prizePool || (webappWeekly.basePrizeBoost || 0),
       topScore: rankedStatus?.weekly?.topScore || 0,
       endsIn: getEndsIn(webappWeekly),
-      hasJoined: rankedStatus?.weekly?.hasJoined ?? false,
+      hasJoined: hasJoinedValue,
       periodDate: rankedStatus?.weekly?.periodDate || '',
       userScore: rankedStatus?.weekly?.userScore || 0,
       userRank: rankedStatus?.weekly?.userRank || 0,
@@ -958,7 +967,7 @@ function LeaderboardsTab({
       isActive: isCompetitionActive(webappWeekly),
       isPerpetual: true,
     };
-  }, [webappWeekly, rankedStatus]);
+  }, [webappWeekly, rankedStatus, rankedStatusLoading]);
   
   const canEnterDaily = userId && daily && chyBalance >= daily.entryFee && !isEntering && !daily.hasJoined;
   const canEnterWeekly = userId && weekly && chyBalance >= weekly.entryFee && !isEntering && !weekly.hasJoined;

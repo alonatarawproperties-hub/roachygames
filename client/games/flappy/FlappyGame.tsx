@@ -760,6 +760,18 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const [rankedPeriod, setRankedPeriod] = useState<'daily' | 'weekly' | null>(null);
   const [activeCompetitionId, setActiveCompetitionId] = useState<string | null>(competitionId);
   const [activeCompetitionName, setActiveCompetitionName] = useState<string | null>(competitionName);
+  
+  // Refs to track current values for use in callbacks (avoids stale closure issues)
+  const gameModeRef = useRef<GameMode>(gameMode);
+  const activeCompetitionIdRef = useRef<string | null>(activeCompetitionId);
+  const rankedPeriodRef = useRef<'daily' | 'weekly' | null>(rankedPeriod);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    gameModeRef.current = gameMode;
+    activeCompetitionIdRef.current = activeCompetitionId;
+    rankedPeriodRef.current = rankedPeriod;
+  }, [gameMode, activeCompetitionId, rankedPeriod]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   
   useEffect(() => {
@@ -1151,18 +1163,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     if (onScoreSubmit && finalScore > 0) {
-      const isCompetition = !!activeCompetitionId;
-      console.log('[FlappyGame] Score submit - gameMode:', gameMode, 'activeCompetitionId:', activeCompetitionId, 'isCompetition:', isCompetition);
+      // Use refs to get the current values (avoids stale closure issues)
+      const currentGameMode = gameModeRef.current;
+      const currentCompetitionId = activeCompetitionIdRef.current;
+      const currentRankedPeriod = rankedPeriodRef.current;
+      const isCompetition = !!currentCompetitionId;
+      console.log('[FlappyGame] Score submit - gameMode:', currentGameMode, 'activeCompetitionId:', currentCompetitionId, 'isCompetition:', isCompetition);
       onScoreSubmit({
         score: finalScore,
-        isRanked: gameMode === "ranked" || isCompetition,
-        rankedPeriod: isCompetition ? null : rankedPeriod,
+        isRanked: currentGameMode === "ranked" || isCompetition,
+        rankedPeriod: isCompetition ? null : currentRankedPeriod,
         runId: runIdRef.current,
         isCompetition,
-        competitionId: activeCompetitionId,
+        competitionId: currentCompetitionId,
       });
     }
-  }, [highScore, onScoreSubmit, gameMode, rankedPeriod, activeCompetitionId]);
+  }, [highScore, onScoreSubmit]);
   
   const deathLoop = useCallback(() => {
     if (gameStateRef.current !== "dying") return;
