@@ -23,20 +23,6 @@ export interface GameEntry {
 
 export const GAMES_CATALOG: GameEntry[] = [
   {
-    id: "roachy-mate",
-    title: "Roachy Mate",
-    tagline: "Chess with Roachies!",
-    description: "Play chess against AI or friends with your Roachies as chess pieces. Master strategy and outsmart your opponents!",
-    coverImage: RoachyMateLogo,
-    iconName: "grid",
-    routeName: "RoachyMateStack",
-    isLocked: true,
-    isComingSoon: true,
-    category: "strategy",
-    playerCount: "Solo & 1v1",
-    rewards: ["Chess Rankings", "Strategy Badges", "Daily Challenges"],
-  },
-  {
     id: "flappy-roach",
     title: "Flappy Roachy",
     tagline: "Tap to Survive!",
@@ -50,6 +36,20 @@ export const GAMES_CATALOG: GameEntry[] = [
     category: "arcade",
     playerCount: "Solo",
     rewards: ["Coins", "High Scores", "Power-ups"],
+  },
+  {
+    id: "roachy-mate",
+    title: "Roachy Mate",
+    tagline: "Chess with Roachies!",
+    description: "Play chess against AI or friends with your Roachies as chess pieces. Master strategy and outsmart your opponents!",
+    coverImage: RoachyMateLogo,
+    iconName: "grid",
+    routeName: "RoachyMateStack",
+    isLocked: true,
+    isComingSoon: true,
+    category: "strategy",
+    playerCount: "Solo & 1v1",
+    rewards: ["Chess Rankings", "Strategy Badges", "Daily Challenges"],
   },
   {
     id: "roachy-hunt",
