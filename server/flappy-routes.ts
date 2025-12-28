@@ -1060,52 +1060,57 @@ export function registerFlappyRoutes(app: Express) {
         }
       }
       
-      if (chyBalance < ENTRY_FEE) {
-        return res.status(400).json({ 
-          success: false, 
-          error: `Not enough CHY (have: ${chyBalance}, need: ${ENTRY_FEE})`
-        });
-      }
-      
-      if (!effectiveWebappUserId) {
-        return res.status(400).json({ success: false, error: "Could not verify webapp account" });
-      }
-      
-      // Generate idempotency key
-      const idempotencyKey = clientIdempotencyKey || generateIdempotencyKey(
-        userId, 
-        'entry_fee', 
-        `boss:${competitionId}`,
-        ENTRY_FEE
-      );
-      
-      // Deduct entry fee via webapp
-      const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
-        userId: effectiveWebappUserId,
-        amount: ENTRY_FEE,
-        reason: `Boss challenge entry: ${competitionId}`,
-        idempotencyKey,
-      });
-      
-      if (deductResult.status !== 200 || !deductResult.data?.success) {
-        console.error(`[Flappy Boss] Failed to deduct CHY:`, deductResult);
-        return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
-      }
-      
-      // Record transaction
-      try {
-        await db.insert(chyTransactions).values({
-          userId,
-          webappUserId: effectiveWebappUserId,
-          txType: 'entry_fee',
-          amount: -ENTRY_FEE,
-          balanceBefore: chyBalance,
-          balanceAfter: chyBalance - ENTRY_FEE,
-          referenceId: `boss:${competitionId}`,
+      // Only check balance and deduct if entry fee > 0
+      if (ENTRY_FEE > 0) {
+        if (chyBalance < ENTRY_FEE) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `Not enough CHY (have: ${chyBalance}, need: ${ENTRY_FEE})`
+          });
+        }
+        
+        if (!effectiveWebappUserId) {
+          return res.status(400).json({ success: false, error: "Could not verify webapp account" });
+        }
+        
+        // Generate idempotency key
+        const idempotencyKey = clientIdempotencyKey || generateIdempotencyKey(
+          userId, 
+          'entry_fee', 
+          `boss:${competitionId}`,
+          ENTRY_FEE
+        );
+        
+        // Deduct entry fee via webapp
+        const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
+          userId: effectiveWebappUserId,
+          amount: ENTRY_FEE,
+          reason: `Boss challenge entry: ${competitionId}`,
           idempotencyKey,
         });
-      } catch (ledgerError: any) {
-        console.log(`[Flappy Boss] Ledger entry warning:`, ledgerError.message);
+        
+        if (deductResult.status !== 200 || !deductResult.data?.success) {
+          console.error(`[Flappy Boss] Failed to deduct CHY:`, deductResult);
+          return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
+        }
+        
+        // Record transaction
+        try {
+          await db.insert(chyTransactions).values({
+            userId,
+            webappUserId: effectiveWebappUserId,
+            txType: 'entry_fee',
+            amount: -ENTRY_FEE,
+            balanceBefore: chyBalance,
+            balanceAfter: chyBalance - ENTRY_FEE,
+            referenceId: `boss:${competitionId}`,
+            idempotencyKey,
+          });
+        } catch (ledgerError: any) {
+          console.log(`[Flappy Boss] Ledger entry warning:`, ledgerError.message);
+        }
+      } else {
+        console.log(`[Flappy Boss] Free entry (fee=0) for competitionId=${competitionId}`);
       }
       
       // Create entry
