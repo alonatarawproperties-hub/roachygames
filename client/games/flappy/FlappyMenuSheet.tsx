@@ -905,11 +905,13 @@ function LeaderboardsTab({
   
   // Webapp is the single source of truth for ALL competitions - no mobile fallback
   // Use webapp's endsAt for countdown - it knows the exact reset time
+  // Returns MILLISECONDS (formatCountdown expects ms, not seconds)
   const getEndsIn = (comp: Competition | undefined) => {
     if (!comp || !comp.endsAt) return 0;
     // Use webapp's endsAt directly - it has the correct reset time configured
     const msRemaining = new Date(comp.endsAt).getTime() - Date.now();
-    return Math.max(0, Math.floor(msRemaining / 1000));
+    console.log('[FlappyMenu] getEndsIn for', comp.name, '- endsAt:', comp.endsAt, 'msRemaining:', msRemaining);
+    return Math.max(0, msRemaining); // Return milliseconds, NOT seconds
   };
   
   // Check if competition is actually closed (not just time-based for perpetual competitions)
@@ -926,11 +928,20 @@ function LeaderboardsTab({
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
   // Prize pool comes directly from webapp - it already includes basePrizeBoost + entry fees
   // hasJoined comes from rankedStatus (proxied from webapp /status endpoint)
-  // CRITICAL: hasJoined must be FALSE while loading to prevent false "Joined" state
+  // CRITICAL: hasJoined must be FALSE while loading OR fetching to prevent stale "Joined" state
+  // Use BOTH isLoading (first fetch) AND isFetching (any fetch) to catch all scenarios
+  const isStatusFetching = rankedStatusLoading || rankedStatusFetching;
+  
   const daily = useMemo(() => {
     if (!webappDaily) return undefined;
-    // Force hasJoined to false if status is still loading - prevents showing "Joined" prematurely
-    const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.daily?.hasJoined ?? false);
+    // Force hasJoined to false while ANY fetch is in progress - prevents stale cache showing "Joined"
+    // Only show hasJoined: true when we have fresh data from the server
+    const hasJoinedValue = isStatusFetching ? false : (rankedStatus?.daily?.hasJoined ?? false);
+    console.log('[FlappyMenu] daily hasJoined calculation:', { 
+      isStatusFetching, 
+      rawHasJoined: rankedStatus?.daily?.hasJoined, 
+      finalValue: hasJoinedValue 
+    });
     return {
       name: webappDaily.name || 'Daily Challenge',
       entryFee: webappDaily.entryFee || 0,
@@ -946,12 +957,17 @@ function LeaderboardsTab({
       isActive: isCompetitionActive(webappDaily),
       isPerpetual: true,
     };
-  }, [webappDaily, rankedStatus, rankedStatusLoading]);
+  }, [webappDaily, rankedStatus, isStatusFetching]);
   
   const weekly = useMemo(() => {
     if (!webappWeekly) return undefined;
-    // Force hasJoined to false if status is still loading - prevents showing "Joined" prematurely
-    const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.weekly?.hasJoined ?? false);
+    // Force hasJoined to false while ANY fetch is in progress - prevents stale cache showing "Joined"
+    const hasJoinedValue = isStatusFetching ? false : (rankedStatus?.weekly?.hasJoined ?? false);
+    console.log('[FlappyMenu] weekly hasJoined calculation:', { 
+      isStatusFetching, 
+      rawHasJoined: rankedStatus?.weekly?.hasJoined, 
+      finalValue: hasJoinedValue 
+    });
     return {
       name: webappWeekly.name || 'Weekly Championship',
       entryFee: webappWeekly.entryFee || 0,
@@ -967,7 +983,7 @@ function LeaderboardsTab({
       isActive: isCompetitionActive(webappWeekly),
       isPerpetual: true,
     };
-  }, [webappWeekly, rankedStatus, rankedStatusLoading]);
+  }, [webappWeekly, rankedStatus, isStatusFetching]);
   
   const canEnterDaily = userId && daily && chyBalance >= daily.entryFee && !isEntering && !daily.hasJoined;
   const canEnterWeekly = userId && weekly && chyBalance >= weekly.entryFee && !isEntering && !weekly.hasJoined;

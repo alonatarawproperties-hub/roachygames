@@ -1195,6 +1195,8 @@ export function registerFlappyRoutes(app: Express) {
       let userWeeklyScore = 0;
       let userWeeklyRank = 0;
       
+      console.log(`[Flappy Status] Checking hasJoined for userId=${userId}, webappUserId=${webappUserId}, today=${today}, weekNumber=${weekNumber}`);
+      
       if (userId && typeof userId === 'string') {
         const dailyEntry = await db.select()
           .from(flappyRankedEntries)
@@ -1216,6 +1218,7 @@ export function registerFlappyRoutes(app: Express) {
         
         hasJoinedDaily = dailyEntry.length > 0;
         hasJoinedWeekly = weeklyEntry.length > 0;
+        console.log(`[Flappy Status] DB query results: dailyEntry=${dailyEntry.length}, weeklyEntry=${weeklyEntry.length}`);
         
         if (hasJoinedDaily && dailyEntry[0]) {
           userDailyScore = dailyEntry[0].bestScore;
