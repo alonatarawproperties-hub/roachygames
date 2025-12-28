@@ -391,6 +391,7 @@ function TabButton({
         name={icon}
         size={18}
         color={active ? GameColors.gold : GameColors.textSecondary}
+        style={{ marginRight: Spacing.xs }}
       />
       <ThemedText
         style={[styles.tabLabel, active && styles.tabLabelActive]}
@@ -1868,10 +1869,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.sm,
-    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.lg,
     backgroundColor: GameColors.surface,
     marginHorizontal: Spacing.xs,
+    overflow: "hidden",
   },
   tabButtonActive: {
     backgroundColor: GameColors.surfaceLight,
