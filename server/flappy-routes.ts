@@ -1378,39 +1378,55 @@ export function registerFlappyRoutes(app: Express) {
         console.warn(`[Flappy Status] Webapp unavailable, falling back to local data:`, webappResult);
       }
       
+      // CRITICAL: Fetch current active competition IDs from webapp to verify entries
+      // This prevents showing "Joined" for OLD competitions when a NEW one was created
+      let currentDailyCompetitionId: string | null = null;
+      let currentWeeklyCompetitionId: string | null = null;
+      
+      try {
+        const activeComps = await webappRequest("GET", "/api/flappy/competitions/active");
+        if (activeComps.status === 200 && activeComps.data?.success) {
+          const competitions = activeComps.data.competitions || [];
+          const dailyComp = competitions.find((c: any) => c.period === 'daily' && c.type === 'ranked');
+          const weeklyComp = competitions.find((c: any) => c.period === 'weekly' && c.type === 'ranked');
+          currentDailyCompetitionId = dailyComp?.id || null;
+          currentWeeklyCompetitionId = weeklyComp?.id || null;
+          console.log(`[Flappy Status] Current competition IDs from webapp: daily=${currentDailyCompetitionId}, weekly=${currentWeeklyCompetitionId}`);
+        }
+      } catch (compError) {
+        console.log(`[Flappy Status] Could not fetch active competitions:`, compError);
+      }
+      
       const today = getTodayDate();
       const weekNumber = getWeekNumber();
       console.log(`[Flappy Status] Using local data: userId=${userId}, today=${today}, weekNumber=${weekNumber}`);
       
+      // Build dynamic where clause - use competitionId if available, fallback to periodDate
+      const dailyWhereClause = currentDailyCompetitionId 
+        ? and(eq(flappyRankedEntries.period, 'daily'), eq(flappyRankedEntries.competitionId, currentDailyCompetitionId))
+        : and(eq(flappyRankedEntries.period, 'daily'), eq(flappyRankedEntries.periodDate, today));
+      
+      const weeklyWhereClause = currentWeeklyCompetitionId
+        ? and(eq(flappyRankedEntries.period, 'weekly'), eq(flappyRankedEntries.competitionId, currentWeeklyCompetitionId))
+        : and(eq(flappyRankedEntries.period, 'weekly'), eq(flappyRankedEntries.periodDate, weekNumber));
+      
       const dailyParticipants = await db.select({ count: sql<number>`count(*)` })
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.period, 'daily'),
-          eq(flappyRankedEntries.periodDate, today)
-        ));
+        .where(dailyWhereClause);
       
       const weeklyParticipants = await db.select({ count: sql<number>`count(*)` })
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.period, 'weekly'),
-          eq(flappyRankedEntries.periodDate, weekNumber)
-        ));
+        .where(weeklyWhereClause);
       
       const dailyTopScore = await db.select()
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.period, 'daily'),
-          eq(flappyRankedEntries.periodDate, today)
-        ))
+        .where(dailyWhereClause)
         .orderBy(desc(flappyRankedEntries.bestScore))
         .limit(1);
       
       const weeklyTopScore = await db.select()
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.period, 'weekly'),
-          eq(flappyRankedEntries.periodDate, weekNumber)
-        ))
+        .where(weeklyWhereClause)
         .orderBy(desc(flappyRankedEntries.bestScore))
         .limit(1);
       
@@ -1421,38 +1437,40 @@ export function registerFlappyRoutes(app: Express) {
       let userWeeklyScore = 0;
       let userWeeklyRank = 0;
       
-      console.log(`[Flappy Status] Checking hasJoined for userId=${userId}, webappUserId=${webappUserId}, today=${today}, weekNumber=${weekNumber}`);
+      console.log(`[Flappy Status] Checking hasJoined for userId=${userId}, competitionIds: daily=${currentDailyCompetitionId}, weekly=${currentWeeklyCompetitionId}`);
       
       if (userId && typeof userId === 'string') {
+        // CRITICAL: Query by competitionId if available, not just periodDate
+        // This ensures we only find entries for the CURRENT active competition
+        const dailyUserWhereClause = currentDailyCompetitionId
+          ? and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, 'daily'), eq(flappyRankedEntries.competitionId, currentDailyCompetitionId))
+          : and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, 'daily'), eq(flappyRankedEntries.periodDate, today));
+        
+        const weeklyUserWhereClause = currentWeeklyCompetitionId
+          ? and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, 'weekly'), eq(flappyRankedEntries.competitionId, currentWeeklyCompetitionId))
+          : and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, 'weekly'), eq(flappyRankedEntries.periodDate, weekNumber));
+        
         const dailyEntry = await db.select()
           .from(flappyRankedEntries)
-          .where(and(
-            eq(flappyRankedEntries.userId, userId),
-            eq(flappyRankedEntries.period, 'daily'),
-            eq(flappyRankedEntries.periodDate, today)
-          ))
+          .where(dailyUserWhereClause)
           .limit(1);
         
         const weeklyEntry = await db.select()
           .from(flappyRankedEntries)
-          .where(and(
-            eq(flappyRankedEntries.userId, userId),
-            eq(flappyRankedEntries.period, 'weekly'),
-            eq(flappyRankedEntries.periodDate, weekNumber)
-          ))
+          .where(weeklyUserWhereClause)
           .limit(1);
         
         hasJoinedDaily = dailyEntry.length > 0;
         hasJoinedWeekly = weeklyEntry.length > 0;
-        console.log(`[Flappy Status] DB query results: dailyEntry=${dailyEntry.length}, weeklyEntry=${weeklyEntry.length}`);
+        console.log(`[Flappy Status] DB query results: dailyEntry=${dailyEntry.length}, weeklyEntry=${weeklyEntry.length}, hasJoinedDaily=${hasJoinedDaily}, hasJoinedWeekly=${hasJoinedWeekly}`);
         
         if (hasJoinedDaily && dailyEntry[0]) {
           userDailyScore = dailyEntry[0].bestScore;
+          // Use same where clause for rank calculation
           const dailyRankResult = await db.select({ count: sql<number>`count(*)` })
             .from(flappyRankedEntries)
             .where(and(
-              eq(flappyRankedEntries.period, 'daily'),
-              eq(flappyRankedEntries.periodDate, today),
+              dailyWhereClause,
               sql`${flappyRankedEntries.bestScore} > ${userDailyScore}`
             ));
           userDailyRank = Number(dailyRankResult[0]?.count || 0) + 1;
@@ -1460,11 +1478,11 @@ export function registerFlappyRoutes(app: Express) {
         
         if (hasJoinedWeekly && weeklyEntry[0]) {
           userWeeklyScore = weeklyEntry[0].bestScore;
+          // Use same where clause for rank calculation
           const weeklyRankResult = await db.select({ count: sql<number>`count(*)` })
             .from(flappyRankedEntries)
             .where(and(
-              eq(flappyRankedEntries.period, 'weekly'),
-              eq(flappyRankedEntries.periodDate, weekNumber),
+              weeklyWhereClause,
               sql`${flappyRankedEntries.bestScore} > ${userWeeklyScore}`
             ));
           userWeeklyRank = Number(weeklyRankResult[0]?.count || 0) + 1;
@@ -1474,23 +1492,18 @@ export function registerFlappyRoutes(app: Express) {
       const dailyParticipantCount = Number(dailyParticipants[0]?.count || 0);
       const weeklyParticipantCount = Number(weeklyParticipants[0]?.count || 0);
       
-      // When webapp is unavailable, return null for daily/weekly
-      // The frontend will use data from /api/competitions/active instead
-      // This ensures webapp is single source of truth for competition config
-      console.log(`[Flappy Status] Webapp unavailable, returning user-specific data only`);
-      console.log(`[Flappy Status] hasJoinedDaily=${hasJoinedDaily}, hasJoinedWeekly=${hasJoinedWeekly}`);
+      console.log(`[Flappy Status] Returning: hasJoinedDaily=${hasJoinedDaily}, hasJoinedWeekly=${hasJoinedWeekly}, dailyCompId=${currentDailyCompetitionId}, weeklyCompId=${currentWeeklyCompetitionId}`);
       
       res.json({
         success: true,
         daily: {
-          // Entry fee and prize pool come from /api/competitions/active
-          // Here we only provide user-specific data
           hasJoined: hasJoinedDaily,
           periodDate: today,
           userScore: userDailyScore,
           userRank: userDailyRank,
           topScore: dailyTopScore[0]?.bestScore || 0,
           participants: dailyParticipantCount,
+          competitionId: currentDailyCompetitionId,
         },
         weekly: {
           hasJoined: hasJoinedWeekly,
@@ -1499,6 +1512,7 @@ export function registerFlappyRoutes(app: Express) {
           userRank: userWeeklyRank,
           topScore: weeklyTopScore[0]?.bestScore || 0,
           participants: weeklyParticipantCount,
+          competitionId: currentWeeklyCompetitionId,
         },
       });
     } catch (error) {
