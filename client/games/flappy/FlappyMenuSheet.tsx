@@ -25,7 +25,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useWebappBalances } from "@/hooks/useWebappBalances";
 import { FLAPPY_SKINS, RoachySkin, SKIN_NFT_MAPPING, RARITY_ORDER, SkinDefinition } from "./flappySkins";
@@ -753,17 +753,25 @@ function formatTimeRemaining(endsAt: string): string {
 
 function BossChallengeCard({ 
   competition, 
+  hasJoined,
+  isEntering,
+  canEnter,
+  onEnter,
   onPlay 
 }: { 
   competition: Competition;
+  hasJoined: boolean;
+  isEntering: boolean;
+  canEnter: boolean;
+  onEnter: () => void;
   onPlay: () => void;
 }) {
   const ChyCoinIconSource = require("@/assets/chy-coin-icon.png");
   
   return (
-    <View style={styles.bossChallengeCard}>
+    <View style={[styles.bossChallengeCard, hasJoined && styles.joinedCard]}>
       <View style={styles.bossChallengeHeader}>
-        <View style={styles.bossChallengeIconContainer}>
+        <View style={[styles.bossChallengeIconContainer, hasJoined && styles.joinedIcon]}>
           <Feather name="zap" size={20} color={GameColors.gold} />
         </View>
         <View style={styles.bossChallengeInfo}>
@@ -808,10 +816,37 @@ function BossChallengeCard({
         </View>
       </View>
       
-      <Pressable style={styles.bossChallengePlayButton} onPress={onPlay}>
-        <Feather name="play" size={16} color={GameColors.background} />
-        <ThemedText style={styles.bossChallengePlayButtonText}>Play</ThemedText>
-      </Pressable>
+      {hasJoined ? (
+        <View style={styles.bossActionRow}>
+          <View style={styles.joinedBadge}>
+            <Feather name="check-circle" size={14} color={GameColors.gold} />
+            <ThemedText style={styles.joinedBadgeText}>Joined</ThemedText>
+          </View>
+          <Pressable style={styles.bossPlayButton} onPress={onPlay}>
+            <Feather name="play" size={16} color={GameColors.background} />
+            <ThemedText style={styles.bossChallengePlayButtonText}>Play</ThemedText>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable 
+          style={[
+            styles.bossChallengePlayButton, 
+            !canEnter && styles.disabledButton,
+            isEntering && styles.enteringButton
+          ]} 
+          onPress={onEnter}
+          disabled={!canEnter || isEntering}
+        >
+          {isEntering ? (
+            <ActivityIndicator size="small" color={GameColors.background} />
+          ) : (
+            <>
+              <Feather name="log-in" size={16} color={GameColors.background} />
+              <ThemedText style={styles.bossChallengePlayButtonText}>Enter Competition</ThemedText>
+            </>
+          )}
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -845,9 +880,42 @@ function LeaderboardsTab({
   isEntering: boolean;
   entryError?: string;
 }) {
-  const { data: allCompetitions, isLoading: competitionsLoading } = useActiveCompetitions();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { invalidateBalances } = useWebappBalances();
+  const { data: allCompetitions, isLoading: competitionsLoading, refetch: refetchCompetitions } = useActiveCompetitions();
   // Only set when user explicitly taps a competition - null means no leaderboard shown
   const [selectedCompetition, setSelectedCompetition] = useState<'daily' | 'weekly' | null>(null);
+  
+  // Track boss challenge join status locally
+  const [bossJoinedMap, setBossJoinedMap] = useState<Record<string, boolean>>({});
+  const [enteringBossId, setEnteringBossId] = useState<string | null>(null);
+  const [bossEntryError, setBossEntryError] = useState<string | null>(null);
+  
+  // Boss challenge entry mutation
+  const enterBossMutation = useMutation({
+    mutationFn: async ({ competitionId, entryFee }: { competitionId: string; entryFee: number }) => {
+      setEnteringBossId(competitionId);
+      setBossEntryError(null);
+      return apiRequest("POST", "/api/flappy/competition/enter", { 
+        userId, 
+        competitionId,
+        webappUserId: user?.webappUserId,
+        entryFee,
+      });
+    },
+    onSuccess: async (data: any, { competitionId }) => {
+      setEnteringBossId(null);
+      setBossJoinedMap(prev => ({ ...prev, [competitionId]: true }));
+      await refetchCompetitions();
+      invalidateBalances();
+    },
+    onError: (error: any, { competitionId }) => {
+      setEnteringBossId(null);
+      setBossEntryError(error.message || "Failed to enter competition");
+      invalidateBalances();
+    },
+  });
   
   // Filter competitions by type for unified webapp approach
   const bossCompetitions = useMemo(() => 
@@ -858,6 +926,32 @@ function LeaderboardsTab({
     allCompetitions ? filterRankedCompetitions(allCompetitions) : [], 
     [allCompetitions]
   );
+  
+  // Fetch boss challenge join status when competitions load
+  React.useEffect(() => {
+    if (!userId || bossCompetitions.length === 0) return;
+    
+    const fetchBossStatus = async () => {
+      try {
+        const competitionIds = bossCompetitions.map(c => c.id).join(',');
+        const response = await fetch(
+          `${getApiUrl()}/api/flappy/competition/status?userId=${userId}&competitionIds=${competitionIds}`
+        );
+        const data = await response.json();
+        if (data.success && data.entries) {
+          const joinedMap: Record<string, boolean> = {};
+          for (const [id, entry] of Object.entries(data.entries)) {
+            joinedMap[id] = (entry as any).hasJoined;
+          }
+          setBossJoinedMap(prev => ({ ...prev, ...joinedMap }));
+        }
+      } catch (error) {
+        console.error('[FlappyMenu] Failed to fetch boss status:', error);
+      }
+    };
+    
+    fetchBossStatus();
+  }, [userId, bossCompetitions.length]);
   
   // Get webapp-sourced daily/weekly if available
   const webappDaily = useMemo(() => 
@@ -1146,13 +1240,21 @@ function LeaderboardsTab({
         {competitionsLoading ? (
           <ActivityIndicator color={GameColors.gold} style={{ marginVertical: Spacing.lg }} />
         ) : bossCompetitions && bossCompetitions.length > 0 ? (
-          bossCompetitions.map((comp) => (
-            <BossChallengeCard
-              key={comp.id}
-              competition={comp}
-              onPlay={() => onPlayBossChallenge(comp)}
-            />
-          ))
+          bossCompetitions.map((comp) => {
+            const hasJoined = bossJoinedMap[comp.id] ?? false;
+            const canEnter = !!userId && chyBalance >= comp.entryFee && !enteringBossId && !hasJoined;
+            return (
+              <BossChallengeCard
+                key={comp.id}
+                competition={comp}
+                hasJoined={hasJoined}
+                isEntering={enteringBossId === comp.id}
+                canEnter={canEnter}
+                onEnter={() => enterBossMutation.mutate({ competitionId: comp.id, entryFee: comp.entryFee })}
+                onPlay={() => onPlayBossChallenge(comp)}
+              />
+            );
+          })
         ) : (
           <View style={styles.noBossChallenges}>
             <Feather name="zap" size={24} color={GameColors.textSecondary} />
@@ -1160,6 +1262,10 @@ function LeaderboardsTab({
             <ThemedText style={styles.noBossChallengesSubtext}>Check back soon for special events!</ThemedText>
           </View>
         )}
+        
+        {bossEntryError ? (
+          <ThemedText style={styles.errorText}>{bossEntryError}</ThemedText>
+        ) : null}
       </View>
 
       {selectedInfo && selectedInfo.hasJoined ? (
@@ -2584,6 +2690,25 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     marginTop: Spacing.md,
+  },
+  bossActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  bossPlayButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.gold,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  enteringButton: {
+    opacity: 0.7,
   },
   bossChallengePlayButtonText: {
     fontSize: 14,

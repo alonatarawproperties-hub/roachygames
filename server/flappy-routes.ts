@@ -983,6 +983,204 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
+  // Boss challenge / competition entry by competitionId
+  app.post("/api/flappy/competition/enter", async (req: Request, res: Response) => {
+    try {
+      const { userId, competitionId, webappUserId, entryFee: clientEntryFee, idempotencyKey: clientIdempotencyKey } = req.body;
+      
+      if (FLAPPY_COMPETITIONS_LOCKED) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Flappy competitions coming soon! Free play is available now." 
+        });
+      }
+      
+      if (!userId || !competitionId) {
+        return res.status(400).json({ success: false, error: "Missing userId or competitionId" });
+      }
+      
+      const rateLimitResult = await checkRateLimit(userId, "flappy/enter");
+      if (!rateLimitResult.allowed) {
+        return res.status(429).json({ 
+          success: false, 
+          error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter
+        });
+      }
+      
+      const ENTRY_FEE = typeof clientEntryFee === 'number' && clientEntryFee >= 0 ? clientEntryFee : 1;
+      console.log(`[Flappy Boss] Entry request: userId=${userId}, competitionId=${competitionId}, fee=${ENTRY_FEE}`);
+      
+      // Check for existing entry
+      const existingEntry = await db.select()
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.userId, userId),
+          eq(flappyRankedEntries.competitionId, competitionId)
+        ))
+        .limit(1);
+      
+      if (existingEntry.length > 0) {
+        return res.json({ 
+          success: true, 
+          alreadyJoined: true,
+          entryId: existingEntry[0].id,
+          competitionId,
+        });
+      }
+      
+      // Get webapp user ID and balance
+      let effectiveWebappUserId = webappUserId;
+      let chyBalance = 0;
+      
+      if (effectiveWebappUserId) {
+        const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
+        if (balanceResult.status === 200) {
+          chyBalance = balanceResult.data?.chyBalance ?? 0;
+        }
+      } else {
+        // Fallback: look up user and exchange OAuth
+        const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (user.length > 0 && user[0].googleId && user[0].email) {
+          const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
+            googleId: user[0].googleId,
+            email: user[0].email,
+            displayName: user[0].displayName || user[0].email.split("@")[0],
+          });
+          
+          if (exchangeResult.status === 200 && exchangeResult.data?.success) {
+            effectiveWebappUserId = exchangeResult.data.user?.id;
+            if (effectiveWebappUserId) {
+              const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
+              if (balanceResult.status === 200) {
+                chyBalance = balanceResult.data?.chyBalance ?? 0;
+              }
+            }
+          }
+        }
+      }
+      
+      if (chyBalance < ENTRY_FEE) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Not enough CHY (have: ${chyBalance}, need: ${ENTRY_FEE})`
+        });
+      }
+      
+      if (!effectiveWebappUserId) {
+        return res.status(400).json({ success: false, error: "Could not verify webapp account" });
+      }
+      
+      // Generate idempotency key
+      const idempotencyKey = clientIdempotencyKey || generateIdempotencyKey(
+        userId, 
+        'entry_fee', 
+        `boss:${competitionId}`,
+        ENTRY_FEE
+      );
+      
+      // Deduct entry fee via webapp
+      const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
+        userId: effectiveWebappUserId,
+        amount: ENTRY_FEE,
+        reason: `Boss challenge entry: ${competitionId}`,
+        idempotencyKey,
+      });
+      
+      if (deductResult.status !== 200 || !deductResult.data?.success) {
+        console.error(`[Flappy Boss] Failed to deduct CHY:`, deductResult);
+        return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
+      }
+      
+      // Record transaction
+      try {
+        await db.insert(chyTransactions).values({
+          userId,
+          webappUserId: effectiveWebappUserId,
+          txType: 'entry_fee',
+          amount: -ENTRY_FEE,
+          balanceBefore: chyBalance,
+          balanceAfter: chyBalance - ENTRY_FEE,
+          referenceId: `boss:${competitionId}`,
+          idempotencyKey,
+        });
+      } catch (ledgerError: any) {
+        console.log(`[Flappy Boss] Ledger entry warning:`, ledgerError.message);
+      }
+      
+      // Create entry
+      const [newEntry] = await db.insert(flappyRankedEntries).values({
+        userId,
+        competitionId,
+        period: 'boss',
+        periodDate: competitionId,
+        entryFee: ENTRY_FEE,
+        bestScore: 0,
+        gamesPlayed: 0,
+      }).returning();
+      
+      console.log(`[Flappy Boss] Entry created: entryId=${newEntry.id}, competitionId=${competitionId}`);
+      
+      res.json({ 
+        success: true, 
+        alreadyJoined: false,
+        entryFee: ENTRY_FEE, 
+        newBalance: chyBalance - ENTRY_FEE,
+        entryId: newEntry.id,
+        competitionId,
+      });
+    } catch (error) {
+      console.error("Boss challenge entry error:", error);
+      res.status(500).json({ success: false, error: "Failed to enter boss challenge" });
+    }
+  });
+
+  // Check if user has joined specific competitions
+  app.get("/api/flappy/competition/status", async (req: Request, res: Response) => {
+    try {
+      const { userId, competitionIds } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ success: false, error: "Missing userId" });
+      }
+      
+      // Parse competitionIds - can be comma-separated or array
+      const ids: string[] = typeof competitionIds === 'string' 
+        ? competitionIds.split(',').map(id => id.trim()).filter(Boolean)
+        : Array.isArray(competitionIds) ? competitionIds as string[] : [];
+      
+      if (ids.length === 0) {
+        return res.json({ success: true, entries: {} });
+      }
+      
+      // Find entries for these competitions
+      const entries = await db.select({
+        competitionId: flappyRankedEntries.competitionId,
+        bestScore: flappyRankedEntries.bestScore,
+        gamesPlayed: flappyRankedEntries.gamesPlayed,
+      })
+        .from(flappyRankedEntries)
+        .where(and(
+          eq(flappyRankedEntries.userId, userId as string),
+          sql`${flappyRankedEntries.competitionId} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`
+        ));
+      
+      // Build a map of competitionId -> entry status
+      const entryMap: Record<string, { hasJoined: boolean; bestScore: number; gamesPlayed: number }> = {};
+      for (const id of ids) {
+        const entry = entries.find(e => e.competitionId === id);
+        entryMap[id] = entry 
+          ? { hasJoined: true, bestScore: entry.bestScore, gamesPlayed: entry.gamesPlayed }
+          : { hasJoined: false, bestScore: 0, gamesPlayed: 0 };
+      }
+      
+      res.json({ success: true, entries: entryMap });
+    } catch (error) {
+      console.error("Competition status error:", error);
+      res.status(500).json({ success: false, error: "Failed to check competition status" });
+    }
+  });
+
   // Competition leaderboard - returns top 10 + user rank for daily/weekly
   app.get("/api/flappy/ranked/leaderboard", async (req: Request, res: Response) => {
     try {
