@@ -858,6 +858,19 @@ function LeaderboardsTab({
     [webappRankedCompetitions]
   );
   
+  // Debug: Log competition names from webapp
+  React.useEffect(() => {
+    if (allCompetitions) {
+      console.log('[FlappyMenu] All competitions from webapp:', JSON.stringify(allCompetitions.map(c => ({ id: c.id, name: c.name, type: c.type, period: c.period }))));
+    }
+    if (webappDaily) {
+      console.log('[FlappyMenu] Daily competition name:', webappDaily.name);
+    }
+    if (webappWeekly) {
+      console.log('[FlappyMenu] Weekly competition name:', webappWeekly.name);
+    }
+  }, [allCompetitions, webappDaily, webappWeekly]);
+  
   // Use webapp ranked data if available, otherwise fallback to mobile-only
   const useWebappRanked = webappRankedCompetitions.length > 0;
   
