@@ -2341,7 +2341,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
               <ThemedText style={styles.title}>Flappy Roachy</ThemedText>
               <ThemedText style={styles.subtitle}>
                 {gameMode === "ranked" 
-                  ? (rankedPeriod === 'daily' ? "Daily Challenge" : "Weekly Championship")
+                  ? (activeCompetitionName || (rankedPeriod === 'daily' ? "Daily Challenge" : "Weekly Championship"))
                   : "Free Play"}
               </ThemedText>
               <View style={styles.instructionRow}>
@@ -2400,9 +2400,9 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         userId={userId}
         competitionId={activeCompetitionId}
         competitionName={activeCompetitionName}
-        onPlayRanked={(period: 'daily' | 'weekly') => {
+        onPlayRanked={(period: 'daily' | 'weekly', competitionName?: string) => {
           setActiveCompetitionId(null);
-          setActiveCompetitionName(null);
+          setActiveCompetitionName(competitionName || null);
           setGameMode("ranked");
           setRankedPeriod(period);
           setShowMenu(false);

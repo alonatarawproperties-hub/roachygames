@@ -106,7 +106,7 @@ interface FlappyMenuSheetProps {
   userId: string | null;
   competitionId?: string | null;
   competitionName?: string | null;
-  onPlayRanked: (period: 'daily' | 'weekly', entryFee?: number) => void;
+  onPlayRanked: (period: 'daily' | 'weekly', competitionName?: string) => void;
   onPlayFree: () => void;
   onPlayCompetition?: () => void;
   onPlayBossChallenge?: (competition: Competition) => void;
@@ -332,8 +332,8 @@ export function FlappyMenuSheet({
                     onClose();
                   }}
                   onJoinRanked={(period: 'daily' | 'weekly', entryFee?: number) => enterRankedMutation.mutate({ period, entryFee })}
-                  onStartRankedPlay={(period: 'daily' | 'weekly') => {
-                    onPlayRanked(period);
+                  onStartRankedPlay={(period: 'daily' | 'weekly', competitionName?: string) => {
+                    onPlayRanked(period, competitionName);
                     onClose();
                   }}
                   onPlayBossChallenge={(competition) => {
@@ -840,7 +840,7 @@ function LeaderboardsTab({
   onRefreshBalance: () => void;
   onPlayFree: () => void;
   onJoinRanked: (period: 'daily' | 'weekly', entryFee?: number) => void;
-  onStartRankedPlay: (period: 'daily' | 'weekly') => void;
+  onStartRankedPlay: (period: 'daily' | 'weekly', competitionName?: string) => void;
   onPlayBossChallenge: (competition: Competition) => void;
   isEntering: boolean;
   entryError?: string;
@@ -1102,7 +1102,7 @@ function LeaderboardsTab({
                 isSelected={selectedCompetition === 'daily'}
                 isPerpetual={daily.isPerpetual}
                 onEnter={() => onJoinRanked('daily', daily.entryFee)}
-                onPlay={() => onStartRankedPlay('daily')}
+                onPlay={() => onStartRankedPlay('daily', daily.name)}
                 onSelect={() => setSelectedCompetition('daily')}
               />
             ) : null}
@@ -1123,7 +1123,7 @@ function LeaderboardsTab({
                 isSelected={selectedCompetition === 'weekly'}
                 isPerpetual={weekly.isPerpetual}
                 onEnter={() => onJoinRanked('weekly', weekly.entryFee)}
-                onPlay={() => onStartRankedPlay('weekly')}
+                onPlay={() => onStartRankedPlay('weekly', weekly.name)}
                 onSelect={() => setSelectedCompetition('weekly')}
               />
             ) : null}
