@@ -346,12 +346,27 @@ router.post("/google-code", async (req: Request, res: Response) => {
       }
     } else {
       console.log(`[Auth Google] Existing user login: ${user.id}`);
+      // Update display name if we have a better one from Google
+      const updateData: any = { lastLoginAt: new Date(), updatedAt: new Date() };
+      if (verifiedDisplayName && (!user.displayName || user.displayName.startsWith('Player_'))) {
+        updateData.displayName = verifiedDisplayName;
+        console.log(`[Auth Google] Updating displayName from "${user.displayName}" to "${verifiedDisplayName}"`);
+      }
+      if (verifiedEmail && !user.email) {
+        updateData.email = verifiedEmail;
+      }
+      if (verifiedGoogleId && !user.googleId) {
+        updateData.googleId = verifiedGoogleId;
+      }
       await db.update(users)
-        .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+        .set(updateData)
         .where(eq(users.id, user.id));
     }
     
     console.log(`[Auth Google] Login complete: userId=${user?.id}`);
+
+    // Re-fetch user to get updated data
+    [user] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
 
     const token = generateToken({
       userId: user.id,
@@ -447,12 +462,27 @@ router.post("/google", async (req: Request, res: Response) => {
       }
     } else {
       console.log(`[Auth Google] Existing user login: ${user.id}`);
+      // Update display name if we have a better one from Google
+      const updateData: any = { lastLoginAt: new Date(), updatedAt: new Date() };
+      if (verifiedDisplayName && (!user.displayName || user.displayName.startsWith('Player_'))) {
+        updateData.displayName = verifiedDisplayName;
+        console.log(`[Auth Google] Updating displayName from "${user.displayName}" to "${verifiedDisplayName}"`);
+      }
+      if (verifiedEmail && !user.email) {
+        updateData.email = verifiedEmail;
+      }
+      if (verifiedGoogleId && !user.googleId) {
+        updateData.googleId = verifiedGoogleId;
+      }
       await db.update(users)
-        .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+        .set(updateData)
         .where(eq(users.id, user.id));
     }
     
     console.log(`[Auth Google] Login complete: userId=${user?.id}`);
+
+    // Re-fetch user to get updated data
+    [user] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
 
     const token = generateToken({
       userId: user.id,
