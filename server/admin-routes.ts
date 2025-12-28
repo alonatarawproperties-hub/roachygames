@@ -15,6 +15,9 @@ import {
   securityAuditLog,
   gameSessionTokens,
   rateLimitTracking,
+  flappyRankedEntries,
+  flappyLeaderboard,
+  flappyScores,
 } from "@shared/schema";
 import { desc, eq, sql, and, gte, lte, count } from "drizzle-orm";
 import { getSecurityLogs, getSecurityStats } from "./security";
@@ -741,6 +744,35 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("[Admin] CHY summary error:", error);
       res.status(500).json({ error: "Failed to fetch CHY summary" });
+    }
+  });
+
+  app.post("/api/admin/flappy/reset", adminAuth, async (req, res) => {
+    try {
+      const { confirm } = req.body;
+      
+      if (confirm !== "wipe") {
+        return res.status(400).json({ 
+          error: "Confirmation required. Send { confirm: 'wipe' } to proceed." 
+        });
+      }
+      
+      console.log("[Admin] Wiping Flappy competition data...");
+      
+      const entriesDeleted = await db.delete(flappyRankedEntries);
+      const leaderboardDeleted = await db.delete(flappyLeaderboard);
+      const scoresDeleted = await db.delete(flappyScores);
+      
+      console.log("[Admin] Flappy competition data wiped successfully");
+      
+      res.json({
+        success: true,
+        message: "Flappy competition data cleared",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[Admin] Flappy reset error:", error);
+      res.status(500).json({ error: "Failed to reset Flappy data" });
     }
   });
 
