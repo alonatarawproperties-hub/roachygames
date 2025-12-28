@@ -1000,6 +1000,7 @@ export function registerFlappyRoutes(app: Express) {
       
       const [newEntry] = await db.insert(flappyRankedEntries).values({
         userId,
+        competitionId: currentCompetitionId, // CRITICAL: Link entry to current competition
         period,
         periodDate,
         entryFee: ENTRY_FEE,
