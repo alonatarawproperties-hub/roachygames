@@ -235,10 +235,17 @@ export function FlappyMenuSheet({
         entryFee, // From webapp competition config
       });
     },
-    onSuccess: (data: any, { period }: { period: 'daily' | 'weekly'; entryFee?: number }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/competitions/active"] });
-      invalidateBalances(); // Refresh CHY balance from webapp after backend deduction
+    onSuccess: async (data: any, { period }: { period: 'daily' | 'weekly'; entryFee?: number }) => {
+      // IMMEDIATELY refetch status to show "Joined" button - don't just invalidate
+      // refetchStatus uses the exact query key so it works instantly
+      await refetchStatus();
+      // Invalidate competitions to update participants count (uses fuzzy matching)
+      await queryClient.invalidateQueries({ 
+        queryKey: ['/api/competitions/active'],
+        refetchType: 'all', // Force refetch even if stale
+      });
+      // Refresh CHY balance from webapp after backend deduction
+      invalidateBalances();
       // Don't start game immediately - show "Joined" status and let user choose when to play
     },
     onError: (error: any) => {
@@ -935,10 +942,13 @@ function LeaderboardsTab({
     // Force hasJoined to false while ANY fetch is in progress - prevents stale cache showing "Joined"
     // Only show hasJoined: true when we have fresh data from the server
     const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.daily?.hasJoined ?? false);
+    // Use participants from rankedStatus (local DB) - webapp's currentEntries may be stale
+    // Local DB is always accurate since entries are created locally
+    const participantsCount = rankedStatus?.daily?.participants ?? webappDaily.currentEntries ?? 0;
     return {
       name: webappDaily.name || 'Daily Challenge',
       entryFee: webappDaily.entryFee || 0,
-      participants: webappDaily.currentEntries || 0,
+      participants: participantsCount,
       prizePool: webappDaily.prizePool || (webappDaily.basePrizeBoost || 0),
       topScore: rankedStatus?.daily?.topScore || 0,
       endsIn: getEndsIn(webappDaily),
@@ -956,10 +966,12 @@ function LeaderboardsTab({
     if (!webappWeekly) return undefined;
     // Force hasJoined to false while ANY fetch is in progress - prevents stale cache showing "Joined"
     const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.weekly?.hasJoined ?? false);
+    // Use participants from rankedStatus (local DB) - webapp's currentEntries may be stale
+    const participantsCount = rankedStatus?.weekly?.participants ?? webappWeekly.currentEntries ?? 0;
     return {
       name: webappWeekly.name || 'Weekly Championship',
       entryFee: webappWeekly.entryFee || 0,
-      participants: webappWeekly.currentEntries || 0,
+      participants: participantsCount,
       prizePool: webappWeekly.prizePool || (webappWeekly.basePrizeBoost || 0),
       topScore: rankedStatus?.weekly?.topScore || 0,
       endsIn: getEndsIn(webappWeekly),
