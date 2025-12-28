@@ -858,7 +858,7 @@ function LeaderboardsTab({
     [webappRankedCompetitions]
   );
   
-  // Debug: Log competition names from webapp
+  // Debug: Log competition names and hasJoined status
   React.useEffect(() => {
     if (allCompetitions) {
       console.log('[FlappyMenu] All competitions from webapp:', JSON.stringify(allCompetitions.map(c => ({ id: c.id, name: c.name, type: c.type, period: c.period }))));
@@ -870,6 +870,13 @@ function LeaderboardsTab({
       console.log('[FlappyMenu] Weekly competition name:', webappWeekly.name);
     }
   }, [allCompetitions, webappDaily, webappWeekly]);
+  
+  // Debug: Log rankedStatus and hasJoined values
+  React.useEffect(() => {
+    console.log('[FlappyMenu] rankedStatus received:', JSON.stringify(rankedStatus));
+    console.log('[FlappyMenu] daily.hasJoined:', rankedStatus?.daily?.hasJoined, '-> computed:', rankedStatus?.daily?.hasJoined ?? false);
+    console.log('[FlappyMenu] weekly.hasJoined:', rankedStatus?.weekly?.hasJoined, '-> computed:', rankedStatus?.weekly?.hasJoined ?? false);
+  }, [rankedStatus]);
   
   // Use webapp ranked data if available, otherwise fallback to mobile-only
   const useWebappRanked = webappRankedCompetitions.length > 0;

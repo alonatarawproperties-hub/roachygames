@@ -1249,6 +1249,7 @@ export function registerFlappyRoutes(app: Express) {
       // The frontend will use data from /api/competitions/active instead
       // This ensures webapp is single source of truth for competition config
       console.log(`[Flappy Status] Webapp unavailable, returning user-specific data only`);
+      console.log(`[Flappy Status] hasJoinedDaily=${hasJoinedDaily}, hasJoinedWeekly=${hasJoinedWeekly}`);
       
       res.json({
         success: true,

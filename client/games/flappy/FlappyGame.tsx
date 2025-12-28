@@ -1152,6 +1152,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     if (onScoreSubmit && finalScore > 0) {
       const isCompetition = !!activeCompetitionId;
+      console.log('[FlappyGame] Score submit - gameMode:', gameMode, 'activeCompetitionId:', activeCompetitionId, 'isCompetition:', isCompetition);
       onScoreSubmit({
         score: finalScore,
         isRanked: gameMode === "ranked" || isCompetition,
@@ -2403,10 +2404,12 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           setShowMenu(false);
         }}
         onPlayBossChallenge={(competition) => {
+          console.log('[FlappyGame] onPlayBossChallenge called:', { competitionId: competition.id, competitionName: competition.name });
           setActiveCompetitionId(competition.id);
           setActiveCompetitionName(competition.name);
           setGameMode("competition");
           setRankedPeriod(null);
+          console.log('[FlappyGame] Boss challenge state set: gameMode=competition, competitionId=' + competition.id);
           setShowMenu(false);
         }}
         onEquipPowerUp={(type) => {
