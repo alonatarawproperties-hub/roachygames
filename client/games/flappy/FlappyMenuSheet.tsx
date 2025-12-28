@@ -73,6 +73,7 @@ interface CompetitionInfo {
   periodDate: string;
   userScore: number;
   userRank: number;
+  competitionId?: string; // Used to verify hasJoined matches current competition
 }
 
 interface RankedStatusResponse {
@@ -1035,27 +1036,44 @@ function LeaderboardsTab({
   
   const daily = useMemo(() => {
     if (!webappDaily) return undefined;
-    // Force hasJoined to false while ANY fetch is in progress - prevents stale cache showing "Joined"
-    // Only show hasJoined: true when we have fresh data from the server
-    const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.daily?.hasJoined ?? false);
-    // Use participants from rankedStatus (local DB) - webapp's currentEntries may be stale
-    // Local DB is always accurate since entries are created locally
-    const participantsCount = rankedStatus?.daily?.participants ?? webappDaily.currentEntries ?? 0;
-    // CRITICAL: Use prizePool from rankedStatus when available to ensure data consistency
-    // rankedStatus comes from webapp's /status endpoint which has the correct prize pool
-    // Fallback to webappDaily.prizePool (from /competitions/active) only if rankedStatus is not available
-    const prizePoolValue = rankedStatus?.daily?.prizePool ?? webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0);
+    // CRITICAL FIX: Only trust hasJoined if competitionId matches current competition
+    // This prevents stale cache showing "Joined" for a DIFFERENT competition
+    const statusCompetitionId = rankedStatus?.daily?.competitionId;
+    const currentCompetitionId = webappDaily.id;
+    const competitionIdMatches = statusCompetitionId === currentCompetitionId;
+    
+    // Force hasJoined to false if:
+    // 1. Still loading (prevent stale cache)
+    // 2. Competition ID mismatch (stale data for old competition)
+    const hasJoinedValue = rankedStatusLoading ? false : 
+      (competitionIdMatches ? (rankedStatus?.daily?.hasJoined ?? false) : false);
+    
+    // Only use rankedStatus data if competitionId matches, otherwise use webapp defaults
+    const participantsCount = competitionIdMatches 
+      ? (rankedStatus?.daily?.participants ?? webappDaily.currentEntries ?? 0)
+      : (webappDaily.currentEntries ?? 0);
+    const prizePoolValue = competitionIdMatches 
+      ? (rankedStatus?.daily?.prizePool ?? webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0))
+      : (webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0));
+    const topScoreValue = competitionIdMatches ? (rankedStatus?.daily?.topScore || 0) : 0;
+    const userScoreValue = competitionIdMatches ? (rankedStatus?.daily?.userScore || 0) : 0;
+    const userRankValue = competitionIdMatches ? (rankedStatus?.daily?.userRank || 0) : 0;
+    
+    if (!competitionIdMatches && statusCompetitionId) {
+      console.log(`[FlappyMenu] Daily competition ID mismatch - cached: ${statusCompetitionId}, current: ${currentCompetitionId}. Ignoring stale hasJoined.`);
+    }
+    
     return {
       name: webappDaily.name || 'Daily Challenge',
       entryFee: webappDaily.entryFee || 0,
       participants: participantsCount,
       prizePool: prizePoolValue,
-      topScore: rankedStatus?.daily?.topScore || 0,
+      topScore: topScoreValue,
       endsIn: getEndsIn(webappDaily),
       hasJoined: hasJoinedValue,
       periodDate: rankedStatus?.daily?.periodDate || '',
-      userScore: rankedStatus?.daily?.userScore || 0,
-      userRank: rankedStatus?.daily?.userRank || 0,
+      userScore: userScoreValue,
+      userRank: userRankValue,
       competitionId: webappDaily.id,
       isActive: isCompetitionActive(webappDaily),
       isPerpetual: true,
@@ -1064,25 +1082,44 @@ function LeaderboardsTab({
   
   const weekly = useMemo(() => {
     if (!webappWeekly) return undefined;
-    // Force hasJoined to false while ANY fetch is in progress - prevents stale cache showing "Joined"
-    const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.weekly?.hasJoined ?? false);
-    // Use participants from rankedStatus (local DB) - webapp's currentEntries may be stale
-    const participantsCount = rankedStatus?.weekly?.participants ?? webappWeekly.currentEntries ?? 0;
-    // CRITICAL: Use prizePool from rankedStatus when available to ensure data consistency
-    // rankedStatus comes from webapp's /status endpoint which has the correct prize pool
-    // Fallback to webappWeekly.prizePool (from /competitions/active) only if rankedStatus is not available
-    const prizePoolValue = rankedStatus?.weekly?.prizePool ?? webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0);
+    // CRITICAL FIX: Only trust hasJoined if competitionId matches current competition
+    // This prevents stale cache showing "Joined" for a DIFFERENT competition
+    const statusCompetitionId = rankedStatus?.weekly?.competitionId;
+    const currentCompetitionId = webappWeekly.id;
+    const competitionIdMatches = statusCompetitionId === currentCompetitionId;
+    
+    // Force hasJoined to false if:
+    // 1. Still loading (prevent stale cache)
+    // 2. Competition ID mismatch (stale data for old competition)
+    const hasJoinedValue = rankedStatusLoading ? false : 
+      (competitionIdMatches ? (rankedStatus?.weekly?.hasJoined ?? false) : false);
+    
+    // Only use rankedStatus data if competitionId matches, otherwise use webapp defaults
+    const participantsCount = competitionIdMatches 
+      ? (rankedStatus?.weekly?.participants ?? webappWeekly.currentEntries ?? 0)
+      : (webappWeekly.currentEntries ?? 0);
+    const prizePoolValue = competitionIdMatches 
+      ? (rankedStatus?.weekly?.prizePool ?? webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0))
+      : (webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0));
+    const topScoreValue = competitionIdMatches ? (rankedStatus?.weekly?.topScore || 0) : 0;
+    const userScoreValue = competitionIdMatches ? (rankedStatus?.weekly?.userScore || 0) : 0;
+    const userRankValue = competitionIdMatches ? (rankedStatus?.weekly?.userRank || 0) : 0;
+    
+    if (!competitionIdMatches && statusCompetitionId) {
+      console.log(`[FlappyMenu] Weekly competition ID mismatch - cached: ${statusCompetitionId}, current: ${currentCompetitionId}. Ignoring stale hasJoined.`);
+    }
+    
     return {
       name: webappWeekly.name || 'Weekly Championship',
       entryFee: webappWeekly.entryFee || 0,
       participants: participantsCount,
       prizePool: prizePoolValue,
-      topScore: rankedStatus?.weekly?.topScore || 0,
+      topScore: topScoreValue,
       endsIn: getEndsIn(webappWeekly),
       hasJoined: hasJoinedValue,
       periodDate: rankedStatus?.weekly?.periodDate || '',
-      userScore: rankedStatus?.weekly?.userScore || 0,
-      userRank: rankedStatus?.weekly?.userRank || 0,
+      userScore: userScoreValue,
+      userRank: userRankValue,
       competitionId: webappWeekly.id,
       isActive: isCompetitionActive(webappWeekly),
       isPerpetual: true,
