@@ -878,32 +878,56 @@ export function registerFlappyRoutes(app: Express) {
           googleId: userData.googleId,
         });
         
-        if (!userData.googleId || !userData.email) {
-          return res.status(400).json({ 
-            success: false, 
-            error: "Google sign-in required for competitions. Please log out and sign in with Google." 
+        // Try OAuth exchange if we have googleId/email
+        if (userData.googleId && userData.email) {
+          const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
+            googleId: userData.googleId,
+            email: userData.email,
+            displayName: userData.displayName || userData.email.split("@")[0],
           });
-        }
-        
-        // Get webappUserId via OAuth exchange
-        const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
-          googleId: userData.googleId,
-          email: userData.email,
-          displayName: userData.displayName || userData.email.split("@")[0],
-        });
-        
-        if (exchangeResult.status === 200 && exchangeResult.data?.success) {
-          effectiveWebappUserId = exchangeResult.data.user?.id;
-          if (effectiveWebappUserId) {
-            // Use wallet-balance endpoint (same as client) for accurate on-chain CHY balance
-            const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
-            console.log(`[Flappy] OAuth fallback wallet-balance response:`, JSON.stringify(balanceResult));
-            if (balanceResult.status === 200) {
-              chyBalance = balanceResult.data?.chyBalance ?? 0;
+          
+          if (exchangeResult.status === 200 && exchangeResult.data?.success) {
+            effectiveWebappUserId = exchangeResult.data.user?.id;
+            if (effectiveWebappUserId) {
+              const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
+              console.log(`[Flappy] OAuth fallback wallet-balance response:`, JSON.stringify(balanceResult));
+              if (balanceResult.status === 200) {
+                chyBalance = balanceResult.data?.chyBalance ?? 0;
+                balanceFetched = true;
+              }
             }
           }
+          console.log(`[Flappy] OAuth exchange result - webappUserId: ${effectiveWebappUserId}, balance: ${chyBalance}`);
         }
-        console.log(`[Flappy] OAuth exchange result - webappUserId: ${effectiveWebappUserId}, balance: ${chyBalance}`);
+        
+        // FALLBACK: If local DB lacks googleId/email, try webapp lookup by mobile userId
+        if (!balanceFetched && !effectiveWebappUserId) {
+          console.log(`[Flappy] Local DB missing googleId/email, trying webapp lookup for mobile userId: ${userId}`);
+          
+          // Try to find user on webapp by their mobile userId
+          const webappLookupResult = await webappRequest("GET", `/api/mobile/users/${userId}`);
+          console.log(`[Flappy] Webapp user lookup response:`, JSON.stringify(webappLookupResult));
+          
+          if (webappLookupResult.status === 200 && webappLookupResult.data?.success && webappLookupResult.data?.user?.id) {
+            effectiveWebappUserId = webappLookupResult.data.user.id;
+            console.log(`[Flappy] Found webappUserId via mobile lookup: ${effectiveWebappUserId}`);
+            
+            // Fetch balance
+            const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
+            console.log(`[Flappy] Mobile fallback wallet-balance response:`, JSON.stringify(balanceResult));
+            if (balanceResult.status === 200) {
+              chyBalance = balanceResult.data?.chyBalance ?? 0;
+              balanceFetched = true;
+            }
+          } else {
+            // Last resort: if no webappUserId found anywhere, user needs to sign in with Google
+            console.log(`[Flappy] No webapp user found for mobile userId ${userId}`);
+            return res.status(400).json({ 
+              success: false, 
+              error: "Google sign-in required for competitions. Please log out and sign in with Google." 
+            });
+          }
+        }
       }
       
       console.log(`[Flappy] Final balance check: ${chyBalance} CHY, entry fee: ${ENTRY_FEE}`);
