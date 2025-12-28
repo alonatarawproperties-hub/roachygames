@@ -116,10 +116,10 @@ async function deductWebappChy(user: { googleId: string | null; email: string | 
 
 export function registerFlappyRoutes(app: Express) {
   // Feature flag: Use webapp as source of truth for competition entry/scores/leaderboard
-  // Webapp is source of truth for competition CONFIG (what competitions exist, entry fees)
-  // But operations (join, score, stats) are handled locally to ensure CHY deduction works
+  // Webapp is source of truth for ALL competition data - config AND operations
+  // Scores MUST be sent to webapp for leaderboard to work
   const USE_WEBAPP_COMPETITIONS_CONFIG = true;  // Get competition list from webapp
-  const USE_WEBAPP_COMPETITIONS_OPERATIONS = false;  // Handle join/score/stats locally
+  const USE_WEBAPP_COMPETITIONS_OPERATIONS = true;  // Proxy scores to webapp (REQUIRED for leaderboard)
   
   // Beta: Flappy ranked competitions are now enabled
   const FLAPPY_COMPETITIONS_LOCKED = false;
