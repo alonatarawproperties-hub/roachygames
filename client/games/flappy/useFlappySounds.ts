@@ -34,16 +34,16 @@ export function useFlappySounds(soundEnabled: boolean = true) {
     }).catch(() => {});
     
     if (jumpPlayer) {
-      jumpPlayer.volume = 0.6;
+      jumpPlayer.volume = 0.25;
     }
     if (coinPlayer) {
-      coinPlayer.volume = 0.6;
+      coinPlayer.volume = 1.0;
     }
     if (diePlayer) {
-      diePlayer.volume = 0.6;
+      diePlayer.volume = 0.7;
     }
     if (powerupPlayer) {
-      powerupPlayer.volume = 0.6;
+      powerupPlayer.volume = 0.8;
     }
   }, [jumpPlayer, coinPlayer, diePlayer, powerupPlayer]);
 

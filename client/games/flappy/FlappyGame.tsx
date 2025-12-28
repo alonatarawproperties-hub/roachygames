@@ -1576,6 +1576,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         scoreRef.current += 1;
         pipe.passed = true;
         runOnJS(setScore)(scoreRef.current);
+        runOnJS(playSound)("coin");
       }
     }
     
