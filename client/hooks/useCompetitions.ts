@@ -62,8 +62,10 @@ interface ActiveCompetitionsResponse {
 export function useActiveCompetitions() {
   return useQuery<Competition[], Error>({
     queryKey: ["/api/competitions/active"],
-    staleTime: 60_000,
+    staleTime: 0,
+    gcTime: 0,
     refetchInterval: 60_000,
+    refetchOnMount: 'always',
     select: (data: any) => {
       if (data?.competitions && Array.isArray(data.competitions)) {
         return data.competitions.map((c: any) => ({
@@ -109,7 +111,9 @@ export function useCompetition(competitionId: string | null) {
   return useQuery<Competition>({
     queryKey: ["/api/competitions", competitionId],
     enabled: !!competitionId,
-    staleTime: 30_000,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -120,7 +124,9 @@ export function useCompetitionLeaderboard(
   return useQuery<LeaderboardEntry[]>({
     queryKey: ["/api/competitions", competitionId, "leaderboard"],
     enabled: !!competitionId,
-    staleTime: 30_000,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: options?.refetchInterval,
   });
 }
@@ -129,7 +135,9 @@ export function useCompetitionWinners(competitionId: string | null) {
   return useQuery<Winner[]>({
     queryKey: ["/api/competitions", competitionId, "winners"],
     enabled: !!competitionId,
-    staleTime: 300_000,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
