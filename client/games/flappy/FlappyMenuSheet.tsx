@@ -1026,7 +1026,9 @@ function LeaderboardsTab({
   };
   
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
-  // Prize pool comes directly from webapp - it already includes basePrizeBoost + entry fees
+  // CRITICAL: Use prizePool from rankedStatus (webapp's /status endpoint) to ensure data consistency
+  // The /status endpoint returns both prizePool and participants from the same source
+  // Mixing prizePool from /competitions/active with participants from /status caused doubling issues
   // hasJoined comes from rankedStatus (proxied from webapp /status endpoint)
   // CRITICAL: hasJoined must be FALSE while loading to prevent stale "Joined" state
   // Note: rankedStatusLoading prop already includes isFetching from parent component
@@ -1039,11 +1041,15 @@ function LeaderboardsTab({
     // Use participants from rankedStatus (local DB) - webapp's currentEntries may be stale
     // Local DB is always accurate since entries are created locally
     const participantsCount = rankedStatus?.daily?.participants ?? webappDaily.currentEntries ?? 0;
+    // CRITICAL: Use prizePool from rankedStatus when available to ensure data consistency
+    // rankedStatus comes from webapp's /status endpoint which has the correct prize pool
+    // Fallback to webappDaily.prizePool (from /competitions/active) only if rankedStatus is not available
+    const prizePoolValue = rankedStatus?.daily?.prizePool ?? webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0);
     return {
       name: webappDaily.name || 'Daily Challenge',
       entryFee: webappDaily.entryFee || 0,
       participants: participantsCount,
-      prizePool: webappDaily.prizePool || (webappDaily.basePrizeBoost || 0),
+      prizePool: prizePoolValue,
       topScore: rankedStatus?.daily?.topScore || 0,
       endsIn: getEndsIn(webappDaily),
       hasJoined: hasJoinedValue,
@@ -1062,11 +1068,15 @@ function LeaderboardsTab({
     const hasJoinedValue = rankedStatusLoading ? false : (rankedStatus?.weekly?.hasJoined ?? false);
     // Use participants from rankedStatus (local DB) - webapp's currentEntries may be stale
     const participantsCount = rankedStatus?.weekly?.participants ?? webappWeekly.currentEntries ?? 0;
+    // CRITICAL: Use prizePool from rankedStatus when available to ensure data consistency
+    // rankedStatus comes from webapp's /status endpoint which has the correct prize pool
+    // Fallback to webappWeekly.prizePool (from /competitions/active) only if rankedStatus is not available
+    const prizePoolValue = rankedStatus?.weekly?.prizePool ?? webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0);
     return {
       name: webappWeekly.name || 'Weekly Championship',
       entryFee: webappWeekly.entryFee || 0,
       participants: participantsCount,
-      prizePool: webappWeekly.prizePool || (webappWeekly.basePrizeBoost || 0),
+      prizePool: prizePoolValue,
       topScore: rankedStatus?.weekly?.topScore || 0,
       endsIn: getEndsIn(webappWeekly),
       hasJoined: hasJoinedValue,
