@@ -235,9 +235,9 @@ export function FlappyMenuSheet({
     },
     onSuccess: (data: any, { period }: { period: 'daily' | 'weekly'; entryFee?: number }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/flappy/ranked/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/competitions/active"] });
       invalidateBalances(); // Refresh CHY balance from webapp after backend deduction
-      onPlayRanked(period);
-      onClose();
+      // Don't start game immediately - show "Joined" status and let user choose when to play
     },
     onError: (error: any) => {
       console.log("Ranked entry failed:", error.message || "Not enough Chy Coins");
@@ -321,7 +321,11 @@ export function FlappyMenuSheet({
                     onPlayFree();
                     onClose();
                   }}
-                  onPlayRanked={(period: 'daily' | 'weekly', entryFee?: number) => enterRankedMutation.mutate({ period, entryFee })}
+                  onJoinRanked={(period: 'daily' | 'weekly', entryFee?: number) => enterRankedMutation.mutate({ period, entryFee })}
+                  onStartRankedPlay={(period: 'daily' | 'weekly') => {
+                    onPlayRanked(period);
+                    onClose();
+                  }}
                   onPlayBossChallenge={(competition) => {
                     onPlayBossChallenge?.(competition);
                     onClose();
@@ -417,6 +421,7 @@ function CompetitionCard({
   isSelected,
   isPerpetual,
   onEnter,
+  onPlay,
   onSelect,
 }: {
   title: string;
@@ -433,6 +438,7 @@ function CompetitionCard({
   isSelected: boolean;
   isPerpetual?: boolean;
   onEnter: () => void;
+  onPlay: () => void;
   onSelect: () => void;
 }) {
   const hasEnoughChy = chyBalance >= entryFee;
@@ -528,7 +534,7 @@ function CompetitionCard({
           </View>
           <Pressable 
             style={styles.playNowButtonWide} 
-            onPress={(e) => { e.stopPropagation(); onEnter(); }}
+            onPress={(e) => { e.stopPropagation(); onPlay(); }}
           >
             <Feather name="play" size={16} color="#000" />
             <ThemedText style={styles.playNowButtonText}>Play</ThemedText>
@@ -808,7 +814,8 @@ function LeaderboardsTab({
   balanceFetching,
   onRefreshBalance,
   onPlayFree,
-  onPlayRanked,
+  onJoinRanked,
+  onStartRankedPlay,
   onPlayBossChallenge,
   isEntering,
   entryError,
@@ -820,7 +827,8 @@ function LeaderboardsTab({
   balanceFetching: boolean;
   onRefreshBalance: () => void;
   onPlayFree: () => void;
-  onPlayRanked: (period: 'daily' | 'weekly', entryFee?: number) => void;
+  onJoinRanked: (period: 'daily' | 'weekly', entryFee?: number) => void;
+  onStartRankedPlay: (period: 'daily' | 'weekly') => void;
   onPlayBossChallenge: (competition: Competition) => void;
   isEntering: boolean;
   entryError?: string;
@@ -1047,7 +1055,8 @@ function LeaderboardsTab({
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'daily'}
                 isPerpetual={daily.isPerpetual}
-                onEnter={() => onPlayRanked('daily', daily.entryFee)}
+                onEnter={() => onJoinRanked('daily', daily.entryFee)}
+                onPlay={() => onStartRankedPlay('daily')}
                 onSelect={() => setSelectedCompetition('daily')}
               />
             ) : null}
@@ -1067,7 +1076,8 @@ function LeaderboardsTab({
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'weekly'}
                 isPerpetual={weekly.isPerpetual}
-                onEnter={() => onPlayRanked('weekly', weekly.entryFee)}
+                onEnter={() => onJoinRanked('weekly', weekly.entryFee)}
+                onPlay={() => onStartRankedPlay('weekly')}
                 onSelect={() => setSelectedCompetition('weekly')}
               />
             ) : null}
