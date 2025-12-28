@@ -1384,7 +1384,8 @@ export function registerFlappyRoutes(app: Express) {
       let currentWeeklyCompetitionId: string | null = null;
       
       try {
-        const activeComps = await webappRequest("GET", "/api/flappy/competitions/active");
+        // CORRECT endpoint is /api/mobile/competitions/active (not /api/flappy/...)
+        const activeComps = await webappRequest("GET", "/api/mobile/competitions/active");
         if (activeComps.status === 200 && activeComps.data?.success) {
           const competitions = activeComps.data.competitions || [];
           const dailyComp = competitions.find((c: any) => c.period === 'daily' && c.type === 'ranked');
@@ -1392,6 +1393,8 @@ export function registerFlappyRoutes(app: Express) {
           currentDailyCompetitionId = dailyComp?.id || null;
           currentWeeklyCompetitionId = weeklyComp?.id || null;
           console.log(`[Flappy Status] Current competition IDs from webapp: daily=${currentDailyCompetitionId}, weekly=${currentWeeklyCompetitionId}`);
+        } else {
+          console.log(`[Flappy Status] Webapp returned non-success: status=${activeComps.status}, data=`, activeComps.data);
         }
       } catch (compError) {
         console.log(`[Flappy Status] Could not fetch active competitions:`, compError);
