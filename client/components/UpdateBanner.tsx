@@ -18,7 +18,6 @@ interface UpdateBannerProps {
 export function UpdateBanner({ visible = true }: UpdateBannerProps) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
   
   const translateY = useSharedValue(-100);
   const opacity = useSharedValue(0);
@@ -30,7 +29,6 @@ export function UpdateBanner({ visible = true }: UpdateBannerProps) {
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
         setUpdateAvailable(true);
-        setDismissed(false);
       }
     } catch (error) {
       console.log('[UpdateBanner] Check failed:', error);
@@ -44,16 +42,16 @@ export function UpdateBanner({ visible = true }: UpdateBannerProps) {
   }, [checkForUpdate]);
 
   useEffect(() => {
-    const shouldShow = visible && updateAvailable && !dismissed && !isUpdating;
+    const shouldShow = visible && updateAvailable && !isUpdating;
     
     if (shouldShow) {
       translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
       opacity.value = withTiming(1, { duration: 200 });
-    } else {
+    } else if (!updateAvailable) {
       translateY.value = withSpring(-100, { damping: 15, stiffness: 150 });
       opacity.value = withTiming(0, { duration: 200 });
     }
-  }, [visible, updateAvailable, dismissed, isUpdating]);
+  }, [visible, updateAvailable, isUpdating]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -71,10 +69,6 @@ export function UpdateBanner({ visible = true }: UpdateBannerProps) {
     }
   };
 
-  const handleDismiss = () => {
-    setDismissed(true);
-  };
-
   if (!updateAvailable || Platform.OS === 'web' || __DEV__) {
     return null;
   }
@@ -82,24 +76,19 @@ export function UpdateBanner({ visible = true }: UpdateBannerProps) {
   return (
     <Animated.View style={[styles.container, animatedStyle]}>
       <View style={styles.content}>
-        <Feather name="download" size={16} color={GameColors.primary} />
+        <Feather name="download" size={20} color={GameColors.primary} />
         <Text style={styles.text}>
-          {isUpdating ? 'Updating...' : 'New update available'}
+          {isUpdating ? 'Updating...' : 'New update available!'}
         </Text>
         
         {!isUpdating && (
-          <>
-            <Pressable 
-              onPress={handleUpdate}
-              style={styles.updateButton}
-            >
-              <Text style={styles.updateText}>Update</Text>
-            </Pressable>
-            
-            <Pressable onPress={handleDismiss} style={styles.dismissButton}>
-              <Feather name="x" size={16} color={GameColors.textSecondary} />
-            </Pressable>
-          </>
+          <Pressable 
+            onPress={handleUpdate}
+            style={styles.updateButton}
+          >
+            <Feather name="refresh-cw" size={14} color={GameColors.background} style={{ marginRight: 6 }} />
+            <Text style={styles.updateText}>Update Now</Text>
+          </Pressable>
         )}
       </View>
     </Animated.View>
@@ -119,31 +108,31 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(30, 30, 30, 0.95)',
-    borderRadius: 12,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderColor: GameColors.primary + '40',
-    gap: Spacing.sm,
+    backgroundColor: 'rgba(30, 30, 30, 0.98)',
+    borderRadius: 16,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderWidth: 2,
+    borderColor: GameColors.primary + '60',
   },
   text: {
     flex: 1,
     color: GameColors.textPrimary,
-    fontSize: Typography.small.fontSize,
+    fontSize: 15,
+    fontWeight: '500',
+    marginLeft: Spacing.sm,
   },
   updateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: GameColors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: 12,
   },
   updateText: {
     color: GameColors.background,
-    fontSize: Typography.small.fontSize,
-    fontWeight: '600',
-  },
-  dismissButton: {
-    padding: Spacing.xs,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

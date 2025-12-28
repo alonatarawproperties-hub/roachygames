@@ -1145,6 +1145,24 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     coinPositionsY.value = new Array(MAX_COINS).fill(0);
     coinValues.value = new Array(MAX_COINS).fill(0);
     
+    // Reset individual Android shared values (used for direct UI thread rendering)
+    if (isAndroid) {
+      const xSlots = coinXSlots.current;
+      const ySlots = coinYSlots.current;
+      const vSlots = coinVSlots.current;
+      const pipeXSlotVals = pipeXSlots.current;
+      const pipeHSlotVals = pipeHSlots.current;
+      for (let i = 0; i < MAX_COINS; i++) {
+        xSlots[i].value = -1000;
+        ySlots[i].value = 0;
+        vSlots[i].value = 0;
+      }
+      for (let i = 0; i < MAX_PIPES; i++) {
+        pipeXSlotVals[i].value = -1000;
+        pipeHSlotVals[i].value = 0;
+      }
+    }
+    
     birdY.value = playableHeightRef.current / 2;
     birdVelocity.current = 0;
     birdRotation.value = 0;
@@ -1570,9 +1588,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     }
     
     // Check pipe passing and score (mutate in place)
+    // Only count pipes that are actually on screen (x > 0) to avoid false positives
     for (let i = 0; i < pipesRef.current.length; i++) {
       const pipe = pipesRef.current[i];
-      if (!pipe.passed && pipe.x + currentPipeWidth < currentBirdX) {
+      if (!pipe.passed && pipe.x > -currentPipeWidth && pipe.x + currentPipeWidth < currentBirdX) {
         scoreRef.current += 1;
         pipe.passed = true;
         runOnJS(setScore)(scoreRef.current);

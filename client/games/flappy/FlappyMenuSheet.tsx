@@ -165,6 +165,7 @@ export function FlappyMenuSheet({
   }, [visible]);
 
   const panGesture = Gesture.Pan()
+    .activeOffsetY([-10, 10])
     .onStart(() => {
       startHeight.value = sheetHeight.value;
     })
