@@ -209,12 +209,13 @@ export function FlappyMenuSheet({
     refetchOnMount: 'always',
   });
   
-  // Force refetch status and leaderboard data when menu sheet becomes visible
+  // Force refetch ALL competition data when menu sheet becomes visible
+  // This ensures new competitions from webapp appear immediately without force-closing
   React.useEffect(() => {
     if (visible && activeTab === "leaderboards") {
-      console.log('[FlappyMenu] Sheet visible - refetching ranked status and leaderboards');
+      console.log('[FlappyMenu] Sheet visible - refetching all competition data');
+      queryClient.invalidateQueries({ queryKey: ['/api/competitions/active'] });
       refetchStatus();
-      // Also invalidate leaderboard queries to force fresh data
       queryClient.invalidateQueries({ queryKey: ['/api/flappy/ranked/leaderboard'] });
     }
   }, [visible, activeTab, refetchStatus, queryClient]);
