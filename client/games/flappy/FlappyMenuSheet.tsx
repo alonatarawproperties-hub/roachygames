@@ -282,12 +282,25 @@ export function FlappyMenuSheet({
           style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
         >
           <GestureDetector gesture={panGesture}>
-            <View style={styles.header}>
-              <View style={styles.handle} />
-              <ThemedText style={styles.expandHint}>
-                {isExpanded ? "Drag down to collapse" : "Drag up to expand"}
-              </ThemedText>
-            </View>
+            <Animated.View style={styles.header}>
+              <Pressable 
+                onPress={() => {
+                  if (isExpanded) {
+                    sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+                    setIsExpanded(false);
+                  } else {
+                    sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+                    setIsExpanded(true);
+                  }
+                }}
+                style={styles.headerTouchable}
+              >
+                <View style={styles.handle} />
+                <ThemedText style={styles.expandHint}>
+                  {isExpanded ? "Tap to collapse" : "Tap to expand"}
+                </ThemedText>
+              </Pressable>
+            </Animated.View>
           </GestureDetector>
           
           <Pressable style={styles.closeButton} onPress={onClose}>
@@ -1834,10 +1847,14 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  headerTouchable: {
+    alignItems: "center",
     paddingTop: Platform.OS === 'android' ? Spacing.lg : Spacing.md,
     paddingBottom: Platform.OS === 'android' ? Spacing.md : Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    minHeight: Platform.OS === 'android' ? 60 : undefined,
+    paddingHorizontal: Spacing.xl,
+    minHeight: Platform.OS === 'android' ? 60 : 44,
   },
   expandHint: {
     fontSize: 11,
