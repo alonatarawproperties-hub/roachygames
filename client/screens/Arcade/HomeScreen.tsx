@@ -7,6 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
+import * as WebBrowser from "expo-web-browser";
 import { getMarketplaceUrl } from "@/lib/query-client";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -1771,7 +1772,7 @@ export function ArcadeHomeScreen() {
                 style={styles.rewardsCard}
                 onPress={async () => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  await Linking.openURL(getMarketplaceUrl() + "/rewards");
+                  await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
                 }}
               >
                 <View style={styles.rewardsCardContent}>

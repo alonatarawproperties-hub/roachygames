@@ -12,6 +12,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Animated, {
@@ -1628,7 +1629,7 @@ function LoadoutTab({
 
       <Pressable
         style={styles.marketplaceButton}
-        onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`)}
+        onPress={() => WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`)}
       >
         <Feather name="shopping-bag" size={16} color={GameColors.gold} />
         <ThemedText style={styles.marketplaceButtonText}>Get more at Marketplace</ThemedText>
@@ -1656,7 +1657,7 @@ function SkinCard({
     if (isOwned) {
       onSelect();
     } else {
-      Linking.openURL(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`);
+      WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`);
     }
   };
 
@@ -1722,7 +1723,7 @@ function TrailCard({
     if (isOwned) {
       onSelect();
     } else {
-      Linking.openURL(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`);
+      WebBrowser.openBrowserAsync(`${process.env.EXPO_PUBLIC_MARKETPLACE_URL || "https://roachy.games"}/marketplace`);
     }
   };
 
