@@ -166,7 +166,9 @@ export function FlappyMenuSheet({
   }, [visible]);
 
   const panGesture = Gesture.Pan()
-    .activeOffsetY([-10, 10])
+    .activeOffsetY(Platform.OS === 'android' ? [-5, 5] : [-10, 10])
+    .failOffsetX([-20, 20])
+    .minDistance(Platform.OS === 'android' ? 5 : 10)
     .onStart(() => {
       startHeight.value = sheetHeight.value;
     })
@@ -1832,9 +1834,10 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingTop: Platform.OS === 'android' ? Spacing.lg : Spacing.md,
+    paddingBottom: Platform.OS === 'android' ? Spacing.md : Spacing.sm,
     paddingHorizontal: Spacing.lg,
+    minHeight: Platform.OS === 'android' ? 60 : undefined,
   },
   expandHint: {
     fontSize: 11,
