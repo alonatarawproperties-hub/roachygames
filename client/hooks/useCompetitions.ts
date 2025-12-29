@@ -96,8 +96,15 @@ export function filterRankedCompetitions(competitions: Competition[]): Competiti
 }
 
 export function filterBossCompetitions(competitions: Competition[]): Competition[] {
-  // Boss challenges include type: "boss", "custom", or undefined (default to boss)
-  return competitions.filter((c) => c.type === "boss" || c.type === "custom" || !c.type);
+  // Boss challenges include:
+  // 1. type: "boss", "custom", or undefined (default boss behavior)
+  // 2. ANY competition with period: "one-time" (special events regardless of type)
+  return competitions.filter((c) => 
+    c.type === "boss" || 
+    c.type === "custom" || 
+    !c.type || 
+    c.period === "one-time"
+  );
 }
 
 export function getRankedByPeriod(
