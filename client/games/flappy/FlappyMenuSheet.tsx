@@ -24,7 +24,7 @@ import Animated, {
   Easing,
   runOnJS,
 } from "react-native-reanimated";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -268,6 +268,23 @@ export function FlappyMenuSheet({
 
   if (!visible) return null;
 
+  const toggleExpand = useCallback(() => {
+    if (isExpanded) {
+      sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+      setIsExpanded(false);
+    } else {
+      sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+      setIsExpanded(true);
+    }
+  }, [isExpanded, sheetHeight]);
+
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => {
+      runOnJS(toggleExpand)();
+    });
+
+  const combinedGesture = Gesture.Race(tapGesture, panGesture);
+
   return (
     <Modal
       visible={visible}
@@ -275,57 +292,25 @@ export function FlappyMenuSheet({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <Animated.View
-          entering={SlideInDown.springify().damping(15)}
-          style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
-        >
-          {Platform.OS === 'android' ? (
-            <Pressable 
-              onPress={() => {
-                if (isExpanded) {
-                  sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
-                  setIsExpanded(false);
-                } else {
-                  sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
-                  setIsExpanded(true);
-                }
-              }}
-              style={styles.headerTouchable}
-            >
-              <View style={styles.handle} />
-              <ThemedText style={styles.expandHint}>
-                {isExpanded ? "Tap to collapse" : "Tap to expand"}
-              </ThemedText>
-            </Pressable>
-          ) : (
-            <GestureDetector gesture={panGesture}>
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+          <Animated.View
+            entering={SlideInDown.springify().damping(15)}
+            style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
+          >
+            <GestureDetector gesture={combinedGesture}>
               <Animated.View style={styles.header}>
-                <Pressable 
-                  onPress={() => {
-                    if (isExpanded) {
-                      sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
-                      setIsExpanded(false);
-                    } else {
-                      sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
-                      setIsExpanded(true);
-                    }
-                  }}
-                  style={styles.headerTouchable}
-                >
-                  <View style={styles.handle} />
-                  <ThemedText style={styles.expandHint}>
-                    {isExpanded ? "Tap to collapse" : "Tap to expand"}
-                  </ThemedText>
-                </Pressable>
+                <View style={styles.handle} />
+                <ThemedText style={styles.expandHint}>
+                  {isExpanded ? "Tap to collapse" : "Tap to expand"}
+                </ThemedText>
               </Animated.View>
             </GestureDetector>
-          )}
-          
-          <Pressable style={styles.closeButton} onPress={onClose}>
-            <Feather name="x" size={24} color={GameColors.textSecondary} />
-          </Pressable>
+            
+            <Pressable style={styles.closeButton} onPress={onClose}>
+              <Feather name="x" size={24} color={GameColors.textSecondary} />
+            </Pressable>
 
           <View style={styles.tabs}>
             <TabButton
@@ -402,8 +387,9 @@ export function FlappyMenuSheet({
               />
             )}
           </View>
-        </Animated.View>
-      </View>
+          </Animated.View>
+        </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -1853,6 +1839,9 @@ function PowerUpCard({
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -1867,14 +1856,11 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-  },
-  headerTouchable: {
-    alignItems: "center",
     paddingTop: Platform.OS === 'android' ? Spacing.lg : Spacing.md,
     paddingBottom: Platform.OS === 'android' ? Spacing.md : Spacing.sm,
     paddingHorizontal: Spacing.xl,
     minHeight: Platform.OS === 'android' ? 60 : 44,
+    zIndex: 10,
   },
   expandHint: {
     fontSize: 11,
