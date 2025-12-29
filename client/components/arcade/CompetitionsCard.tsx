@@ -32,13 +32,24 @@ function formatTimeRemaining(endsAt: string): string {
   return `${hours}h ${minutes}m`;
 }
 
+function formatAsGMT8(utcDateString: string): string {
+  // Ensure UTC parsing
+  const utcEndsAt = utcDateString.endsWith('Z') || utcDateString.includes('+') || utcDateString.includes('-', 10) 
+    ? utcDateString 
+    : utcDateString + 'Z';
+  const utcDate = new Date(utcEndsAt);
+  // Convert to GMT+8 for display only
+  const gmt8Date = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
+  return gmt8Date.toISOString().replace('T', ' ').slice(0, 16) + ' GMT+8';
+}
+
 function formatEndTimeGMT8(endsAt: string): string {
   // Ensure UTC parsing
   const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
     ? endsAt 
     : endsAt + 'Z';
   const utcDate = new Date(utcEndsAt);
-  // Convert to GMT+8
+  // Convert to GMT+8 for display only
   const gmt8Time = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
   const hours = gmt8Time.getUTCHours();
   const minutes = gmt8Time.getUTCMinutes();
@@ -46,6 +57,10 @@ function formatEndTimeGMT8(endsAt: string): string {
   const displayHours = hours % 12 || 12;
   const displayMinutes = minutes.toString().padStart(2, '0');
   return `${displayHours}:${displayMinutes} ${ampm} GMT+8`;
+}
+
+function convertResetHourToGMT8(resetHourUTC: number): number {
+  return (resetHourUTC + 8) % 24;
 }
 
 function formatPrize(prizePool: number): string {
