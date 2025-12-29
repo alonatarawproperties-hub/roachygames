@@ -1046,10 +1046,10 @@ function LeaderboardsTab({
     if (!comp) return false;
     // Daily/weekly are always active (perpetual)
     if (comp.period === 'daily' || comp.period === 'weekly') {
-      return comp.status === 'active' || comp.status === 'scheduled';
+      return comp.status === 'active' || comp.status === 'scheduled' || comp.status === 'starting_soon';
     }
-    // For one-time, check status
-    return comp.status === 'active';
+    // For one-time/boss challenges, check status - include starting_soon
+    return comp.status === 'active' || comp.status === 'starting_soon';
   };
   
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")

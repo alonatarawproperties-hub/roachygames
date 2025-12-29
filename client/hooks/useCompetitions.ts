@@ -8,7 +8,7 @@ export type CompetitionPeriod = "daily" | "weekly" | "one-time";
 export interface Competition {
   id: string;
   name: string;
-  status: "scheduled" | "active" | "finalizing" | "closed";
+  status: "scheduled" | "starting_soon" | "active" | "finalizing" | "closed";
   entryFee: number;
   prizePool: number;
   startsAt: string;
