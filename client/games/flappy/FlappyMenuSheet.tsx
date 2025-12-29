@@ -281,27 +281,47 @@ export function FlappyMenuSheet({
           entering={SlideInDown.springify().damping(15)}
           style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
         >
-          <GestureDetector gesture={panGesture}>
-            <Animated.View style={styles.header}>
-              <Pressable 
-                onPress={() => {
-                  if (isExpanded) {
-                    sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
-                    setIsExpanded(false);
-                  } else {
-                    sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
-                    setIsExpanded(true);
-                  }
-                }}
-                style={styles.headerTouchable}
-              >
-                <View style={styles.handle} />
-                <ThemedText style={styles.expandHint}>
-                  {isExpanded ? "Tap to collapse" : "Tap to expand"}
-                </ThemedText>
-              </Pressable>
-            </Animated.View>
-          </GestureDetector>
+          {Platform.OS === 'android' ? (
+            <Pressable 
+              onPress={() => {
+                if (isExpanded) {
+                  sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+                  setIsExpanded(false);
+                } else {
+                  sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+                  setIsExpanded(true);
+                }
+              }}
+              style={styles.headerTouchable}
+            >
+              <View style={styles.handle} />
+              <ThemedText style={styles.expandHint}>
+                {isExpanded ? "Tap to collapse" : "Tap to expand"}
+              </ThemedText>
+            </Pressable>
+          ) : (
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={styles.header}>
+                <Pressable 
+                  onPress={() => {
+                    if (isExpanded) {
+                      sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+                      setIsExpanded(false);
+                    } else {
+                      sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+                      setIsExpanded(true);
+                    }
+                  }}
+                  style={styles.headerTouchable}
+                >
+                  <View style={styles.handle} />
+                  <ThemedText style={styles.expandHint}>
+                    {isExpanded ? "Tap to collapse" : "Tap to expand"}
+                  </ThemedText>
+                </Pressable>
+              </Animated.View>
+            </GestureDetector>
+          )}
           
           <Pressable style={styles.closeButton} onPress={onClose}>
             <Feather name="x" size={24} color={GameColors.textSecondary} />
