@@ -266,8 +266,6 @@ export function FlappyMenuSheet({
     onEquipPowerUp(powerUpType);
   }, [onEquipPowerUp]);
 
-  if (!visible) return null;
-
   const toggleExpand = useCallback(() => {
     if (isExpanded) {
       sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
@@ -284,6 +282,8 @@ export function FlappyMenuSheet({
     });
 
   const combinedGesture = Gesture.Race(tapGesture, panGesture);
+
+  if (!visible) return null;
 
   return (
     <Modal
