@@ -1092,13 +1092,12 @@ function LeaderboardsTab({
     const hasJoinedValue = rankedStatusLoading ? false : 
       (competitionIdMatches ? (rankedStatus?.daily?.hasJoined ?? false) : false);
     
-    // Only use rankedStatus data if competitionId matches, otherwise use webapp defaults
+    // CRITICAL: Always use webapp's prizePool as source of truth (from /competitions/active)
+    // rankedStatus is deprecated for prize pool data - webapp API has the accurate value
     const participantsCount = competitionIdMatches 
       ? (rankedStatus?.daily?.participants ?? webappDaily.currentEntries ?? 0)
       : (webappDaily.currentEntries ?? 0);
-    const prizePoolValue = competitionIdMatches 
-      ? (rankedStatus?.daily?.prizePool ?? webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0))
-      : (webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0));
+    const prizePoolValue = webappDaily.prizePool ?? (webappDaily.basePrizeBoost || 0);
     const topScoreValue = competitionIdMatches ? (rankedStatus?.daily?.topScore || 0) : 0;
     const userScoreValue = competitionIdMatches ? (rankedStatus?.daily?.userScore || 0) : 0;
     const userRankValue = competitionIdMatches ? (rankedStatus?.daily?.userRank || 0) : 0;
@@ -1138,13 +1137,12 @@ function LeaderboardsTab({
     const hasJoinedValue = rankedStatusLoading ? false : 
       (competitionIdMatches ? (rankedStatus?.weekly?.hasJoined ?? false) : false);
     
-    // Only use rankedStatus data if competitionId matches, otherwise use webapp defaults
+    // CRITICAL: Always use webapp's prizePool as source of truth (from /competitions/active)
+    // rankedStatus is deprecated for prize pool data - webapp API has the accurate value
     const participantsCount = competitionIdMatches 
       ? (rankedStatus?.weekly?.participants ?? webappWeekly.currentEntries ?? 0)
       : (webappWeekly.currentEntries ?? 0);
-    const prizePoolValue = competitionIdMatches 
-      ? (rankedStatus?.weekly?.prizePool ?? webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0))
-      : (webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0));
+    const prizePoolValue = webappWeekly.prizePool ?? (webappWeekly.basePrizeBoost || 0);
     const topScoreValue = competitionIdMatches ? (rankedStatus?.weekly?.topScore || 0) : 0;
     const userScoreValue = competitionIdMatches ? (rankedStatus?.weekly?.userScore || 0) : 0;
     const userRankValue = competitionIdMatches ? (rankedStatus?.weekly?.userRank || 0) : 0;
