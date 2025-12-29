@@ -72,7 +72,13 @@ export function getMarketplaceUrl(path: string = ""): string {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let errorMessage = text;
+    try {
+      const json = JSON.parse(text);
+      errorMessage = json.error || json.message || text;
+    } catch {
+    }
+    throw new Error(errorMessage);
   }
 }
 
