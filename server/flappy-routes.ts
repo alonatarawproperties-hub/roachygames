@@ -120,6 +120,9 @@ export function registerFlappyRoutes(app: Express) {
   // Scores MUST be sent to webapp for leaderboard to work
   const USE_WEBAPP_COMPETITIONS_CONFIG = true;  // Get competition list from webapp
   const USE_WEBAPP_COMPETITIONS_OPERATIONS = true;  // Proxy scores to webapp (REQUIRED for leaderboard)
+  // DISABLED: Webapp entry has balance check bug - use local balance check instead
+  // Re-enable when webapp fixes their /api/flappy/competitions/enter balance validation
+  const USE_WEBAPP_ENTRY = false;  // Proxy entry to webapp (DISABLED - webapp balance bug)
   
   // Beta: Flappy ranked competitions are now enabled
   const FLAPPY_COMPETITIONS_LOCKED = false;
@@ -723,7 +726,8 @@ export function registerFlappyRoutes(app: Express) {
       const { entryFee: clientEntryFee, competitionId: clientCompetitionId } = req.body;
       
       // NEW: Proxy to webapp for competition entry (disabled - handle locally for reliable CHY deduction)
-      if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
+      // USE_WEBAPP_ENTRY is disabled because webapp has balance check bug - use local flow instead
+      if (USE_WEBAPP_ENTRY) {
         console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}, entryFee=${clientEntryFee}, competitionId=${clientCompetitionId}`);
         
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
