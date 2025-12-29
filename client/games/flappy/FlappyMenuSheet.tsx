@@ -1331,7 +1331,7 @@ function LeaderboardsTab({
                 prizePool={daily.prizePool}
                 endsIn={daily.endsIn}
                 hasJoined={daily.hasJoined}
-                canEnter={!!canEnterDaily && daily.status !== 'starting_soon'}
+                canEnter={!!canEnterDaily}
                 chyBalance={chyBalance}
                 userId={userId}
                 isEntering={isEntering}
@@ -1355,7 +1355,7 @@ function LeaderboardsTab({
                 prizePool={weekly.prizePool}
                 endsIn={weekly.endsIn}
                 hasJoined={weekly.hasJoined}
-                canEnter={!!canEnterWeekly && weekly.status !== 'starting_soon'}
+                canEnter={!!canEnterWeekly}
                 chyBalance={chyBalance}
                 userId={userId}
                 isEntering={isEntering}
