@@ -7,11 +7,9 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
-  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +23,7 @@ import Animated, {
   Easing,
   runOnJS,
 } from "react-native-reanimated";
-import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { ThemedText } from "@/components/ThemedText";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -122,7 +120,7 @@ interface FlappyMenuSheetProps {
 }
 
 const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.5;
-const EXPANDED_HEIGHT = SCREEN_HEIGHT * (Platform.OS === 'android' ? 0.92 : 0.85);
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
 const SNAP_THRESHOLD = 50;
 
 export function FlappyMenuSheet({
@@ -167,9 +165,7 @@ export function FlappyMenuSheet({
   }, [visible]);
 
   const panGesture = Gesture.Pan()
-    .activeOffsetY(Platform.OS === 'android' ? [-5, 5] : [-10, 10])
-    .failOffsetX([-20, 20])
-    .minDistance(Platform.OS === 'android' ? 5 : 10)
+    .activeOffsetY([-10, 10])
     .onStart(() => {
       startHeight.value = sheetHeight.value;
     })
@@ -267,23 +263,6 @@ export function FlappyMenuSheet({
     onEquipPowerUp(powerUpType);
   }, [onEquipPowerUp]);
 
-  const toggleExpand = useCallback(() => {
-    if (isExpanded) {
-      sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
-      setIsExpanded(false);
-    } else {
-      sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
-      setIsExpanded(true);
-    }
-  }, [isExpanded, sheetHeight]);
-
-  const tapGesture = Gesture.Tap()
-    .onEnd(() => {
-      runOnJS(toggleExpand)();
-    });
-
-  const combinedGesture = Gesture.Race(tapGesture, panGesture);
-
   if (!visible) return null;
 
   return (
@@ -293,25 +272,24 @@ export function FlappyMenuSheet({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <GestureHandlerRootView style={styles.gestureRoot}>
-        <View style={styles.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-          <Animated.View
-            entering={SlideInDown.springify().damping(15)}
-            style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
-          >
-            <GestureDetector gesture={combinedGesture}>
-              <Animated.View style={styles.header}>
-                <View style={styles.handle} />
-                <ThemedText style={styles.expandHint}>
-                  {isExpanded ? "Tap to collapse" : "Tap to expand"}
-                </ThemedText>
-              </Animated.View>
-            </GestureDetector>
-            
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <Feather name="x" size={24} color={GameColors.textSecondary} />
-            </Pressable>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Animated.View
+          entering={SlideInDown.springify().damping(15)}
+          style={[styles.sheet, animatedSheetStyle, { paddingBottom: insets.bottom + Spacing.lg }]}
+        >
+          <GestureDetector gesture={panGesture}>
+            <View style={styles.header}>
+              <View style={styles.handle} />
+              <ThemedText style={styles.expandHint}>
+                {isExpanded ? "Drag down to collapse" : "Drag up to expand"}
+              </ThemedText>
+            </View>
+          </GestureDetector>
+          
+          <Pressable style={styles.closeButton} onPress={onClose}>
+            <Feather name="x" size={24} color={GameColors.textSecondary} />
+          </Pressable>
 
           <View style={styles.tabs}>
             <TabButton
@@ -388,9 +366,8 @@ export function FlappyMenuSheet({
               />
             )}
           </View>
-          </Animated.View>
-        </View>
-      </GestureHandlerRootView>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
@@ -1047,10 +1024,10 @@ function LeaderboardsTab({
     if (!comp) return false;
     // Daily/weekly are always active (perpetual)
     if (comp.period === 'daily' || comp.period === 'weekly') {
-      return comp.status === 'active' || comp.status === 'scheduled' || comp.status === 'starting_soon';
+      return comp.status === 'active' || comp.status === 'scheduled';
     }
-    // For one-time/boss challenges, check status - include starting_soon
-    return comp.status === 'active' || comp.status === 'starting_soon';
+    // For one-time, check status
+    return comp.status === 'active';
   };
   
   // Daily/Weekly competitions come only from webapp (type: "ranked", period: "daily"/"weekly")
@@ -1840,9 +1817,6 @@ function PowerUpCard({
 }
 
 const styles = StyleSheet.create({
-  gestureRoot: {
-    flex: 1,
-  },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -1857,11 +1831,9 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    paddingTop: Platform.OS === 'android' ? Spacing.lg : Spacing.md,
-    paddingBottom: Platform.OS === 'android' ? Spacing.md : Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-    minHeight: Platform.OS === 'android' ? 60 : 44,
-    zIndex: 10,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
   },
   expandHint: {
     fontSize: 11,

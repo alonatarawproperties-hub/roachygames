@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Image } from "expo-image";
@@ -28,7 +28,7 @@ export default function PowerupShopScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    await Linking.openURL(getMarketplaceUrl() + "/shop");
+    await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/shop");
   };
 
   return (

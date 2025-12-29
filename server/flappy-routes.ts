@@ -120,9 +120,6 @@ export function registerFlappyRoutes(app: Express) {
   // Scores MUST be sent to webapp for leaderboard to work
   const USE_WEBAPP_COMPETITIONS_CONFIG = true;  // Get competition list from webapp
   const USE_WEBAPP_COMPETITIONS_OPERATIONS = true;  // Proxy scores to webapp (REQUIRED for leaderboard)
-  // DISABLED: Webapp entry has balance check bug - use local balance check instead
-  // Re-enable when webapp fixes their /api/flappy/competitions/enter balance validation
-  const USE_WEBAPP_ENTRY = false;  // Proxy entry to webapp (DISABLED - webapp balance bug)
   
   // Beta: Flappy ranked competitions are now enabled
   const FLAPPY_COMPETITIONS_LOCKED = false;
@@ -693,8 +690,7 @@ export function registerFlappyRoutes(app: Express) {
 
   app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
     try {
-      // RESTORED FROM fb58ffd - the last working version
-      const { userId, period = 'daily', webappUserId, entryFee: clientEntryFee, competitionId: clientCompetitionId } = req.body;
+      const { userId, period = 'daily', webappUserId, idempotencyKey: clientIdempotencyKey } = req.body;
       
       // Beta block - no flappy competitions during beta
       if (FLAPPY_COMPETITIONS_LOCKED) {
@@ -712,18 +708,113 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Invalid period" });
       }
       
-      // Use client-provided entry fee or fallback to defaults
-      const ENTRY_FEE = typeof clientEntryFee === 'number' && clientEntryFee >= 0 ? clientEntryFee : (period === 'daily' ? 1 : 3);
+      // SECURITY: Rate limiting
+      const rateLimitResult = await checkRateLimit(userId, "flappy/enter");
+      if (!rateLimitResult.allowed) {
+        console.log(`[Flappy] Rate limit exceeded for user ${userId}`);
+        return res.status(429).json({ 
+          success: false, 
+          error: `Too many requests. Please wait ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter
+        });
+      }
+      
+      // NEW: Proxy to webapp for competition entry (disabled - handle locally for reliable CHY deduction)
+      if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
+        console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}`);
+        
+        const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
+          userId,
+          period,
+          webappUserId,
+          idempotencyKey: clientIdempotencyKey,
+        });
+        
+        console.log(`[Flappy] Webapp entry response:`, JSON.stringify(webappResult));
+        
+        if (webappResult.status === 200 && webappResult.data) {
+          return res.json(webappResult.data);
+        }
+        
+        // Handle specific error cases
+        if (webappResult.status === 400) {
+          return res.status(400).json(webappResult.data);
+        }
+        
+        // Fallback error
+        return res.status(webappResult.status || 500).json({ 
+          success: false, 
+          error: webappResult.data?.error || "Failed to enter competition via webapp" 
+        });
+      }
+      
+      // Get entry fee from request body (sent by client from webapp competition config)
+      // Client gets entryFee from webapp's /api/competitions/active endpoint
+      const { entryFee: clientEntryFee, competitionId: clientCompetitionId } = req.body;
+      const ENTRY_FEE = typeof clientEntryFee === 'number' && clientEntryFee >= 0 ? clientEntryFee : (period === 'daily' ? 2 : 5);
+      console.log(`[Flappy] Entry fee from client: ${clientEntryFee}, using: ${ENTRY_FEE}`);
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
       
-      // Check for existing entry using periodDate (simpler, works)
+      // CRITICAL: Get current competition ID from webapp or client
+      let currentCompetitionId: string | null = clientCompetitionId || null;
+      if (!currentCompetitionId) {
+        try {
+          const activeComps = await webappRequest("GET", "/api/mobile/competitions/active");
+          if (activeComps.status === 200 && activeComps.data?.success) {
+            const competitions = activeComps.data.competitions || [];
+            const comp = competitions.find((c: any) => c.period === period && c.type === 'ranked');
+            currentCompetitionId = comp?.id || null;
+            console.log(`[Flappy Enter] Current ${period} competition ID from webapp: ${currentCompetitionId}`);
+          }
+        } catch (compError) {
+          console.log(`[Flappy Enter] Could not fetch active competitions:`, compError);
+        }
+      } else {
+        console.log(`[Flappy Enter] Using client-provided competition ID: ${currentCompetitionId}`);
+      }
+      
+      // Build where clause for existing entry checks - use competitionId if available
+      const entryWhereClause = currentCompetitionId
+        ? and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.competitionId, currentCompetitionId))
+        : and(eq(flappyRankedEntries.userId, userId), eq(flappyRankedEntries.period, period), eq(flappyRankedEntries.periodDate, periodDate));
+      
+      // SECURITY: Generate idempotency key for this entry (use competitionId for uniqueness)
+      const idempotencyKey = clientIdempotencyKey || generateIdempotencyKey(
+        userId, 
+        'entry_fee', 
+        `${period}:${currentCompetitionId || periodDate}`,
+        ENTRY_FEE
+      );
+      
+      // Check for duplicate transaction (replay attack prevention)
+      const existingTx = await db.query.chyTransactions.findFirst({
+        where: eq(chyTransactions.idempotencyKey, idempotencyKey),
+      });
+      
+      if (existingTx) {
+        console.log(`[Flappy] Duplicate entry attempt detected: ${idempotencyKey}`);
+        // Find the existing entry and return it (idempotent response)
+        const existingEntry = await db.select()
+          .from(flappyRankedEntries)
+          .where(entryWhereClause)
+          .limit(1);
+        
+        if (existingEntry.length > 0) {
+          return res.json({ 
+            success: true, 
+            alreadyJoined: true,
+            entryId: existingEntry[0].id,
+            period,
+            periodDate,
+            competitionId: currentCompetitionId,
+            isDuplicate: true,
+          });
+        }
+      }
+      
       const existingEntry = await db.select()
         .from(flappyRankedEntries)
-        .where(and(
-          eq(flappyRankedEntries.userId, userId),
-          eq(flappyRankedEntries.period, period),
-          eq(flappyRankedEntries.periodDate, periodDate)
-        ))
+        .where(entryWhereClause)
         .limit(1);
       
       if (existingEntry.length > 0) {
@@ -733,6 +824,16 @@ export function registerFlappyRoutes(app: Express) {
           entryId: existingEntry[0].id,
           period,
           periodDate,
+          competitionId: currentCompetitionId,
+        });
+      }
+      
+      // CRITICAL: If no competitionId, entry cannot proceed
+      if (!currentCompetitionId) {
+        console.error(`[Flappy Enter] No active competition found for period ${period}`);
+        return res.status(400).json({ 
+          success: false, 
+          error: "No active competition found. Please refresh and try again." 
         });
       }
       
@@ -864,22 +965,58 @@ export function registerFlappyRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Could not verify webapp account" });
       }
       
+      // ATOMIC TRANSACTION: Deduct entry fee AND create entry in single transaction
+      const securityCtx = extractSecurityContext(req, userId);
+      securityCtx.webappUserId = effectiveWebappUserId;
+      
       // Deduct entry fee via webapp using webappUserId directly
       const deductResult = await webappRequest("POST", "/api/web/economy/deduct", {
         userId: effectiveWebappUserId,
         amount: ENTRY_FEE,
         reason: `Flappy ${period} competition entry`,
+        idempotencyKey, // Pass idempotency key to webapp
       });
       
       if (deductResult.status !== 200 || !deductResult.data?.success) {
         console.error(`[Flappy] Failed to deduct CHY:`, deductResult);
+        await logSecureEvent(
+          "entry_fee_deduct_failed",
+          "warning",
+          `User ${userId} failed to deduct entry fee: ${JSON.stringify(deductResult.data)}`,
+          securityCtx
+        );
         return res.status(400).json({ success: false, error: "Failed to deduct CHY entry fee" });
       }
       
-      // Create entry in database (RESTORED FROM fb58ffd - simple working version)
+      // Record transaction in local ledger (for audit trail)
+      try {
+        await db.insert(chyTransactions).values({
+          userId,
+          webappUserId: effectiveWebappUserId,
+          txType: 'entry_fee',
+          amount: -ENTRY_FEE, // Negative for debit
+          balanceBefore: chyBalance,
+          balanceAfter: chyBalance - ENTRY_FEE,
+          referenceId: `${period}:${periodDate}`,
+          referenceType: `flappy_${period}`,
+          idempotencyKey,
+          clientIp: securityCtx.clientIp,
+          userAgent: securityCtx.userAgent,
+          deviceFingerprint: securityCtx.deviceFingerprint,
+        });
+        console.log(`[Flappy] Entry fee recorded in ledger: ${idempotencyKey}`);
+      } catch (ledgerError: any) {
+        // If ledger insert fails due to duplicate key, that's expected for replays
+        if (ledgerError.code === '23505') {
+          console.log(`[Flappy] Duplicate ledger entry (expected for idempotent replay)`);
+        } else {
+          console.error(`[Flappy] Ledger insert error:`, ledgerError);
+        }
+      }
+      
       const [newEntry] = await db.insert(flappyRankedEntries).values({
         userId,
-        competitionId: clientCompetitionId || null, // Use client-provided if available
+        competitionId: currentCompetitionId, // CRITICAL: Link entry to current competition
         period,
         periodDate,
         entryFee: ENTRY_FEE,

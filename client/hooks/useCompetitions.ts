@@ -8,7 +8,7 @@ export type CompetitionPeriod = "daily" | "weekly" | "one-time";
 export interface Competition {
   id: string;
   name: string;
-  status: "scheduled" | "starting_soon" | "active" | "finalizing" | "closed";
+  status: "scheduled" | "active" | "finalizing" | "closed";
   entryFee: number;
   prizePool: number;
   startsAt: string;
@@ -96,15 +96,8 @@ export function filterRankedCompetitions(competitions: Competition[]): Competiti
 }
 
 export function filterBossCompetitions(competitions: Competition[]): Competition[] {
-  // Boss challenges include:
-  // 1. type: "boss", "custom", or undefined (default boss behavior)
-  // 2. ANY competition with period: "one-time" (special events regardless of type)
-  return competitions.filter((c) => 
-    c.type === "boss" || 
-    c.type === "custom" || 
-    !c.type || 
-    c.period === "one-time"
-  );
+  // Boss challenges include type: "boss", "custom", or undefined (default to boss)
+  return competitions.filter((c) => c.type === "boss" || c.type === "custom" || !c.type);
 }
 
 export function getRankedByPeriod(
