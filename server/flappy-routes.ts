@@ -719,14 +719,19 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
+      // Get entry fee and competition ID from request body (sent by client from webapp competition config)
+      const { entryFee: clientEntryFee, competitionId: clientCompetitionId } = req.body;
+      
       // NEW: Proxy to webapp for competition entry (disabled - handle locally for reliable CHY deduction)
       if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
-        console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}`);
+        console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}, entryFee=${clientEntryFee}, competitionId=${clientCompetitionId}`);
         
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
           userId,
           period,
           webappUserId,
+          entryFee: clientEntryFee,
+          competitionId: clientCompetitionId,
           idempotencyKey: clientIdempotencyKey,
         });
         
@@ -748,9 +753,7 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
-      // Get entry fee from request body (sent by client from webapp competition config)
-      // Client gets entryFee from webapp's /api/competitions/active endpoint
-      const { entryFee: clientEntryFee, competitionId: clientCompetitionId } = req.body;
+      // Entry fee already extracted above
       const ENTRY_FEE = typeof clientEntryFee === 'number' && clientEntryFee >= 0 ? clientEntryFee : (period === 'daily' ? 2 : 5);
       console.log(`[Flappy] Entry fee from client: ${clientEntryFee}, using: ${ENTRY_FEE}`);
       const periodDate = period === 'daily' ? getTodayDate() : getWeekNumber();
