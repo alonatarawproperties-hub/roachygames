@@ -552,7 +552,16 @@ function CompetitionCard({
           <View style={styles.countdownBadge}>
             <Feather name="clock" size={12} color={GameColors.textSecondary} />
             <ThemedText style={styles.countdownText}>
-              {isPerpetual ? formatCountdown(endsIn, true) : (period === 'one-time' ? `Ends in ${formatCountdown(endsIn, false).replace('Resets ', '')}` : formatCountdown(endsIn, isPerpetual))}
+              {(() => {
+                const countdown = formatCountdown(endsIn, isPerpetual);
+                if (countdown === 'Ended' || countdown === 'Resets soon') {
+                  return countdown;
+                }
+                if (period === 'one-time') {
+                  return `Ends ${countdown.replace('Resets ', 'in ')}`;
+                }
+                return countdown;
+              })()}
             </ThemedText>
           </View>
         )}
