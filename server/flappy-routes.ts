@@ -786,29 +786,39 @@ export function registerFlappyRoutes(app: Express) {
           return res.status(400).json({ success: false, error: "Google login required to enter competitions" });
         }
         
-        // CRITICAL: Get fresh webappUserId via OAuth exchange - this ensures we use the correct webapp user
+        // Try to get fresh webappUserId via OAuth exchange for verification
         const freshWebappUserId = await getFreshWebappUserId({
           googleId: userRecord.googleId,
           email: userRecord.email,
           displayName: userRecord.displayName,
         });
         
-        if (!freshWebappUserId) {
-          console.log(`[Flappy Enter] Failed to get webappUserId for user ${userId} (${userRecord.email})`);
-          return res.status(400).json({ success: false, error: "Could not verify webapp account" });
-        }
+        // Determine which webappUserId to use
+        let effectiveWebappUserId: string | null = null;
         
-        // Log if client-provided webappUserId differs from fresh one (helps debug stale ID issues)
-        if (webappUserId && webappUserId !== freshWebappUserId) {
-          console.warn(`[Flappy Enter] STALE webappUserId detected! Client sent: ${webappUserId}, Fresh: ${freshWebappUserId} for ${userRecord.email}`);
+        if (freshWebappUserId) {
+          // OAuth exchange succeeded - use the verified ID
+          effectiveWebappUserId = freshWebappUserId;
+          
+          // Log if client-provided webappUserId differs from fresh one (helps debug stale ID issues)
+          if (webappUserId && webappUserId !== freshWebappUserId) {
+            console.warn(`[Flappy Enter] STALE webappUserId detected! Client sent: ${webappUserId}, Fresh: ${freshWebappUserId} for ${userRecord.email}`);
+          }
+          console.log(`[Flappy Enter] Using verified webappUserId=${effectiveWebappUserId} for ${userRecord.email}`);
+        } else if (webappUserId) {
+          // OAuth exchange failed but client provided a webappUserId - use it with a warning
+          console.warn(`[Flappy Enter] OAuth exchange failed for ${userRecord.email}, falling back to client-provided webappUserId=${webappUserId}`);
+          effectiveWebappUserId = webappUserId;
+        } else {
+          // No way to get webappUserId - fail
+          console.log(`[Flappy Enter] No webappUserId available for user ${userId} (${userRecord.email})`);
+          return res.status(400).json({ success: false, error: "Could not determine webapp account. Please try logging out and back in." });
         }
-        
-        console.log(`[Flappy Enter] Using verified webappUserId=${freshWebappUserId} for ${userRecord.email}`);
         
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
           userId,
           period,
-          webappUserId: freshWebappUserId,  // Use verified ID, not client-provided
+          webappUserId: effectiveWebappUserId,  // Use verified ID, or fallback to client-provided
           idempotencyKey: clientIdempotencyKey,
         });
         
