@@ -12,12 +12,12 @@ interface CompetitionsCardProps {
 }
 
 function formatTimeRemaining(endsAt: string): string {
-  // Ensure UTC parsing - webapp sends UTC timestamps that may lack 'Z' suffix
-  const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
-    ? endsAt 
-    : endsAt + 'Z';
+  // Handle both formats: "2025-12-30 14:00:00" or "2025-12-30T14:00:00Z"
+  const dateStr = endsAt.includes('Z') || endsAt.includes('+')
+    ? endsAt
+    : endsAt.replace(' ', 'T') + 'Z';
   const now = new Date();
-  const end = new Date(utcEndsAt);
+  const end = new Date(dateStr);
   const diff = end.getTime() - now.getTime();
   
   if (diff <= 0) return "Ended";
@@ -33,22 +33,22 @@ function formatTimeRemaining(endsAt: string): string {
 }
 
 function formatAsGMT8(utcDateString: string): string {
-  // Ensure UTC parsing
-  const utcEndsAt = utcDateString.endsWith('Z') || utcDateString.includes('+') || utcDateString.includes('-', 10) 
-    ? utcDateString 
-    : utcDateString + 'Z';
-  const utcDate = new Date(utcEndsAt);
+  // Handle both formats: "2025-12-30 14:00:00" or "2025-12-30T14:00:00Z"
+  const dateStr = utcDateString.includes('Z') || utcDateString.includes('+')
+    ? utcDateString
+    : utcDateString.replace(' ', 'T') + 'Z';
+  const utcDate = new Date(dateStr);
   // Convert to GMT+8 for display only
   const gmt8Date = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
   return gmt8Date.toISOString().replace('T', ' ').slice(0, 16) + ' GMT+8';
 }
 
 function formatEndTimeGMT8(endsAt: string): string {
-  // Ensure UTC parsing
-  const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
-    ? endsAt 
-    : endsAt + 'Z';
-  const utcDate = new Date(utcEndsAt);
+  // Handle both formats: "2025-12-30 14:00:00" or "2025-12-30T14:00:00Z"
+  const dateStr = endsAt.includes('Z') || endsAt.includes('+')
+    ? endsAt
+    : endsAt.replace(' ', 'T') + 'Z';
+  const utcDate = new Date(dateStr);
   // Convert to GMT+8 for display only
   const gmt8Time = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
   const hours = gmt8Time.getUTCHours();
