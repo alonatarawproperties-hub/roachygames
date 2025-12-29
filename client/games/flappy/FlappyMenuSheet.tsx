@@ -738,7 +738,11 @@ interface CompetitionLeaderboardResponse {
 }
 
 function formatTimeRemaining(endsAt: string): string {
-  const endDate = new Date(endsAt);
+  // Ensure UTC parsing - webapp sends UTC timestamps that may lack 'Z' suffix
+  const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
+    ? endsAt 
+    : endsAt + 'Z';
+  const endDate = new Date(utcEndsAt);
   const now = new Date();
   const diffMs = endDate.getTime() - now.getTime();
   
@@ -1015,7 +1019,12 @@ function LeaderboardsTab({
   const getEndsIn = (comp: Competition | undefined) => {
     if (!comp || !comp.endsAt) return 0;
     // Use webapp's endsAt directly - it has the correct reset time configured
-    const msRemaining = new Date(comp.endsAt).getTime() - Date.now();
+    // Ensure UTC parsing - webapp sends UTC timestamps that may lack 'Z' suffix
+    const endsAt = comp.endsAt;
+    const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
+      ? endsAt 
+      : endsAt + 'Z';
+    const msRemaining = new Date(utcEndsAt).getTime() - Date.now();
     return Math.max(0, msRemaining); // Return milliseconds, NOT seconds
   };
   

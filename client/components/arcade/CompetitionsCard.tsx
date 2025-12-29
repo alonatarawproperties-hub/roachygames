@@ -12,8 +12,12 @@ interface CompetitionsCardProps {
 }
 
 function formatTimeRemaining(endsAt: string): string {
+  // Ensure UTC parsing - webapp sends UTC timestamps that may lack 'Z' suffix
+  const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
+    ? endsAt 
+    : endsAt + 'Z';
   const now = new Date();
-  const end = new Date(endsAt);
+  const end = new Date(utcEndsAt);
   const diff = end.getTime() - now.getTime();
   
   if (diff <= 0) return "Ended";

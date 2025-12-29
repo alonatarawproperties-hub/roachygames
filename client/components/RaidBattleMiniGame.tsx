@@ -76,7 +76,12 @@ export function RaidBattleMiniGame({
 
   useEffect(() => {
     const updateTimer = () => {
-      const endTime = new Date(raid.expiresAt).getTime();
+      // Ensure UTC parsing - webapp sends UTC timestamps that may lack 'Z' suffix
+      const expiresAt = raid.expiresAt;
+      const utcExpiresAt = expiresAt.endsWith('Z') || expiresAt.includes('+') || expiresAt.includes('-', 10) 
+        ? expiresAt 
+        : expiresAt + 'Z';
+      const endTime = new Date(utcExpiresAt).getTime();
       const now = Date.now();
       const remaining = endTime - now;
 
