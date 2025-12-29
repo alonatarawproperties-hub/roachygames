@@ -421,6 +421,29 @@ function formatCountdown(ms: number, isPerpetual: boolean = false): string {
 // Flappy ranked competitions are now enabled
 const FLAPPY_COMPETITIONS_LOCKED = false;
 
+function formatStartsIn(startsAt: string): string {
+  const dateStr = startsAt.includes('Z') || startsAt.includes('+')
+    ? startsAt
+    : startsAt.replace(' ', 'T') + 'Z';
+  const now = new Date();
+  const start = new Date(dateStr);
+  const diff = start.getTime() - now.getTime();
+  
+  if (diff <= 0) return "Starting...";
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `Starts in ${days}d ${hours % 24}h`;
+  }
+  if (hours > 0) {
+    return `Starts in ${hours}h ${minutes}m`;
+  }
+  return `Starts in ${minutes}m`;
+}
+
 function CompetitionCard({
   title,
   icon,
@@ -435,6 +458,9 @@ function CompetitionCard({
   isEntering,
   isSelected,
   isPerpetual,
+  startsAt,
+  status,
+  period,
   onEnter,
   onPlay,
   onSelect,
@@ -452,6 +478,9 @@ function CompetitionCard({
   isEntering: boolean;
   isSelected: boolean;
   isPerpetual?: boolean;
+  startsAt?: string;
+  status?: string;
+  period?: string;
   onEnter: () => void;
   onPlay: () => void;
   onSelect: () => void;
@@ -514,10 +543,19 @@ function CompetitionCard({
             <Feather name="chevron-down" size={16} color={GameColors.gold} style={{ marginLeft: 4 }} />
           ) : null}
         </View>
-        <View style={styles.countdownBadge}>
-          <Feather name="clock" size={12} color={GameColors.textSecondary} />
-          <ThemedText style={styles.countdownText}>{formatCountdown(endsIn, isPerpetual)}</ThemedText>
-        </View>
+        {status === 'starting_soon' && startsAt ? (
+          <View style={styles.startingSoonBadge}>
+            <Feather name="clock" size={12} color={GameColors.gold} />
+            <ThemedText style={styles.startingSoonText}>{formatStartsIn(startsAt)}</ThemedText>
+          </View>
+        ) : (
+          <View style={styles.countdownBadge}>
+            <Feather name="clock" size={12} color={GameColors.textSecondary} />
+            <ThemedText style={styles.countdownText}>
+              {isPerpetual ? formatCountdown(endsIn, true) : (period === 'one-time' ? `Ends in ${formatCountdown(endsIn, false).replace('Resets ', '')}` : formatCountdown(endsIn, isPerpetual))}
+            </ThemedText>
+          </View>
+        )}
       </View>
       
       <View style={styles.competitionStats}>
@@ -1120,6 +1158,9 @@ function LeaderboardsTab({
       competitionId: webappDaily.id,
       isActive: isCompetitionActive(webappDaily),
       isPerpetual: true,
+      startsAt: webappDaily.startsAt,
+      status: webappDaily.status,
+      period: webappDaily.period,
     };
   }, [webappDaily, rankedStatus, rankedStatusLoading]);
   
@@ -1165,6 +1206,9 @@ function LeaderboardsTab({
       competitionId: webappWeekly.id,
       isActive: isCompetitionActive(webappWeekly),
       isPerpetual: true,
+      startsAt: webappWeekly.startsAt,
+      status: webappWeekly.status,
+      period: webappWeekly.period,
     };
   }, [webappWeekly, rankedStatus, rankedStatusLoading]);
   
@@ -1278,12 +1322,15 @@ function LeaderboardsTab({
                 prizePool={daily.prizePool}
                 endsIn={daily.endsIn}
                 hasJoined={daily.hasJoined}
-                canEnter={!!canEnterDaily}
+                canEnter={!!canEnterDaily && daily.status !== 'starting_soon'}
                 chyBalance={chyBalance}
                 userId={userId}
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'daily'}
                 isPerpetual={daily.isPerpetual}
+                startsAt={daily.startsAt}
+                status={daily.status}
+                period={daily.period}
                 onEnter={() => onJoinRanked('daily', daily.entryFee, daily.competitionId)}
                 onPlay={() => onStartRankedPlay('daily', daily.name)}
                 onSelect={() => setSelectedCompetition('daily')}
@@ -1299,12 +1346,15 @@ function LeaderboardsTab({
                 prizePool={weekly.prizePool}
                 endsIn={weekly.endsIn}
                 hasJoined={weekly.hasJoined}
-                canEnter={!!canEnterWeekly}
+                canEnter={!!canEnterWeekly && weekly.status !== 'starting_soon'}
                 chyBalance={chyBalance}
                 userId={userId}
                 isEntering={isEntering}
                 isSelected={selectedCompetition === 'weekly'}
                 isPerpetual={weekly.isPerpetual}
+                startsAt={weekly.startsAt}
+                status={weekly.status}
+                period={weekly.period}
                 onEnter={() => onJoinRanked('weekly', weekly.entryFee, weekly.competitionId)}
                 onPlay={() => onStartRankedPlay('weekly', weekly.name)}
                 onSelect={() => setSelectedCompetition('weekly')}
@@ -2210,6 +2260,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
+  },
+  startingSoonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(201, 148, 31, 0.2)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(201, 148, 31, 0.4)",
+  },
+  startingSoonText: {
+    fontSize: 12,
+    color: GameColors.gold,
+    fontWeight: "600",
   },
   countdownText: {
     fontSize: 12,
