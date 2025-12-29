@@ -69,6 +69,12 @@ The mobile app integrates with `roachy.games` (webapp) for token trading (redire
 - **Shared Identity:** Wallet address serves as the universal user ID.
 - **Integration Points:** Marketplace button, Deep Linking (`roachy-games://` scheme, `https://roachy.games/app/*` links), Universal Links (iOS), Intent Filters (Android).
 
+### Competition Entry Flow (Webapp Integration)
+- **Entry Endpoint:** `POST /api/flappy/competitions/enter` (handles everything: CHY deduction, registration, prize pool update)
+- **CRITICAL FIX (Dec 2024):** The mobile backend now ALWAYS re-verifies `webappUserId` via fresh OAuth exchange before joining competitions. This prevents stale/ghost user ID issues where the mobile app might have cached an incorrect webapp user ID.
+- **Flow:** Client calls `/api/flappy/ranked/enter` → Backend looks up user's googleId/email → Backend does OAuth exchange with webapp → Uses FRESH webappUserId for competition entry
+- **Logging:** Backend logs when client-provided webappUserId differs from fresh one to help debug stale ID issues
+
 ### Force Update System
 - **Purpose:** Block outdated native builds from accessing the app until users update via TestFlight/Play Store.
 - **Trigger:** Webapp controls platform locks remotely via `/api/mobile/config` endpoint using simple toggle buttons.

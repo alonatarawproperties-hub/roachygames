@@ -35,6 +35,39 @@ import {
   PRIZE_DISTRIBUTION,
 } from "./secure-economy";
 
+// Helper to get fresh webappUserId via OAuth exchange - CRITICAL for correct competition entry
+async function getFreshWebappUserId(user: { googleId: string | null; email: string | null; displayName: string | null }): Promise<string | null> {
+  try {
+    if (!user.googleId || !user.email) {
+      console.log(`[Flappy] User has no googleId/email, cannot get webappUserId`);
+      return null;
+    }
+    
+    const exchangeResult = await webappRequest("POST", "/api/web/oauth/exchange", {
+      googleId: user.googleId,
+      email: user.email,
+      displayName: user.displayName || user.email.split("@")[0],
+    });
+    
+    if (exchangeResult.status !== 200 || !exchangeResult.data?.success) {
+      console.log(`[Flappy] OAuth exchange failed:`, exchangeResult);
+      return null;
+    }
+    
+    const webappUserId = exchangeResult.data.user?.id;
+    if (!webappUserId) {
+      console.log(`[Flappy] No webappUserId returned from exchange`);
+      return null;
+    }
+    
+    console.log(`[Flappy] Fresh webappUserId from OAuth exchange: ${webappUserId} for ${user.email}`);
+    return webappUserId;
+  } catch (error) {
+    console.error(`[Flappy] Error getting fresh webappUserId:`, error);
+    return null;
+  }
+}
+
 // Helper to fetch CHY balance from webapp using googleId/email
 async function getWebappChyBalanceForUser(user: { googleId: string | null; email: string | null; displayName: string | null }): Promise<number> {
   try {
@@ -688,9 +721,23 @@ export function registerFlappyRoutes(app: Express) {
     }
   });
 
-  app.post("/api/flappy/ranked/enter", async (req: Request, res: Response) => {
+  app.post("/api/flappy/ranked/enter", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { userId, period = 'daily', webappUserId, idempotencyKey: clientIdempotencyKey } = req.body;
+      // SECURITY: Use authenticated userId from JWT, not from request body (prevents impersonation)
+      const authenticatedUserId = (req as any).userId;
+      const { userId: bodyUserId, period = 'daily', webappUserId, idempotencyKey: clientIdempotencyKey } = req.body;
+      
+      // Guard: Ensure authenticated userId is present (requireAuth should guarantee this)
+      if (!authenticatedUserId) {
+        console.error(`[Flappy Enter] SECURITY: No authenticated userId from JWT`);
+        return res.status(401).json({ success: false, error: "Authentication required" });
+      }
+      
+      // Use authenticated user ID - bodyUserId is only for logging/debugging
+      const userId = authenticatedUserId;
+      if (bodyUserId && bodyUserId !== authenticatedUserId) {
+        console.warn(`[Flappy Enter] SECURITY: Body userId (${bodyUserId}) differs from authenticated userId (${authenticatedUserId})`);
+      }
       
       // Beta block - no flappy competitions during beta
       if (FLAPPY_COMPETITIONS_LOCKED) {
@@ -719,18 +766,53 @@ export function registerFlappyRoutes(app: Express) {
         });
       }
       
-      // NEW: Proxy to webapp for competition entry (disabled - handle locally for reliable CHY deduction)
+      // NEW: Proxy to webapp for competition entry
+      // CRITICAL FIX: Always get fresh webappUserId from OAuth exchange, don't trust client-provided value
       if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
-        console.log(`[Flappy] Proxying entry to webapp: userId=${userId}, period=${period}, webappUserId=${webappUserId}`);
+        console.log(`[Flappy Enter] Client provided webappUserId=${webappUserId}, will verify via OAuth exchange`);
+        
+        // Look up user from database to get googleId/email for fresh OAuth exchange
+        const userRecord = await db.query.users.findFirst({
+          where: eq(users.id, userId),
+        });
+        
+        if (!userRecord) {
+          console.log(`[Flappy Enter] User ${userId} not found in database`);
+          return res.status(400).json({ success: false, error: "User not found" });
+        }
+        
+        if (!userRecord.googleId || !userRecord.email) {
+          console.log(`[Flappy Enter] User ${userId} has no Google credentials, cannot enter competition`);
+          return res.status(400).json({ success: false, error: "Google login required to enter competitions" });
+        }
+        
+        // CRITICAL: Get fresh webappUserId via OAuth exchange - this ensures we use the correct webapp user
+        const freshWebappUserId = await getFreshWebappUserId({
+          googleId: userRecord.googleId,
+          email: userRecord.email,
+          displayName: userRecord.displayName,
+        });
+        
+        if (!freshWebappUserId) {
+          console.log(`[Flappy Enter] Failed to get webappUserId for user ${userId} (${userRecord.email})`);
+          return res.status(400).json({ success: false, error: "Could not verify webapp account" });
+        }
+        
+        // Log if client-provided webappUserId differs from fresh one (helps debug stale ID issues)
+        if (webappUserId && webappUserId !== freshWebappUserId) {
+          console.warn(`[Flappy Enter] STALE webappUserId detected! Client sent: ${webappUserId}, Fresh: ${freshWebappUserId} for ${userRecord.email}`);
+        }
+        
+        console.log(`[Flappy Enter] Using verified webappUserId=${freshWebappUserId} for ${userRecord.email}`);
         
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
           userId,
           period,
-          webappUserId,
+          webappUserId: freshWebappUserId,  // Use verified ID, not client-provided
           idempotencyKey: clientIdempotencyKey,
         });
         
-        console.log(`[Flappy] Webapp entry response:`, JSON.stringify(webappResult));
+        console.log(`[Flappy Enter] Webapp response:`, JSON.stringify(webappResult));
         
         if (webappResult.status === 200 && webappResult.data) {
           return res.json(webappResult.data);
