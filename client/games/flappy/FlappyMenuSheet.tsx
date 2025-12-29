@@ -760,6 +760,22 @@ function formatTimeRemaining(endsAt: string): string {
   return `${hours}h ${minutes}m`;
 }
 
+function formatEndTimeGMT8(endsAt: string): string {
+  // Ensure UTC parsing
+  const utcEndsAt = endsAt.endsWith('Z') || endsAt.includes('+') || endsAt.includes('-', 10) 
+    ? endsAt 
+    : endsAt + 'Z';
+  const utcDate = new Date(utcEndsAt);
+  // Convert to GMT+8
+  const gmt8Time = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
+  const hours = gmt8Time.getUTCHours();
+  const minutes = gmt8Time.getUTCMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  const displayMinutes = minutes.toString().padStart(2, '0');
+  return `${displayHours}:${displayMinutes} ${ampm} GMT+8`;
+}
+
 function BossChallengeCard({ 
   competition, 
   hasJoined,
