@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -120,7 +121,7 @@ interface FlappyMenuSheetProps {
 }
 
 const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.5;
-const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * (Platform.OS === 'android' ? 0.92 : 0.85);
 const SNAP_THRESHOLD = 50;
 
 export function FlappyMenuSheet({
