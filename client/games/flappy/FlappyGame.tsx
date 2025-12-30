@@ -853,7 +853,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   const birdY = useSharedValue(PLAYABLE_HEIGHT / 2);
   const birdVelocitySV = useSharedValue(0); // Shared value for UI thread access
-  const birdJustJumped = useSharedValue(false); // Skip gravity for 1 frame after jump
   const birdVelocity = useRef(0); // Keep ref for JS thread compatibility
   const birdRotation = useSharedValue(0);
   const groundOffset = useSharedValue(0);
@@ -890,7 +889,6 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const scoreRef = useRef(0);
   const gameStateRef = useRef<GameState>("idle");
   const runIdRef = useRef<string>("");
-  const justJumpedRef = useRef(false); // iOS: Skip gravity for 1 frame after jump
   
   const playableHeightRef = useRef(PLAYABLE_HEIGHT);
   playableHeightRef.current = PLAYABLE_HEIGHT;
@@ -1474,21 +1472,21 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       androidFrameSkipRef.current = 0;
     }
     
-    // FIXED TIMESTEP: Always use 1.0 multiplier for consistent physics
-    // This prevents screen recording from affecting jump height or gravity
-    // Trade-off: Game runs slightly faster on 120Hz displays, but physics are CONSISTENT
+    // Calculate delta time from last PROCESSED frame (not skipped frame)
+    if (lastFrameTimeRef.current === 0) {
+      lastFrameTimeRef.current = timestamp;
+    }
+    const deltaTime = timestamp - lastFrameTimeRef.current;
     lastFrameTimeRef.current = timestamp;
-    const deltaMultiplier = 1.0;
+    
+    // Allow higher delta multiplier on Android to prevent stacking when frames drop
+    // Cap at 5 to prevent teleporting on extreme lag spikes
+    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, Platform.OS === "android" ? 5 : 3);
     
     // On Android, bird physics are handled by UI thread (useFrameCallback)
     // On iOS/web, handle bird physics here on JS thread
     if (!isAndroid) {
-      // Skip gravity for 1 frame after jump to ensure full impulse
-      if (justJumpedRef.current) {
-        justJumpedRef.current = false;
-      } else {
-        birdVelocity.current += GRAVITY * deltaMultiplier;
-      }
+      birdVelocity.current += GRAVITY * deltaMultiplier;
       if (birdVelocity.current > MAX_FALL_SPEED) {
         birdVelocity.current = MAX_FALL_SPEED;
       }
@@ -1773,18 +1771,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     'worklet';
     if (!frameCallbackActive.value) return;
     
-    // FIXED TIMESTEP: Always use 1.0 multiplier for consistent physics
-    // This prevents screen recording from affecting jump height or gravity
-    // Trade-off: Game runs slightly faster on 120Hz displays, but physics are CONSISTENT
-    const deltaMultiplier = 1.0;
+    const deltaTime = frameInfo.timeSincePreviousFrame ?? 16.67;
+    const deltaMultiplier = Math.min(deltaTime / 16.67, 5);
     
     // Update bird physics on UI thread using shared values
-    // Skip gravity for 1 frame after jump to ensure full impulse
-    if (birdJustJumped.value) {
-      birdJustJumped.value = false;
-    } else {
-      birdVelocitySV.value += GRAVITY * deltaMultiplier;
-    }
+    birdVelocitySV.value += GRAVITY * deltaMultiplier;
     if (birdVelocitySV.value > MAX_FALL_SPEED) {
       birdVelocitySV.value = MAX_FALL_SPEED;
     }
@@ -2077,10 +2068,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       if (isAndroid) {
         // Android: Direct write for instant response - frame callback handles rotation
         birdVelocitySV.value = jumpStrength;
-        birdJustJumped.value = true; // Skip gravity for 1 frame to ensure full jump height
         birdRotation.value = -20; // Instant, no withTiming (frame callback updates smoothly)
       } else {
-        justJumpedRef.current = true; // iOS: Skip gravity for 1 frame to ensure full jump height
         birdRotation.value = withTiming(-20, { duration: 100 });
       }
       playSound("jump");
@@ -2089,17 +2078,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       if (isAndroid) {
         // Android: Direct write for instant response - frame callback handles rotation
         birdVelocitySV.value = jumpStrength;
-        birdJustJumped.value = true; // Skip gravity for 1 frame to ensure full jump height
         birdRotation.value = -20; // Instant, no withTiming
       } else {
-        justJumpedRef.current = true; // iOS: Skip gravity for 1 frame to ensure full jump height
         birdRotation.value = withTiming(-20, { duration: 100 });
       }
       playSound("jump");
     } else if (gameState === "gameover") {
       resetToIdle();
     }
-  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, birdVelocitySV, birdJustJumped]);
+  }, [gameState, startGame, playSound, birdRotation, showMenu, resetToIdle, isAndroid, birdVelocitySV]);
   
   useEffect(() => {
     return () => {
