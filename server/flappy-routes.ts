@@ -818,9 +818,10 @@ export function registerFlappyRoutes(app: Express) {
         console.log(`[Flappy Enter] Using verified webappUserId=${effectiveWebappUserId} for ${userRecord.email}`);
         
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
-          userId: effectiveWebappUserId,  // Send webapp's user ID as userId (webapp expects this)
+          userId: effectiveWebappUserId,  // Webapp's user ID (primary identifier)
+          webappUserId: effectiveWebappUserId,  // Also send as webappUserId for compatibility
           period,
-          mobileUserId: userId,  // Include mobile userId for reference/logging
+          mobileUserId: userId,  // Mobile's internal ID for reference
           idempotencyKey: clientIdempotencyKey,
         });
         
