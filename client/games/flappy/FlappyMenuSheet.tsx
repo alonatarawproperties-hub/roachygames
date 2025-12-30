@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -153,14 +154,22 @@ export function FlappyMenuSheet({
     return email ? GOD_ACCOUNTS.includes(email) : false;
   }, [user?.email]);
   
-  const sheetHeight = useSharedValue(COLLAPSED_HEIGHT);
-  const startHeight = useSharedValue(COLLAPSED_HEIGHT);
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Android: default to expanded state for Play Store compliance
+  const defaultExpanded = Platform.OS === 'android';
+  const sheetHeight = useSharedValue(defaultExpanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+  const startHeight = useSharedValue(defaultExpanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   useEffect(() => {
     if (visible) {
-      sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
-      setIsExpanded(false);
+      // Android: open expanded by default, iOS: open collapsed
+      if (Platform.OS === 'android') {
+        sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+        setIsExpanded(true);
+      } else {
+        sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
+        setIsExpanded(false);
+      }
     }
   }, [visible]);
 
