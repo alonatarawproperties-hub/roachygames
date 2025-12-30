@@ -491,6 +491,7 @@ export function registerFlappyRoutes(app: Express) {
           // CRITICAL FIX: Use OAuth-verified webappUserId, not client-provided
           // This ensures scores go to the same account as entry
           let effectiveWebappUserId: string | null = null;
+          let userEmail: string | null = null;
           
           // Look up user's googleId and email for OAuth exchange
           const userRecord = await db.query.users.findFirst({
@@ -499,6 +500,7 @@ export function registerFlappyRoutes(app: Express) {
           });
           
           if (userRecord?.googleId && userRecord?.email) {
+            userEmail = userRecord.email;
             // Get FRESH webappUserId via OAuth exchange (same as entry endpoint)
             const freshWebappUserId = await getFreshWebappUserId({
               googleId: userRecord.googleId,
@@ -515,12 +517,13 @@ export function registerFlappyRoutes(app: Express) {
             }
           }
           
-          if (effectiveWebappUserId) {
+          if (effectiveWebappUserId && userEmail) {
             console.log(`[Flappy Score] Proxying ranked score to webapp: userId=${userId}, webappUserId=${effectiveWebappUserId}, score=${score}, period=${verifiedRankedPeriod}`);
             
             const webappScoreResult = await webappRequest("POST", "/api/flappy/competitions/submit-score", {
               userId,
               webappUserId: effectiveWebappUserId,
+              email: userEmail,  // Email for reliable user lookup (preferred by webapp)
               period: verifiedRankedPeriod,
               score,
             });
@@ -848,6 +851,7 @@ export function registerFlappyRoutes(app: Express) {
         const webappResult = await webappRequest("POST", "/api/flappy/competitions/enter", {
           userId: effectiveWebappUserId,  // Webapp's user ID (primary identifier)
           webappUserId: effectiveWebappUserId,  // Also send as webappUserId for compatibility
+          email: userRecord.email,  // Email for reliable user lookup (preferred by webapp)
           period,
           mobileUserId: userId,  // Mobile's internal ID for reference
           idempotencyKey: clientIdempotencyKey,
