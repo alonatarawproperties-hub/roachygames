@@ -2202,7 +2202,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      <Pressable style={styles.gameArea} onPress={jump}>
+      <Pressable style={styles.gameArea} onPressIn={jump}>
         <View style={styles.sky} />
         
         {/* Clouds - Android uses AnimatedCloudSlot for 60fps, iOS/Web uses React state */}
