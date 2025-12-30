@@ -49,7 +49,9 @@ async function getFreshWebappUserId(user: { googleId: string | null; email: stri
       displayName: user.displayName || user.email.split("@")[0],
     });
     
-    if (exchangeResult.status !== 200 || !exchangeResult.data?.success) {
+    // Webapp returns user directly (not wrapped in success field)
+    // Check for status 200 and presence of user object
+    if (exchangeResult.status !== 200 || !exchangeResult.data?.user) {
       console.log(`[Flappy] OAuth exchange failed:`, exchangeResult);
       return null;
     }
