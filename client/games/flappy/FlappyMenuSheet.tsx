@@ -162,9 +162,10 @@ export function FlappyMenuSheet({
 
   useEffect(() => {
     if (visible) {
-      // Android: open expanded by default, iOS: open collapsed
+      // Android: set expanded immediately (no animation) to avoid blank first frame
+      // iOS: animate to collapsed
       if (Platform.OS === 'android') {
-        sheetHeight.value = withSpring(EXPANDED_HEIGHT, { damping: 15 });
+        sheetHeight.value = EXPANDED_HEIGHT;
         setIsExpanded(true);
       } else {
         sheetHeight.value = withSpring(COLLAPSED_HEIGHT, { damping: 15 });
