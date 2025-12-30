@@ -1474,17 +1474,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
       androidFrameSkipRef.current = 0;
     }
     
-    // Calculate delta time from last PROCESSED frame (not skipped frame)
-    if (lastFrameTimeRef.current === 0) {
-      lastFrameTimeRef.current = timestamp;
-    }
-    const rawDelta = timestamp - lastFrameTimeRef.current;
+    // FIXED TIMESTEP: Always use 1.0 multiplier for consistent physics
+    // This prevents screen recording from affecting jump height or gravity
+    // Trade-off: Game runs slightly faster on 120Hz displays, but physics are CONSISTENT
     lastFrameTimeRef.current = timestamp;
-    
-    // Clamp deltaTime to sane range: min 8ms (120Hz), max 83ms (12fps)
-    // This prevents speed bugs during screen recording or frame drops
-    const deltaTime = Math.max(8, Math.min(rawDelta, 83));
-    const deltaMultiplier = deltaTime / TARGET_FRAME_TIME;
+    const deltaMultiplier = 1.0;
     
     // On Android, bird physics are handled by UI thread (useFrameCallback)
     // On iOS/web, handle bird physics here on JS thread
@@ -1779,11 +1773,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     'worklet';
     if (!frameCallbackActive.value) return;
     
-    // Clamp deltaTime to sane range: min 8ms (120Hz), max 83ms (12fps)
-    // This prevents speed bugs during screen recording or frame drops
-    const rawDelta = frameInfo.timeSincePreviousFrame ?? 16.67;
-    const deltaTime = Math.max(8, Math.min(rawDelta, 83));
-    const deltaMultiplier = deltaTime / 16.67;
+    // FIXED TIMESTEP: Always use 1.0 multiplier for consistent physics
+    // This prevents screen recording from affecting jump height or gravity
+    // Trade-off: Game runs slightly faster on 120Hz displays, but physics are CONSISTENT
+    const deltaMultiplier = 1.0;
     
     // Update bird physics on UI thread using shared values
     // Skip gravity for 1 frame after jump to ensure full impulse
