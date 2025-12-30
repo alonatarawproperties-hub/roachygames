@@ -1943,7 +1943,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: GameColors.background,
+    backgroundColor: "#000000",
     borderTopLeftRadius: BorderRadius["2xl"],
     borderTopRightRadius: BorderRadius["2xl"],
     maxHeight: "85%",
