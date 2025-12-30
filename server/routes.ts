@@ -8,6 +8,7 @@ import { registerFlappyRoutes } from "./flappy-routes";
 import { registerWebappRoutes } from "./webapp-routes";
 import { registerAdminRoutes } from "./admin-routes";
 import { registerCompetitionRoutes } from "./competition-routes";
+import { registerPresenceRoutes } from "./presence-routes";
 import authRoutes from "./auth-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -20,6 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerWebappRoutes(app);
   registerAdminRoutes(app);
   registerCompetitionRoutes(app);
+  registerPresenceRoutes(app);
 
   const httpServer = createServer(app);
 

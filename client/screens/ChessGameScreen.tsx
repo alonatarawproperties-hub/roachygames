@@ -9,6 +9,7 @@ import { ChessBoard } from "@/games/chess/ChessBoard";
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useGamePresence } from "@/context/PresenceContext";
 
 type RouteParams = {
   ChessGame: {
@@ -25,6 +26,8 @@ export function ChessGameScreen() {
   const insets = useSafeAreaInsets();
   
   const { matchId, walletAddress } = route.params;
+  
+  useGamePresence("roachy-mate");
   
   const [currentFen, setCurrentFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   const [player1Time, setPlayer1Time] = useState(600);

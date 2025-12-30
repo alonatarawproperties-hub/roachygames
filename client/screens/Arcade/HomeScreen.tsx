@@ -54,6 +54,7 @@ import { useWebappBalances } from "@/hooks/useWebappBalances";
 import { useUserNfts } from "@/hooks/useUserNfts";
 import { useForceUpdate } from "@/hooks/useForceUpdate";
 import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
+import { usePresenceContext } from "@/context/PresenceContext";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EGGS_REQUIRED = 10;
@@ -1120,13 +1121,8 @@ export function ArcadeHomeScreen() {
   } = useArcadeInventory();
   
   const forceUpdate = useForceUpdate();
-
-  // Fetch live player counts for games
-  const { data: playerCountsData } = useQuery<{ success: boolean; counts: Record<string, number> }>({
-    queryKey: ["/api/games/player-counts"],
-    refetchInterval: 10000, // Refresh every 10 seconds
-  });
-  const playerCounts = playerCountsData?.counts || {};
+  
+  const { stats: presenceStats } = usePresenceContext();
 
   // Get unique item types that exist in inventory for dynamic filters
   const activeItemTypes = getActiveItemTypes();
@@ -1426,13 +1422,13 @@ export function ArcadeHomeScreen() {
                 <View style={styles.livePlayersRow}>
                   <View style={styles.livePlayersBadge}>
                     <View style={styles.livePlayersDot} />
-                    <ThemedText style={styles.livePlayersText}>247 players online</ThemedText>
+                    <ThemedText style={styles.livePlayersText}>{presenceStats.onlineCount} players online</ThemedText>
                   </View>
                 </View>
                 <FeaturedGameHero
                   game={featuredGame}
                   onPress={() => handleGamePress(featuredGame.routeName)}
-                  viewerCount={`${playerCounts[featuredGame.id] || 0} playing`}
+                  viewerCount={`${presenceStats.playingByGame[featuredGame.id as keyof typeof presenceStats.playingByGame] || 0} playing`}
                 />
                 <View style={styles.sectionSpacer} />
                 <EarningsTracker />

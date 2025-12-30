@@ -33,6 +33,7 @@ import { MapViewWrapper, MapViewWrapperRef } from "@/components/MapViewWrapper";
 import { HuntLoadingOverlay } from "@/components/HuntLoadingOverlay";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { useGamePresence } from "@/context/PresenceContext";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
@@ -82,6 +83,8 @@ export default function HuntScreen() {
     attackRaid,
     refreshSpawns,
   } = useHunt();
+  
+  useGamePresence("roachy-hunt");
 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);

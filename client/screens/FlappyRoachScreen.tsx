@@ -14,6 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useForceUpdate } from "@/hooks/useForceUpdate";
 import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
+import { useGamePresence } from "@/context/PresenceContext";
 
 type FlappyRoachParams = {
   FlappyRoach: {
@@ -37,6 +38,8 @@ export function FlappyRoachScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const insets = useSafeAreaInsets();
   const forceUpdate = useForceUpdate();
+  
+  useGamePresence("flappy-roach");
 
   useEffect(() => {
     async function lockOrientation() {

@@ -160,3 +160,24 @@ npx eas-cli update --branch production --message "Your message here" --non-inter
 2. **Don't assume status values** - check actual webapp responses
 3. **Use direct cache updates** for immediate UI feedback instead of relying on refetch
 4. **Webapp returns `newBalance`** in competition entry response - use it for instant balance updates
+
+---
+
+### Presence System (Dec 2024)
+**Purpose:** Track "players online" and "X playing" counts on the home screen.
+
+**Architecture:**
+- `server/presence-routes.ts` - Backend with in-memory store, 60s timeout cleanup
+- `client/context/PresenceContext.tsx` - Global presence provider with single session management
+- Heartbeats sent every 30 seconds, tracks user's current game (if any)
+
+**Key Files:**
+- `client/context/PresenceContext.tsx` - PresenceProvider wraps app, provides `usePresenceContext()` for stats and `useGamePresence(gameId)` for game screens
+- `server/presence-routes.ts` - `/api/presence/heartbeat`, `/api/presence/leave`, `/api/presence/stats` endpoints
+
+**Usage:**
+- HomeScreen uses `usePresenceContext()` to get `stats.onlineCount` and `stats.playingByGame`
+- Game screens (Flappy, Hunt, Chess) use `useGamePresence("game-id")` to register as playing
+- Game IDs: `"flappy-roach"`, `"roachy-hunt"`, `"roachy-mate"`
+
+**Important:** The presence system uses a single session per device. The PresenceProvider handles global online tracking, while game screens temporarily set `currentGame` via `useGamePresence()`. This ensures correct counts without duplicate sessions.

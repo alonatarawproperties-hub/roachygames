@@ -20,6 +20,7 @@ import { ArcadeInventoryProvider } from "@/context/ArcadeInventoryContext";
 import { FlappySkinProvider } from "@/context/FlappySkinContext";
 import { FlappyTrailProvider } from "@/context/FlappyTrailContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { PresenceProvider } from "@/context/PresenceContext";
 import { SkinProvider as ChessSkinProvider } from "@/games/chess/skins/SkinContext";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { AppKitWrapper } from "@/components/AppKitWrapper";
@@ -87,25 +88,27 @@ export default function App() {
               <AnimatedSplash onAnimationComplete={handleSplashComplete} />
             ) : (
               <AuthProvider>
-                <AppKitWrapper>
-                  <WalletProvider>
-                    <GameProvider>
-                      <HuntProvider>
-                        <ArcadeInventoryProvider>
-                          <FlappySkinProvider>
-                            <FlappyTrailProvider>
-                              <ChessSkinProvider>
-                                <NavigationContainer>
-                                  <RootStackNavigator />
-                                </NavigationContainer>
-                              </ChessSkinProvider>
-                            </FlappyTrailProvider>
-                          </FlappySkinProvider>
-                        </ArcadeInventoryProvider>
-                      </HuntProvider>
-                    </GameProvider>
-                  </WalletProvider>
-                </AppKitWrapper>
+                <PresenceProvider>
+                  <AppKitWrapper>
+                    <WalletProvider>
+                      <GameProvider>
+                        <HuntProvider>
+                          <ArcadeInventoryProvider>
+                            <FlappySkinProvider>
+                              <FlappyTrailProvider>
+                                <ChessSkinProvider>
+                                  <NavigationContainer>
+                                    <RootStackNavigator />
+                                  </NavigationContainer>
+                                </ChessSkinProvider>
+                              </FlappyTrailProvider>
+                            </FlappySkinProvider>
+                          </ArcadeInventoryProvider>
+                        </HuntProvider>
+                      </GameProvider>
+                    </WalletProvider>
+                  </AppKitWrapper>
+                </PresenceProvider>
               </AuthProvider>
             )}
             <StatusBar style="light" />
