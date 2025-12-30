@@ -92,3 +92,71 @@ The mobile app integrates with `roachy.games` (webapp) for token trading (redire
 - **How to use:** When you release a new native build, toggle `iosLocked: true` or `androidLocked: true` to force users to update. Toggle back to `false` once everyone has updated.
 - **Fallback:** If webapp is unavailable, defaults to unlocked (no blocking).
 - **Protected Screens:** ArcadeHomeScreen, FlappyRoachScreen (checked at entry, before gameplay starts).
+
+## Troubleshooting & Common Fixes
+
+### Competition Play Button Logic (Dec 2024)
+**Problem:** Play button was showing for scheduled competitions when it should only appear for active ones.
+
+**Root Cause:** Code was checking for wrong status value (`'starting_soon'`) but webapp returns `'scheduled'`.
+
+**Fix Location:** `client/games/flappy/FlappyMenuSheet.tsx`
+
+**Correct Implementation:**
+```typescript
+// Play button: ONLY show when status === 'active'
+const canPlay = activeCompetition?.status === 'active';
+
+// Badge display: Show countdown for 'scheduled' status with startsAt timestamp
+{activeCompetition?.status === 'scheduled' && activeCompetition?.startsAt && (
+  <CompetitionBadge startsAt={activeCompetition.startsAt} />
+)}
+```
+
+**Webapp Competition Status Values:** `"scheduled" | "active" | "finalizing" | "closed"` (NOT 'starting_soon')
+
+---
+
+### CHY Balance Not Updating After Competition Entry (Dec 2024)
+**Problem:** CHY balance didn't update immediately after joining a competition.
+
+**Root Cause:** Code was relying on `invalidateBalances()` which triggers a refetch, but cache wasn't updating fast enough.
+
+**Fix Location:** `client/hooks/useWebappBalances.ts` and `client/games/flappy/FlappyMenuSheet.tsx`
+
+**Solution:**
+1. Added `setChyBalance` function to `useWebappBalances` hook for direct cache updates:
+```typescript
+const setChyBalance = useCallback((newBalance: number) => {
+  queryClient.setQueryData(['/api/webapp/balances'], (old: any) => ({
+    ...old,
+    chyBalance: newBalance,
+  }));
+}, [queryClient]);
+```
+
+2. Use `newBalance` from webapp entry response:
+```typescript
+onSuccess: (data) => {
+  if (data.newBalance !== undefined) {
+    setChyBalance(data.newBalance);
+  } else {
+    invalidateBalances();
+  }
+}
+```
+
+---
+
+### OTA Deployment Command
+```bash
+npx eas-cli update --branch production --message "Your message here" --non-interactive
+```
+
+---
+
+### Key Lessons Learned
+1. **Always verify webapp API response format** (status values, field names) before implementing fixes
+2. **Don't assume status values** - check actual webapp responses
+3. **Use direct cache updates** for immediate UI feedback instead of relying on refetch
+4. **Webapp returns `newBalance`** in competition entry response - use it for instant balance updates
