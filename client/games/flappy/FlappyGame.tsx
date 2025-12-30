@@ -1767,12 +1767,29 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   
   // Android UI thread frame callback - handles ALL physics on UI thread
   // This is critical for smooth 60fps on Android - JS thread cannot keep up
+  // CRITICAL FIX: Screen recording on Android causes frame timing to batch/spike
+  // We use smoothing and strict clamping to prevent physics from breaking
+  const lastStableDelta = useSharedValue(16.67);
+  
   useFrameCallback((frameInfo) => {
     'worklet';
     if (!frameCallbackActive.value) return;
     
-    const deltaTime = frameInfo.timeSincePreviousFrame ?? 16.67;
-    const deltaMultiplier = Math.min(deltaTime / 16.67, 5);
+    let deltaTime = frameInfo.timeSincePreviousFrame ?? 16.67;
+    
+    // SCREEN RECORDING FIX: Clamp delta to reasonable range
+    // Min 4ms (250fps max), Max 50ms (20fps min) - anything outside is a timing glitch
+    // When screen recording batches frames, we get 0ms then 100ms+ spikes
+    if (deltaTime < 4 || deltaTime > 50 || Number.isNaN(deltaTime)) {
+      // Use last stable delta instead of spike value
+      deltaTime = lastStableDelta.value;
+    } else {
+      // Smooth the delta using exponential moving average (0.7 current, 0.3 history)
+      lastStableDelta.value = deltaTime * 0.7 + lastStableDelta.value * 0.3;
+    }
+    
+    // Final safety clamp: max 2x normal speed even in worst case
+    const deltaMultiplier = Math.min(deltaTime / 16.67, 2);
     
     // Update bird physics on UI thread using shared values
     birdVelocitySV.value += GRAVITY * deltaMultiplier;
