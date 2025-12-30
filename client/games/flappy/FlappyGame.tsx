@@ -1476,12 +1476,13 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (lastFrameTimeRef.current === 0) {
       lastFrameTimeRef.current = timestamp;
     }
-    const deltaTime = timestamp - lastFrameTimeRef.current;
+    const rawDelta = timestamp - lastFrameTimeRef.current;
     lastFrameTimeRef.current = timestamp;
     
-    // Allow higher delta multiplier on Android to prevent stacking when frames drop
-    // Cap at 5 to prevent teleporting on extreme lag spikes
-    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, Platform.OS === "android" ? 5 : 3);
+    // Clamp deltaTime to sane range: min 8ms (120Hz), max 83ms (12fps)
+    // This prevents speed bugs during screen recording or frame drops
+    const deltaTime = Math.max(8, Math.min(rawDelta, 83));
+    const deltaMultiplier = deltaTime / TARGET_FRAME_TIME;
     
     // On Android, bird physics are handled by UI thread (useFrameCallback)
     // On iOS/web, handle bird physics here on JS thread
