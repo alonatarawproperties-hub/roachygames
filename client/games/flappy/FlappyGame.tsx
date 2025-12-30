@@ -1003,6 +1003,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const pipeWidthSV = useSharedValue(PIPE_WIDTH);
   const birdXSV = useSharedValue(birdXRef.current);
   const shieldActiveSV = useSharedValue(false); // For UI thread collision detection
+  const isDyingSV = useSharedValue(false); // For instant death visual on UI thread
   
   // Legacy array shared values (kept for iOS/web compatibility)
   const pipePositionsX = useSharedValue<number[]>(new Array(MAX_PIPES).fill(-1000));
@@ -1824,6 +1825,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     // Floor collision - use shared value for playable height
     if (newY >= playableHeightSV.value - BIRD_SIZE / 2) {
       frameCallbackActive.value = false;
+      isDyingSV.value = true; // Instant visual feedback on UI thread
       runOnJS(gameOver)();
       return;
     }
@@ -1880,6 +1882,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
           // Hit top pipe or bottom pipe?
           if (birdTop < topHeight || birdBottom > topHeight + currentGapSize) {
             frameCallbackActive.value = false;
+            isDyingSV.value = true; // Instant visual feedback on UI thread
             runOnJS(gameOver)();
             return;
           }
@@ -1953,8 +1956,10 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     doublePointsRef.current = false;
     magnetRef.current = false;
     lastFrameTimeRef.current = 0;
+    lastStableDeltaRef.current = 16.67; // Reset screen recording fix
     renderFrameCounterRef.current = 0;
     androidFrameSkipRef.current = 0;
+    isDyingSV.value = false; // Reset instant death visual
     
     const initialClouds: Cloud[] = [];
     if (cloudsEnabled) {
@@ -2192,6 +2197,15 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     opacity: 1 - wingOpacity.value,
   }));
   
+  // Android: Instant death sprite visibility (UI thread, no delay)
+  const deadSpriteStyle = useAnimatedStyle(() => ({
+    opacity: isDyingSV.value ? 1 : 0,
+  }));
+  
+  const aliveSpriteStyle = useAnimatedStyle(() => ({
+    opacity: isDyingSV.value ? 0 : 1,
+  }));
+  
   const groundStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: groundOffset.value }],
   }));
@@ -2344,32 +2358,68 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
         
         <Animated.View style={[styles.bird, birdStyle, { left: BIRD_X - BIRD_VISUAL_SIZE / 2 }]}>
           {shieldActive && <View style={styles.shieldAura} />}
-          {gameState === "dying" || gameState === "gameover" ? (
-            <Image
-              source={ROACHY_DEAD}
-              style={styles.roachySprite}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-            />
-          ) : (
+          {/* Android: Render both sprites with animated opacity for instant death visual */}
+          {/* iOS: Use React state for sprite switching (fast enough on iOS) */}
+          {isAndroid ? (
             <View style={styles.roachySprite}>
-              <Animated.View style={[styles.roachySpriteAbsolute, wingFrame0Style]}>
+              {/* Dead sprite - instant visibility via UI thread shared value */}
+              <Animated.View style={[styles.roachySpriteAbsolute, deadSpriteStyle]}>
                 <Image
-                  source={ROACHY_FRAMES[0]}
+                  source={ROACHY_DEAD}
                   style={styles.roachySpriteAbsolute}
                   contentFit="contain"
                   cachePolicy="memory-disk"
                 />
               </Animated.View>
-              <Animated.View style={[styles.roachySpriteAbsolute, wingFrame1Style]}>
-                <Image
-                  source={ROACHY_FRAMES[1]}
-                  style={styles.roachySpriteAbsolute}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                />
+              {/* Alive sprites - hidden instantly when dying */}
+              <Animated.View style={[styles.roachySpriteAbsolute, aliveSpriteStyle]}>
+                <Animated.View style={[styles.roachySpriteAbsolute, wingFrame0Style]}>
+                  <Image
+                    source={ROACHY_FRAMES[0]}
+                    style={styles.roachySpriteAbsolute}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                </Animated.View>
+                <Animated.View style={[styles.roachySpriteAbsolute, wingFrame1Style]}>
+                  <Image
+                    source={ROACHY_FRAMES[1]}
+                    style={styles.roachySpriteAbsolute}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                </Animated.View>
               </Animated.View>
             </View>
+          ) : (
+            // iOS: React state based sprite switching
+            gameState === "dying" || gameState === "gameover" ? (
+              <Image
+                source={ROACHY_DEAD}
+                style={styles.roachySprite}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            ) : (
+              <View style={styles.roachySprite}>
+                <Animated.View style={[styles.roachySpriteAbsolute, wingFrame0Style]}>
+                  <Image
+                    source={ROACHY_FRAMES[0]}
+                    style={styles.roachySpriteAbsolute}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                </Animated.View>
+                <Animated.View style={[styles.roachySpriteAbsolute, wingFrame1Style]}>
+                  <Image
+                    source={ROACHY_FRAMES[1]}
+                    style={styles.roachySpriteAbsolute}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                </Animated.View>
+              </View>
+            )
           )}
         </Animated.View>
         
