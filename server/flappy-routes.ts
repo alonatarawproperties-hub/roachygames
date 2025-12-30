@@ -1566,11 +1566,36 @@ export function registerFlappyRoutes(app: Express) {
       const { userId, webappUserId } = req.query;
       
       if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
-        console.log(`[Flappy Status] Proxying to webapp: userId=${userId}, webappUserId=${webappUserId}`);
+        // CRITICAL FIX: Get fresh webappUserId via OAuth exchange, just like entry does
+        // This ensures status lookup uses the same ID that was used to store the entry
+        let effectiveWebappUserId = webappUserId as string | null;
+        
+        if (userId && typeof userId === 'string') {
+          const userRecord = await db.query.users.findFirst({
+            where: eq(users.id, userId as string),
+          });
+          
+          if (userRecord?.googleId && userRecord?.email) {
+            const freshWebappUserId = await getFreshWebappUserId({
+              googleId: userRecord.googleId,
+              email: userRecord.email,
+              displayName: userRecord.displayName,
+            });
+            
+            if (freshWebappUserId) {
+              if (webappUserId && webappUserId !== freshWebappUserId) {
+                console.log(`[Flappy Status] Correcting stale webappUserId: client=${webappUserId}, fresh=${freshWebappUserId}`);
+              }
+              effectiveWebappUserId = freshWebappUserId;
+            }
+          }
+        }
+        
+        console.log(`[Flappy Status] Proxying to webapp: userId=${userId}, webappUserId=${effectiveWebappUserId}`);
         
         const webappResult = await webappRequest(
           "GET", 
-          `/api/flappy/competitions/status?userId=${userId || ''}&webappUserId=${webappUserId || ''}`
+          `/api/flappy/competitions/status?userId=${effectiveWebappUserId || ''}&webappUserId=${effectiveWebappUserId || ''}`
         );
         
         if (webappResult.status === 200 && webappResult.data?.success) {
