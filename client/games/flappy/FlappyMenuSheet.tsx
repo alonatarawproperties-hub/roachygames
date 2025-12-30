@@ -8,7 +8,6 @@ import {
   Modal,
   Dimensions,
   Platform,
-  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -47,8 +46,7 @@ const PowerUpShieldIcon = require("@/assets/powerup-shield.png");
 const PowerUpDoubleIcon = require("@/assets/powerup-double.png");
 const PowerUpMagnetIcon = require("@/assets/powerup-magnet.png");
 
-// Static fallback for module-level constants (used in pan gesture calculations)
-const SCREEN_HEIGHT_STATIC = Dimensions.get("window").height;
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface LeaderboardEntry {
   id: string;
@@ -122,9 +120,8 @@ interface FlappyMenuSheetProps {
   onSelectTrail: (trail: RoachyTrail) => void;
 }
 
-// Use static values for module-level constants (will be overridden dynamically in component)
-const COLLAPSED_HEIGHT_DEFAULT = SCREEN_HEIGHT_STATIC * 0.5;
-const EXPANDED_HEIGHT_DEFAULT = SCREEN_HEIGHT_STATIC * 0.85;
+const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.5;
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.85;
 const SNAP_THRESHOLD = 50;
 
 export function FlappyMenuSheet({
@@ -146,15 +143,10 @@ export function FlappyMenuSheet({
 }: FlappyMenuSheetProps) {
   const isCompetitionMode = !!competitionId;
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<TabType>("leaderboards");
   const queryClient = useQueryClient();
   const { getOwnedSkins, isLoading: nftsLoading } = useUserNfts();
   const { user } = useAuth();
-  
-  // Dynamic height calculations based on actual window size (responsive across devices)
-  const COLLAPSED_HEIGHT = useMemo(() => windowHeight * 0.5, [windowHeight]);
-  const EXPANDED_HEIGHT = useMemo(() => windowHeight * 0.85, [windowHeight]);
   
   // Check if current user is a god account
   const isGodAccount = useMemo(() => {
@@ -179,7 +171,7 @@ export function FlappyMenuSheet({
         setIsExpanded(false);
       }
     }
-  }, [visible, COLLAPSED_HEIGHT, EXPANDED_HEIGHT]);
+  }, [visible]);
 
   const panGesture = Gesture.Pan()
     .activeOffsetY([-10, 10])
@@ -1954,7 +1946,8 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.background,
     borderTopLeftRadius: BorderRadius["2xl"],
     borderTopRightRadius: BorderRadius["2xl"],
-    overflow: 'hidden',
+    maxHeight: "85%",
+    minHeight: 400,
   },
   header: {
     alignItems: "center",
