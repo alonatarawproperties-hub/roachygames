@@ -593,6 +593,8 @@ const BASE_GROUND_HEIGHT = 80;
 
 const GRAVITY = 0.6;
 const JUMP_STRENGTH = -12;
+// Android: Slightly stronger jump to compensate for UI thread gravity timing
+const JUMP_STRENGTH_ANDROID = -12.8;
 const MAX_FALL_SPEED = 15;
 const BASE_PIPE_SPEED = 4;
 const BASE_PIPE_SPAWN_INTERVAL = 2800;
@@ -1601,8 +1603,8 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     
     // Check coin collection (mutate in place)
     // Android: Reset slot shared values when coin is collected so slot can be reused
-    // Android: Expand coin hitbox by 8px to compensate for frame sync delays
-    const coinHitboxExpand = isAndroid ? 8 : 0;
+    // Android: Expand coin hitbox to match visual sprite size (visual > logical hitbox)
+    const coinHitboxExpand = isAndroid ? 18 : 0;
     const coinXSlotVals = isAndroid ? [coin0X, coin1X, coin2X, coin3X, coin4X, coin5X, coin6X, coin7X] : null;
     for (let i = 0; i < coinsRef.current.length; i++) {
       const coin = coinsRef.current[i];
@@ -2057,22 +2059,25 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   const jump = useCallback(() => {
     if (showMenu) return;
     
+    // Android: Use slightly stronger jump to match iOS feel
+    const jumpStrength = isAndroid ? JUMP_STRENGTH_ANDROID : JUMP_STRENGTH;
+    
     if (gameState === "idle") {
       startGame();
-      birdVelocity.current = JUMP_STRENGTH;
+      birdVelocity.current = jumpStrength;
       if (isAndroid) {
         // Android: Direct write for instant response - frame callback handles rotation
-        birdVelocitySV.value = JUMP_STRENGTH;
+        birdVelocitySV.value = jumpStrength;
         birdRotation.value = -20; // Instant, no withTiming (frame callback updates smoothly)
       } else {
         birdRotation.value = withTiming(-20, { duration: 100 });
       }
       playSound("jump");
     } else if (gameState === "playing") {
-      birdVelocity.current = JUMP_STRENGTH;
+      birdVelocity.current = jumpStrength;
       if (isAndroid) {
         // Android: Direct write for instant response - frame callback handles rotation
-        birdVelocitySV.value = JUMP_STRENGTH;
+        birdVelocitySV.value = jumpStrength;
         birdRotation.value = -20; // Instant, no withTiming
       } else {
         birdRotation.value = withTiming(-20, { duration: 100 });
