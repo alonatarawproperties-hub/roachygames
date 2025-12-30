@@ -908,6 +908,7 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
   pipeSpawnIntervalRef.current = PIPE_SPAWN_INTERVAL;
   
   const lastFrameTimeRef = useRef<number>(0);
+  const lastStableDeltaRef = useRef<number>(16.67); // For screen recording fix
   const TARGET_FRAME_TIME = 16.67;
   const renderFrameCounterRef = useRef(0);
   const { cloudsEnabled, trailsEnabled, cloudSpawnInterval, maxTrailParticles } = performanceSettings;
@@ -1476,12 +1477,22 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     if (lastFrameTimeRef.current === 0) {
       lastFrameTimeRef.current = timestamp;
     }
-    const deltaTime = timestamp - lastFrameTimeRef.current;
+    let deltaTime = timestamp - lastFrameTimeRef.current;
     lastFrameTimeRef.current = timestamp;
     
-    // Allow higher delta multiplier on Android to prevent stacking when frames drop
-    // Cap at 5 to prevent teleporting on extreme lag spikes
-    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, Platform.OS === "android" ? 5 : 3);
+    // SCREEN RECORDING FIX: Clamp delta to reasonable range (same fix as Android)
+    // Min 4ms (250fps max), Max 50ms (20fps min) - anything outside is a timing glitch
+    // When screen recording batches frames, we get 0ms then 100ms+ spikes
+    if (deltaTime < 4 || deltaTime > 50 || Number.isNaN(deltaTime)) {
+      // Use last stable delta instead of spike value
+      deltaTime = lastStableDeltaRef.current;
+    } else {
+      // Smooth the delta using exponential moving average (0.7 current, 0.3 history)
+      lastStableDeltaRef.current = deltaTime * 0.7 + lastStableDeltaRef.current * 0.3;
+    }
+    
+    // Final safety clamp: max 2x normal speed even in worst case
+    const deltaMultiplier = Math.min(deltaTime / TARGET_FRAME_TIME, 2);
     
     // On Android, bird physics are handled by UI thread (useFrameCallback)
     // On iOS/web, handle bird physics here on JS thread
