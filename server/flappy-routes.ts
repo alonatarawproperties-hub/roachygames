@@ -488,20 +488,48 @@ export function registerFlappyRoutes(app: Express) {
       if (verifiedRankedGame && verifiedRankedPeriod) {
         // NEW: Proxy ranked score submission to webapp (source of truth for competitions)
         if (USE_WEBAPP_COMPETITIONS_OPERATIONS) {
-          const { webappUserId } = req.body;
-          console.log(`[Flappy Score] Proxying ranked score to webapp: userId=${userId}, webappUserId=${webappUserId}, score=${score}, period=${verifiedRankedPeriod}`);
+          // CRITICAL FIX: Use OAuth-verified webappUserId, not client-provided
+          // This ensures scores go to the same account as entry
+          let effectiveWebappUserId: string | null = null;
           
-          const webappScoreResult = await webappRequest("POST", "/api/flappy/competitions/submit-score", {
-            userId,
-            webappUserId,
-            period: verifiedRankedPeriod,
-            score,
+          // Look up user's googleId and email for OAuth exchange
+          const userRecord = await db.query.users.findFirst({
+            where: eq(users.id, userId),
+            columns: { googleId: true, email: true }
           });
           
-          console.log(`[Flappy Score] Webapp score submission response:`, JSON.stringify(webappScoreResult));
+          if (userRecord?.googleId && userRecord?.email) {
+            // Get FRESH webappUserId via OAuth exchange (same as entry endpoint)
+            const freshWebappUserId = await getFreshWebappUserId({
+              googleId: userRecord.googleId,
+              email: userRecord.email,
+              displayName: userRecord.email.split('@')[0],
+            });
+            
+            if (freshWebappUserId) {
+              effectiveWebappUserId = freshWebappUserId;
+              console.log(`[Flappy Score] Using OAuth-verified webappUserId: ${effectiveWebappUserId}`);
+            } else {
+              console.error(`[Flappy Score] OAuth exchange failed for user ${userId}, cannot submit ranked score`);
+              // Don't fail the whole request - score is still saved locally
+            }
+          }
           
-          if (webappScoreResult.status !== 200 || !webappScoreResult.data?.success) {
-            console.error(`[Flappy Score] Webapp score submission failed:`, webappScoreResult.data);
+          if (effectiveWebappUserId) {
+            console.log(`[Flappy Score] Proxying ranked score to webapp: userId=${userId}, webappUserId=${effectiveWebappUserId}, score=${score}, period=${verifiedRankedPeriod}`);
+            
+            const webappScoreResult = await webappRequest("POST", "/api/flappy/competitions/submit-score", {
+              userId,
+              webappUserId: effectiveWebappUserId,
+              period: verifiedRankedPeriod,
+              score,
+            });
+            
+            console.log(`[Flappy Score] Webapp score submission response:`, JSON.stringify(webappScoreResult));
+            
+            if (webappScoreResult.status !== 200 || !webappScoreResult.data?.success) {
+              console.error(`[Flappy Score] Webapp score submission failed:`, webappScoreResult.data);
+            }
           }
         } else {
           // LEGACY: Local database storage (when webapp competitions disabled)
