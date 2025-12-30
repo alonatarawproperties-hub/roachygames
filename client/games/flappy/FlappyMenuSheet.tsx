@@ -550,7 +550,7 @@ function CompetitionCard({
             <Feather name="chevron-down" size={16} color={GameColors.gold} style={{ marginLeft: 4 }} />
           ) : null}
         </View>
-        {status === 'starting_soon' && startsAt ? (
+        {(status === 'starting_soon' || status === 'scheduled') && startsAt ? (
           <View style={styles.startingSoonBadge}>
             <Feather name="clock" size={12} color={GameColors.gold} />
             <ThemedText style={styles.startingSoonText}>{formatStartsIn(startsAt)}</ThemedText>
@@ -601,7 +601,7 @@ function CompetitionCard({
             <Feather name="check-circle" size={14} color={GameColors.gold} />
             <ThemedText style={styles.joinedBadgeText}>Joined</ThemedText>
           </View>
-          {status !== 'starting_soon' ? (
+          {status === 'active' ? (
             <Pressable 
               style={styles.playNowButtonWide} 
               onPress={(e) => { e.stopPropagation(); onPlay(); }}
