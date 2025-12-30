@@ -17,7 +17,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
+import { Linking } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMarketplaceUrl, apiRequest } from "@/lib/query-client";
 import { ProfileStackParamList } from "@/navigation/ProfileStackNavigator";
@@ -113,12 +113,12 @@ export default function ProfileScreen() {
 
   const handleOpenMarketplace = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await WebBrowser.openBrowserAsync(getMarketplaceUrl());
+    await Linking.openURL(getMarketplaceUrl());
   };
 
   const handleClaimRewards = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
+    await Linking.openURL(getMarketplaceUrl() + "/rewards");
   };
 
   const handleOpenTrading = () => {

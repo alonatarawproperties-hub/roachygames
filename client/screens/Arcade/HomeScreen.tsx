@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
+import { Linking } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { getMarketplaceUrl } from "@/lib/query-client";
 import { Feather } from "@expo/vector-icons";
@@ -1771,7 +1771,7 @@ export function ArcadeHomeScreen() {
                 style={styles.rewardsCard}
                 onPress={async () => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  await WebBrowser.openBrowserAsync(getMarketplaceUrl() + "/rewards");
+                  await Linking.openURL(getMarketplaceUrl() + "/rewards");
                 }}
               >
                 <View style={styles.rewardsCardContent}>
