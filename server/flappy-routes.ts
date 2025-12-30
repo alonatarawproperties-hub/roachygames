@@ -493,10 +493,10 @@ export function registerFlappyRoutes(app: Express) {
           let effectiveWebappUserId: string | null = null;
           let userEmail: string | null = null;
           
-          // Look up user's googleId and email for OAuth exchange
+          // Look up user's googleId, email, and displayName for OAuth exchange
           const userRecord = await db.query.users.findFirst({
             where: eq(users.id, userId),
-            columns: { googleId: true, email: true }
+            columns: { googleId: true, email: true, displayName: true }
           });
           
           if (userRecord?.googleId && userRecord?.email) {
@@ -524,6 +524,7 @@ export function registerFlappyRoutes(app: Express) {
               userId,
               webappUserId: effectiveWebappUserId,
               email: userEmail,  // Email for reliable user lookup (preferred by webapp)
+              displayName: userRecord?.displayName,  // Google account display name for leaderboard
               period: verifiedRankedPeriod,
               score,
             });
@@ -852,6 +853,7 @@ export function registerFlappyRoutes(app: Express) {
           userId: effectiveWebappUserId,  // Webapp's user ID (primary identifier)
           webappUserId: effectiveWebappUserId,  // Also send as webappUserId for compatibility
           email: userRecord.email,  // Email for reliable user lookup (preferred by webapp)
+          displayName: userRecord.displayName,  // Google account display name for leaderboard
           period,
           mobileUserId: userId,  // Mobile's internal ID for reference
           idempotencyKey: clientIdempotencyKey,
