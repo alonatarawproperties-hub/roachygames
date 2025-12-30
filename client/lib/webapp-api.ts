@@ -59,6 +59,7 @@ interface OAuthExchangeResult {
   success: boolean;
   user?: {
     id: string;
+    webUserId: string; // The actual web users.id for CHY operations
     email: string;
     displayName: string;
     walletAddress: string | null;

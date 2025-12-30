@@ -142,7 +142,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               data.user.displayName || existingUser?.displayName || email.split("@")[0]
             );
             if (webappResult.success && webappResult.user) {
-              webappUserId = webappResult.user.id;
+              // Use webUserId (actual web users.id) for CHY operations, fallback to id for backwards compatibility
+              webappUserId = webappResult.user.webUserId || webappResult.user.id;
             }
           } catch (syncErr) {
             // Keep existing webappUserId if sync fails
@@ -302,11 +303,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               data.user.displayName || data.user.email.split("@")[0]
             );
             if (webappResult.success && webappResult.user) {
-              console.log("[Auth] Synced user with webapp, webappUserId:", webappResult.user.id);
+              // Use webUserId (actual web users.id) for CHY operations, fallback to id for backwards compatibility
+              const effectiveWebappUserId = webappResult.user.webUserId || webappResult.user.id;
+              console.log("[Auth] Synced user with webapp, webappUserId:", effectiveWebappUserId);
               // Store the webapp user ID for balance calls
               finalUser = {
                 ...data.user,
-                webappUserId: webappResult.user.id,
+                webappUserId: effectiveWebappUserId,
                 chyBalance: webappResult.user.chyBalance,
                 diamondBalance: webappResult.user.diamondBalance,
               };
