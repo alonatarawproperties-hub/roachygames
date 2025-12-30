@@ -85,7 +85,8 @@ async function getWebappChyBalanceForUser(user: { googleId: string | null; email
       displayName: user.displayName || user.email.split("@")[0],
     });
     
-    if (exchangeResult.status !== 200 || !exchangeResult.data?.success) {
+    // Webapp returns user directly (not wrapped in success field)
+    if (exchangeResult.status !== 200 || !exchangeResult.data?.user) {
       console.log(`[Flappy] OAuth exchange failed:`, exchangeResult);
       return 0;
     }
@@ -126,7 +127,8 @@ async function deductWebappChy(user: { googleId: string | null; email: string | 
       displayName: user.displayName || user.email.split("@")[0],
     });
     
-    if (exchangeResult.status !== 200 || !exchangeResult.data?.success) {
+    // Webapp returns user directly (not wrapped in success field)
+    if (exchangeResult.status !== 200 || !exchangeResult.data?.user) {
       return false;
     }
     
@@ -994,7 +996,8 @@ export function registerFlappyRoutes(app: Express) {
             displayName: userData.displayName || userData.email.split("@")[0],
           });
           
-          if (exchangeResult.status === 200 && exchangeResult.data?.success) {
+          // Webapp returns user directly (not wrapped in success field)
+          if (exchangeResult.status === 200 && exchangeResult.data?.user) {
             effectiveWebappUserId = exchangeResult.data.user?.id;
             if (effectiveWebappUserId) {
               const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
@@ -1207,7 +1210,8 @@ export function registerFlappyRoutes(app: Express) {
             displayName: user[0].displayName || user[0].email.split("@")[0],
           });
           
-          if (exchangeResult.status === 200 && exchangeResult.data?.success) {
+          // Webapp returns user directly (not wrapped in success field)
+          if (exchangeResult.status === 200 && exchangeResult.data?.user) {
             effectiveWebappUserId = exchangeResult.data.user?.id;
             if (effectiveWebappUserId) {
               const balanceResult = await webappRequest("GET", `/api/web/users/${effectiveWebappUserId}/wallet-balance`);
