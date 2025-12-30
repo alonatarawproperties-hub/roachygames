@@ -1430,53 +1430,10 @@ export function registerFlappyRoutes(app: Express) {
         console.log(`[Flappy Leaderboard] Webapp response status: ${webappResult.status}`);
         
         if (webappResult.status === 200 && webappResult.data) {
-          // Enrich leaderboard entries with display names from our database
-          const enrichedData = { ...webappResult.data };
-          
-          if (enrichedData.leaderboard && Array.isArray(enrichedData.leaderboard)) {
-            enrichedData.leaderboard = await Promise.all(
-              enrichedData.leaderboard.map(async (entry: any) => {
-                // Try to find user by mobileUserId first, then by webappUserId
-                const lookupId = entry.mobileUserId || entry.userId;
-                if (lookupId) {
-                  const userRecord = await db.select({ displayName: users.displayName, email: users.email })
-                    .from(users)
-                    .where(eq(users.id, lookupId))
-                    .limit(1);
-                  
-                  if (userRecord.length > 0 && userRecord[0].displayName) {
-                    return { ...entry, displayName: userRecord[0].displayName };
-                  }
-                  
-                  // Fallback: extract name from email
-                  if (userRecord.length > 0 && userRecord[0].email) {
-                    const emailName = userRecord[0].email.split('@')[0];
-                    return { ...entry, displayName: emailName };
-                  }
-                }
-                return entry;
-              })
-            );
-          }
-          
-          // Also enrich userRankInfo if present
-          if (enrichedData.userRankInfo) {
-            const userLookupId = enrichedData.userRankInfo.mobileUserId || enrichedData.userRankInfo.userId;
-            if (userLookupId) {
-              const userRecord = await db.select({ displayName: users.displayName, email: users.email })
-                .from(users)
-                .where(eq(users.id, userLookupId))
-                .limit(1);
-              
-              if (userRecord.length > 0 && userRecord[0].displayName) {
-                enrichedData.userRankInfo.displayName = userRecord[0].displayName;
-              } else if (userRecord.length > 0 && userRecord[0].email) {
-                enrichedData.userRankInfo.displayName = userRecord[0].email.split('@')[0];
-              }
-            }
-          }
-          
-          return res.json(enrichedData);
+          // Webapp now returns displayName directly - pass through without modification
+          // The webapp joins users/mobile_users tables to get proper display names
+          console.log(`[Flappy Leaderboard] Webapp returned ${webappResult.data.leaderboard?.length || 0} entries`);
+          return res.json(webappResult.data);
         }
         
         return res.status(webappResult.status || 500).json({ 
