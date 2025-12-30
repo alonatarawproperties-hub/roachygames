@@ -1771,8 +1771,11 @@ export function FlappyGame({ onExit, onScoreSubmit, userId = null, skin = "defau
     'worklet';
     if (!frameCallbackActive.value) return;
     
-    const deltaTime = frameInfo.timeSincePreviousFrame ?? 16.67;
-    const deltaMultiplier = Math.min(deltaTime / 16.67, 5);
+    // Clamp deltaTime to sane range: min 8ms (120Hz), max 83ms (12fps)
+    // This prevents speed bugs during screen recording or frame drops
+    const rawDelta = frameInfo.timeSincePreviousFrame ?? 16.67;
+    const deltaTime = Math.max(8, Math.min(rawDelta, 83));
+    const deltaMultiplier = deltaTime / 16.67;
     
     // Update bird physics on UI thread using shared values
     birdVelocitySV.value += GRAVITY * deltaMultiplier;
