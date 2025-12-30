@@ -64,6 +64,15 @@ export function useWebappBalances() {
     }
   }, [queryClient, webappUserId]);
 
+  const setChyBalance = useCallback((newBalance: number) => {
+    if (webappUserId) {
+      queryClient.setQueryData<WebappBalances | null>(
+        [WEBAPP_BALANCES_QUERY_KEY, webappUserId],
+        (old) => old ? { ...old, chy: newBalance } : { diamonds: 0, chy: newBalance }
+      );
+    }
+  }, [queryClient, webappUserId]);
+
   return {
     diamonds: query.data?.diamonds ?? 0,
     chy: query.data?.chy ?? 0,
@@ -75,5 +84,6 @@ export function useWebappBalances() {
     error: query.error,
     refetch: query.refetch,
     invalidateBalances,
+    setChyBalance,
   };
 }

@@ -224,7 +224,7 @@ export function FlappyMenuSheet({
   }, [visible, activeTab, refetchStatus, queryClient]);
 
   // Use webapp balances for real CHY from roachy.games
-  const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances, invalidateBalances } = useWebappBalances();
+  const { chy: chyBalance, isLoading: balanceLoading, isFetching: balanceFetching, refetch: refetchBalances, invalidateBalances, setChyBalance } = useWebappBalances();
 
   const enterRankedMutation = useMutation({
     mutationFn: async ({ period, entryFee, competitionId }: { period: 'daily' | 'weekly'; entryFee?: number; competitionId?: string }) => {
@@ -248,8 +248,15 @@ export function FlappyMenuSheet({
         queryKey: ['/api/competitions/active'],
         refetchType: 'all', // Force refetch even if stale
       });
-      // Refresh CHY balance from webapp after backend deduction
-      invalidateBalances();
+      // Use newBalance from webapp response to update CHY immediately
+      // This reflects the deduction without waiting for a refetch
+      if (typeof data?.newBalance === 'number') {
+        console.log(`[FlappyMenu] Updating CHY balance from entry response: ${data.newBalance}`);
+        setChyBalance(data.newBalance);
+      } else {
+        // Fallback: Refresh CHY balance from webapp after backend deduction
+        invalidateBalances();
+      }
       // Don't start game immediately - show "Joined" status and let user choose when to play
     },
     onError: (error: any) => {
@@ -594,13 +601,20 @@ function CompetitionCard({
             <Feather name="check-circle" size={14} color={GameColors.gold} />
             <ThemedText style={styles.joinedBadgeText}>Joined</ThemedText>
           </View>
-          <Pressable 
-            style={styles.playNowButtonWide} 
-            onPress={(e) => { e.stopPropagation(); onPlay(); }}
-          >
-            <Feather name="play" size={16} color="#000" />
-            <ThemedText style={styles.playNowButtonText}>Play</ThemedText>
-          </Pressable>
+          {status !== 'starting_soon' ? (
+            <Pressable 
+              style={styles.playNowButtonWide} 
+              onPress={(e) => { e.stopPropagation(); onPlay(); }}
+            >
+              <Feather name="play" size={16} color="#000" />
+              <ThemedText style={styles.playNowButtonText}>Play</ThemedText>
+            </Pressable>
+          ) : (
+            <View style={[styles.playNowButtonWide, { opacity: 0.5 }]}>
+              <Feather name="clock" size={16} color="#000" />
+              <ThemedText style={styles.playNowButtonText}>Starting Soon</ThemedText>
+            </View>
+          )}
         </View>
       ) : (
         <Pressable
