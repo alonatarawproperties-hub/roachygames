@@ -1,7 +1,7 @@
 import React from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import MainTabNavigator from "@/navigation/MainTabNavigator";
+import HuntStackNavigator from "@/navigation/HuntStackNavigator";
 import CatchScreen from "@/screens/CatchScreen";
 import { ArcadeHomeScreen } from "@/screens/Arcade";
 import { FlappyRoachScreen } from "@/screens/FlappyRoachScreen";
@@ -66,7 +66,7 @@ export default function RootStackNavigator() {
           />
       <Stack.Screen
         name="RoachyHuntStack"
-        component={MainTabNavigator}
+        component={HuntStackNavigator}
         options={{ headerShown: false }}
       />
       <Stack.Screen
