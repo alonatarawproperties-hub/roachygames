@@ -38,10 +38,11 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 interface CameraEncounterProps {
   spawn: Spawn;
   onStartCatch: () => void;
+  onStartARMode?: () => void;
   onCancel: () => void;
 }
 
-export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncounterProps) {
+export function CameraEncounter({ spawn, onStartCatch, onStartARMode, onCancel }: CameraEncounterProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -321,20 +322,40 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
           <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
             <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
             
-            <Animated.View style={pulseAnimatedStyle}>
-              <LinearGradient
-                colors={[GameColors.primary, "#FF6B00"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.catchButton}
-              >
-                <View style={styles.catchButtonInner}>
-                  <Feather name="crosshair" size={28} color="#fff" />
-                </View>
-              </LinearGradient>
-            </Animated.View>
+            <View style={styles.actionButtonsRow}>
+              <Animated.View style={pulseAnimatedStyle}>
+                <LinearGradient
+                  colors={[GameColors.primary, "#FF6B00"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.catchButton}
+                >
+                  <View style={styles.catchButtonInner}>
+                    <Feather name="crosshair" size={28} color="#fff" />
+                  </View>
+                </LinearGradient>
+              </Animated.View>
+
+              {Platform.OS !== "web" && onStartARMode ? (
+                <Pressable onPress={onStartARMode} style={styles.arButton}>
+                  <LinearGradient
+                    colors={["#7C3AED", "#4F46E5"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.arButtonGradient}
+                  >
+                    <Feather name="box" size={22} color="#fff" />
+                  </LinearGradient>
+                </Pressable>
+              ) : null}
+            </View>
             
-            <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+            <View style={styles.labelsRow}>
+              <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+              {Platform.OS !== "web" && onStartARMode ? (
+                <ThemedText style={styles.arLabel}>AR</ThemedText>
+              ) : null}
+            </View>
           </BlurView>
         </View>
       </Animated.View>
@@ -674,6 +695,36 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
     marginTop: Spacing.sm,
+    letterSpacing: 2,
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.lg,
+  },
+  arButton: {
+    overflow: "hidden",
+    borderRadius: 26,
+  },
+  arButtonGradient: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  labelsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xl * 2,
+    marginTop: Spacing.sm,
+  },
+  arLabel: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#A78BFA",
     letterSpacing: 2,
   },
 });

@@ -10,7 +10,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -60,7 +63,10 @@ function getSpawnPosition(id: string, index: number): { left: `${number}%`; top:
   return { left: `${left}%` as `${number}%`, top: `${top}%` as `${number}%` };
 }
 
+type HuntScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 export default function HuntScreen() {
+  const navigation = useNavigation<HuntScreenNavigationProp>();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const {
@@ -266,6 +272,14 @@ export default function HuntScreen() {
   const handleCancelEncounter = () => {
     setShowCameraEncounter(false);
     setSelectedSpawn(null);
+  };
+
+  const handleStartARMode = () => {
+    if (!selectedSpawn) return;
+    const spawnForAR = selectedSpawn;
+    setShowCameraEncounter(false);
+    setSelectedSpawn(null);
+    navigation.navigate("HuntAR", { spawn: spawnForAR });
   };
 
   const handleCatchResult = async (quality: "perfect" | "great" | "good" | "miss") => {
@@ -623,6 +637,7 @@ export default function HuntScreen() {
           <CameraEncounter
             spawn={selectedSpawn}
             onStartCatch={handleStartCatch}
+            onStartARMode={handleStartARMode}
             onCancel={handleCancelEncounter}
           />
         ) : null}
