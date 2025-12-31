@@ -336,26 +336,10 @@ export function CameraEncounter({ spawn, onStartCatch, onStartARMode, onCancel }
                 </LinearGradient>
               </Animated.View>
 
-              {Platform.OS !== "web" && onStartARMode ? (
-                <Pressable onPress={onStartARMode} style={styles.arButton}>
-                  <LinearGradient
-                    colors={["#7C3AED", "#4F46E5"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.arButtonGradient}
-                  >
-                    <Feather name="box" size={22} color="#fff" />
-                  </LinearGradient>
-                </Pressable>
-              ) : null}
+              {/* AR button hidden until new native build with ViroReact is deployed */}
             </View>
             
-            <View style={styles.labelsRow}>
-              <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
-              {Platform.OS !== "web" && onStartARMode ? (
-                <ThemedText style={styles.arLabel}>AR</ThemedText>
-              ) : null}
-            </View>
+            <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
           </BlurView>
         </View>
       </Animated.View>
