@@ -748,6 +748,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   economyCard: {
+    marginTop: Spacing.md,
     marginBottom: Spacing.md,
   },
   economyHeader: {
