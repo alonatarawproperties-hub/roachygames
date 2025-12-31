@@ -3,8 +3,6 @@ import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HuntStackNavigator from "@/navigation/HuntStackNavigator";
 import CatchScreen from "@/screens/CatchScreen";
-import { HuntARScreen } from "@/screens/HuntARScreen";
-import { Spawn, CaughtCreature } from "@/context/HuntContext";
 import { ArcadeHomeScreen } from "@/screens/Arcade";
 import { FlappyRoachScreen } from "@/screens/FlappyRoachScreen";
 import { RoachyMateScreen } from "@/screens/RoachyMateScreen";
@@ -29,7 +27,6 @@ export type RootStackParamList = {
   RoachyMateStack: undefined;
   RoachyBattlesStack: undefined;
   Catch: { creature: WildCreature };
-  HuntAR: { spawn: Spawn };
   ChessLobby: undefined;
   ChessMatchmaking: { walletAddress: string; gameMode: string; timeControl: string };
   ChessGame: { matchId: string; walletAddress: string };
@@ -75,15 +72,6 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="Catch"
         component={CatchScreen}
-        options={{
-          presentation: "fullScreenModal",
-          headerShown: false,
-          animation: "fade",
-        }}
-      />
-      <Stack.Screen
-        name="HuntAR"
-        component={HuntARScreen}
         options={{
           presentation: "fullScreenModal",
           headerShown: false,

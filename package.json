@@ -30,7 +30,6 @@
     "@tanstack/react-query": "^5.90.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@viro-community/react-viro": "^2.41.1",
     "@walletconnect/react-native-compat": "^2.23.0",
     "bcryptjs": "^3.0.3",
     "bs58": "^6.0.0",
