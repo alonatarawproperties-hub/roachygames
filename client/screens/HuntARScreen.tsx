@@ -6,7 +6,6 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { ViroARSceneNavigator } from "@viro-community/react-viro";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -14,9 +13,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
-import { AREggScene } from "@/components/ar/AREggScene";
-import { ARCreatureScene } from "@/components/ar/ARCreatureScene";
-import { ARCatchGame } from "@/components/ar/ARCatchGame";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useHunt } from "@/context/HuntContext";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -25,6 +21,22 @@ type ARPhase = "loading" | "egg" | "creature" | "catch" | "success" | "escape";
 
 type HuntARRouteProp = RouteProp<RootStackParamList, "HuntAR">;
 type HuntARNavigationProp = NativeStackNavigationProp<RootStackParamList, "HuntAR">;
+
+let ViroARSceneNavigator: any = null;
+let AREggScene: any = null;
+let ARCreatureScene: any = null;
+let ARCatchGame: any = null;
+
+if (Platform.OS !== "web") {
+  try {
+    ViroARSceneNavigator = require("@viro-community/react-viro").ViroARSceneNavigator;
+    AREggScene = require("@/components/ar/AREggScene").AREggScene;
+    ARCreatureScene = require("@/components/ar/ARCreatureScene").ARCreatureScene;
+    ARCatchGame = require("@/components/ar/ARCatchGame").ARCatchGame;
+  } catch (e) {
+    console.log("ViroReact not available:", e);
+  }
+}
 
 export function HuntARScreen() {
   const route = useRoute<HuntARRouteProp>();
@@ -44,7 +56,7 @@ export function HuntARScreen() {
     if (!isValidSpawn) return;
     
     const checkARSupport = async () => {
-      if (Platform.OS === "web") {
+      if (Platform.OS === "web" || !ViroARSceneNavigator) {
         setArSupported(false);
         return;
       }
@@ -127,6 +139,10 @@ export function HuntARScreen() {
   }
 
   const renderARScene = () => {
+    if (!AREggScene || !ARCreatureScene || !ARCatchGame) {
+      return { scene: () => <View /> };
+    }
+
     switch (phase) {
       case "egg":
         return {
@@ -264,7 +280,7 @@ export function HuntARScreen() {
     );
   };
 
-  if (arSupported === false) {
+  if (arSupported === false || !ViroARSceneNavigator) {
     return (
       <View style={styles.container}>
         {renderWebFallback()}
@@ -366,7 +382,7 @@ const styles = StyleSheet.create({
     left: Spacing.md,
     width: 44,
     height: 44,
-    borderRadius: BorderRadius.round,
+    borderRadius: BorderRadius.full,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
