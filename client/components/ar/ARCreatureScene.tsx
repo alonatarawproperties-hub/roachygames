@@ -1,17 +1,40 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  ViroARScene,
-  ViroNode,
-  ViroBox,
-  ViroSphere,
-  ViroMaterials,
-  ViroAnimations,
-  ViroAmbientLight,
-  ViroSpotLight,
-  ViroQuad,
-  ViroText,
-  ViroParticleEmitter,
-} from "@viro-community/react-viro";
+import { View, Platform } from "react-native";
+
+let ViroARScene: any = null;
+let ViroNode: any = null;
+let ViroBox: any = null;
+let ViroSphere: any = null;
+let ViroMaterials: any = null;
+let ViroAnimations: any = null;
+let ViroAmbientLight: any = null;
+let ViroSpotLight: any = null;
+let ViroQuad: any = null;
+let ViroText: any = null;
+let ViroParticleEmitter: any = null;
+
+let viroAvailable = false;
+
+if (Platform.OS !== "web") {
+  try {
+    const viro = require("@viro-community/react-viro");
+    ViroARScene = viro.ViroARScene;
+    ViroNode = viro.ViroNode;
+    ViroBox = viro.ViroBox;
+    ViroSphere = viro.ViroSphere;
+    ViroMaterials = viro.ViroMaterials;
+    ViroAnimations = viro.ViroAnimations;
+    ViroAmbientLight = viro.ViroAmbientLight;
+    ViroSpotLight = viro.ViroSpotLight;
+    ViroQuad = viro.ViroQuad;
+    ViroText = viro.ViroText;
+    ViroParticleEmitter = viro.ViroParticleEmitter;
+    viroAvailable = true;
+  } catch (e) {
+    console.log("ViroReact not available in ARCreatureScene:", e);
+  }
+}
+
 import { AR_CONFIG, RARITY_COLORS, CLASS_COLORS } from "./ARConstants";
 
 interface ARCreatureSceneProps {
@@ -23,129 +46,141 @@ interface ARCreatureSceneProps {
   sceneNavigator?: any;
 }
 
-ViroMaterials.createMaterials({
-  creatureBody: {
-    diffuseColor: "#8B4513",
-    lightingModel: "Blinn",
-    shininess: 0.6,
-  },
-  creatureTank: {
-    diffuseColor: CLASS_COLORS.tank,
-    lightingModel: "Blinn",
-    shininess: 0.7,
-  },
-  creatureAssassin: {
-    diffuseColor: CLASS_COLORS.assassin,
-    lightingModel: "Blinn",
-    shininess: 0.7,
-  },
-  creatureMage: {
-    diffuseColor: CLASS_COLORS.mage,
-    lightingModel: "Blinn",
-    shininess: 0.8,
-  },
-  creatureSupport: {
-    diffuseColor: CLASS_COLORS.support,
-    lightingModel: "Blinn",
-    shininess: 0.7,
-  },
-  antennae: {
-    diffuseColor: "#5C4033",
-    lightingModel: "Blinn",
-  },
-  eye: {
-    diffuseColor: "#FF0000",
-    lightingModel: "Constant",
-  },
-  groundShadow: {
-    diffuseColor: "rgba(0,0,0,0.4)",
-  },
-  catchBall: {
-    diffuseColor: "#FFD700",
-    lightingModel: "Blinn",
-    shininess: 1.0,
-  },
-});
+if (viroAvailable && ViroMaterials) {
+  try {
+    ViroMaterials.createMaterials({
+      creatureBody: {
+        diffuseColor: "#8B4513",
+        lightingModel: "Blinn",
+        shininess: 0.6,
+      },
+      creatureTank: {
+        diffuseColor: CLASS_COLORS.tank,
+        lightingModel: "Blinn",
+        shininess: 0.7,
+      },
+      creatureAssassin: {
+        diffuseColor: CLASS_COLORS.assassin,
+        lightingModel: "Blinn",
+        shininess: 0.7,
+      },
+      creatureMage: {
+        diffuseColor: CLASS_COLORS.mage,
+        lightingModel: "Blinn",
+        shininess: 0.8,
+      },
+      creatureSupport: {
+        diffuseColor: CLASS_COLORS.support,
+        lightingModel: "Blinn",
+        shininess: 0.7,
+      },
+      antennae: {
+        diffuseColor: "#5C4033",
+        lightingModel: "Blinn",
+      },
+      eye: {
+        diffuseColor: "#FF0000",
+        lightingModel: "Constant",
+      },
+      groundShadow: {
+        diffuseColor: "rgba(0,0,0,0.4)",
+      },
+      catchBall: {
+        diffuseColor: "#FFD700",
+        lightingModel: "Blinn",
+        shininess: 1.0,
+      },
+    });
+  } catch (e) {
+    console.log("Failed to create creature materials:", e);
+  }
+}
 
-ViroAnimations.registerAnimations({
-  idle: {
-    properties: {
-      rotateY: "+=10",
-    },
-    duration: 2000,
-    easing: "Linear",
-  },
-  idleLoop: [["idle"]] as any,
-  dodge: {
-    properties: {
-      positionX: "+=0.3",
-    },
-    duration: 200,
-    easing: "EaseOut",
-  },
-  dodgeBack: {
-    properties: {
-      positionX: "-=0.3",
-    },
-    duration: 200,
-    easing: "EaseOut",
-  },
-  dodgeSequence: [["dodge", "dodgeBack"]] as any,
-  jump: {
-    properties: {
-      positionY: "+=0.2",
-    },
-    duration: 150,
-    easing: "EaseOut",
-  },
-  land: {
-    properties: {
-      positionY: "-=0.2",
-    },
-    duration: 150,
-    easing: "EaseIn",
-  },
-  jumpSequence: [["jump", "land"]] as any,
-  wiggle: {
-    properties: {
-      rotateZ: "+=8",
-    },
-    duration: 100,
-    easing: "Linear",
-  },
-  wiggleBack: {
-    properties: {
-      rotateZ: "-=16",
-    },
-    duration: 100,
-    easing: "Linear",
-  },
-  wiggleEnd: {
-    properties: {
-      rotateZ: "+=8",
-    },
-    duration: 100,
-    easing: "Linear",
-  },
-  wiggleLoop: [["wiggle", "wiggleBack", "wiggleEnd"]] as any,
-  captured: {
-    properties: {
-      scaleX: 0,
-      scaleY: 0,
-      scaleZ: 0,
-      opacity: 0,
-    },
-    duration: 500,
-    easing: "EaseIn",
-  },
-  approach: {
-    properties: {
-      positionZ: "+=0.3",
-    },
-    duration: 1500,
-    easing: "EaseInEaseOut",
-  },
-});
+if (viroAvailable && ViroAnimations) {
+  try {
+    ViroAnimations.registerAnimations({
+      idle: {
+        properties: {
+          rotateY: "+=10",
+        },
+        duration: 2000,
+        easing: "Linear",
+      },
+      idleLoop: [["idle"]] as any,
+      dodge: {
+        properties: {
+          positionX: "+=0.3",
+        },
+        duration: 200,
+        easing: "EaseOut",
+      },
+      dodgeBack: {
+        properties: {
+          positionX: "-=0.3",
+        },
+        duration: 200,
+        easing: "EaseOut",
+      },
+      dodgeSequence: [["dodge", "dodgeBack"]] as any,
+      jump: {
+        properties: {
+          positionY: "+=0.2",
+        },
+        duration: 150,
+        easing: "EaseOut",
+      },
+      land: {
+        properties: {
+          positionY: "-=0.2",
+        },
+        duration: 150,
+        easing: "EaseIn",
+      },
+      jumpSequence: [["jump", "land"]] as any,
+      wiggle: {
+        properties: {
+          rotateZ: "+=8",
+        },
+        duration: 100,
+        easing: "Linear",
+      },
+      wiggleBack: {
+        properties: {
+          rotateZ: "-=16",
+        },
+        duration: 100,
+        easing: "Linear",
+      },
+      wiggleEnd: {
+        properties: {
+          rotateZ: "+=8",
+        },
+        duration: 100,
+        easing: "Linear",
+      },
+      wiggleLoop: [["wiggle", "wiggleBack", "wiggleEnd"]] as any,
+      captured: {
+        properties: {
+          scaleX: 0,
+          scaleY: 0,
+          scaleZ: 0,
+          opacity: 0,
+        },
+        duration: 500,
+        easing: "EaseIn",
+      },
+      approach: {
+        properties: {
+          positionZ: "+=0.3",
+        },
+        duration: 1500,
+        easing: "EaseInEaseOut",
+      },
+    });
+  } catch (e) {
+    console.log("Failed to register creature animations:", e);
+  }
+}
 
 export function ARCreatureScene(props: ARCreatureSceneProps) {
   const {
@@ -162,6 +197,10 @@ export function ARCreatureScene(props: ARCreatureSceneProps) {
   const [isCaptured, setIsCaptured] = useState(false);
   const [showCatchPrompt, setShowCatchPrompt] = useState(true);
   const dodgeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (!viroAvailable || !ViroARScene) {
+    return <View style={{ flex: 1 }} />;
+  }
 
   const getMaterialForClass = () => {
     switch (creatureClass) {
@@ -347,8 +386,6 @@ export function ARCreatureScene(props: ARCreatureSceneProps) {
           height={0.5}
           materials={["groundShadow"]}
         />
-
-        {/* Particle effects for epic/legendary - TODO: Add particle asset */}
       </ViroNode>
 
       {showCatchPrompt ? (

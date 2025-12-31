@@ -259,9 +259,16 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
-    setSelectedSpawn(spawn);
-    setShowCameraEncounter(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // On native platforms, go directly to AR mode
+    if (Platform.OS !== "web") {
+      navigation.navigate("HuntAR", { spawn });
+    } else {
+      // On web, show the camera encounter (AR not supported on web)
+      setSelectedSpawn(spawn);
+      setShowCameraEncounter(true);
+    }
   };
 
   const handleStartCatch = () => {

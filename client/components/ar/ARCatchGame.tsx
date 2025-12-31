@@ -1,16 +1,38 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  ViroARScene,
-  ViroNode,
-  ViroBox,
-  ViroSphere,
-  ViroMaterials,
-  ViroAnimations,
-  ViroAmbientLight,
-  ViroSpotLight,
-  ViroText,
-  ViroFlexView,
-} from "@viro-community/react-viro";
+import { View, Platform } from "react-native";
+
+let ViroARScene: any = null;
+let ViroNode: any = null;
+let ViroBox: any = null;
+let ViroSphere: any = null;
+let ViroMaterials: any = null;
+let ViroAnimations: any = null;
+let ViroAmbientLight: any = null;
+let ViroSpotLight: any = null;
+let ViroText: any = null;
+let ViroFlexView: any = null;
+
+let viroAvailable = false;
+
+if (Platform.OS !== "web") {
+  try {
+    const viro = require("@viro-community/react-viro");
+    ViroARScene = viro.ViroARScene;
+    ViroNode = viro.ViroNode;
+    ViroBox = viro.ViroBox;
+    ViroSphere = viro.ViroSphere;
+    ViroMaterials = viro.ViroMaterials;
+    ViroAnimations = viro.ViroAnimations;
+    ViroAmbientLight = viro.ViroAmbientLight;
+    ViroSpotLight = viro.ViroSpotLight;
+    ViroText = viro.ViroText;
+    ViroFlexView = viro.ViroFlexView;
+    viroAvailable = true;
+  } catch (e) {
+    console.log("ViroReact not available in ARCatchGame:", e);
+  }
+}
+
 import { AR_CONFIG, RARITY_COLORS, CLASS_COLORS } from "./ARConstants";
 
 interface ARCatchGameProps {
@@ -23,92 +45,124 @@ interface ARCatchGameProps {
   sceneNavigator?: any;
 }
 
-ViroMaterials.createMaterials({
-  catchRing: {
-    diffuseColor: "#00FF00",
-    lightingModel: "Constant",
-  },
-  catchRingPerfect: {
-    diffuseColor: "#FFD700",
-    lightingModel: "Constant",
-  },
-  catchRingGreat: {
-    diffuseColor: "#00FF00",
-    lightingModel: "Constant",
-  },
-  catchRingGood: {
-    diffuseColor: "#87CEEB",
-    lightingModel: "Constant",
-  },
-  projectile: {
-    diffuseColor: "#FFD700",
-    lightingModel: "Blinn",
-    shininess: 1.0,
-  },
-  netEffect: {
-    diffuseColor: "#00FFFF",
-    lightingModel: "Constant",
-  },
-});
+if (viroAvailable && ViroMaterials) {
+  try {
+    ViroMaterials.createMaterials({
+      catchRing: {
+        diffuseColor: "#00FF00",
+        lightingModel: "Constant",
+      },
+      catchRingPerfect: {
+        diffuseColor: "#FFD700",
+        lightingModel: "Constant",
+      },
+      catchRingGreat: {
+        diffuseColor: "#00FF00",
+        lightingModel: "Constant",
+      },
+      catchRingGood: {
+        diffuseColor: "#87CEEB",
+        lightingModel: "Constant",
+      },
+      projectile: {
+        diffuseColor: "#FFD700",
+        lightingModel: "Blinn",
+        shininess: 1.0,
+      },
+      netEffect: {
+        diffuseColor: "#00FFFF",
+        lightingModel: "Constant",
+      },
+      creatureTank: {
+        diffuseColor: CLASS_COLORS.tank,
+        lightingModel: "Blinn",
+        shininess: 0.7,
+      },
+      creatureAssassin: {
+        diffuseColor: CLASS_COLORS.assassin,
+        lightingModel: "Blinn",
+        shininess: 0.7,
+      },
+      creatureMage: {
+        diffuseColor: CLASS_COLORS.mage,
+        lightingModel: "Blinn",
+        shininess: 0.8,
+      },
+      creatureSupport: {
+        diffuseColor: CLASS_COLORS.support,
+        lightingModel: "Blinn",
+        shininess: 0.7,
+      },
+    });
+  } catch (e) {
+    console.log("Failed to create catch game materials:", e);
+  }
+}
 
-ViroAnimations.registerAnimations({
-  shrinkRing: {
-    properties: {
-      scaleX: 0.3,
-      scaleY: 0.3,
-      scaleZ: 0.3,
-    },
-    duration: 2000,
-    easing: "Linear",
-  },
-  expandRing: {
-    properties: {
-      scaleX: 1.0,
-      scaleY: 1.0,
-      scaleZ: 1.0,
-    },
-    duration: 100,
-    easing: "EaseOut",
-  },
-  ringCycle: [["shrinkRing", "expandRing"]] as any,
-  projectileThrow: {
-    properties: {
-      positionZ: "-=2",
-      positionY: "+=0.5",
-    },
-    duration: 500,
-    easing: "EaseOut",
-  },
-  creatureWiggle: {
-    properties: {
-      rotateZ: "+=15",
-    },
-    duration: 100,
-  },
-  creatureWiggleBack: {
-    properties: {
-      rotateZ: "-=30",
-    },
-    duration: 100,
-  },
-  creatureWiggleEnd: {
-    properties: {
-      rotateZ: "+=15",
-    },
-    duration: 100,
-  },
-  struggleLoop: [["creatureWiggle", "creatureWiggleBack", "creatureWiggleEnd"]] as any,
-  captureSuccess: {
-    properties: {
-      scaleX: 0,
-      scaleY: 0,
-      scaleZ: 0,
-      opacity: 0,
-    },
-    duration: 800,
-    easing: "EaseIn",
-  },
-});
+if (viroAvailable && ViroAnimations) {
+  try {
+    ViroAnimations.registerAnimations({
+      shrinkRing: {
+        properties: {
+          scaleX: 0.3,
+          scaleY: 0.3,
+          scaleZ: 0.3,
+        },
+        duration: 2000,
+        easing: "Linear",
+      },
+      expandRing: {
+        properties: {
+          scaleX: 1.0,
+          scaleY: 1.0,
+          scaleZ: 1.0,
+        },
+        duration: 100,
+        easing: "EaseOut",
+      },
+      ringCycle: [["shrinkRing", "expandRing"]] as any,
+      projectileThrow: {
+        properties: {
+          positionZ: "-=2",
+          positionY: "+=0.5",
+        },
+        duration: 500,
+        easing: "EaseOut",
+      },
+      creatureWiggle: {
+        properties: {
+          rotateZ: "+=15",
+        },
+        duration: 100,
+      },
+      creatureWiggleBack: {
+        properties: {
+          rotateZ: "-=30",
+        },
+        duration: 100,
+      },
+      creatureWiggleEnd: {
+        properties: {
+          rotateZ: "+=15",
+        },
+        duration: 100,
+      },
+      struggleLoop: [["creatureWiggle", "creatureWiggleBack", "creatureWiggleEnd"]] as any,
+      captureSuccess: {
+        properties: {
+          scaleX: 0,
+          scaleY: 0,
+          scaleZ: 0,
+          opacity: 0,
+        },
+        duration: 800,
+        easing: "EaseIn",
+      },
+    });
+  } catch (e) {
+    console.log("Failed to register catch game animations:", e);
+  }
+}
 
 export function ARCatchGame(props: ARCatchGameProps) {
   const {
@@ -128,6 +182,10 @@ export function ARCatchGame(props: ARCatchGameProps) {
   const [attempts, setAttempts] = useState(0);
   const maxAttempts = 3;
   const ringAnimRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (!viroAvailable || !ViroARScene) {
+    return <View style={{ flex: 1 }} />;
+  }
 
   useEffect(() => {
     startRingAnimation();
