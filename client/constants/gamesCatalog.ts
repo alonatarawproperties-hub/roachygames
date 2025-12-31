@@ -16,6 +16,8 @@ export interface GameEntry {
   isLocked: boolean;
   isComingSoon: boolean;
   isLockedOnAndroid?: boolean;
+  isBetaOnly?: boolean;
+  betaTesters?: string[];
   category: "strategy" | "battle" | "arcade" | "adventure";
   playerCount: string;
   rewards: string[];
@@ -61,6 +63,8 @@ export const GAMES_CATALOG: GameEntry[] = [
     routeName: "RoachyHuntStack",
     isLocked: false,
     isComingSoon: false,
+    isBetaOnly: true,
+    betaTesters: ["zajkcomshop@gmail.com"],
     category: "adventure",
     playerCount: "Solo & Multiplayer",
     rewards: ["Roachy NFTs", "XP", "Eggs", "Rare Drops"],
@@ -102,5 +106,18 @@ export function isGameLockedForPlatform(game: GameEntry): boolean {
 export function isGameComingSoonForPlatform(game: GameEntry): boolean {
   if (game.isComingSoon) return true;
   if (game.isLockedOnAndroid && Platform.OS === "android") return true;
+  return false;
+}
+
+export function hasGameBetaAccess(game: GameEntry, userEmail: string | null | undefined): boolean {
+  if (!game.isBetaOnly) return true;
+  if (!userEmail) return false;
+  if (!game.betaTesters || game.betaTesters.length === 0) return false;
+  return game.betaTesters.includes(userEmail.toLowerCase());
+}
+
+export function isGameLockedForUser(game: GameEntry, userEmail: string | null | undefined): boolean {
+  if (isGameLockedForPlatform(game)) return true;
+  if (game.isBetaOnly && !hasGameBetaAccess(game, userEmail)) return true;
   return false;
 }

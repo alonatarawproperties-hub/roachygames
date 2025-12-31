@@ -9,7 +9,8 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { GameEntry, isGameLockedForPlatform, isGameComingSoonForPlatform } from "@/constants/gamesCatalog";
+import { GameEntry, isGameLockedForUser, isGameComingSoonForPlatform } from "@/constants/gamesCatalog";
+import { useAuth } from "@/context/AuthContext";
 
 interface GameListItemProps {
   game: GameEntry;
@@ -35,9 +36,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function GameListItem({ game, onPress, playTime = "20:30" }: GameListItemProps) {
   const scale = useSharedValue(1);
+  const { user } = useAuth();
   const categoryStyle = CATEGORY_COLORS[game.category] || CATEGORY_COLORS.adventure;
   
-  const isLocked = isGameLockedForPlatform(game);
+  const isLocked = isGameLockedForUser(game, user?.email);
   const isComingSoon = isGameComingSoonForPlatform(game);
 
   const animatedStyle = useAnimatedStyle(() => ({
