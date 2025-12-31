@@ -796,7 +796,6 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
-    marginHorizontal: Spacing.md,
     padding: Spacing.xs,
   },
   tab: {

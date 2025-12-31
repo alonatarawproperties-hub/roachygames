@@ -496,7 +496,6 @@ const styles = StyleSheet.create({
     position: "relative",
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
-    marginHorizontal: Spacing.md,
     marginBottom: Spacing.md,
   },
   map: {
