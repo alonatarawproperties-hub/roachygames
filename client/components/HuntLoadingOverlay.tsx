@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
+import { View, StyleSheet, Dimensions, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -200,8 +200,13 @@ export function HuntLoadingOverlay({
         {permissionDenied && onRequestPermission ? (
           <View style={styles.permissionContainer}>
             <ThemedText style={styles.permissionText}>
-              Location access is required to find Roachies in your area
+              Location access is required to find Roachies in your area.
+              Please enable location in your device settings.
             </ThemedText>
+            <Pressable style={styles.settingsButton} onPress={onRequestPermission}>
+              <Feather name="settings" size={16} color="#fff" />
+              <ThemedText style={styles.settingsButtonText}>Open Settings</ThemedText>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -327,10 +332,26 @@ const styles = StyleSheet.create({
   permissionContainer: {
     marginTop: Spacing.xl,
     paddingHorizontal: Spacing.lg,
+    alignItems: "center",
   },
   permissionText: {
     fontSize: 14,
     color: GameColors.textSecondary,
     textAlign: "center",
+    marginBottom: Spacing.md,
+  },
+  settingsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: GameColors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: 20,
+  },
+  settingsButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a1408",
   },
 });

@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   Dimensions,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -106,6 +107,16 @@ export default function HuntScreen() {
   const gpsReady = !!playerLocation;
   const dataReady = economyReady;
   const allReady = gpsReady && dataReady && mapReady;
+
+  const handleRequestPermission = useCallback(async () => {
+    if (Platform.OS !== "web") {
+      try {
+        await Linking.openSettings();
+      } catch (error) {
+        console.error("Failed to open settings:", error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (allReady) {
@@ -721,6 +732,7 @@ export default function HuntScreen() {
           mapReady={mapReady}
           gpsAccuracy={gpsAccuracy}
           permissionDenied={permissionDenied}
+          onRequestPermission={handleRequestPermission}
         />
       </Animated.View>
     </View>
