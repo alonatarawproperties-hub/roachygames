@@ -8,6 +8,8 @@ import {
   Platform,
   Dimensions,
   Linking,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -141,108 +143,134 @@ export default function HuntScreen() {
   }, []);
 
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const bestAccuracyRef = useRef<number>(Infinity);
+  const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
-    let isMounted = true;
+  const startLocationTracking = useCallback(async () => {
     let hasInitialLocation = false;
     
-    const startHighAccuracyTracking = async () => {
-      try {
+    try {
+      // First check current permission status
+      const { status: currentStatus } = await Location.getForegroundPermissionsAsync();
+      console.log("[Hunt] Current permission status:", currentStatus);
+      
+      if (currentStatus !== "granted") {
+        // Try requesting if not granted
         const { status } = await Location.requestForegroundPermissionsAsync();
+        console.log("[Hunt] Requested permission status:", status);
         if (status !== "granted") {
           setLocationError("Location permission required for hunting");
           setPermissionDenied(true);
           return;
         }
-        setPermissionDenied(false);
+      }
+      
+      setPermissionDenied(false);
+      setLocationError(null);
 
-        if (Platform.OS === "android") {
-          try {
-            await Location.enableNetworkProviderAsync();
-          } catch {
+      if (Platform.OS === "android") {
+        try {
+          await Location.enableNetworkProviderAsync();
+        } catch {
+        }
+      }
+
+      // FAST initial location - accept lower accuracy to start quickly
+      try {
+        console.log("[Hunt] Getting quick initial location...");
+        const quickLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        
+        if (isMountedRef.current && quickLocation && !hasInitialLocation) {
+          const heading = quickLocation.coords.heading;
+          const accuracy = quickLocation.coords.accuracy ?? 100;
+          
+          hasInitialLocation = true;
+          bestAccuracyRef.current = accuracy;
+          setGpsAccuracy(accuracy);
+          updateLocation(
+            quickLocation.coords.latitude, 
+            quickLocation.coords.longitude,
+            heading !== null && heading >= 0 ? heading : 0
+          );
+          console.log(`[Hunt] Quick initial location accuracy: ${accuracy}m`);
+        }
+      } catch (error) {
+        console.log("[Hunt] Quick location failed, waiting for watch...", error);
+      }
+
+      // Clean up existing subscription
+      if (locationSubscriptionRef.current) {
+        locationSubscriptionRef.current.remove();
+      }
+
+      locationSubscriptionRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1000,
+          distanceInterval: 2,
+        },
+        (newLocation) => {
+          if (!isMountedRef.current) return;
+          const accuracy = newLocation.coords.accuracy ?? 100;
+          
+          setGpsAccuracy(accuracy);
+          
+          const shouldUpdate = !hasInitialLocation || 
+            accuracy <= bestAccuracyRef.current || 
+            accuracy <= 50;
+          
+          if (shouldUpdate) {
+            if (accuracy < bestAccuracyRef.current) {
+              bestAccuracyRef.current = accuracy;
+            }
+            
+            hasInitialLocation = true;
+            const heading = newLocation.coords.heading;
+            updateLocation(
+              newLocation.coords.latitude, 
+              newLocation.coords.longitude,
+              heading !== null && heading >= 0 ? heading : undefined
+            );
           }
         }
+      );
+    } catch (error) {
+      console.error("[Hunt] Location tracking error:", error);
+      setLocationError("Could not get location. Please try again.");
+    }
+  }, [updateLocation]);
 
-        // FAST initial location - accept lower accuracy to start quickly
-        const getQuickInitialLocation = async () => {
-          try {
-            const quickLocation = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            });
-            
-            if (isMounted && quickLocation && !hasInitialLocation) {
-              const heading = quickLocation.coords.heading;
-              const accuracy = quickLocation.coords.accuracy ?? 100;
-              
-              // Accept first location regardless of accuracy to unblock loading
-              hasInitialLocation = true;
-              bestAccuracyRef.current = accuracy;
-              setGpsAccuracy(accuracy);
-              updateLocation(
-                quickLocation.coords.latitude, 
-                quickLocation.coords.longitude,
-                heading !== null && heading >= 0 ? heading : 0
-              );
-              console.log(`Quick initial location accuracy: ${accuracy}m`);
-            }
-          } catch (error) {
-            console.log("Quick location failed, waiting for watch...");
-          }
-        };
-        
-        getQuickInitialLocation();
-
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 1000,
-            distanceInterval: 2,
-          },
-          (newLocation) => {
-            if (!isMounted) return;
-            const accuracy = newLocation.coords.accuracy ?? 100;
-            
-            // Always update GPS indicator
-            setGpsAccuracy(accuracy);
-            
-            // Only update location if this reading is better or comparable to our best
-            // After initial fix, only accept readings that don't regress accuracy significantly
-            const shouldUpdate = !hasInitialLocation || 
-              accuracy <= bestAccuracyRef.current || 
-              accuracy <= 50; // Always accept readings under 50m
-            
-            if (shouldUpdate) {
-              if (accuracy < bestAccuracyRef.current) {
-                bestAccuracyRef.current = accuracy;
-              }
-              
-              hasInitialLocation = true;
-              const heading = newLocation.coords.heading;
-              updateLocation(
-                newLocation.coords.latitude, 
-                newLocation.coords.longitude,
-                heading !== null && heading >= 0 ? heading : undefined
-              );
-            }
-          }
-        );
-      } catch (error) {
-        setLocationError("Could not get location. Using default.");
-      }
-    };
-
-    startHighAccuracyTracking();
+  // Initial location tracking
+  useEffect(() => {
+    isMountedRef.current = true;
+    startLocationTracking();
     
     return () => {
-      isMounted = false;
-      if (locationSubscription) {
-        locationSubscription.remove();
+      isMountedRef.current = false;
+      if (locationSubscriptionRef.current) {
+        locationSubscriptionRef.current.remove();
       }
     };
-  }, [updateLocation]);
+  }, [startLocationTracking]);
+
+  // Re-check permission when app returns from background (e.g., from Settings)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === "active" && permissionDenied) {
+        console.log("[Hunt] App became active, re-checking location permission...");
+        setRetryCount(prev => prev + 1);
+        startLocationTracking();
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription.remove();
+  }, [permissionDenied, startLocationTracking]);
 
   useEffect(() => {
     console.log("Auto-spawn check:", { 
