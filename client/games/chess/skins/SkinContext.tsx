@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const GOD_ACCOUNTS = [
   'zajkcomshop@gmail.com',
+  'engagedglobal@gmail.com',
 ];
 
 interface SkinContextType {

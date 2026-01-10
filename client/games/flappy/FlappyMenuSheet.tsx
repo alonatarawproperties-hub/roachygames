@@ -39,6 +39,7 @@ import { useActiveCompetitions, Competition, filterRankedCompetitions, filterBos
 // God accounts have access to ALL skins without purchasing
 const GOD_ACCOUNTS = [
   'zajkcomshop@gmail.com',
+  'engagedglobal@gmail.com',
 ];
 
 const ChyCoinIcon = require("@/assets/chy-coin-icon.png");
