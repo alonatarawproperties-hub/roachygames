@@ -146,13 +146,26 @@ export const huntEconomyStats = pgTable("hunt_economy_stats", {
   lastWeeklyReset: timestamp("last_weekly_reset").notNull().default(sql`now()`),
   catchesSinceRare: integer("catches_since_rare").notNull().default(0),
   catchesSinceEpic: integer("catches_since_epic").notNull().default(0),
+  catchesSinceLegendary: integer("catches_since_legendary").notNull().default(0),
   lastLegendaryCatch: timestamp("last_legendary_catch"),
   legendaryCountThisMonth: integer("legendary_count_this_month").notNull().default(0),
   currentStreak: integer("current_streak").notNull().default(0),
   longestStreak: integer("longest_streak").notNull().default(0),
   lastCatchDate: text("last_catch_date"),
+  lastClaimAt: timestamp("last_claim_at"),
   streakBonusClaimedToday: boolean("streak_bonus_claimed_today").notNull().default(false),
   collectedEggs: integer("collected_eggs").notNull().default(0),
+  eggCommon: integer("egg_common").notNull().default(0),
+  eggRare: integer("egg_rare").notNull().default(0),
+  eggEpic: integer("egg_epic").notNull().default(0),
+  eggLegendary: integer("egg_legendary").notNull().default(0),
+  warmth: integer("warmth").notNull().default(0),
+  boostTokens: integer("boost_tokens").notNull().default(0),
+  hunterLevel: integer("hunter_level").notNull().default(1),
+  hunterXp: integer("hunter_xp").notNull().default(0),
+  pointsThisWeek: integer("points_this_week").notNull().default(0),
+  perfectsThisWeek: integer("perfects_this_week").notNull().default(0),
+  currentWeekKey: text("current_week_key"),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
@@ -206,6 +219,35 @@ export const huntRaidParticipants = pgTable("hunt_raid_participants", {
   attackCount: integer("attack_count").notNull().default(0),
   joinedAt: timestamp("joined_at").notNull().default(sql`now()`),
 });
+
+export const huntClaims = pgTable("hunt_claims", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  nodeId: text("node_id").notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+  quality: text("quality").notNull(),
+  eggRarity: text("egg_rarity").notNull(),
+  xpAwarded: integer("xp_awarded").notNull().default(0),
+  pointsAwarded: integer("points_awarded").notNull().default(0),
+  dayKey: text("day_key").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  uniqueClaim: unique().on(table.walletAddress, table.nodeId, table.dayKey),
+}));
+
+export const huntWeeklyLeaderboard = pgTable("hunt_weekly_leaderboard", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  weekKey: text("week_key").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  displayName: text("display_name"),
+  points: integer("points").notNull().default(0),
+  perfects: integer("perfects").notNull().default(0),
+  eggsTotal: integer("eggs_total").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => ({
+  uniqueWeekPlayer: unique().on(table.weekKey, table.walletAddress),
+}));
 
 export const insertHuntPlayerLocationSchema = createInsertSchema(huntPlayerLocations).omit({
   id: true,
@@ -266,6 +308,16 @@ export const insertHuntRaidParticipantSchema = createInsertSchema(huntRaidPartic
   joinedAt: true,
 });
 
+export const insertHuntClaimSchema = createInsertSchema(huntClaims).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertHuntWeeklyLeaderboardSchema = createInsertSchema(huntWeeklyLeaderboard).omit({
+  id: true,
+  updatedAt: true,
+});
+
 export type HuntPlayerLocation = typeof huntPlayerLocations.$inferSelect;
 export type InsertHuntPlayerLocation = z.infer<typeof insertHuntPlayerLocationSchema>;
 export type WildCreatureSpawn = typeof wildCreatureSpawns.$inferSelect;
@@ -286,6 +338,10 @@ export type HuntRaid = typeof huntRaids.$inferSelect;
 export type InsertHuntRaid = z.infer<typeof insertHuntRaidSchema>;
 export type HuntRaidParticipant = typeof huntRaidParticipants.$inferSelect;
 export type InsertHuntRaidParticipant = z.infer<typeof insertHuntRaidParticipantSchema>;
+export type HuntClaim = typeof huntClaims.$inferSelect;
+export type InsertHuntClaim = z.infer<typeof insertHuntClaimSchema>;
+export type HuntWeeklyLeaderboard = typeof huntWeeklyLeaderboard.$inferSelect;
+export type InsertHuntWeeklyLeaderboard = z.infer<typeof insertHuntWeeklyLeaderboardSchema>;
 
 // ==================== CHESS/ROACHY MATE TABLES ====================
 
