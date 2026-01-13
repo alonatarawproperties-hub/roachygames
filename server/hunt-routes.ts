@@ -11,10 +11,20 @@ import {
   huntIncubators,
   huntRaids,
   huntRaidParticipants,
+  huntClaims,
+  huntWeeklyLeaderboard,
   users,
 } from "@shared/schema";
-import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, isNull, asc } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
+import {
+  HUNT_CONFIG,
+  getManilaDate,
+  getManilaWeekKey,
+  calculateDistance,
+  generateDeterministicNodes,
+  selectEggRarity,
+} from "./hunt-config";
 
 const RARITY_RATES = {
   common: 0.60,
@@ -988,6 +998,465 @@ export function registerHuntRoutes(app: Express) {
     } catch (error) {
       console.error("Spawn raid error:", error);
       res.status(500).json({ error: "Failed to spawn raid" });
+    }
+  });
+
+  // ==================== PHASE I ENDPOINTS ====================
+
+  app.get("/api/hunt/nodes", async (req: Request, res: Response) => {
+    try {
+      const { latitude, longitude, walletAddress } = req.query;
+      
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: "Missing coordinates" });
+      }
+
+      const lat = parseFloat(latitude as string);
+      const lon = parseFloat(longitude as string);
+      const dayKey = getManilaDate();
+      
+      const nodes = generateDeterministicNodes(lat, lon, dayKey);
+      
+      let claimedNodeIds: string[] = [];
+      if (walletAddress) {
+        const claims = await db.select({ nodeId: huntClaims.nodeId })
+          .from(huntClaims)
+          .where(and(
+            eq(huntClaims.walletAddress, walletAddress as string),
+            eq(huntClaims.dayKey, dayKey)
+          ));
+        claimedNodeIds = claims.map(c => c.nodeId);
+      }
+      
+      const nodesWithStatus = nodes.map(node => ({
+        ...node,
+        claimed: claimedNodeIds.includes(node.nodeId),
+      }));
+
+      res.json({ 
+        nodes: nodesWithStatus,
+        dayKey,
+        totalNodes: nodes.length,
+        claimedCount: claimedNodeIds.length,
+      });
+    } catch (error) {
+      console.error("Nodes fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch nodes" });
+    }
+  });
+
+  app.post("/api/hunt/phase1/claim", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, nodeId, lat, lon, quality } = req.body;
+      
+      if (!walletAddress || !nodeId || lat === undefined || lon === undefined || !quality) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (!['perfect', 'great', 'good'].includes(quality)) {
+        return res.status(400).json({ error: "Invalid quality" });
+      }
+
+      const dayKey = getManilaDate();
+      const weekKey = getManilaWeekKey();
+      
+      const existingClaim = await db.select()
+        .from(huntClaims)
+        .where(and(
+          eq(huntClaims.walletAddress, walletAddress),
+          eq(huntClaims.nodeId, nodeId),
+          eq(huntClaims.dayKey, dayKey)
+        ))
+        .limit(1);
+
+      if (existingClaim.length > 0) {
+        return res.status(400).json({ error: "Node already claimed today" });
+      }
+
+      let [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        [economy] = await db.insert(huntEconomyStats).values({
+          walletAddress,
+          energy: 30,
+          maxEnergy: 30,
+        }).returning();
+      }
+
+      const isNewDay = economy.lastCatchDate !== dayKey;
+      const huntsToday = isNewDay ? 0 : economy.catchesToday;
+      
+      if (huntsToday >= HUNT_CONFIG.DAILY_HUNT_CAP) {
+        return res.status(400).json({ error: "Daily hunt limit reached" });
+      }
+
+      if (economy.lastClaimAt) {
+        const secondsSinceLastClaim = (Date.now() - new Date(economy.lastClaimAt).getTime()) / 1000;
+        if (secondsSinceLastClaim < HUNT_CONFIG.COOLDOWN_SECONDS) {
+          return res.status(400).json({ 
+            error: `Cooldown active. Wait ${Math.ceil(HUNT_CONFIG.COOLDOWN_SECONDS - secondsSinceLastClaim)} seconds` 
+          });
+        }
+      }
+
+      const nodes = generateDeterministicNodes(lat, lon, dayKey);
+      const targetNode = nodes.find(n => n.nodeId === nodeId);
+      
+      if (!targetNode) {
+        return res.status(400).json({ error: "Invalid node" });
+      }
+
+      const distance = calculateDistance(lat, lon, targetNode.lat, targetNode.lon);
+      if (distance > HUNT_CONFIG.DISTANCE_MAX_METERS) {
+        return res.status(400).json({ error: `Too far from node. Distance: ${Math.round(distance)}m` });
+      }
+
+      const pityCounters = {
+        sinceRare: economy.catchesSinceRare + 1,
+        sinceEpic: economy.catchesSinceEpic + 1,
+        sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
+      };
+
+      const eggRarity = selectEggRarity(pityCounters);
+      
+      const xpAwarded = HUNT_CONFIG.XP_REWARDS[quality] || 30;
+      const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
+      const isPerfect = quality === 'perfect';
+
+      await db.insert(huntClaims).values({
+        walletAddress,
+        nodeId,
+        latitude: lat.toString(),
+        longitude: lon.toString(),
+        quality,
+        eggRarity,
+        xpAwarded,
+        pointsAwarded,
+        dayKey,
+      });
+
+      let newSinceRare = pityCounters.sinceRare;
+      let newSinceEpic = pityCounters.sinceEpic;
+      let newSinceLegendary = pityCounters.sinceLegendary;
+      
+      if (eggRarity === 'legendary') {
+        newSinceLegendary = 0;
+        newSinceEpic = 0;
+        newSinceRare = 0;
+      } else if (eggRarity === 'epic') {
+        newSinceEpic = 0;
+        newSinceRare = 0;
+      } else if (eggRarity === 'rare') {
+        newSinceRare = 0;
+      }
+
+      const newHunterXp = (economy.hunterXp || 0) + xpAwarded;
+      const newHunterLevel = Math.floor(newHunterXp / HUNT_CONFIG.XP_PER_LEVEL) + 1;
+
+      let newStreak = economy.currentStreak;
+      if (isNewDay) {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+      }
+
+      const eggField = `egg${eggRarity.charAt(0).toUpperCase() + eggRarity.slice(1)}` as 
+        'eggCommon' | 'eggRare' | 'eggEpic' | 'eggLegendary';
+      const currentEggCount = economy[eggField] || 0;
+
+      const currentWeekKey = economy.currentWeekKey;
+      const isNewWeek = currentWeekKey !== weekKey;
+
+      await db.update(huntEconomyStats)
+        .set({
+          catchesToday: huntsToday + 1,
+          lastCatchDate: dayKey,
+          lastClaimAt: new Date(),
+          catchesSinceRare: newSinceRare,
+          catchesSinceEpic: newSinceEpic,
+          catchesSinceLegendary: newSinceLegendary,
+          [eggField]: currentEggCount + 1,
+          hunterXp: newHunterXp,
+          hunterLevel: newHunterLevel,
+          currentStreak: newStreak,
+          longestStreak: Math.max(newStreak, economy.longestStreak),
+          pointsThisWeek: isNewWeek ? pointsAwarded : (economy.pointsThisWeek || 0) + pointsAwarded,
+          perfectsThisWeek: isNewWeek ? (isPerfect ? 1 : 0) : (economy.perfectsThisWeek || 0) + (isPerfect ? 1 : 0),
+          currentWeekKey: weekKey,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await db.insert(huntWeeklyLeaderboard)
+        .values({
+          weekKey,
+          walletAddress,
+          points: pointsAwarded,
+          perfects: isPerfect ? 1 : 0,
+          eggsTotal: 1,
+        })
+        .onConflictDoUpdate({
+          target: [huntWeeklyLeaderboard.weekKey, huntWeeklyLeaderboard.walletAddress],
+          set: {
+            points: sql`${huntWeeklyLeaderboard.points} + ${pointsAwarded}`,
+            perfects: sql`${huntWeeklyLeaderboard.perfects} + ${isPerfect ? 1 : 0}`,
+            eggsTotal: sql`${huntWeeklyLeaderboard.eggsTotal} + 1`,
+            updatedAt: new Date(),
+          },
+        });
+
+      const recentClaims = await db.select({
+        eggRarity: huntClaims.eggRarity,
+        quality: huntClaims.quality,
+      })
+        .from(huntClaims)
+        .where(eq(huntClaims.walletAddress, walletAddress))
+        .orderBy(desc(huntClaims.createdAt))
+        .limit(5);
+
+      res.json({
+        success: true,
+        eggRarity,
+        xpAwarded,
+        pointsAwarded,
+        quality,
+        huntsToday: huntsToday + 1,
+        dailyCap: HUNT_CONFIG.DAILY_HUNT_CAP,
+        streakCount: newStreak,
+        eggs: {
+          common: eggRarity === 'common' ? currentEggCount + 1 : (economy.eggCommon || 0),
+          rare: eggRarity === 'rare' ? currentEggCount + 1 : (economy.eggRare || 0),
+          epic: eggRarity === 'epic' ? currentEggCount + 1 : (economy.eggEpic || 0),
+          legendary: eggRarity === 'legendary' ? currentEggCount + 1 : (economy.eggLegendary || 0),
+        },
+        pity: {
+          rareIn: HUNT_CONFIG.PITY_RARE - newSinceRare,
+          epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
+          legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
+        },
+        warmth: economy.warmth || 0,
+        hunterLevel: newHunterLevel,
+        hunterXp: newHunterXp,
+        recentDrops: recentClaims.map(c => c.eggRarity),
+      });
+    } catch (error) {
+      console.error("Phase1 claim error:", error);
+      res.status(500).json({ error: "Failed to claim" });
+    }
+  });
+
+  app.post("/api/hunt/recycle", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, amount } = req.body;
+      
+      if (!walletAddress || !amount || amount < 1) {
+        return res.status(400).json({ error: "Invalid request" });
+      }
+
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const currentCommon = economy.eggCommon || 0;
+      if (currentCommon < amount) {
+        return res.status(400).json({ error: `Not enough common eggs. Have: ${currentCommon}` });
+      }
+
+      const warmthGained = amount * HUNT_CONFIG.RECYCLE_COMMON_TO_WARMTH;
+      
+      await db.update(huntEconomyStats)
+        .set({
+          eggCommon: currentCommon - amount,
+          warmth: (economy.warmth || 0) + warmthGained,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await db.insert(huntActivityLog).values({
+        walletAddress,
+        activityType: 'recycle',
+        details: JSON.stringify({ amount, warmthGained }),
+      });
+
+      res.json({
+        success: true,
+        recycled: amount,
+        warmthGained,
+        newWarmth: (economy.warmth || 0) + warmthGained,
+        eggs: {
+          common: currentCommon - amount,
+          rare: economy.eggRare || 0,
+          epic: economy.eggEpic || 0,
+          legendary: economy.eggLegendary || 0,
+        },
+      });
+    } catch (error) {
+      console.error("Recycle error:", error);
+      res.status(500).json({ error: "Failed to recycle" });
+    }
+  });
+
+  app.post("/api/hunt/fuse", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, rarity, times = 1 } = req.body;
+      
+      if (!walletAddress || !rarity || !['common', 'rare', 'epic'].includes(rarity)) {
+        return res.status(400).json({ error: "Invalid request" });
+      }
+
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const sourceField = `egg${rarity.charAt(0).toUpperCase() + rarity.slice(1)}` as 
+        'eggCommon' | 'eggRare' | 'eggEpic';
+      const targetRarity = rarity === 'common' ? 'rare' : rarity === 'rare' ? 'epic' : 'legendary';
+      const targetField = `egg${targetRarity.charAt(0).toUpperCase() + targetRarity.slice(1)}` as 
+        'eggRare' | 'eggEpic' | 'eggLegendary';
+
+      const currentSource = economy[sourceField] || 0;
+      const required = times * HUNT_CONFIG.FUSE_RATIO;
+      
+      if (currentSource < required) {
+        return res.status(400).json({ 
+          error: `Not enough ${rarity} eggs. Need ${required}, have ${currentSource}` 
+        });
+      }
+
+      const currentTarget = economy[targetField] || 0;
+
+      await db.update(huntEconomyStats)
+        .set({
+          [sourceField]: currentSource - required,
+          [targetField]: currentTarget + times,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await db.insert(huntActivityLog).values({
+        walletAddress,
+        activityType: 'fuse',
+        details: JSON.stringify({ sourceRarity: rarity, targetRarity, times, eggsUsed: required }),
+      });
+
+      res.json({
+        success: true,
+        fused: times,
+        sourceRarity: rarity,
+        targetRarity,
+        eggsUsed: required,
+        eggs: {
+          common: rarity === 'common' ? currentSource - required : (economy.eggCommon || 0),
+          rare: rarity === 'rare' ? currentSource - required : (targetRarity === 'rare' ? currentTarget + times : (economy.eggRare || 0)),
+          epic: rarity === 'epic' ? currentSource - required : (targetRarity === 'epic' ? currentTarget + times : (economy.eggEpic || 0)),
+          legendary: targetRarity === 'legendary' ? currentTarget + times : (economy.eggLegendary || 0),
+        },
+      });
+    } catch (error) {
+      console.error("Fuse error:", error);
+      res.status(500).json({ error: "Failed to fuse" });
+    }
+  });
+
+  app.get("/api/hunt/weekly-leaderboard", async (req: Request, res: Response) => {
+    try {
+      const weekKey = getManilaWeekKey();
+      
+      const leaderboard = await db.select()
+        .from(huntWeeklyLeaderboard)
+        .where(eq(huntWeeklyLeaderboard.weekKey, weekKey))
+        .orderBy(desc(huntWeeklyLeaderboard.points))
+        .limit(100);
+
+      const rankedLeaderboard = leaderboard.map((entry, index) => ({
+        rank: index + 1,
+        walletAddress: entry.walletAddress,
+        displayName: entry.displayName,
+        points: entry.points,
+        perfects: entry.perfects,
+        eggsTotal: entry.eggsTotal,
+      }));
+
+      res.json({
+        weekKey,
+        leaderboard: rankedLeaderboard,
+      });
+    } catch (error) {
+      console.error("Weekly leaderboard error:", error);
+      res.status(500).json({ error: "Failed to fetch leaderboard" });
+    }
+  });
+
+  app.get("/api/hunt/me", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.query;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: "Missing wallet address" });
+      }
+
+      let [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress as string))
+        .limit(1);
+
+      if (!economy) {
+        [economy] = await db.insert(huntEconomyStats).values({
+          walletAddress: walletAddress as string,
+          energy: 30,
+          maxEnergy: 30,
+        }).returning();
+      }
+
+      const dayKey = getManilaDate();
+      const weekKey = getManilaWeekKey();
+      const isNewDay = economy.lastCatchDate !== dayKey;
+      
+      const recentClaims = await db.select({
+        eggRarity: huntClaims.eggRarity,
+      })
+        .from(huntClaims)
+        .where(eq(huntClaims.walletAddress, walletAddress as string))
+        .orderBy(desc(huntClaims.createdAt))
+        .limit(5);
+
+      res.json({
+        walletAddress,
+        huntsToday: isNewDay ? 0 : economy.catchesToday,
+        dailyCap: HUNT_CONFIG.DAILY_HUNT_CAP,
+        streakCount: economy.currentStreak,
+        longestStreak: economy.longestStreak,
+        eggs: {
+          common: economy.eggCommon || 0,
+          rare: economy.eggRare || 0,
+          epic: economy.eggEpic || 0,
+          legendary: economy.eggLegendary || 0,
+        },
+        pity: {
+          rareIn: Math.max(0, HUNT_CONFIG.PITY_RARE - economy.catchesSinceRare),
+          epicIn: Math.max(0, HUNT_CONFIG.PITY_EPIC - economy.catchesSinceEpic),
+          legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - (economy.catchesSinceLegendary || 0)),
+        },
+        warmth: economy.warmth || 0,
+        hunterLevel: economy.hunterLevel || 1,
+        hunterXp: economy.hunterXp || 0,
+        boostTokens: economy.boostTokens || 0,
+        recentDrops: recentClaims.map(c => c.eggRarity),
+        weekKey,
+        pointsThisWeek: economy.currentWeekKey === weekKey ? (economy.pointsThisWeek || 0) : 0,
+        perfectsThisWeek: economy.currentWeekKey === weekKey ? (economy.perfectsThisWeek || 0) : 0,
+      });
+    } catch (error) {
+      console.error("Hunt me error:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
 }
