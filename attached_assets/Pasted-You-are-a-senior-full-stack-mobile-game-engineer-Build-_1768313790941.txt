@@ -1,0 +1,255 @@
+You are a senior full-stack mobile game engineer. Build Roachy Hunt PHASE I (egg-only season) as a production-grade Expo React Native app + a Node/Express TypeScript API + Postgres (Supabase) database, all in one Replit workspace with clear folder structure, scripts, and README.
+
+NON-NEGOTIABLE PHASE I RULES:
+- Phase I is “HUNT + CATCH + EGGS ONLY.” No hatching, no CHY, no battle systems.
+- Players collect eggs with rarities: Common, Rare, Epic, Legendary.
+- Inventory is COUNTS-based (do not store individual egg items yet).
+- Include pity counters visible: “Rare in X”, “Epic in Y”, “Legendary in Z”.
+- Include two systems that solve “too many commons” without CHY:
+  1) Recycle Commons -> Warmth (incubation fuel for Phase II)
+  2) Fuse eggs: 5 Common -> 1 Guaranteed Rare; 5 Rare -> 1 Guaranteed Epic; 5 Epic -> 1 Guaranteed Legendary
+- Include daily hunt cap: 25 hunts/day (Today X/25).
+- Include streak: increments if user completes >=1 hunt that day, resets if missed a day.
+- Include weekly leaderboards that reset each week (based on points and perfects).
+- Catch mini-game uses Perfect / Great / Good quality and awards XP + points.
+- Server is source of truth for drops, pity, streak updates, and claim validation (anti-cheat).
+
+FUTURE-PROOFING (Phase II + Battles later):
+- Store Warmth now (used later for incubation/hatching).
+- Store pity counters now.
+- Keep schema extensible so Phase II can add roachies, traits, runes without breaking Phase I.
+- Add “locked future tabs” in UI labels ONLY (optional): “Hatching Coming Soon”, “Arena Coming Soon” (no functionality).
+
+DESIGN / UI/UX REQUIREMENTS (match the existing vibe from screenshots):
+- Clean, modern, dark UI.
+- Smooth animations on reward reveals and pity counter decrement.
+- Haptics on Perfect.
+- Confetti only for Epic/Legendary.
+- Inventory shows 2x2 grid egg cards with rarity glow + big count badge, NOT individual egg list.
+- Include a “Recent Drops” horizontal strip showing last 5 egg rarities (simple icons) for dopamine.
+- Map screen shows gold markers (nodes), user location dot, and HUD with Today X/25, Streak, and a button to go Inventory/Leaderboard.
+- Catch screen: timing rings mini-game (tap to stop ring) -> quality result.
+- Egg Collected modal: rarity reveal, XP, points, updated counters.
+
+TECH STACK:
+- Mobile: Expo React Native + TypeScript, React Navigation
+- Data fetching: TanStack Query (React Query)
+- Maps: react-native-maps
+- Backend: Node.js + Express + TypeScript
+- Validation: Zod
+- DB: Postgres via Supabase (use DATABASE_URL OR Supabase client; prefer direct Postgres connection using pg)
+- Migrations: simple SQL migration files + a script to run them
+- Monorepo folder structure with shared types
+
+FOLDER STRUCTURE:
+/roachy-hunt
+  /mobile (Expo RN app)
+  /server (Express API)
+  /shared (TypeScript types, constants)
+  /migrations (SQL)
+  README.md
+
+PHASE I GAME DESIGN (implement exactly):
+1) Daily cap:
+   - DAILY_HUNT_CAP = 25
+   - hunts_today increments on each successful claim
+   - resets at local midnight Asia/Manila (UTC+8)
+2) Catch results:
+   - Perfect: +150 XP, +150 points
+   - Great: +75 XP, +75 points
+   - Good: +30 XP, +30 points
+   - Track perfect_count for weekly leaderboard
+3) Egg rarity:
+   - Base rates (config):
+     Common 85%, Rare 12%, Epic 2.8%, Legendary 0.2%
+   - Pity thresholds (config):
+     PITY_RARE=20, PITY_EPIC=60, PITY_LEGENDARY=200
+   - Pity resolution order each claim:
+     increment all pity counters by 1
+     if pity_legendary >= PITY_LEGENDARY -> award Legendary, reset pity_legendary=0
+     else if pity_epic >= PITY_EPIC -> award Epic, reset pity_epic=0
+     else if pity_rare >= PITY_RARE -> award Rare, reset pity_rare=0
+     else use base rates to award rarity
+   - When higher rarity awarded, do NOT reset lower pity counters (keep it simple), but you MAY optionally reduce them slightly (document if you do). Default: only reset the triggered pity.
+4) Recycle:
+   - Only Common eggs recyclable in Phase I
+   - RECYCLE_COMMON_TO_WARMTH = 1 (1 common -> +1 warmth)
+5) Fuse:
+   - FUSE_RATIO=5
+   - 5 common -> +1 rare (subtract commons)
+   - 5 rare -> +1 epic
+   - 5 epic -> +1 legendary
+   - No daily cap initially; add optional server-side cap as CONFIG (e.g. 20 fuses/day) but default OFF.
+6) Boost Tokens (optional but nice; implement minimally):
+   - boost_tokens integer
+   - Earn: +1 boost token when user completes 10 hunts in a day (only once per day)
+   - Use: “+1 extra hunt” up to +3/day OR “Double points next hunt” up to 3/day
+   - Keep it simple; if time is tight, skip boosts and leave hooks.
+
+NODE SPAWNING (critical: deterministic & anti-farm):
+- The server returns nearby nodes based on user lat/lon, deterministic per day.
+- Use a daily seed derived from (YYYY-MM-DD in Asia/Manila + SERVER_SECRET).
+- Use geohash (precision ~6) or grid cells to deterministically create node coordinates around the user within a radius, e.g. 600m.
+- Return ~12 nodes.
+- Each node has node_id stable for that day (hash of cell + seed + index).
+- Node is claimable once per user per day.
+- Node list should not change every refresh; it must be stable that day.
+
+CLAIM VALIDATION (anti-cheat):
+- User must be within DISTANCE_MAX_METERS=25 of node coordinate.
+- Cooldown between successful claims: COOLDOWN_SECONDS=30 (store last_claim_at).
+- Optional speed check: if client sends speed_kmh and speed_kmh > 35, reject.
+- Server resolves drop and updates DB; client cannot choose egg rarity.
+- If node already claimed by user that day, reject.
+
+DATABASE SCHEMA (create SQL migrations):
+Table users:
+- id uuid pk
+- created_at timestamptz
+- display_name text
+- hunter_level int default 1
+- hunter_xp int default 0
+- hunts_today int default 0
+- extra_hunts_today int default 0 (for boosts, optional)
+- last_hunt_date date (Asia/Manila date)
+- streak_count int default 0
+- best_streak int default 0
+- last_claim_at timestamptz
+- warmth int default 0
+- boost_tokens int default 0
+- boost_state jsonb default '{}' (optional)
+- egg_common int default 0
+- egg_rare int default 0
+- egg_epic int default 0
+- egg_legendary int default 0
+- pity_rare int default 0
+- pity_epic int default 0
+- pity_legendary int default 0
+
+Table hunt_claims:
+- id uuid pk
+- user_id uuid fk users(id)
+- created_at timestamptz
+- node_id text
+- lat double precision
+- lon double precision
+- quality text check in ('perfect','great','good')
+- egg_rarity text check in ('common','rare','epic','legendary')
+- xp_awarded int
+- points_awarded int
+- day_key date (Asia/Manila date)
+
+Unique index:
+- unique(user_id, node_id, day_key) to prevent double claim.
+
+Table weekly_leaderboards (cache optional):
+- week_key text (e.g. 2026-W03)
+- user_id uuid
+- points int
+- perfects int
+- eggs_total int
+- updated_at timestamptz
+Primary key (week_key, user_id)
+
+API ENDPOINTS (implement with Zod validation, return consistent JSON):
+Auth (simple):
+- POST /auth/guest -> creates/returns user id token (JWT) (no external auth required for MVP)
+Hunt nodes:
+- GET /hunt/nodes?lat=...&lon=... -> returns array [{node_id, lat, lon}]
+Claim:
+- POST /hunt/claim
+  body: { node_id, lat, lon, quality, client_time_iso?, speed_kmh? }
+  response: {
+    egg_rarity,
+    xp_awarded, points_awarded,
+    hunts_today, daily_cap, streak_count,
+    eggs: {common,rare,epic,legendary},
+    pity: {rare_in, epic_in, legendary_in},
+    warmth, recent_drops:[...last5],
+  }
+Inventory:
+- POST /inventory/recycle { amount:int } (recycle common eggs)
+- POST /inventory/fuse { rarity:'common'|'rare'|'epic', times:int }
+Leaderboard:
+- GET /leaderboard/weekly -> top 100 with rank, display_name, points, perfects, eggs_total
+Profile:
+- GET /me -> returns user stats, eggs, pity, warmth, recent drops
+
+RECENT DROPS:
+- Implement recent drops as derived from last 5 hunt_claims for user (no new table needed).
+
+MOBILE APP SCREENS (build all):
+1) MapScreen
+- shows map with nodes
+- HUD: Today X/25, Streak, button to Inventory, button to Leaderboard
+- tap marker -> go CatchScreen with node_id
+2) CatchScreen
+- timing ring mini-game
+- calculate quality locally (perfect/great/good)
+- submit /hunt/claim
+- on success show EggCollectedModal
+3) EggCollectedModal
+- rarity reveal animation + haptic
+- show XP, points
+- show pity counters updated
+- buttons: “Hunt again” (back to map), “Inventory”
+4) InventoryScreen (counts-based)
+- 2x2 grid egg cards with big counts
+- Common card has Recycle and Fuse buttons
+- Rare/Epic have Fuse buttons
+- show Warmth big number + small description: “Used for hatching in Phase II”
+- show pity panel (Rare in X etc.)
+- Recent drops strip
+- show “Hatching Coming Soon” banner (optional)
+5) RecycleModal
+- slider/input for amount (max = egg_common)
+- confirm -> POST /inventory/recycle
+6) FuseModal
+- choose times (max based on count/5)
+- confirm -> POST /inventory/fuse
+7) LeaderboardScreen
+- weekly list top 100
+- highlight current user rank (if present)
+8) Settings/ProfileScreen
+- display user id, display name edit (simple)
+- legal links placeholders
+
+THEME & COMPONENTS:
+- Create a shared theme file with colors, spacing, typography.
+- Use reusable components: Card, Button, StatPill, RarityBadge, ModalSheet.
+- Animations: use React Native Animated or Reanimated if available; keep it stable.
+
+CONFIGURATION:
+Backend config file server/src/config.ts with:
+- DAILY_HUNT_CAP=25
+- RADIUS_METERS=600
+- NODE_COUNT=12
+- DISTANCE_MAX_METERS=25
+- COOLDOWN_SECONDS=30
+- PITY thresholds and base rates
+- FUSE_RATIO=5
+- RECYCLE_COMMON_TO_WARMTH=1
+- TIMEZONE='Asia/Manila'
+- SERVER_SECRET from env
+
+README:
+- Setup steps
+- Env vars: DATABASE_URL, SERVER_SECRET
+- How to run server and mobile
+- Notes on deterministic nodes and pity logic
+
+QUALITY BAR:
+- TypeScript strict
+- No obvious runtime errors
+- Handle offline/loading states
+- Show friendly error toasts on claim rejected
+- Write small unit tests on server for pity logic + fuse + recycle
+
+DELIVER NOW:
+- Generate the full codebase, migrations, and README.
+- Ensure commands work: 
+  - server: npm run dev
+  - mobile: npx expo start
+- Make sure API base URL is configurable for mobile.
+
+If any step is ambiguous, make a reasonable decision and document it in README; do not ask me questions.
