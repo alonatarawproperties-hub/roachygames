@@ -71,6 +71,7 @@ export default function HuntScreen() {
     playerLocation,
     spawns,
     economy,
+    phaseIStats,
     economyReady,
     collection,
     eggs,
@@ -85,6 +86,7 @@ export default function HuntScreen() {
     joinRaid,
     attackRaid,
     refreshSpawns,
+    refreshPhaseIStats,
   } = useHunt();
   
   useGamePresence("roachy-hunt");
@@ -358,28 +360,32 @@ export default function HuntScreen() {
   }));
 
   const renderEconomyPanel = () => {
-    if (!economy) return null;
+    const stats = phaseIStats;
+    if (!stats && !economy) return null;
+
+    const huntsToday = stats?.huntsToday ?? economy?.catchesToday ?? 0;
+    const dailyCap = stats?.dailyCap ?? 25;
+    const streakCount = stats?.streakCount ?? economy?.currentStreak ?? 0;
+    const rareIn = stats?.pity?.rareIn ?? Math.max(0, 20 - (economy?.catchesSinceRare ?? 0));
+    const epicIn = stats?.pity?.epicIn ?? Math.max(0, 60 - (economy?.catchesSinceEpic ?? 0));
+    const legendaryIn = stats?.pity?.legendaryIn ?? 200;
+    const hunterLevel = stats?.hunterLevel ?? 1;
+    const warmth = stats?.warmth ?? 0;
 
     return (
       <Card style={styles.economyCard}>
         <View style={styles.economyHeader}>
           <ThemedText type="h4">Hunter Stats</ThemedText>
+          <View style={styles.levelBadge}>
+            <ThemedText style={styles.levelText}>Lv.{hunterLevel}</ThemedText>
+          </View>
         </View>
         <View style={styles.economyGrid}>
-          <View style={styles.economyStat}>
-            <Feather name="zap" size={18} color="#F59E0B" />
-            <View>
-              <ThemedText style={styles.economyValue}>
-                {economy.energy}/{economy.maxEnergy}
-              </ThemedText>
-              <ThemedText style={styles.economyLabel}>Energy</ThemedText>
-            </View>
-          </View>
           <View style={styles.economyStat}>
             <Feather name="target" size={18} color="#3B82F6" />
             <View>
               <ThemedText style={styles.economyValue}>
-                {economy.catchesToday}/{economy.maxCatchesPerDay}
+                {huntsToday}/{dailyCap}
               </ThemedText>
               <ThemedText style={styles.economyLabel}>Today</ThemedText>
             </View>
@@ -388,9 +394,18 @@ export default function HuntScreen() {
             <Feather name="activity" size={18} color="#22C55E" />
             <View>
               <ThemedText style={styles.economyValue}>
-                {economy.currentStreak}
+                {streakCount}
               </ThemedText>
               <ThemedText style={styles.economyLabel}>Streak</ThemedText>
+            </View>
+          </View>
+          <View style={styles.economyStat}>
+            <Feather name="sun" size={18} color="#F97316" />
+            <View>
+              <ThemedText style={styles.economyValue}>
+                {warmth}
+              </ThemedText>
+              <ThemedText style={styles.economyLabel}>Warmth</ThemedText>
             </View>
           </View>
         </View>
@@ -398,16 +413,38 @@ export default function HuntScreen() {
           <View style={styles.pityRow}>
             <ThemedText style={styles.pityLabel}>Rare in</ThemedText>
             <ThemedText style={[styles.pityValue, { color: RARITY_COLORS.rare }]}>
-              {20 - economy.catchesSinceRare}
+              {rareIn}
             </ThemedText>
           </View>
           <View style={styles.pityRow}>
             <ThemedText style={styles.pityLabel}>Epic in</ThemedText>
             <ThemedText style={[styles.pityValue, { color: RARITY_COLORS.epic }]}>
-              {60 - economy.catchesSinceEpic}
+              {epicIn}
+            </ThemedText>
+          </View>
+          <View style={styles.pityRow}>
+            <ThemedText style={styles.pityLabel}>Legendary in</ThemedText>
+            <ThemedText style={[styles.pityValue, { color: RARITY_COLORS.legendary }]}>
+              {legendaryIn}
             </ThemedText>
           </View>
         </View>
+        {stats?.recentDrops && stats.recentDrops.length > 0 ? (
+          <View style={styles.recentDropsContainer}>
+            <ThemedText style={styles.recentDropsLabel}>Recent Drops</ThemedText>
+            <View style={styles.recentDropsRow}>
+              {stats.recentDrops.slice(0, 5).map((rarity, index) => (
+                <View 
+                  key={index}
+                  style={[
+                    styles.recentDropDot, 
+                    { backgroundColor: RARITY_COLORS[rarity] || RARITY_COLORS.common }
+                  ]} 
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
       </Card>
     );
   };
@@ -792,7 +829,21 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   economyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.sm,
+  },
+  levelBadge: {
+    backgroundColor: GameColors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  levelText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#fff",
   },
   economyGrid: {
     flexDirection: "row",
@@ -831,6 +882,26 @@ const styles = StyleSheet.create({
   },
   pityValue: {
     fontWeight: "bold",
+  },
+  recentDropsContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: GameColors.surfaceLight,
+  },
+  recentDropsLabel: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  recentDropsRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  recentDropDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   tabBar: {
     flexDirection: "row",

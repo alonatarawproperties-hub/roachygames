@@ -54,6 +54,33 @@ export interface EconomyStats {
   collectedEggs: number;
 }
 
+export interface PhaseIStats {
+  walletAddress: string;
+  huntsToday: number;
+  dailyCap: number;
+  streakCount: number;
+  longestStreak: number;
+  eggs: {
+    common: number;
+    rare: number;
+    epic: number;
+    legendary: number;
+  };
+  pity: {
+    rareIn: number;
+    epicIn: number;
+    legendaryIn: number;
+  };
+  warmth: number;
+  hunterLevel: number;
+  hunterXp: number;
+  boostTokens: number;
+  recentDrops: string[];
+  weekKey: string;
+  pointsThisWeek: number;
+  perfectsThisWeek: number;
+}
+
 export interface Egg {
   id: string;
   rarity: string;
@@ -99,6 +126,7 @@ interface HuntContextType {
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
   spawns: Spawn[];
   economy: EconomyStats | null;
+  phaseIStats: PhaseIStats | null;
   collection: CaughtCreature[];
   eggs: Egg[];
   raids: Raid[];
@@ -114,8 +142,12 @@ interface HuntContextType {
   walkEgg: (eggId: string, distance: number) => Promise<any>;
   joinRaid: (raidId: string) => Promise<void>;
   attackRaid: (raidId: string, attackPower: number) => Promise<any>;
+  claimNode: (nodeId: string, lat: number, lon: number, quality: string) => Promise<any>;
+  recycleEggs: (amount: number) => Promise<any>;
+  fuseEggs: (rarity: string, times: number) => Promise<any>;
   refreshSpawns: () => void;
   refreshEconomy: () => void;
+  refreshPhaseIStats: () => void;
 }
 
 const HuntContext = createContext<HuntContextType | null>(null);
@@ -298,6 +330,36 @@ export function HuntProvider({ children }: HuntProviderProps) {
     refetchInterval: 60000,
   });
 
+  const { data: phaseIData, refetch: refreshPhaseIStats } = useQuery({
+    queryKey: ["/api/hunt/me", walletAddress],
+    queryFn: async () => {
+      const url = new URL("/api/hunt/me", getApiUrl());
+      url.searchParams.set("walletAddress", walletAddress);
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        return {
+          walletAddress,
+          huntsToday: 0,
+          dailyCap: 25,
+          streakCount: 0,
+          longestStreak: 0,
+          eggs: { common: 0, rare: 0, epic: 0, legendary: 0 },
+          pity: { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+          warmth: 0,
+          hunterLevel: 1,
+          hunterXp: 0,
+          boostTokens: 0,
+          recentDrops: [],
+          weekKey: "",
+          pointsThisWeek: 0,
+          perfectsThisWeek: 0,
+        } as PhaseIStats;
+      }
+      return await response.json() as PhaseIStats;
+    },
+    refetchInterval: 30000,
+  });
+
   const updateLocation = useCallback(async (latitude: number, longitude: number, heading?: number) => {
     setPlayerLocation({ latitude, longitude, heading });
     try {
@@ -466,6 +528,62 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [walletAddress, playerLocation, economyData, queryClient]);
 
+  const claimNode = useCallback(async (nodeId: string, lat: number, lon: number, quality: string) => {
+    try {
+      const response = await apiRequest("POST", "/api/hunt/phase1/claim", {
+        walletAddress,
+        nodeId,
+        lat,
+        lon,
+        quality,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
+      }
+      return data;
+    } catch (error) {
+      console.error("Failed to claim node:", error);
+      return { success: false, error: "Failed to claim node" };
+    }
+  }, [walletAddress, queryClient]);
+
+  const recycleEggs = useCallback(async (amount: number) => {
+    try {
+      const response = await apiRequest("POST", "/api/hunt/recycle", {
+        walletAddress,
+        amount,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+      }
+      return data;
+    } catch (error) {
+      console.error("Failed to recycle eggs:", error);
+      return { success: false, error: "Failed to recycle eggs" };
+    }
+  }, [walletAddress, queryClient]);
+
+  const fuseEggs = useCallback(async (rarity: string, times: number = 1) => {
+    try {
+      const response = await apiRequest("POST", "/api/hunt/fuse", {
+        walletAddress,
+        rarity,
+        times,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+      }
+      return data;
+    } catch (error) {
+      console.error("Failed to fuse eggs:", error);
+      return { success: false, error: "Failed to fuse eggs" };
+    }
+  }, [walletAddress, queryClient]);
+
   return (
     <HuntContext.Provider
       value={{
@@ -473,6 +591,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         playerLocation,
         spawns: spawnsData || [],
         economy: economyData || null,
+        phaseIStats: phaseIData || null,
         collection: collectionData || [],
         eggs: eggsData?.eggs || [],
         raids: raidsData || [],
@@ -488,8 +607,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
         walkEgg,
         joinRaid,
         attackRaid,
+        claimNode,
+        recycleEggs,
+        fuseEggs,
         refreshSpawns,
         refreshEconomy,
+        refreshPhaseIStats,
       }}
     >
       {children}
