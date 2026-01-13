@@ -534,74 +534,159 @@ export default function HuntScreen() {
     </ScrollView>
   );
 
-  const EGGS_REQUIRED = 10;
-  const eggProgress = Math.min(collectedEggs / EGGS_REQUIRED, 1);
+  const [recycleAmount, setRecycleAmount] = useState(1);
+  const [fuseTimes, setFuseTimes] = useState(1);
+  const [selectedFuseRarity, setSelectedFuseRarity] = useState<'common' | 'rare' | 'epic'>('common');
+  const [isRecycling, setIsRecycling] = useState(false);
+  const [isFusing, setIsFusing] = useState(false);
 
-  const renderEggs = () => (
-    <ScrollView
-      style={styles.eggsContainer}
-      contentContainerStyle={styles.eggsContent}
-    >
-      <ThemedText type="h4" style={styles.sectionTitle}>
-        Mystery Eggs ({collectedEggs}/10)
-      </ThemedText>
-      
-      <Card style={styles.eggCard}>
-        <View style={styles.eggInfo}>
-          <View
-            style={[
-              styles.eggIcon,
-              { backgroundColor: GameColors.primary + "30" },
-            ]}
-          >
-            <Feather
-              name="gift"
-              size={24}
-              color={GameColors.primary}
-            />
-          </View>
-          <View style={styles.eggDetails}>
-            <ThemedText style={styles.eggRarity}>
-              Collected Mystery Eggs
-            </ThemedText>
-            <View style={styles.eggProgress}>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${eggProgress * 100}%`,
-                      backgroundColor: GameColors.primary,
-                    },
-                  ]}
-                />
+  const { recycleEggs, fuseEggs } = useHunt();
+
+  const handleRecycle = async () => {
+    if (!phaseIStats || (phaseIStats.eggs.common || 0) < recycleAmount) return;
+    setIsRecycling(true);
+    try {
+      await recycleEggs(recycleAmount);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refreshPhaseIStats();
+    } catch (error) {
+      console.error("Recycle error:", error);
+    }
+    setIsRecycling(false);
+  };
+
+  const handleFuse = async () => {
+    const eggCount = phaseIStats?.eggs[selectedFuseRarity] || 0;
+    const required = fuseTimes * 5;
+    if (eggCount < required) return;
+    setIsFusing(true);
+    try {
+      await fuseEggs(selectedFuseRarity, fuseTimes);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refreshPhaseIStats();
+    } catch (error) {
+      console.error("Fuse error:", error);
+    }
+    setIsFusing(false);
+  };
+
+  const renderEggs = () => {
+    const eggs = phaseIStats?.eggs || { common: 0, rare: 0, epic: 0, legendary: 0 };
+    const totalEggs = eggs.common + eggs.rare + eggs.epic + eggs.legendary;
+
+    return (
+      <ScrollView
+        style={styles.eggsContainer}
+        contentContainerStyle={styles.eggsContent}
+      >
+        <ThemedText type="h4" style={styles.sectionTitle}>
+          Egg Inventory ({totalEggs})
+        </ThemedText>
+        
+        <View style={styles.eggGrid}>
+          {(['common', 'rare', 'epic', 'legendary'] as const).map((rarity) => (
+            <Card key={rarity} style={styles.eggGridCard}>
+              <View style={[styles.eggGridIcon, { backgroundColor: RARITY_COLORS[rarity] + "20" }]}>
+                <Feather name="gift" size={28} color={RARITY_COLORS[rarity]} />
               </View>
-              <ThemedText style={styles.progressText}>
-                {collectedEggs} / {EGGS_REQUIRED} eggs
+              <ThemedText style={[styles.eggGridCount, { color: RARITY_COLORS[rarity] }]}>
+                {eggs[rarity]}
               </ThemedText>
-            </View>
-          </View>
+              <ThemedText style={styles.eggGridLabel}>{rarity}</ThemedText>
+            </Card>
+          ))}
         </View>
-        {collectedEggs >= EGGS_REQUIRED ? (
-          <View style={styles.incubatingBadge}>
-            <Feather name="check-circle" size={14} color="#22C55E" />
-            <ThemedText style={styles.incubatingText}>Ready to Hatch!</ThemedText>
-          </View>
-        ) : (
-          <View style={styles.incubatingBadge}>
-            <Feather name="info" size={14} color={GameColors.textSecondary} />
-            <ThemedText style={[styles.incubatingText, { color: GameColors.textSecondary }]}>
-              Need {EGGS_REQUIRED - collectedEggs} more
-            </ThemedText>
-          </View>
-        )}
-      </Card>
 
-      <ThemedText style={styles.eggHint}>
-        Tap mystery egg markers on the map to collect eggs. Collect 10 to hatch a random Roachy!
-      </ThemedText>
-    </ScrollView>
-  );
+        <Card style={styles.actionCard}>
+          <ThemedText type="h4" style={styles.actionTitle}>Recycle Commons</ThemedText>
+          <ThemedText style={styles.actionDesc}>Convert common eggs to warmth (1:1)</ThemedText>
+          <View style={styles.actionRow}>
+            <View style={styles.amountControls}>
+              <Pressable 
+                style={styles.amountBtn}
+                onPress={() => setRecycleAmount(Math.max(1, recycleAmount - 1))}
+              >
+                <Feather name="minus" size={16} color={GameColors.textPrimary} />
+              </Pressable>
+              <ThemedText style={styles.amountText}>{recycleAmount}</ThemedText>
+              <Pressable 
+                style={styles.amountBtn}
+                onPress={() => setRecycleAmount(Math.min(eggs.common, recycleAmount + 1))}
+              >
+                <Feather name="plus" size={16} color={GameColors.textPrimary} />
+              </Pressable>
+            </View>
+            <Pressable 
+              style={[
+                styles.actionButton,
+                (eggs.common < recycleAmount || isRecycling) && styles.actionButtonDisabled
+              ]}
+              onPress={handleRecycle}
+              disabled={eggs.common < recycleAmount || isRecycling}
+            >
+              <ThemedText style={styles.actionButtonText}>
+                {isRecycling ? "..." : `Recycle +${recycleAmount} warmth`}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </Card>
+
+        <Card style={styles.actionCard}>
+          <ThemedText type="h4" style={styles.actionTitle}>Fuse Eggs</ThemedText>
+          <ThemedText style={styles.actionDesc}>Combine 5 eggs into 1 of higher tier</ThemedText>
+          <View style={styles.fuseRarityRow}>
+            {(['common', 'rare', 'epic'] as const).map((r) => (
+              <Pressable
+                key={r}
+                style={[
+                  styles.fuseRarityBtn,
+                  selectedFuseRarity === r && { backgroundColor: RARITY_COLORS[r] + "30" }
+                ]}
+                onPress={() => setSelectedFuseRarity(r)}
+              >
+                <ThemedText style={{ color: RARITY_COLORS[r], fontWeight: selectedFuseRarity === r ? "bold" : "normal" }}>
+                  {r}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.actionRow}>
+            <View style={styles.amountControls}>
+              <Pressable 
+                style={styles.amountBtn}
+                onPress={() => setFuseTimes(Math.max(1, fuseTimes - 1))}
+              >
+                <Feather name="minus" size={16} color={GameColors.textPrimary} />
+              </Pressable>
+              <ThemedText style={styles.amountText}>{fuseTimes}x</ThemedText>
+              <Pressable 
+                style={styles.amountBtn}
+                onPress={() => setFuseTimes(Math.min(Math.floor(eggs[selectedFuseRarity] / 5), fuseTimes + 1))}
+              >
+                <Feather name="plus" size={16} color={GameColors.textPrimary} />
+              </Pressable>
+            </View>
+            <Pressable 
+              style={[
+                styles.actionButton,
+                (eggs[selectedFuseRarity] < fuseTimes * 5 || isFusing) && styles.actionButtonDisabled
+              ]}
+              onPress={handleFuse}
+              disabled={eggs[selectedFuseRarity] < fuseTimes * 5 || isFusing}
+            >
+              <ThemedText style={styles.actionButtonText}>
+                {isFusing ? "..." : `Fuse ${fuseTimes * 5} → ${fuseTimes}`}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </Card>
+
+        <ThemedText style={styles.eggHint}>
+          Hunt nodes to collect eggs. Recycle commons for warmth or fuse 5 eggs into a higher tier.
+        </ThemedText>
+      </ScrollView>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: headerHeight }]}>
@@ -1108,6 +1193,96 @@ const styles = StyleSheet.create({
   },
   eggsContent: {
     paddingBottom: Spacing.xl,
+  },
+  eggGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  eggGridCard: {
+    width: "48%",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  eggGridIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  eggGridCount: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
+  eggGridLabel: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    textTransform: "capitalize",
+  },
+  actionCard: {
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+  },
+  actionTitle: {
+    marginBottom: Spacing.xs,
+  },
+  actionDesc: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  amountControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  amountBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GameColors.surfaceLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  amountText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    minWidth: 30,
+    textAlign: "center",
+  },
+  actionButton: {
+    backgroundColor: GameColors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  fuseRarityRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  fuseRarityBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: GameColors.surfaceLight,
   },
   eggCard: {
     flexDirection: "row",
