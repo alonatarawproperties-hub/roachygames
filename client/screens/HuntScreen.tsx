@@ -35,13 +35,13 @@ import { RaidBattleMiniGame } from "@/components/RaidBattleMiniGame";
 import { MapViewWrapper, MapViewWrapperRef } from "@/components/MapViewWrapper";
 import { HuntLoadingOverlay } from "@/components/HuntLoadingOverlay";
 import { HuntLeaderboard } from "@/components/hunt/HuntLeaderboard";
+import { EggCollectedModal } from "@/components/hunt/EggCollectedModal";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
-  uncommon: "#22C55E",
   rare: "#3B82F6",
   epic: "#A855F7",
   legendary: "#F59E0B",
@@ -88,6 +88,7 @@ export default function HuntScreen() {
     attackRaid,
     refreshSpawns,
     refreshPhaseIStats,
+    claimNode,
   } = useHunt();
   
   useGamePresence("roachy-hunt");
@@ -99,7 +100,13 @@ export default function HuntScreen() {
   const [showCatchGame, setShowCatchGame] = useState(false);
   const [caughtCreature, setCaughtCreature] = useState<CaughtCreature | null>(null);
   const [catchQuality, setCatchQuality] = useState<"perfect" | "great" | "good" | null>(null);
-  const [collectedEggInfo, setCollectedEggInfo] = useState<{rarity: string; count: number} | null>(null);
+  const [collectedEggInfo, setCollectedEggInfo] = useState<{
+    rarity: "common" | "rare" | "epic" | "legendary";
+    xpAwarded: number;
+    pointsAwarded: number;
+    quality: "perfect" | "great" | "good";
+    pity: { rareIn: number; epicIn: number; legendaryIn: number };
+  } | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<Raid | null>(null);
   const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs" | "leaderboard">("map");
   const [mapReady, setMapReady] = useState(false);
@@ -331,16 +338,27 @@ export default function HuntScreen() {
     setSelectedSpawn(null);
   };
 
-  const handleEggCollected = async () => {
-    if (!selectedSpawn) return;
+  const handleEggCollected = async (quality: "perfect" | "great" | "good" = "perfect") => {
+    if (!selectedSpawn || !playerLocation) return;
     
-    const result = await collectEgg(selectedSpawn.id);
+    const result = await claimNode(
+      selectedSpawn.id,
+      playerLocation.latitude,
+      playerLocation.longitude,
+      quality
+    );
+    
     if (result && result.success) {
+      const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
       setCollectedEggInfo({
-        rarity: result.eggRarity || "common",
-        count: result.collectedEggs || 1,
+        rarity: normalizedRarity,
+        xpAwarded: result.xpAwarded || 0,
+        pointsAwarded: result.pointsAwarded || 0,
+        quality: quality,
+        pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refreshPhaseIStats();
     }
     setShowCatchGame(false);
     setSelectedSpawn(null);
@@ -481,16 +499,18 @@ export default function HuntScreen() {
       contentContainerStyle={styles.collectionContent}
     >
       <ThemedText type="h4" style={styles.sectionTitle}>
-        Your Collection ({collection.length})
+        Your Collection
       </ThemedText>
-      {collection.length === 0 ? (
-        <Card style={styles.emptyCard}>
-          <Feather name="inbox" size={48} color={GameColors.textSecondary} />
-          <ThemedText style={styles.emptyText}>
-            No creatures caught yet. Go hunting!
-          </ThemedText>
-        </Card>
-      ) : (
+      <Card style={styles.emptyCard}>
+        <Feather name="gift" size={48} color={GameColors.gold} />
+        <ThemedText style={[styles.emptyText, { color: GameColors.gold }]}>
+          Hatching Coming Soon!
+        </ThemedText>
+        <ThemedText style={styles.emptyText}>
+          Collect eggs now. Your Roachies will hatch when Phase II launches.
+        </ThemedText>
+      </Card>
+      {collection.length === 0 ? null : (
         <View style={styles.collectionGrid}>
           {collection.map((creature) => (
             <Card key={creature.id} style={styles.creatureCard}>
@@ -860,40 +880,22 @@ export default function HuntScreen() {
         ) : null}
       </Modal>
 
-      <Modal
+      <EggCollectedModal
         visible={collectedEggInfo !== null}
-        animationType="fade"
-        transparent
-      >
-        <View style={styles.eggModalOverlay}>
-          <View style={styles.eggModalContent}>
-            <View style={[styles.eggIconContainer, { backgroundColor: RARITY_COLORS[collectedEggInfo?.rarity || "common"] + "30" }]}>
-              <Feather name="package" size={48} color={RARITY_COLORS[collectedEggInfo?.rarity || "common"]} />
-            </View>
-            <ThemedText type="h2" style={styles.eggModalTitle}>Egg Collected!</ThemedText>
-            <ThemedText style={[styles.eggModalRarity, { color: RARITY_COLORS[collectedEggInfo?.rarity || "common"] }]}>
-              {collectedEggInfo?.rarity?.toUpperCase()} EGG
-            </ThemedText>
-            <ThemedText style={styles.eggModalCount}>
-              Total Eggs: {collectedEggInfo?.count || 0} / 10
-            </ThemedText>
-            {(collectedEggInfo?.count || 0) >= 10 ? (
-              <ThemedText style={styles.eggModalHint}>You can hatch an egg in your Inventory!</ThemedText>
-            ) : (
-              <ThemedText style={styles.eggModalHint}>Collect {10 - (collectedEggInfo?.count || 0)} more to hatch!</ThemedText>
-            )}
-            <Button
-              onPress={() => {
-                setCollectedEggInfo(null);
-                refreshSpawns();
-              }}
-              style={{ marginTop: Spacing.lg, width: "100%" }}
-            >
-              Continue Hunting
-            </Button>
-          </View>
-        </View>
-      </Modal>
+        eggRarity={collectedEggInfo?.rarity || "common"}
+        xpAwarded={collectedEggInfo?.xpAwarded || 0}
+        pointsAwarded={collectedEggInfo?.pointsAwarded || 0}
+        quality={collectedEggInfo?.quality || "good"}
+        pity={collectedEggInfo?.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 }}
+        onContinue={() => {
+          setCollectedEggInfo(null);
+          refreshSpawns();
+        }}
+        onGoToEggs={() => {
+          setCollectedEggInfo(null);
+          setActiveTab("eggs");
+        }}
+      />
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay

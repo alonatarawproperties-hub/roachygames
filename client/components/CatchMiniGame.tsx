@@ -36,7 +36,7 @@ interface CatchMiniGameProps {
     containedTemplateId?: string | null;
   };
   onCatch: (quality: "perfect" | "great" | "good" | "miss") => void;
-  onEggCollected?: () => void;
+  onEggCollected?: (quality: "perfect" | "great" | "good") => void;
   onEscape: () => void;
 }
 
@@ -95,8 +95,8 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     requestAnimationFrame(updateRef);
   }, [phase, creature.rarity]);
 
-  const handleMysteryEggCollect = useCallback(() => {
-    if (phase !== "ready") return;
+  const handleMysteryEggCollect = useCallback((quality: "perfect" | "great" | "good" = "perfect") => {
+    if (phase !== "ready" && phase !== "shrinking") return;
     
     setPhase("caught");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -109,7 +109,7 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     
     setTimeout(() => {
       if (onEggCollected) {
-        onEggCollected();
+        onEggCollected(quality);
       } else {
         onCatch("good");
       }
@@ -152,11 +152,6 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
   }, [onCatch]);
 
   const handleTap = useCallback(() => {
-    if (isMysteryEgg) {
-      handleMysteryEggCollect();
-      return;
-    }
-
     if (phase === "ready") {
       startShrinking();
       return;
@@ -192,6 +187,10 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     setLastResult(message);
 
     if (quality !== "miss") {
+      if (isMysteryEgg) {
+        handleMysteryEggCollect(quality);
+        return;
+      }
       if (isRoachyEgg) {
         flashOpacity.value = withSequence(
           withTiming(1, { duration: 100 }),

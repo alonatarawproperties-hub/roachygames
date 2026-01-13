@@ -1,0 +1,118 @@
+You are a senior engineer fixing an existing Expo RN + Node backend project “Roachy Hunt”.
+CURRENT BUGS/ISSUES (from screenshots):
+- Hunt is still awarding a Roachy (ex: “Scuttler”) with battle stats (HP/ATK/DEF/SPD) and “Assassin/Support” role.
+- Egg Inventory stays 0 even after collecting eggs.
+- “Uncommon egg” appeared earlier but the Egg Inventory UI only supports Common/Rare/Epic/Legendary.
+- Phase I spec must be EGGS ONLY. No Roachy collection in Phase I.
+
+GOAL:
+Implement PHASE I (V1) as EGGS-ONLY collection season:
+- The only collectible output from hunt is: eggs (common/rare/epic/legendary).
+- No roachy entities created.
+- No battle stats shown.
+- Eggs must be credited correctly to Egg Inventory (counts-based).
+- Remove “Uncommon” entirely (map uncommon -> common everywhere).
+- Keep the timing ring mini-game (Perfect/Great/Good), but it affects XP/Points only, not roachy stats.
+
+NON-NEGOTIABLE RULES:
+1) Phase I = EGGS ONLY
+   - Hunting a node returns an egg rarity + XP + points + updated pity counters + updated egg counts.
+   - DO NOT return roachy name/role/stats in any hunt response.
+   - DO NOT write roachies to DB in Phase I.
+2) Supported egg rarities ONLY:
+   - common, rare, epic, legendary
+   - If any code references “uncommon”, convert it to “common”.
+3) Single source of truth:
+   - Egg counts must live on the server (DB). UI must reflect server state.
+4) Fix inventory credit:
+   - After claim, server must increment egg counts.
+   - Client must refresh or update cache so Egg tab shows correct numbers immediately.
+5) Remove/disable Collection tab content:
+   - Collection screen should be “Hatching Coming Soon” OR hidden in Phase I.
+   - No roachy cards should appear in Phase I.
+
+IMPLEMENTATION TASKS:
+
+A) Add a feature flag:
+- Add config PHASE1_EGGS_ONLY=true (default true).
+- In any code path that awards roachies or stats, guard it and disable when PHASE1_EGGS_ONLY is true.
+
+B) Backend: Fix /hunt/claim to award eggs only
+- Validate node claim (distance <= 25m, cooldown >= 30s, unique user_id+node_id+day).
+- Resolve egg rarity using pity + base rates:
+  base rates: common 85%, rare 12%, epic 2.8%, legendary 0.2%
+  pity thresholds: rare 20, epic 60, legendary 200
+  algorithm:
+    increment pity_rare/pity_epic/pity_legendary by 1
+    if pity_legendary >= 200 -> award legendary, reset pity_legendary=0
+    else if pity_epic >= 60 -> award epic, reset pity_epic=0
+    else if pity_rare >= 20 -> award rare, reset pity_rare=0
+    else award by base rates
+- Update DB: increment egg_{rarity} by 1, update pity, update hunts_today, update streak if needed.
+- Return JSON response (exact keys):
+{
+  "egg_rarity":"common|rare|epic|legendary",
+  "xp_awarded": number,
+  "points_awarded": number,
+  "hunts_today": number,
+  "daily_cap": 25,
+  "streak_count": number,
+  "eggs": {"common":n,"rare":n,"epic":n,"legendary":n},
+  "pity": {"rare_in":n,"epic_in":n,"legendary_in":n},
+  "warmth": number,
+  "recent_drops": ["common","rare",... up to 5]
+}
+- Ensure any “uncommon” is normalized:
+  if resolved rarity == "uncommon" -> treat as "common"
+  and ensure DB fields only exist for common/rare/epic/legendary.
+
+C) Backend: Ensure /me returns the same egg counts
+- GET /me should return eggs, pity, warmth, hunts_today, streak_count.
+- Egg Inventory screen must read from /me (or a single shared endpoint), not from a different local store.
+
+D) Mobile: Replace the “Roachy caught + stats” result UI with “Egg Collected” UI
+- After claim, show a modal:
+  Title: “Egg Collected!”
+  Subtitle: rarity label (color/glow)
+  Show XP and points
+  Show pity counters updated: Rare in X / Epic in Y / Legendary in Z
+  Buttons: “Continue Hunting” (back to map), “Go to Eggs”
+- Remove any UI showing:
+  roachy name (Scuttler/Leafwing/etc)
+  role (Assassin/Support)
+  HP/ATK/DEF/SPD
+  roachy collection cards in Phase I
+- Collection tab:
+  Replace with empty state: “Hatching Coming Soon” + explanation.
+  Or hide the tab entirely; keep Eggs tab only.
+
+E) Mobile: Fix egg inventory not crediting
+- Make Egg Inventory counts sourced only from server:
+  - Use TanStack Query for GET /me
+  - After successful /hunt/claim, invalidate or update /me query cache immediately so counts update.
+- Verify user auth is consistent:
+  - Use a single stored token/user_id (SecureStore/AsyncStorage).
+  - Ensure claim calls and /me calls use same Authorization header.
+  - Add a debug in dev mode that shows user_id on Settings screen.
+
+F) Remove “Uncommon” from UI and enums
+- Search project for: "uncommon" and remove/replace with "common"
+- If rarity color maps include uncommon, delete it.
+- If database enum includes uncommon, migrate it out:
+  - Convert any uncommon rows to common
+  - Remove uncommon from constraints
+
+G) Sanity logs (temporary, dev only)
+- Server logs each claim: user_id, egg_rarity, egg counts before/after
+- Client logs: claim response eggs counts and /me eggs counts after invalidation
+- Remove verbose logs in final commit.
+
+DELIVERABLE:
+- Commit changes that result in:
+  1) Phase I hunt produces eggs only
+  2) Egg Inventory reflects collected eggs immediately
+  3) No Uncommon rarity anywhere
+  4) No Roachy stats/collection in Phase I (Collection tab is “Coming Soon”)
+  5) Stable /me endpoint as source of truth
+
+DO NOT ASK ME QUESTIONS. Make best assumptions and document in README.

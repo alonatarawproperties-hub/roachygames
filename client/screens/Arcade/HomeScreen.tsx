@@ -1190,7 +1190,6 @@ export function ArcadeHomeScreen() {
           items: huntCollection.map((creature) => {
             const rarityColors: Record<string, string> = {
               common: "#9CA3AF",
-              uncommon: "#22C55E",
               rare: "#3B82F6",
               epic: "#A855F7",
               legendary: "#F59E0B",

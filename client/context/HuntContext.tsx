@@ -541,6 +541,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
       }
       return data;
     } catch (error) {

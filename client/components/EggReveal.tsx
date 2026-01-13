@@ -47,11 +47,6 @@ const RARITY_COLORS: Record<string, { primary: string; secondary: string; glow: 
     secondary: "#6B7280",
     glow: "rgba(156, 163, 175, 0.5)",
   },
-  uncommon: {
-    primary: "#22C55E",
-    secondary: "#16A34A",
-    glow: "rgba(34, 197, 94, 0.6)",
-  },
   rare: {
     primary: "#3B82F6",
     secondary: "#2563EB",

@@ -19,7 +19,6 @@ import type { Spawn, Raid } from "@/context/HuntContext";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
-  uncommon: "#22C55E",
   rare: "#3B82F6",
   epic: "#A855F7",
   legendary: "#F59E0B",

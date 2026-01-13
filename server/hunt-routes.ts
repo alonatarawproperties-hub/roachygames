@@ -27,11 +27,10 @@ import {
 } from "./hunt-config";
 
 const RARITY_RATES = {
-  common: 0.60,
-  uncommon: 0.25,
-  rare: 0.10,
-  epic: 0.04,
-  legendary: 0.01,
+  common: 0.85,
+  rare: 0.12,
+  epic: 0.028,
+  legendary: 0.002,
 };
 
 const SPAWN_TYPE_RATES = {
@@ -41,7 +40,6 @@ const SPAWN_TYPE_RATES = {
 
 const EGG_TEMPLATES = [
   { id: 'egg_common', name: 'Common Egg', roachyClass: 'egg', rarity: 'common', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
-  { id: 'egg_uncommon', name: 'Uncommon Egg', roachyClass: 'egg', rarity: 'uncommon', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
   { id: 'egg_rare', name: 'Rare Egg', roachyClass: 'egg', rarity: 'rare', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
   { id: 'egg_epic', name: 'Epic Egg', roachyClass: 'egg', rarity: 'epic', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
   { id: 'egg_legendary', name: 'Legendary Egg', roachyClass: 'egg', rarity: 'legendary', baseHp: 0, baseAtk: 0, baseDef: 0, baseSpd: 0 },
@@ -64,8 +62,8 @@ const ROACHY_TEMPLATES = [
   { id: 'scuttler', name: 'Scuttler', roachyClass: 'assassin', rarity: 'common', baseHp: 60, baseAtk: 75, baseDef: 35, baseSpd: 90 },
   { id: 'sparkroach', name: 'Sparkroach', roachyClass: 'mage', rarity: 'common', baseHp: 55, baseAtk: 80, baseDef: 40, baseSpd: 65 },
   { id: 'leafwing', name: 'Leafwing', roachyClass: 'support', rarity: 'common', baseHp: 75, baseAtk: 35, baseDef: 60, baseSpd: 55 },
-  { id: 'vikingbug', name: 'Viking Bug', roachyClass: 'tank', rarity: 'uncommon', baseHp: 140, baseAtk: 55, baseDef: 90, baseSpd: 35 },
-  { id: 'shadowblade', name: 'Shadowblade', roachyClass: 'assassin', rarity: 'uncommon', baseHp: 65, baseAtk: 85, baseDef: 40, baseSpd: 95 },
+  { id: 'vikingbug', name: 'Viking Bug', roachyClass: 'tank', rarity: 'common', baseHp: 140, baseAtk: 55, baseDef: 90, baseSpd: 35 },
+  { id: 'shadowblade', name: 'Shadowblade', roachyClass: 'assassin', rarity: 'common', baseHp: 65, baseAtk: 85, baseDef: 40, baseSpd: 95 },
   { id: 'frostmage', name: 'Frost Mage', roachyClass: 'mage', rarity: 'rare', baseHp: 60, baseAtk: 95, baseDef: 45, baseSpd: 70 },
   { id: 'aviator', name: 'Aviator', roachyClass: 'support', rarity: 'rare', baseHp: 80, baseAtk: 50, baseDef: 65, baseSpd: 75 },
   { id: 'royalmage', name: 'Royal Mage', roachyClass: 'mage', rarity: 'epic', baseHp: 70, baseAtk: 110, baseDef: 55, baseSpd: 80 },
@@ -76,9 +74,8 @@ const ROACHY_TEMPLATES = [
 
 const EGG_DISTANCES: Record<string, number> = {
   common: 2000,
-  uncommon: 5000,
-  rare: 7000,
-  epic: 10000,
+  rare: 5000,
+  epic: 8000,
   legendary: 12000,
 };
 

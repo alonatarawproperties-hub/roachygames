@@ -32,7 +32,6 @@ export const GameColors = {
   info: "#00D9FF",
   rarity: {
     common: "#A0A0A0",
-    uncommon: "#00FF88",
     rare: "#3A86FF",
     epic: "#9D4EDD",
     legendary: "#FFD700",

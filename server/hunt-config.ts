@@ -1,4 +1,6 @@
 export const HUNT_CONFIG = {
+  PHASE1_EGGS_ONLY: true,
+  
   DAILY_HUNT_CAP: 25,
   RADIUS_METERS: 600,
   NODE_COUNT: 12,

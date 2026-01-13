@@ -42,7 +42,7 @@ const ArcadeInventoryContext = createContext<ArcadeInventoryContextType | null>(
 function mapRarity(rarity: string): RarityTier {
   const rarityMap: Record<string, RarityTier> = {
     common: "common",
-    uncommon: "uncommon",
+    uncommon: "common",
     rare: "rare",
     epic: "epic",
     legendary: "legendary",
@@ -56,7 +56,6 @@ function mapRarity(rarity: string): RarityTier {
 function getRarityColor(rarity: RarityTier): string {
   const colors: Record<RarityTier, string> = {
     common: "#9CA3AF",
-    uncommon: "#10B981",
     rare: "#3B82F6",
     epic: "#8B5CF6",
     legendary: "#F59E0B",

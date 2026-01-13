@@ -1,4 +1,4 @@
-export type CreatureRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type CreatureRarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type RoachyClass = 'tank' | 'assassin' | 'mage' | 'support';
 
 export interface CreatureStats {
@@ -59,7 +59,7 @@ export const ROACHY_DEFINITIONS: RoachyDefinition[] = [
     id: 'vikingbug',
     name: 'Viking Bug',
     roachyClass: 'tank',
-    rarity: 'uncommon',
+    rarity: 'common',
     baseStats: { hp: 140, attack: 55, defense: 90, speed: 35 },
     description: 'A warrior roach wearing a tiny horned helmet. Charges into battle fearlessly.',
     catchRate: 0.55,
@@ -68,7 +68,7 @@ export const ROACHY_DEFINITIONS: RoachyDefinition[] = [
     id: 'shadowblade',
     name: 'Shadowblade',
     roachyClass: 'assassin',
-    rarity: 'uncommon',
+    rarity: 'common',
     baseStats: { hp: 65, attack: 85, defense: 40, speed: 95 },
     description: 'A master of stealth that phases through darkness. Its strikes are lethal.',
     catchRate: 0.55,
@@ -139,7 +139,6 @@ export function getRoachyDefinition(id: string): RoachyDefinition | undefined {
 export function getRarityColor(rarity: CreatureRarity): string {
   const colors: Record<CreatureRarity, string> = {
     common: '#9CA3AF',
-    uncommon: '#22C55E',
     rare: '#3B82F6',
     epic: '#A855F7',
     legendary: '#F59E0B',

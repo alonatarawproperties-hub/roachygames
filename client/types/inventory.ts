@@ -27,7 +27,6 @@ export type InventoryItemStatus =
 
 export type RarityTier = 
   | 'common'
-  | 'uncommon'
   | 'rare'
   | 'epic'
   | 'legendary';

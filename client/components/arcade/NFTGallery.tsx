@@ -10,7 +10,7 @@ interface CollectionItem {
   id: string;
   name: string;
   image?: string;
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary";
+  rarity: "common" | "rare" | "epic" | "legendary";
   creatureId: string;
   level?: number;
 }
@@ -27,14 +27,13 @@ const PLACEHOLDER_ITEMS: CollectionItem[] = [
   { id: "1", name: "Shadow Scuttler", rarity: "epic", creatureId: "shadow_scuttler", level: 12 },
   { id: "2", name: "Gutter King", rarity: "legendary", creatureId: "gutter_king", level: 25 },
   { id: "3", name: "Sewer Slink", rarity: "rare", creatureId: "sewer_slink", level: 8 },
-  { id: "4", name: "Pipe Phantom", rarity: "uncommon", creatureId: "pipe_phantom", level: 5 },
+  { id: "4", name: "Pipe Phantom", rarity: "common", creatureId: "pipe_phantom", level: 5 },
   { id: "5", name: "Drain Dancer", rarity: "common", creatureId: "drain_dancer", level: 3 },
   { id: "6", name: "Trash Titan", rarity: "epic", creatureId: "trash_titan", level: 15 },
 ];
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
-  uncommon: "#22C55E",
   rare: "#3B82F6",
   epic: "#8B5CF6",
   legendary: "#F59E0B",
@@ -60,7 +59,7 @@ export function NFTGallery({
 }: CollectionGalleryProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
 
-  const filters = ["all", "legendary", "epic", "rare", "uncommon", "common"];
+  const filters = ["all", "legendary", "epic", "rare", "common"];
 
   const filteredItems =
     selectedFilter === "all" ? items : items.filter((item) => item.rarity === selectedFilter);
