@@ -34,6 +34,7 @@ import { EggReveal } from "@/components/EggReveal";
 import { RaidBattleMiniGame } from "@/components/RaidBattleMiniGame";
 import { MapViewWrapper, MapViewWrapperRef } from "@/components/MapViewWrapper";
 import { HuntLoadingOverlay } from "@/components/HuntLoadingOverlay";
+import { HuntLeaderboard } from "@/components/hunt/HuntLeaderboard";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
@@ -100,7 +101,7 @@ export default function HuntScreen() {
   const [catchQuality, setCatchQuality] = useState<"perfect" | "great" | "good" | null>(null);
   const [collectedEggInfo, setCollectedEggInfo] = useState<{rarity: string; count: number} | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<Raid | null>(null);
-  const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs">("map");
+  const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs" | "leaderboard">("map");
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapViewWrapperRef>(null);
   const loadingFadeAnim = useSharedValue(1);
@@ -756,11 +757,30 @@ export default function HuntScreen() {
             Eggs
           </ThemedText>
         </Pressable>
+        <Pressable
+          style={[styles.tab, activeTab === "leaderboard" && styles.activeTab]}
+          onPress={() => setActiveTab("leaderboard")}
+        >
+          <Feather
+            name="award"
+            size={20}
+            color={activeTab === "leaderboard" ? GameColors.primary : GameColors.textSecondary}
+          />
+          <ThemedText
+            style={[
+              styles.tabText,
+              activeTab === "leaderboard" && styles.activeTabText,
+            ]}
+          >
+            Ranks
+          </ThemedText>
+        </Pressable>
       </View>
 
       {activeTab === "map" && renderMapView()}
       {activeTab === "collection" && renderCollection()}
       {activeTab === "eggs" && renderEggs()}
+      {activeTab === "leaderboard" && <HuntLeaderboard />}
 
       {__DEV__ && activeTab === "map" && playerLocation ? (
         <Pressable 
