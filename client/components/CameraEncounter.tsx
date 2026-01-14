@@ -337,43 +337,42 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
           <Animated.View 
             entering={FadeInUp.duration(400).springify()}
             style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
-            pointerEvents="box-none"
           >
-            <View style={styles.actionCapsule} pointerEvents="box-none">
-              <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
-                {isCollecting ? (
-                  <>
-                    <ActivityIndicator size="large" color={GameColors.primary} />
-                    <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
-                  </>
-                ) : (
-                  <Pressable 
-                    onPress={() => {
-                      console.log("[CATCH BUTTON] PRESSED!");
-                      handleThrowNet();
-                    }} 
-                    style={styles.catchPressable}
-                  >
-                    <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v2 - TAP THE GREEN BUTTON</ThemedText>
-                    
-                    <Animated.View style={pulseAnimatedStyle}>
-                      <LinearGradient
-                        colors={["#00FF00", "#00CC00"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.catchButton}
-                      >
-                        <View style={styles.catchButtonInner}>
-                          <Feather name="crosshair" size={28} color="#000" />
-                        </View>
-                      </LinearGradient>
-                    </Animated.View>
-                    
-                    <ThemedText style={[styles.catchLabel, { color: "#00FF00" }]}>GRAB EGG</ThemedText>
-                  </Pressable>
-                )}
-              </BlurView>
-            </View>
+            {isCollecting ? (
+              <View style={styles.actionCapsule}>
+                <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
+                  <ActivityIndicator size="large" color={GameColors.primary} />
+                  <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
+                </BlurView>
+              </View>
+            ) : (
+              <Pressable 
+                onPress={() => {
+                  console.log("[CATCH BUTTON] PRESSED!");
+                  handleThrowNet();
+                }} 
+                style={styles.actionCapsule}
+              >
+                <BlurView intensity={60} tint="dark" style={styles.capsuleBlur} pointerEvents="none">
+                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v3 - TAP HERE</ThemedText>
+                  
+                  <Animated.View style={pulseAnimatedStyle} pointerEvents="none">
+                    <LinearGradient
+                      colors={["#00FF00", "#00CC00"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.catchButton}
+                    >
+                      <View style={styles.catchButtonInner}>
+                        <Feather name="crosshair" size={28} color="#000" />
+                      </View>
+                    </LinearGradient>
+                  </Animated.View>
+                  
+                  <ThemedText style={[styles.catchLabel, { color: "#00FF00" }]}>GRAB EGG</ThemedText>
+                </BlurView>
+              </Pressable>
+            )}
           </Animated.View>
         </View>
       </GestureDetector>
