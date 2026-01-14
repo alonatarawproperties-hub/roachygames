@@ -38,7 +38,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface CameraEncounterProps {
   spawn: Spawn;
-  onStartCatch: () => void;
+  onStartCatch: (spawn: Spawn) => void;
   onCancel: () => void;
   isCollecting?: boolean;
 }
@@ -121,8 +121,8 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
     
     // Phase I mystery eggs: Skip net animation, call API immediately
     if (isMysteryEgg) {
-      console.log("[CameraEncounter] Calling onStartCatch for mystery egg");
-      onStartCatch();
+      console.log("[CameraEncounter] Calling onStartCatch for mystery egg, passing spawn:", spawn.id);
+      onStartCatch(spawn);
       return;
     }
     
@@ -147,7 +147,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
     );
     
     setTimeout(() => {
-      onStartCatch();
+      onStartCatch(spawn);
     }, 600);
   };
 
@@ -354,7 +354,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                 style={styles.actionCapsule}
               >
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur} pointerEvents="none">
-                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v8 - SPAWN COORDS</ThemedText>
+                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v9 - PASS SPAWN</ThemedText>
                   
                   <Animated.View style={pulseAnimatedStyle} pointerEvents="none">
                     <LinearGradient

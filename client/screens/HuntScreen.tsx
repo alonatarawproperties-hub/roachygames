@@ -332,16 +332,16 @@ export default function HuntScreen() {
 
   const [isCollecting, setIsCollecting] = useState(false);
 
-  const handleStartCatch = async () => {
-    console.log("[handleStartCatch] v8 CALLED!");
+  const handleStartCatch = async (passedSpawn: Spawn) => {
+    console.log("[handleStartCatch] v9 CALLED with spawn:", passedSpawn?.id);
     
-    // Use ref first, fallback to state
-    let spawn = activeSpawnRef.current || selectedSpawn;
-    console.log("[handleStartCatch] spawn from ref:", !!activeSpawnRef.current, "from state:", !!selectedSpawn);
+    // USE THE PASSED SPAWN - this is the fix!
+    // Previously we relied on refs/state which could be stale
+    const spawn = passedSpawn;
     
-    // Guard: No spawn = can't proceed (this is the ONLY early exit)
+    // Guard: No spawn = can't proceed (this should never happen now)
     if (!spawn) {
-      console.log("[handleStartCatch] ERROR: No spawn available - this should never happen");
+      console.log("[handleStartCatch] ERROR: No spawn passed - this should never happen");
       setShowCameraEncounter(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
