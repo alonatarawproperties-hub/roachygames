@@ -333,47 +333,46 @@ export default function HuntScreen() {
   const [isCollecting, setIsCollecting] = useState(false);
 
   const handleStartCatch = async () => {
-    console.log("[handleStartCatch] CALLED!");
+    console.log("[handleStartCatch] v8 CALLED!");
     
     // Use ref first, fallback to state
     let spawn = activeSpawnRef.current || selectedSpawn;
     console.log("[handleStartCatch] spawn from ref:", !!activeSpawnRef.current, "from state:", !!selectedSpawn);
     
-    // Use ref for location, fallback to current playerLocation, then spawn location
-    let loc = playerLocationRef.current;
-    
-    // FALLBACK 1: Try current playerLocation state
-    if (!loc && playerLocation) {
-      loc = { latitude: playerLocation.latitude, longitude: playerLocation.longitude };
-      console.log("[handleStartCatch] Using playerLocation state as fallback");
-    }
-    
-    // FALLBACK 2: Use spawn's location (player is within 100m anyway)
-    if (!loc && spawn) {
-      loc = { latitude: parseFloat(spawn.latitude), longitude: parseFloat(spawn.longitude) };
-      console.log("[handleStartCatch] Using spawn location as fallback");
-    }
-    
-    console.log("[handleStartCatch] spawn:", spawn?.id, "name:", spawn?.name, "class:", spawn?.creatureClass);
-    console.log("[handleStartCatch] loc:", !!loc, loc?.latitude, loc?.longitude);
-    
-    // Guard: No spawn = can't proceed
+    // Guard: No spawn = can't proceed (this is the ONLY early exit)
     if (!spawn) {
-      console.log("[handleStartCatch] ERROR: No spawn available");
+      console.log("[handleStartCatch] ERROR: No spawn available - this should never happen");
       setShowCameraEncounter(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
-    // Location should ALWAYS be available now with fallbacks, but check anyway
-    if (!loc) {
-      console.log("[handleStartCatch] ERROR: No location even with fallbacks - using spawn coords directly");
-      loc = { latitude: parseFloat(spawn.latitude), longitude: parseFloat(spawn.longitude) };
+    // LOCATION: Always use spawn coordinates as the guaranteed fallback
+    // Player MUST be within 100m of spawn to see it, so spawn coords are always valid
+    const spawnLat = parseFloat(spawn.latitude);
+    const spawnLon = parseFloat(spawn.longitude);
+    
+    let loc = { latitude: spawnLat, longitude: spawnLon }; // DEFAULT to spawn coords
+    
+    // Try to use player's exact location if available (but spawn coords work fine)
+    if (playerLocationRef.current) {
+      loc = playerLocationRef.current;
+      console.log("[handleStartCatch] Using playerLocationRef");
+    } else if (playerLocation) {
+      loc = { latitude: playerLocation.latitude, longitude: playerLocation.longitude };
+      console.log("[handleStartCatch] Using playerLocation state");
+    } else {
+      console.log("[handleStartCatch] Using spawn coords as location (this is fine)");
     }
     
-    // Phase I detection: check name OR creatureClass
-    const isMysteryEgg = spawn.name?.toLowerCase().includes("mystery egg") || spawn.creatureClass === "egg";
-    console.log("[handleStartCatch] isMysteryEgg:", isMysteryEgg);
+    console.log("[handleStartCatch] spawn:", spawn.id, "name:", spawn.name, "class:", spawn.creatureClass);
+    console.log("[handleStartCatch] loc:", loc.latitude, loc.longitude);
+    
+    // Phase I detection: check name OR creatureClass OR FORCE Phase I mode
+    // In Phase I, ALL spawns are mystery eggs - use multiple detection methods
+    const PHASE1_FORCED = true; // Phase I: treat ALL spawns as mystery eggs
+    const isMysteryEgg = PHASE1_FORCED || spawn.name?.toLowerCase().includes("mystery egg") || spawn.creatureClass === "egg";
+    console.log("[handleStartCatch] PHASE1_FORCED:", PHASE1_FORCED, "isMysteryEgg:", isMysteryEgg, "name:", spawn.name, "class:", spawn.creatureClass);
     
     // Phase I: Mystery eggs go directly to API call, no mini-game
     if (isMysteryEgg) {
