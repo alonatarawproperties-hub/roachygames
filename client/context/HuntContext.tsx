@@ -529,6 +529,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
   }, [walletAddress, playerLocation, economyData, queryClient]);
 
   const claimNode = useCallback(async (spawnId: string, lat: number, lon: number, quality: string) => {
+    console.log("[ClaimNode] v16 Starting claim:", { spawnId, lat, lon, quality, walletAddress });
     try {
       // Phase I: Use spawn-based claim endpoint
       const response = await apiRequest("POST", "/api/hunt/phase1/claim-spawn", {
@@ -538,8 +539,10 @@ export function HuntProvider({ children }: HuntProviderProps) {
         lon,
         quality,
       });
+      console.log("[ClaimNode] v16 Got response, parsing JSON...");
       const data = await response.json();
-      if (data.success) {
+      console.log("[ClaimNode] v16 Parsed data:", JSON.stringify(data));
+      if (data.success || data.eggRarity) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
@@ -547,9 +550,11 @@ export function HuntProvider({ children }: HuntProviderProps) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/phase1"] });
       }
       return data;
-    } catch (error) {
-      console.error("Failed to claim spawn:", error);
-      return { success: false, error: "Failed to claim spawn" };
+    } catch (error: any) {
+      // v16: Return ACTUAL error message, not hardcoded
+      const errorMsg = error?.message || String(error) || "Network error";
+      console.error("[ClaimNode] v16 ERROR:", errorMsg, error);
+      return { success: false, error: errorMsg };
     }
   }, [walletAddress, queryClient]);
 
