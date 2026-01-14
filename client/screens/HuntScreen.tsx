@@ -114,12 +114,23 @@ export default function HuntScreen() {
   const loadingFadeAnim = useSharedValue(1);
   const hasAutoSpawned = useRef(false);
   const activeSpawnRef = useRef<Spawn | null>(null);
+  const playerLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
   const pulseAnim = useSharedValue(1);
 
   const gpsReady = !!playerLocation;
   const dataReady = economyReady;
   const allReady = gpsReady && dataReady && mapReady;
+
+  // Persist player location to ref so it's always available (even when camera encounter pauses updates)
+  useEffect(() => {
+    if (playerLocation) {
+      playerLocationRef.current = {
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+      };
+    }
+  }, [playerLocation]);
 
   const handleRequestPermission = useCallback(async () => {
     if (Platform.OS !== "web") {
@@ -316,23 +327,25 @@ export default function HuntScreen() {
     setShowCameraEncounter(false);
     
     const spawn = activeSpawnRef.current;
+    // Use ref for location since state may be null when camera encounter pauses location updates
+    const loc = playerLocationRef.current;
     console.log("[handleStartCatch] spawn:", spawn?.id, "name:", spawn?.name, "class:", spawn?.creatureClass);
-    console.log("[handleStartCatch] playerLocation:", !!playerLocation);
+    console.log("[handleStartCatch] loc from ref:", !!loc, loc?.latitude, loc?.longitude);
     
     // Phase I detection: check name OR creatureClass
     const isMysteryEgg = spawn?.name?.toLowerCase().includes("mystery egg") || spawn?.creatureClass === "egg";
     console.log("[handleStartCatch] isMysteryEgg:", isMysteryEgg);
     
     // Phase I: Mystery eggs go directly to API call, no mini-game
-    if (isMysteryEgg && spawn && playerLocation) {
+    if (isMysteryEgg && spawn && loc) {
       console.log("[Phase1] Direct collect - spawning:", spawn.id);
       setIsCollecting(true);
       
       try {
         const result = await claimNode(
           spawn.id,
-          playerLocation.latitude,
-          playerLocation.longitude,
+          loc.latitude,
+          loc.longitude,
           "perfect"
         );
         
