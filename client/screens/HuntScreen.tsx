@@ -42,10 +42,74 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
 
 const RARITY_COLORS: Record<string, string> = {
-  common: "#9CA3AF",
-  rare: "#3B82F6",
-  epic: "#A855F7",
-  legendary: "#F59E0B",
+  common: "#A0A0A0",
+  rare: "#3A86FF",
+  epic: "#9D4EDD",
+  legendary: "#FFD700",
+};
+
+const RARITY_GLOWS: Record<string, { color: string; opacity: number; radius: number }> = {
+  common: { color: "#A0A0A0", opacity: 0.3, radius: 8 },
+  rare: { color: "#3A86FF", opacity: 0.5, radius: 12 },
+  epic: { color: "#9D4EDD", opacity: 0.6, radius: 16 },
+  legendary: { color: "#FFD700", opacity: 0.8, radius: 20 },
+};
+
+const EggIcon = ({ rarity, size = 40 }: { rarity: string; size?: number }) => {
+  const color = RARITY_COLORS[rarity] || RARITY_COLORS.common;
+  const glow = RARITY_GLOWS[rarity] || RARITY_GLOWS.common;
+  
+  return (
+    <View style={{
+      width: size,
+      height: size * 1.2,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: glow.color,
+      shadowOpacity: glow.opacity,
+      shadowRadius: glow.radius,
+      shadowOffset: { width: 0, height: 0 },
+    }}>
+      <View style={{
+        width: size * 0.85,
+        height: size * 1.1,
+        borderRadius: size * 0.425,
+        backgroundColor: color + "30",
+        borderWidth: 2,
+        borderColor: color,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+      }}>
+        <View style={{
+          position: 'absolute',
+          top: '15%',
+          left: '20%',
+          width: size * 0.2,
+          height: size * 0.15,
+          borderRadius: size * 0.1,
+          backgroundColor: 'rgba(255,255,255,0.4)',
+          transform: [{ rotate: '-30deg' }],
+        }} />
+        <View style={{
+          position: 'absolute',
+          bottom: '35%',
+          width: '100%',
+          height: 2,
+          backgroundColor: color + "60",
+        }} />
+        <View style={{
+          position: 'absolute',
+          bottom: '25%',
+          left: '30%',
+          width: '40%',
+          height: 2,
+          backgroundColor: color + "40",
+          borderRadius: 1,
+        }} />
+      </View>
+    </View>
+  );
 };
 
 function hashString(str: string): number {
@@ -554,81 +618,66 @@ export default function HuntScreen() {
     const legendaryIn = stats?.pity?.legendaryIn ?? 200;
     const hunterLevel = stats?.hunterLevel ?? 1;
     const warmth = stats?.warmth ?? 0;
+    const huntProgress = Math.min(1, huntsToday / dailyCap);
 
     return (
-      <Card style={styles.economyCard}>
-        <View style={styles.economyHeader}>
-          <ThemedText type="h4">Hunter Stats</ThemedText>
-          <View style={styles.levelBadge}>
-            <ThemedText style={styles.levelText}>Lv.{hunterLevel}</ThemedText>
+      <View style={styles.premiumStatsCard}>
+        <View style={styles.statsGlassOverlay} />
+        <View style={styles.statsHeader}>
+          <View style={styles.statsHeaderLeft}>
+            <ThemedText style={styles.statsTitle}>Hunter Stats</ThemedText>
+          </View>
+          <View style={styles.levelBadgePremium}>
+            <Feather name="award" size={12} color={GameColors.gold} />
+            <ThemedText style={styles.levelTextPremium}>Lv.{hunterLevel}</ThemedText>
           </View>
         </View>
-        <View style={styles.economyGrid}>
-          <View style={styles.economyStat}>
-            <Feather name="target" size={18} color="#3B82F6" />
-            <View>
-              <ThemedText style={styles.economyValue}>
-                {huntsToday}/{dailyCap}
-              </ThemedText>
-              <ThemedText style={styles.economyLabel}>Today</ThemedText>
+        
+        <View style={styles.statsMainRow}>
+          <View style={styles.statBlock}>
+            <View style={styles.statIconCircle}>
+              <Feather name="crosshair" size={16} color={GameColors.primary} />
             </View>
+            <ThemedText style={styles.statValuePremium}>{huntsToday}/{dailyCap}</ThemedText>
+            <ThemedText style={styles.statLabelPremium}>Today</ThemedText>
           </View>
-          <View style={styles.economyStat}>
-            <Feather name="activity" size={18} color="#22C55E" />
-            <View>
-              <ThemedText style={styles.economyValue}>
-                {streakCount}
-              </ThemedText>
-              <ThemedText style={styles.economyLabel}>Streak</ThemedText>
+          
+          <View style={styles.statDivider} />
+          
+          <View style={styles.statBlock}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#22C55E20' }]}>
+              <Feather name="zap" size={16} color="#22C55E" />
             </View>
+            <ThemedText style={styles.statValuePremium}>{streakCount}</ThemedText>
+            <ThemedText style={styles.statLabelPremium}>Streak</ThemedText>
           </View>
-          <View style={styles.economyStat}>
-            <Feather name="sun" size={18} color="#F97316" />
-            <View>
-              <ThemedText style={styles.economyValue}>
-                {warmth}
-              </ThemedText>
-              <ThemedText style={styles.economyLabel}>Warmth</ThemedText>
+          
+          <View style={styles.statDivider} />
+          
+          <View style={styles.statBlock}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#F9731620' }]}>
+              <Feather name="sun" size={16} color="#F97316" />
             </View>
+            <ThemedText style={styles.statValuePremium}>{warmth}</ThemedText>
+            <ThemedText style={styles.statLabelPremium}>Warmth</ThemedText>
           </View>
         </View>
-        <View style={styles.pityContainer}>
-          <View style={styles.pityRow}>
-            <ThemedText style={styles.pityLabel}>Rare in</ThemedText>
-            <ThemedText style={[styles.pityValue, { color: RARITY_COLORS.rare }]}>
-              {rareIn}
-            </ThemedText>
+        
+        <View style={styles.pityRowPremium}>
+          <View style={styles.pityPill}>
+            <ThemedText style={styles.pityPillLabel}>Rare in</ThemedText>
+            <ThemedText style={[styles.pityPillValue, { color: RARITY_COLORS.rare }]}>{rareIn}</ThemedText>
           </View>
-          <View style={styles.pityRow}>
-            <ThemedText style={styles.pityLabel}>Epic in</ThemedText>
-            <ThemedText style={[styles.pityValue, { color: RARITY_COLORS.epic }]}>
-              {epicIn}
-            </ThemedText>
+          <View style={styles.pityPill}>
+            <ThemedText style={styles.pityPillLabel}>Epic in</ThemedText>
+            <ThemedText style={[styles.pityPillValue, { color: RARITY_COLORS.epic }]}>{epicIn}</ThemedText>
           </View>
-          <View style={styles.pityRow}>
-            <ThemedText style={styles.pityLabel}>Legendary in</ThemedText>
-            <ThemedText style={[styles.pityValue, { color: RARITY_COLORS.legendary }]}>
-              {legendaryIn}
-            </ThemedText>
+          <View style={styles.pityPill}>
+            <ThemedText style={styles.pityPillLabel}>Legendary in</ThemedText>
+            <ThemedText style={[styles.pityPillValue, { color: RARITY_COLORS.legendary }]}>{legendaryIn}</ThemedText>
           </View>
         </View>
-        {stats?.recentDrops && stats.recentDrops.length > 0 ? (
-          <View style={styles.recentDropsContainer}>
-            <ThemedText style={styles.recentDropsLabel}>Recent Drops</ThemedText>
-            <View style={styles.recentDropsRow}>
-              {stats.recentDrops.slice(0, 5).map((rarity, index) => (
-                <View 
-                  key={index}
-                  style={[
-                    styles.recentDropDot, 
-                    { backgroundColor: RARITY_COLORS[rarity] || RARITY_COLORS.common }
-                  ]} 
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
-      </Card>
+      </View>
     );
   };
 
@@ -749,148 +798,254 @@ export default function HuntScreen() {
   const renderEggs = () => {
     const eggs = phaseIStats?.eggs || { common: 0, rare: 0, epic: 0, legendary: 0 };
     const totalEggs = eggs.common + eggs.rare + eggs.epic + eggs.legendary;
+    const targetRarity = FUSION_TARGETS[selectedFuseRarity];
+    const fusionCost = FUSION_COSTS[selectedFuseRarity];
+    const fusionChance = FUSION_CHANCES[selectedFuseRarity];
 
     return (
       <ScrollView
         style={styles.eggsContainer}
-        contentContainerStyle={styles.eggsContent}
+        contentContainerStyle={styles.eggsContentPremium}
+        showsVerticalScrollIndicator={false}
       >
-        <ThemedText type="h4" style={styles.sectionTitle}>
-          Egg Inventory ({totalEggs})
-        </ThemedText>
+        <View style={styles.inventoryHeader}>
+          <ThemedText style={styles.inventoryTitle}>Egg Inventory</ThemedText>
+          <View style={styles.totalBadge}>
+            <Feather name="package" size={14} color={GameColors.gold} />
+            <ThemedText style={styles.totalCount}>{totalEggs}</ThemedText>
+          </View>
+        </View>
         
-        <View style={styles.eggGrid}>
-          {(['common', 'rare', 'epic', 'legendary'] as const).map((rarity) => (
-            <Card key={rarity} style={styles.eggGridCard}>
-              <View style={[styles.eggGridIcon, { backgroundColor: RARITY_COLORS[rarity] + "20" }]}>
-                <Feather name="gift" size={28} color={RARITY_COLORS[rarity]} />
+        <View style={styles.eggGridPremium}>
+          {(['common', 'rare', 'epic', 'legendary'] as const).map((rarity) => {
+            const glow = RARITY_GLOWS[rarity];
+            const count = eggs[rarity];
+            return (
+              <View 
+                key={rarity} 
+                style={[
+                  styles.eggCardPremium,
+                  { 
+                    borderColor: RARITY_COLORS[rarity] + "40",
+                    shadowColor: glow.color,
+                    shadowOpacity: count > 0 ? glow.opacity * 0.5 : 0,
+                    shadowRadius: glow.radius,
+                    shadowOffset: { width: 0, height: 0 },
+                  }
+                ]}
+              >
+                <View style={styles.eggCardInner}>
+                  <EggIcon rarity={rarity} size={36} />
+                  <View style={styles.eggCardInfo}>
+                    <ThemedText style={[styles.eggCardCount, { color: RARITY_COLORS[rarity] }]}>
+                      {count}
+                    </ThemedText>
+                    <ThemedText style={styles.eggCardLabel}>
+                      {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+                    </ThemedText>
+                  </View>
+                </View>
               </View>
-              <ThemedText style={[styles.eggGridCount, { color: RARITY_COLORS[rarity] }]}>
-                {eggs[rarity]}
-              </ThemedText>
-              <ThemedText style={styles.eggGridLabel}>{rarity}</ThemedText>
-            </Card>
-          ))}
+            );
+          })}
         </View>
 
-        <Card style={styles.actionCard}>
-          <ThemedText type="h4" style={styles.actionTitle}>Recycle Commons</ThemedText>
-          <ThemedText style={styles.actionDesc}>Convert common eggs to warmth (1:1)</ThemedText>
-          <View style={styles.actionRow}>
-            <View style={styles.amountControls}>
+        <View style={styles.sectionDivider}>
+          <View style={styles.dividerLine} />
+          <ThemedText style={styles.dividerText}>Actions</ThemedText>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <View style={styles.actionCardPremium}>
+          <View style={styles.actionCardHeader}>
+            <View style={styles.actionIconCircle}>
+              <Feather name="refresh-cw" size={18} color="#F97316" />
+            </View>
+            <View style={styles.actionCardHeaderText}>
+              <ThemedText style={styles.actionTitlePremium}>Recycle Commons</ThemedText>
+              <ThemedText style={styles.actionSubtitle}>Convert eggs to warmth for future benefits</ThemedText>
+            </View>
+          </View>
+          
+          <View style={styles.actionControlRow}>
+            <View style={styles.amountControlsPremium}>
               <Pressable 
-                style={styles.amountBtn}
+                style={[styles.amountBtnPremium, recycleAmount <= 1 && styles.amountBtnDisabled]}
                 onPress={() => setRecycleAmount(Math.max(1, recycleAmount - 1))}
               >
-                <Feather name="minus" size={16} color={GameColors.textPrimary} />
+                <Feather name="minus" size={18} color={recycleAmount <= 1 ? GameColors.textTertiary : GameColors.textPrimary} />
               </Pressable>
-              <ThemedText style={styles.amountText}>{recycleAmount}</ThemedText>
+              <View style={styles.amountDisplay}>
+                <ThemedText style={styles.amountValuePremium}>{recycleAmount}</ThemedText>
+                <ThemedText style={styles.amountLabelPremium}>eggs</ThemedText>
+              </View>
               <Pressable 
-                style={styles.amountBtn}
-                onPress={() => setRecycleAmount(Math.min(eggs.common, recycleAmount + 1))}
+                style={[styles.amountBtnPremium, recycleAmount >= eggs.common && styles.amountBtnDisabled]}
+                onPress={() => setRecycleAmount(Math.min(eggs.common || 1, recycleAmount + 1))}
               >
-                <Feather name="plus" size={16} color={GameColors.textPrimary} />
+                <Feather name="plus" size={18} color={recycleAmount >= eggs.common ? GameColors.textTertiary : GameColors.textPrimary} />
               </Pressable>
             </View>
+            
             <Pressable 
               style={[
-                styles.actionButton,
-                (eggs.common < recycleAmount || isRecycling) && styles.actionButtonDisabled
+                styles.actionButtonPremium,
+                (eggs.common < recycleAmount || isRecycling) && styles.actionButtonPremiumDisabled
               ]}
               onPress={handleRecycle}
               disabled={eggs.common < recycleAmount || isRecycling}
             >
-              <ThemedText style={styles.actionButtonText}>
-                {isRecycling ? "..." : `Recycle +${recycleAmount} warmth`}
+              <Feather name="sun" size={16} color={eggs.common >= recycleAmount && !isRecycling ? "#000" : GameColors.textTertiary} />
+              <ThemedText style={[
+                styles.actionButtonTextPremium,
+                (eggs.common < recycleAmount || isRecycling) && { color: GameColors.textTertiary }
+              ]}>
+                {isRecycling ? "..." : `+${recycleAmount} Warmth`}
               </ThemedText>
             </Pressable>
           </View>
-        </Card>
+        </View>
 
-        <Card style={styles.actionCard}>
-          <ThemedText type="h4" style={styles.actionTitle}>Fuse Eggs</ThemedText>
-          <ThemedText style={styles.actionDesc}>
-            {selectedFuseRarity === 'common' 
-              ? `${FUSION_COSTS.common} Common → 1 Rare (100% success)`
-              : selectedFuseRarity === 'rare'
-              ? `${FUSION_COSTS.rare} Rare → 1 Epic (${FUSION_CHANCES.rare}% chance)`
-              : `${FUSION_COSTS.epic} Epic → 1 Legendary (${FUSION_CHANCES.epic}% chance)`}
-          </ThemedText>
+        <View style={[styles.actionCardPremium, { marginTop: Spacing.md }]}>
+          <View style={styles.actionCardHeader}>
+            <View style={[styles.actionIconCircle, { backgroundColor: '#9D4EDD20' }]}>
+              <Feather name="layers" size={18} color="#9D4EDD" />
+            </View>
+            <View style={styles.actionCardHeaderText}>
+              <ThemedText style={styles.actionTitlePremium}>Fusion Lab</ThemedText>
+              <ThemedText style={styles.actionSubtitle}>Combine eggs into higher rarities</ThemedText>
+            </View>
+          </View>
+          
+          <View style={styles.fusionTabsContainer}>
+            {(['common', 'rare', 'epic'] as const).map((r) => {
+              const isSelected = selectedFuseRarity === r;
+              const targetR = FUSION_TARGETS[r];
+              return (
+                <Pressable
+                  key={r}
+                  style={[
+                    styles.fusionTab,
+                    isSelected && { 
+                      backgroundColor: RARITY_COLORS[r] + "25",
+                      borderColor: RARITY_COLORS[r],
+                    }
+                  ]}
+                  onPress={() => {
+                    setSelectedFuseRarity(r);
+                    setFuseTimes(1);
+                    setFuseResult(null);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <EggIcon rarity={r} size={20} />
+                  <Feather name="arrow-right" size={12} color={isSelected ? RARITY_COLORS[targetR] : GameColors.textTertiary} />
+                  <EggIcon rarity={targetR} size={20} />
+                </Pressable>
+              );
+            })}
+          </View>
+          
+          <View style={styles.fusionInfoBox}>
+            <View style={styles.fusionInfoRow}>
+              <ThemedText style={styles.fusionInfoLabel}>Cost:</ThemedText>
+              <ThemedText style={[styles.fusionInfoValue, { color: RARITY_COLORS[selectedFuseRarity] }]}>
+                {fusionCost} {selectedFuseRarity.charAt(0).toUpperCase() + selectedFuseRarity.slice(1)}
+              </ThemedText>
+            </View>
+            <View style={styles.fusionInfoRow}>
+              <ThemedText style={styles.fusionInfoLabel}>Result:</ThemedText>
+              <ThemedText style={[styles.fusionInfoValue, { color: RARITY_COLORS[targetRarity] }]}>
+                1 {targetRarity.charAt(0).toUpperCase() + targetRarity.slice(1)}
+              </ThemedText>
+            </View>
+            <View style={styles.fusionInfoRow}>
+              <ThemedText style={styles.fusionInfoLabel}>Success:</ThemedText>
+              <View style={styles.chanceBar}>
+                <View style={[styles.chanceFill, { width: `${fusionChance}%`, backgroundColor: fusionChance === 100 ? '#22C55E' : fusionChance >= 15 ? '#F59E0B' : '#EF4444' }]} />
+              </View>
+              <ThemedText style={[styles.fusionChanceText, { color: fusionChance === 100 ? '#22C55E' : fusionChance >= 15 ? '#F59E0B' : '#EF4444' }]}>
+                {fusionChance}%
+              </ThemedText>
+            </View>
+          </View>
+
           {(selectedFuseRarity === 'rare' || selectedFuseRarity === 'epic') && (
-            <View style={styles.fuseWarning}>
+            <View style={styles.fuseWarningPremium}>
               <Feather name="alert-triangle" size={14} color="#F59E0B" />
-              <ThemedText style={styles.fuseWarningText}>
-                Eggs are consumed on failure
+              <ThemedText style={styles.fuseWarningTextPremium}>
+                Eggs are consumed even on failure
               </ThemedText>
             </View>
           )}
-          <View style={styles.fuseRarityRow}>
-            {(['common', 'rare', 'epic'] as const).map((r) => (
-              <Pressable
-                key={r}
-                style={[
-                  styles.fuseRarityBtn,
-                  selectedFuseRarity === r && { backgroundColor: RARITY_COLORS[r] + "30" }
-                ]}
-                onPress={() => {
-                  setSelectedFuseRarity(r);
-                  setFuseTimes(1);
-                  setFuseResult(null);
-                }}
-              >
-                <ThemedText style={{ color: RARITY_COLORS[r], fontWeight: selectedFuseRarity === r ? "bold" : "normal" }}>
-                  {r}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-          <View style={styles.actionRow}>
-            <View style={styles.amountControls}>
+          
+          <View style={styles.actionControlRow}>
+            <View style={styles.amountControlsPremium}>
               <Pressable 
-                style={styles.amountBtn}
+                style={[styles.amountBtnPremium, fuseTimes <= 1 && styles.amountBtnDisabled]}
                 onPress={() => setFuseTimes(Math.max(1, fuseTimes - 1))}
               >
-                <Feather name="minus" size={16} color={GameColors.textPrimary} />
+                <Feather name="minus" size={18} color={fuseTimes <= 1 ? GameColors.textTertiary : GameColors.textPrimary} />
               </Pressable>
-              <ThemedText style={styles.amountText}>{fuseTimes}x</ThemedText>
+              <View style={styles.amountDisplay}>
+                <ThemedText style={styles.amountValuePremium}>{fuseTimes}x</ThemedText>
+                <ThemedText style={styles.amountLabelPremium}>fusions</ThemedText>
+              </View>
               <Pressable 
-                style={styles.amountBtn}
-                onPress={() => setFuseTimes(Math.min(getFuseMaxTimes(selectedFuseRarity), fuseTimes + 1))}
+                style={[styles.amountBtnPremium, fuseTimes >= getFuseMaxTimes(selectedFuseRarity) && styles.amountBtnDisabled]}
+                onPress={() => setFuseTimes(Math.min(Math.max(1, getFuseMaxTimes(selectedFuseRarity)), fuseTimes + 1))}
               >
-                <Feather name="plus" size={16} color={GameColors.textPrimary} />
+                <Feather name="plus" size={18} color={fuseTimes >= getFuseMaxTimes(selectedFuseRarity) ? GameColors.textTertiary : GameColors.textPrimary} />
               </Pressable>
             </View>
+            
             <Pressable 
               style={[
-                styles.actionButton,
-                (eggs[selectedFuseRarity] < fuseTimes * FUSION_COSTS[selectedFuseRarity] || isFusing) && styles.actionButtonDisabled
+                styles.fusionButtonPremium,
+                { backgroundColor: RARITY_COLORS[targetRarity] },
+                (eggs[selectedFuseRarity] < fuseTimes * fusionCost || isFusing) && styles.fusionButtonDisabled
               ]}
               onPress={handleFuse}
-              disabled={eggs[selectedFuseRarity] < fuseTimes * FUSION_COSTS[selectedFuseRarity] || isFusing}
+              disabled={eggs[selectedFuseRarity] < fuseTimes * fusionCost || isFusing}
             >
-              <ThemedText style={styles.actionButtonText}>
-                {isFusing ? "Fusing..." : `Fuse ${fuseTimes * FUSION_COSTS[selectedFuseRarity]} → ${fuseTimes} ${FUSION_TARGETS[selectedFuseRarity]}`}
+              <Feather name="zap" size={16} color={eggs[selectedFuseRarity] >= fuseTimes * fusionCost && !isFusing ? "#000" : GameColors.textTertiary} />
+              <ThemedText style={[
+                styles.fusionButtonText,
+                (eggs[selectedFuseRarity] < fuseTimes * fusionCost || isFusing) && { color: GameColors.textTertiary }
+              ]}>
+                {isFusing ? "Fusing..." : `Fuse ${fuseTimes * fusionCost} → ${fuseTimes}`}
               </ThemedText>
             </Pressable>
           </View>
+          
           {fuseResult && (
-            <View style={[styles.fuseResultBanner, fuseResult.successCount > 0 ? styles.fuseResultSuccess : styles.fuseResultFail]}>
-              <Feather 
-                name={fuseResult.successCount > 0 ? "check-circle" : "x-circle"} 
-                size={18} 
-                color={fuseResult.successCount > 0 ? "#10B981" : "#EF4444"} 
-              />
-              <ThemedText style={styles.fuseResultText}>
-                {fuseResult.successCount > 0 
-                  ? `Success x${fuseResult.successCount}${fuseResult.failCount > 0 ? `, Failed x${fuseResult.failCount}` : ''}`
-                  : `Failed x${fuseResult.failCount}`}
-              </ThemedText>
+            <View style={[
+              styles.fuseResultPremium, 
+              fuseResult.successCount > 0 ? styles.fuseResultSuccessPremium : styles.fuseResultFailPremium
+            ]}>
+              <View style={styles.fuseResultIconCircle}>
+                <Feather 
+                  name={fuseResult.successCount > 0 ? "check" : "x"} 
+                  size={20} 
+                  color={fuseResult.successCount > 0 ? "#10B981" : "#EF4444"} 
+                />
+              </View>
+              <View style={styles.fuseResultContent}>
+                <ThemedText style={styles.fuseResultTitle}>
+                  {fuseResult.successCount > 0 ? "Fusion Complete!" : "Fusion Failed"}
+                </ThemedText>
+                <ThemedText style={styles.fuseResultDetails}>
+                  {fuseResult.successCount > 0 
+                    ? `+${fuseResult.successCount} ${targetRarity}${fuseResult.failCount > 0 ? ` (${fuseResult.failCount} failed)` : ''}`
+                    : `${fuseResult.failCount} attempt${fuseResult.failCount > 1 ? 's' : ''} consumed`}
+                </ThemedText>
+              </View>
             </View>
           )}
-        </Card>
+        </View>
 
-        <ThemedText style={styles.eggHint}>
-          Hunt nodes to collect eggs. Recycle commons for warmth or fuse eggs into higher tiers.
+        <ThemedText style={styles.eggHintPremium}>
+          Hunt nodes on the map to collect mystery eggs
         </ThemedText>
       </ScrollView>
     );
@@ -1779,5 +1934,411 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#fff",
+  },
+  premiumStatsCard: {
+    backgroundColor: GameColors.surfaceElevated,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "30",
+    overflow: "hidden",
+  },
+  statsGlassOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 215, 0, 0.03)",
+  },
+  statsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  statsHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  levelBadgePremium: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GameColors.gold + "20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "40",
+  },
+  levelTextPremium: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  statsMainRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  statBlock: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.primary + "20",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  statValuePremium: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  statLabelPremium: {
+    fontSize: 11,
+    color: GameColors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: GameColors.surfaceLight,
+  },
+  pityRowPremium: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  pityPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: GameColors.surface,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  pityPillLabel: {
+    fontSize: 10,
+    color: GameColors.textTertiary,
+  },
+  pityPillValue: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  eggsContentPremium: {
+    paddingBottom: Spacing.xl * 2,
+  },
+  inventoryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  inventoryTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  totalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.gold + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  totalCount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GameColors.gold,
+  },
+  eggGridPremium: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  eggCardPremium: {
+    width: "48%",
+    backgroundColor: GameColors.surfaceElevated,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    overflow: "hidden",
+  },
+  eggCardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  eggCardInfo: {
+    flex: 1,
+  },
+  eggCardCount: {
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  eggCardLabel: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    fontWeight: "500",
+  },
+  sectionDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: GameColors.surfaceLight,
+  },
+  dividerText: {
+    fontSize: 12,
+    color: GameColors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  actionCardPremium: {
+    backgroundColor: GameColors.surfaceElevated,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: GameColors.surfaceLight,
+  },
+  actionCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  actionIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F9731620",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionCardHeaderText: {
+    flex: 1,
+  },
+  actionTitlePremium: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  actionSubtitle: {
+    fontSize: 12,
+    color: GameColors.textTertiary,
+    marginTop: 2,
+  },
+  actionControlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  amountControlsPremium: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 4,
+  },
+  amountBtnPremium: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GameColors.surfaceLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  amountBtnDisabled: {
+    opacity: 0.4,
+  },
+  amountDisplay: {
+    alignItems: "center",
+    minWidth: 50,
+  },
+  amountValuePremium: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  amountLabelPremium: {
+    fontSize: 10,
+    color: GameColors.textTertiary,
+  },
+  actionButtonPremium: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  actionButtonPremiumDisabled: {
+    backgroundColor: GameColors.surfaceLight,
+  },
+  actionButtonTextPremium: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#000",
+  },
+  fusionTabsContainer: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  fusionTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: GameColors.surface,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  fusionInfoBox: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  fusionInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  fusionInfoLabel: {
+    fontSize: 12,
+    color: GameColors.textTertiary,
+    width: 60,
+  },
+  fusionInfoValue: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  chanceBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: GameColors.surfaceLight,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  chanceFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  fusionChanceText: {
+    fontSize: 14,
+    fontWeight: "700",
+    minWidth: 40,
+    textAlign: "right",
+  },
+  fuseWarningPremium: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: "#F59E0B15",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: "#F59E0B30",
+  },
+  fuseWarningTextPremium: {
+    fontSize: 12,
+    color: "#F59E0B",
+    flex: 1,
+  },
+  fusionButtonPremium: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  fusionButtonDisabled: {
+    backgroundColor: GameColors.surfaceLight,
+  },
+  fusionButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#000",
+  },
+  fuseResultPremium: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  fuseResultSuccessPremium: {
+    backgroundColor: "#10B98115",
+    borderWidth: 1,
+    borderColor: "#10B98130",
+  },
+  fuseResultFailPremium: {
+    backgroundColor: "#EF444415",
+    borderWidth: 1,
+    borderColor: "#EF444430",
+  },
+  fuseResultIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fuseResultContent: {
+    flex: 1,
+  },
+  fuseResultTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+  },
+  fuseResultDetails: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginTop: 2,
+  },
+  eggHintPremium: {
+    fontSize: 13,
+    color: GameColors.textTertiary,
+    textAlign: "center",
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
 });
