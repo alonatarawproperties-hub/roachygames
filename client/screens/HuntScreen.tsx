@@ -344,27 +344,35 @@ export default function HuntScreen() {
     activeSpawnRef.current = null;
   };
 
-  const handleEggCollected = async (quality: "perfect" | "great" | "good" = "perfect") => {
+  const handleEggCollected = useCallback(async (quality: "perfect" | "great" | "good" = "perfect") => {
     const spawn = activeSpawnRef.current;
-    console.log("[EggCollect] Starting claim, spawn:", spawn?.id, "quality:", quality);
-    if (!spawn || !playerLocation) {
-      console.log("[EggCollect] Missing spawn or location, aborting. spawn:", !!spawn, "location:", !!playerLocation);
+    const loc = playerLocation;
+    console.log("[EggCollect] handleEggCollected CALLED - spawn:", spawn?.id, "location:", !!loc, "quality:", quality);
+    
+    if (!spawn) {
+      console.log("[EggCollect] ERROR: No spawn in activeSpawnRef!");
+      setShowCatchGame(false);
+      return;
+    }
+    if (!loc) {
+      console.log("[EggCollect] ERROR: No playerLocation!");
       setShowCatchGame(false);
       return;
     }
     
+    console.log("[EggCollect] Calling claimNode API with spawnId:", spawn.id);
     const result = await claimNode(
       spawn.id,
-      playerLocation.latitude,
-      playerLocation.longitude,
+      loc.latitude,
+      loc.longitude,
       quality
     );
     
-    console.log("[EggCollect] Claim result:", JSON.stringify(result));
+    console.log("[EggCollect] API response:", JSON.stringify(result));
     
     if (result && result.success) {
       const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
-      console.log("[EggCollect] Setting collectedEggInfo, rarity:", normalizedRarity);
+      console.log("[EggCollect] SUCCESS! Setting modal with rarity:", normalizedRarity);
       setCollectedEggInfo({
         rarity: normalizedRarity,
         xpAwarded: result.xpAwarded || 0,
@@ -375,12 +383,12 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       refreshPhaseIStats();
     } else {
-      console.log("[EggCollect] Claim failed or no success:", result?.error);
+      console.log("[EggCollect] FAILED:", result?.error);
     }
     setShowCatchGame(false);
     setSelectedSpawn(null);
     activeSpawnRef.current = null;
-  };
+  }, [playerLocation, claimNode, refreshPhaseIStats]);
 
   const handleRevealComplete = () => {
     setCaughtCreature(null);
