@@ -333,105 +333,112 @@ export default function HuntScreen() {
   const [isCollecting, setIsCollecting] = useState(false);
 
   const handleStartCatch = async (passedSpawn: Spawn) => {
-    console.log("[handleStartCatch] v9 CALLED with spawn:", passedSpawn?.id);
+    console.log("[handleStartCatch] v10 CALLED with spawn:", passedSpawn?.id, JSON.stringify(passedSpawn));
     
     // USE THE PASSED SPAWN - this is the fix!
-    // Previously we relied on refs/state which could be stale
     const spawn = passedSpawn;
     
-    // Guard: No spawn = can't proceed (this should never happen now)
+    // Guard: No spawn = can't proceed
     if (!spawn) {
-      console.log("[handleStartCatch] ERROR: No spawn passed - this should never happen");
+      console.log("[handleStartCatch] ERROR: No spawn passed");
       setShowCameraEncounter(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
-    // LOCATION: Always use spawn coordinates as the guaranteed fallback
-    // Player MUST be within 100m of spawn to see it, so spawn coords are always valid
-    const spawnLat = parseFloat(spawn.latitude);
-    const spawnLon = parseFloat(spawn.longitude);
+    // CRITICAL: Show loading state FIRST, before ANY other logic
+    // This ensures user sees feedback immediately
+    setIsCollecting(true);
+    console.log("[handleStartCatch] Set isCollecting=true");
     
-    let loc = { latitude: spawnLat, longitude: spawnLon }; // DEFAULT to spawn coords
-    
-    // Try to use player's exact location if available (but spawn coords work fine)
-    if (playerLocationRef.current) {
-      loc = playerLocationRef.current;
-      console.log("[handleStartCatch] Using playerLocationRef");
-    } else if (playerLocation) {
-      loc = { latitude: playerLocation.latitude, longitude: playerLocation.longitude };
-      console.log("[handleStartCatch] Using playerLocation state");
-    } else {
-      console.log("[handleStartCatch] Using spawn coords as location (this is fine)");
-    }
-    
-    console.log("[handleStartCatch] spawn:", spawn.id, "name:", spawn.name, "class:", spawn.creatureClass);
-    console.log("[handleStartCatch] loc:", loc.latitude, loc.longitude);
-    
-    // Phase I detection: check name OR creatureClass OR FORCE Phase I mode
-    // In Phase I, ALL spawns are mystery eggs - use multiple detection methods
-    const PHASE1_FORCED = true; // Phase I: treat ALL spawns as mystery eggs
-    const isMysteryEgg = PHASE1_FORCED || spawn.name?.toLowerCase().includes("mystery egg") || spawn.creatureClass === "egg";
-    console.log("[handleStartCatch] PHASE1_FORCED:", PHASE1_FORCED, "isMysteryEgg:", isMysteryEgg, "name:", spawn.name, "class:", spawn.creatureClass);
-    
-    // Phase I: Mystery eggs go directly to API call, no mini-game
-    if (isMysteryEgg) {
-      console.log("[Phase1] Direct collect - calling API for spawn:", spawn.id);
-      // CRITICAL: Show loading state FIRST, keep modal open during API call
-      setIsCollecting(true);
+    try {
+      // LOCATION: Parse spawn coordinates with fallbacks
+      let spawnLat = parseFloat(String(spawn.latitude));
+      let spawnLon = parseFloat(String(spawn.longitude));
       
-      try {
-        const result = await claimNode(
-          spawn.id,
-          loc.latitude,
-          loc.longitude,
-          "perfect"
-        );
-        
-        console.log("[Phase1] API result:", JSON.stringify(result));
-        
-        if (result && result.success) {
-          const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
-          console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          // Close camera AFTER API success, BEFORE showing egg modal
-          setShowCameraEncounter(false);
-          setIsCollecting(false);
-          setCollectedEggInfo({
-            rarity: normalizedRarity,
-            xpAwarded: result.xpAwarded || 0,
-            pointsAwarded: result.pointsAwarded || 0,
-            quality: "perfect",
-            pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
-          });
-          refreshPhaseIStats();
-          // Clear spawn refs on success
-          setSelectedSpawn(null);
-          activeSpawnRef.current = null;
-        } else {
-          // On failure, close camera and show error
-          console.log("[Phase1] Failed:", result?.error);
-          setShowCameraEncounter(false);
-          setIsCollecting(false);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          setSelectedSpawn(null);
-          activeSpawnRef.current = null;
-        }
-      } catch (error) {
-        // On error, close camera and show error
-        console.error("[Phase1] API error:", error);
+      // Validate coordinates - if NaN, try numeric properties
+      if (isNaN(spawnLat) || isNaN(spawnLon)) {
+        console.log("[handleStartCatch] WARNING: spawn lat/lon parse failed, trying numeric");
+        spawnLat = Number(spawn.latitude) || 0;
+        spawnLon = Number(spawn.longitude) || 0;
+      }
+      
+      console.log("[handleStartCatch] Parsed coords:", spawnLat, spawnLon);
+      
+      // Use spawn coords as default location (player is within 100m anyway)
+      let loc = { latitude: spawnLat, longitude: spawnLon };
+      
+      // Try player's exact location if available
+      if (playerLocationRef.current && playerLocationRef.current.latitude && playerLocationRef.current.longitude) {
+        loc = playerLocationRef.current;
+        console.log("[handleStartCatch] Using playerLocationRef");
+      } else if (playerLocation && playerLocation.latitude && playerLocation.longitude) {
+        loc = { latitude: playerLocation.latitude, longitude: playerLocation.longitude };
+        console.log("[handleStartCatch] Using playerLocation state");
+      } else {
+        console.log("[handleStartCatch] Using spawn coords as location");
+      }
+      
+      // Final validation - ensure we have valid numbers
+      if (isNaN(loc.latitude) || isNaN(loc.longitude)) {
+        console.log("[handleStartCatch] ERROR: Final coords are NaN!");
+        // Don't close modal yet - show error but keep modal open for debugging
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setIsCollecting(false);
+        return; // Stay on camera screen
+      }
+      
+      console.log("[handleStartCatch] Final loc:", loc.latitude, loc.longitude);
+      console.log("[handleStartCatch] Calling claimNode API...");
+      
+      // Call the API
+      const result = await claimNode(
+        spawn.id,
+        loc.latitude,
+        loc.longitude,
+        "perfect"
+      );
+      
+      console.log("[Phase1] API result:", JSON.stringify(result));
+      
+      if (result && result.success) {
+        const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
+        console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Close camera AFTER API success
+        setShowCameraEncounter(false);
+        setIsCollecting(false);
+        setCollectedEggInfo({
+          rarity: normalizedRarity,
+          xpAwarded: result.xpAwarded || 0,
+          pointsAwarded: result.pointsAwarded || 0,
+          quality: "perfect",
+          pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+        });
+        refreshPhaseIStats();
+        setSelectedSpawn(null);
+        activeSpawnRef.current = null;
+      } else {
+        // API returned failure
+        console.log("[Phase1] API returned failure:", result?.error);
         setShowCameraEncounter(false);
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setSelectedSpawn(null);
         activeSpawnRef.current = null;
       }
-      return;
+    } catch (error) {
+      // Catch block: Log error but DON'T close modal immediately
+      console.error("[Phase1] CAUGHT ERROR:", error);
+      // Keep modal open for 2 seconds so user sees collecting state
+      setTimeout(() => {
+        setShowCameraEncounter(false);
+        setIsCollecting(false);
+        setSelectedSpawn(null);
+        activeSpawnRef.current = null;
+      }, 2000);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-    
-    // Non-mystery eggs: use regular catch mini-game
-    setShowCameraEncounter(false);
-    setShowCatchGame(true);
   };
 
   const handleCancelEncounter = () => {

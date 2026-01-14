@@ -354,7 +354,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                 style={styles.actionCapsule}
               >
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur} pointerEvents="none">
-                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v9 - PASS SPAWN</ThemedText>
+                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v10 - FULL FIX</ThemedText>
                   
                   <Animated.View style={pulseAnimatedStyle} pointerEvents="none">
                     <LinearGradient
