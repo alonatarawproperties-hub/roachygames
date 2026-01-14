@@ -10,6 +10,7 @@ import {
   Linking,
   AppState,
   AppStateStatus,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -401,13 +402,15 @@ export default function HuntScreen() {
       
       console.log("[Phase1] API result:", JSON.stringify(result));
       
+      // v13: Log FULL result for debugging
+      console.log("[Phase1] v13 FULL API result:", JSON.stringify(result, null, 2));
+      
       if (result && result.success) {
         const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
         console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // v12 FIX: Close camera FIRST, then show reveal after delay
-        // iOS Modal stacking doesn't work well - close one before showing another
+        // Close camera FIRST, then show reveal after delay
         setIsCollecting(false);
         setShowCameraEncounter(false);
         setSelectedSpawn(null);
@@ -415,7 +418,7 @@ export default function HuntScreen() {
         
         // Small delay to let camera modal fully close before showing reveal
         setTimeout(() => {
-          console.log("[Phase1] v12 - Setting collectedEggInfo after camera closed");
+          console.log("[Phase1] v13 - Setting collectedEggInfo:", normalizedRarity);
           setCollectedEggInfo({
             rarity: normalizedRarity,
             xpAwarded: result.xpAwarded || 0,
@@ -427,18 +430,21 @@ export default function HuntScreen() {
         
         refreshPhaseIStats();
       } else {
-        // API returned failure - show error but stay on camera screen
-        console.log("[Phase1] API returned failure:", result?.error);
+        // v13: Show error message to user with Alert
+        const errorMsg = result?.error || "Unknown error - no success returned";
+        console.log("[Phase1] API FAILED:", errorMsg, "Full result:", JSON.stringify(result));
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        // v12: Stay on camera screen so user can try again or cancel manually
+        // Show alert so user can see what went wrong
+        Alert.alert("Catch Failed", errorMsg, [{ text: "OK" }]);
       }
-    } catch (error) {
-      // Catch block: Log error but DON'T close modal
-      console.error("[Phase1] CAUGHT ERROR:", error);
+    } catch (error: any) {
+      // v13: Show caught error to user
+      const errorMsg = error?.message || String(error) || "Network error";
+      console.error("[Phase1] CAUGHT ERROR:", errorMsg, error);
       setIsCollecting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      // v12: Stay on camera screen - user can cancel manually
+      Alert.alert("Catch Error", errorMsg, [{ text: "OK" }]);
     }
   };
 
