@@ -60,8 +60,10 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
   const currentRingScale = useRef(2);
   const isAnimating = useRef(false);
 
-  const isMysteryEgg = creature.creatureClass === 'egg';
-  const isRoachyEgg = creature.creatureClass !== 'egg' && creature.containedTemplateId !== null;
+  // Phase I: ALL eggs are Mystery Eggs (no hatching until Phase II)
+  const PHASE1_EGGS_ONLY = true;
+  const isMysteryEgg = PHASE1_EGGS_ONLY || creature.creatureClass === 'egg';
+  const isRoachyEgg = !PHASE1_EGGS_ONLY && creature.creatureClass !== 'egg' && creature.containedTemplateId !== null;
   const isAnyEgg = isMysteryEgg || isRoachyEgg;
   const rarityColor = getRarityColor(creature.rarity as any) || GameColors.primary;
 

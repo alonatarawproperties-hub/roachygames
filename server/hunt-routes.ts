@@ -243,7 +243,8 @@ export function registerHuntRoutes(app: Express) {
         const offset = getRandomOffset(radius);
         const expiresAt = new Date(Date.now() + (15 + Math.random() * 15) * 60 * 1000);
         
-        const isMysteryEgg = Math.random() < SPAWN_TYPE_RATES.egg;
+        // Phase I: All spawns are pure Mystery Eggs (no hatching)
+        const isMysteryEgg = HUNT_CONFIG.PHASE1_EGGS_ONLY || Math.random() < SPAWN_TYPE_RATES.egg;
         
         let spawnData: {
           templateId: string;
@@ -271,6 +272,7 @@ export function registerHuntRoutes(app: Express) {
             containedTemplateId: null,
           };
         } else {
+          // Phase II only: Roachy Eggs that hatch into creatures
           const rarity = selectRarity({ sinceRare: 0, sinceEpic: 0 });
           let templates = ROACHY_TEMPLATES.filter(t => t.rarity === rarity);
           if (templates.length === 0) {
