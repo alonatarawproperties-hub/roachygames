@@ -314,6 +314,16 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
+    // CRITICAL: Store player location NOW before camera encounter pauses location updates
+    if (playerLocation) {
+      playerLocationRef.current = {
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+      };
+      console.log("[handleSpawnTap] Stored location:", playerLocationRef.current);
+    } else {
+      console.log("[handleSpawnTap] WARNING: No playerLocation available!");
+    }
     setSelectedSpawn(spawn);
     activeSpawnRef.current = spawn;
     setShowCameraEncounter(true);
