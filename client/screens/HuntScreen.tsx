@@ -406,33 +406,39 @@ export default function HuntScreen() {
         console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // v11 FIX: DON'T close CameraEncounter here!
-        // Let EggCollectedModal appear ON TOP of CameraEncounter
-        // CameraEncounter will be closed when user dismisses EggCollectedModal
+        // v12 FIX: Close camera FIRST, then show reveal after delay
+        // iOS Modal stacking doesn't work well - close one before showing another
         setIsCollecting(false);
-        setCollectedEggInfo({
-          rarity: normalizedRarity,
-          xpAwarded: result.xpAwarded || 0,
-          pointsAwarded: result.pointsAwarded || 0,
-          quality: "perfect",
-          pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
-        });
+        setShowCameraEncounter(false);
+        setSelectedSpawn(null);
+        activeSpawnRef.current = null;
+        
+        // Small delay to let camera modal fully close before showing reveal
+        setTimeout(() => {
+          console.log("[Phase1] v12 - Setting collectedEggInfo after camera closed");
+          setCollectedEggInfo({
+            rarity: normalizedRarity,
+            xpAwarded: result.xpAwarded || 0,
+            pointsAwarded: result.pointsAwarded || 0,
+            quality: "perfect",
+            pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+          });
+        }, 100);
+        
         refreshPhaseIStats();
-        // Keep spawn refs until modal is dismissed
-        console.log("[Phase1] v11 - Keeping camera open, showing EggCollectedModal on top");
       } else {
         // API returned failure - show error but stay on camera screen
         console.log("[Phase1] API returned failure:", result?.error);
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        // v11: Stay on camera screen so user can try again or cancel manually
+        // v12: Stay on camera screen so user can try again or cancel manually
       }
     } catch (error) {
       // Catch block: Log error but DON'T close modal
       console.error("[Phase1] CAUGHT ERROR:", error);
       setIsCollecting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      // v11: Stay on camera screen - user can cancel manually
+      // v12: Stay on camera screen - user can cancel manually
     }
   };
 
@@ -995,19 +1001,13 @@ export default function HuntScreen() {
         quality={collectedEggInfo?.quality || "good"}
         pity={collectedEggInfo?.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 }}
         onContinue={() => {
-          console.log("[EggCollectedModal] onContinue - closing camera + clearing egg info");
+          console.log("[EggCollectedModal] onContinue - clearing egg info");
           setCollectedEggInfo(null);
-          setShowCameraEncounter(false);
-          setSelectedSpawn(null);
-          activeSpawnRef.current = null;
           refreshSpawns();
         }}
         onGoToEggs={() => {
-          console.log("[EggCollectedModal] onGoToEggs - closing camera + switching tab");
+          console.log("[EggCollectedModal] onGoToEggs - switching tab");
           setCollectedEggInfo(null);
-          setShowCameraEncounter(false);
-          setSelectedSpawn(null);
-          activeSpawnRef.current = null;
           setActiveTab("eggs");
         }}
       />
