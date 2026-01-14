@@ -335,13 +335,29 @@ export default function HuntScreen() {
   const handleStartCatch = async () => {
     console.log("[handleStartCatch] CALLED!");
     
-    const spawn = activeSpawnRef.current;
-    // Use ref for location since state may be null when camera encounter pauses location updates
-    const loc = playerLocationRef.current;
-    console.log("[handleStartCatch] spawn:", spawn?.id, "name:", spawn?.name, "class:", spawn?.creatureClass);
-    console.log("[handleStartCatch] loc from ref:", !!loc, loc?.latitude, loc?.longitude);
+    // Use ref first, fallback to state
+    let spawn = activeSpawnRef.current || selectedSpawn;
+    console.log("[handleStartCatch] spawn from ref:", !!activeSpawnRef.current, "from state:", !!selectedSpawn);
     
-    // Guard: No spawn or location = can't proceed
+    // Use ref for location, fallback to current playerLocation, then spawn location
+    let loc = playerLocationRef.current;
+    
+    // FALLBACK 1: Try current playerLocation state
+    if (!loc && playerLocation) {
+      loc = { latitude: playerLocation.latitude, longitude: playerLocation.longitude };
+      console.log("[handleStartCatch] Using playerLocation state as fallback");
+    }
+    
+    // FALLBACK 2: Use spawn's location (player is within 100m anyway)
+    if (!loc && spawn) {
+      loc = { latitude: parseFloat(spawn.latitude), longitude: parseFloat(spawn.longitude) };
+      console.log("[handleStartCatch] Using spawn location as fallback");
+    }
+    
+    console.log("[handleStartCatch] spawn:", spawn?.id, "name:", spawn?.name, "class:", spawn?.creatureClass);
+    console.log("[handleStartCatch] loc:", !!loc, loc?.latitude, loc?.longitude);
+    
+    // Guard: No spawn = can't proceed
     if (!spawn) {
       console.log("[handleStartCatch] ERROR: No spawn available");
       setShowCameraEncounter(false);
@@ -349,13 +365,10 @@ export default function HuntScreen() {
       return;
     }
     
+    // Location should ALWAYS be available now with fallbacks, but check anyway
     if (!loc) {
-      console.log("[handleStartCatch] ERROR: No location available");
-      setShowCameraEncounter(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setSelectedSpawn(null);
-      activeSpawnRef.current = null;
-      return;
+      console.log("[handleStartCatch] ERROR: No location even with fallbacks - using spawn coords directly");
+      loc = { latitude: parseFloat(spawn.latitude), longitude: parseFloat(spawn.longitude) };
     }
     
     // Phase I detection: check name OR creatureClass
