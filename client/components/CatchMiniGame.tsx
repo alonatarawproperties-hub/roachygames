@@ -98,23 +98,27 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
   }, [phase, creature.rarity]);
 
   const handleMysteryEggCollect = useCallback((quality: "perfect" | "great" | "good" = "perfect") => {
-    if (phase !== "ready" && phase !== "shrinking") return;
+    console.log('[MysteryEgg] handleMysteryEggCollect called, phase:', phase, 'quality:', quality);
+    if (phase !== "ready" && phase !== "shrinking") {
+      console.log('[MysteryEgg] Wrong phase, returning');
+      return;
+    }
     
     setPhase("caught");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    console.log('[MysteryEgg] Phase set to caught, triggering animation');
     
-    // Quick flash animation then immediately call onEggCollected
-    // Don't show our own result - let HuntScreen show EggCollectedModal with proper rarity
     eggCollectScale.value = withSequence(
       withTiming(1.3, { duration: 150 }),
       withTiming(0, { duration: 200 })
     );
     
-    // Immediately call onEggCollected - HuntScreen will show proper modal with rarity
     setTimeout(() => {
+      console.log('[MysteryEgg] Calling onEggCollected callback');
       if (onEggCollected) {
         onEggCollected(quality);
       } else {
+        console.log('[MysteryEgg] No onEggCollected, falling back to onCatch');
         onCatch("good");
       }
     }, 350);
@@ -156,6 +160,12 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
   }, [onCatch]);
 
   const handleTap = useCallback(() => {
+    // Mystery eggs (Phase I): Single tap to collect - no mini-game
+    if (isMysteryEgg && phase === "ready") {
+      handleMysteryEggCollect("perfect");
+      return;
+    }
+    
     if (phase === "ready") {
       startShrinking();
       return;
