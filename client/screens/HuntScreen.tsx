@@ -339,7 +339,11 @@ export default function HuntScreen() {
   };
 
   const handleEggCollected = async (quality: "perfect" | "great" | "good" = "perfect") => {
-    if (!selectedSpawn || !playerLocation) return;
+    console.log("[EggCollect] Starting claim, spawn:", selectedSpawn?.id, "quality:", quality);
+    if (!selectedSpawn || !playerLocation) {
+      console.log("[EggCollect] Missing spawn or location, aborting");
+      return;
+    }
     
     const result = await claimNode(
       selectedSpawn.id,
@@ -348,8 +352,11 @@ export default function HuntScreen() {
       quality
     );
     
+    console.log("[EggCollect] Claim result:", JSON.stringify(result));
+    
     if (result && result.success) {
       const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
+      console.log("[EggCollect] Setting collectedEggInfo, rarity:", normalizedRarity);
       setCollectedEggInfo({
         rarity: normalizedRarity,
         xpAwarded: result.xpAwarded || 0,
@@ -359,6 +366,8 @@ export default function HuntScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       refreshPhaseIStats();
+    } else {
+      console.log("[EggCollect] Claim failed or no success:", result?.error);
     }
     setShowCatchGame(false);
     setSelectedSpawn(null);

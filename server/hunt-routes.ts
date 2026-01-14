@@ -1249,8 +1249,10 @@ export function registerHuntRoutes(app: Express) {
   app.post("/api/hunt/phase1/claim-spawn", async (req: Request, res: Response) => {
     try {
       const { walletAddress, spawnId, lat, lon, quality } = req.body;
+      console.log(`[Phase1 Claim] Request: wallet=${walletAddress}, spawn=${spawnId}, quality=${quality}`);
       
       if (!walletAddress || !spawnId || lat === undefined || lon === undefined || !quality) {
+        console.log(`[Phase1 Claim] Missing fields: wallet=${!!walletAddress}, spawn=${!!spawnId}, lat=${lat !== undefined}, lon=${lon !== undefined}, quality=${!!quality}`);
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -1301,8 +1303,9 @@ export function registerHuntRoutes(app: Express) {
         sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
       };
 
-      // Use spawn's rarity for eggs
-      const eggRarity = spawn.rarity || selectEggRarity(pityCounters);
+      // Normalize rarity - "uncommon" becomes "common" for egg inventory
+      let rawRarity = spawn.rarity || selectEggRarity(pityCounters);
+      const eggRarity = rawRarity === 'uncommon' ? 'common' : rawRarity;
       
       const xpAwarded = HUNT_CONFIG.XP_REWARDS[quality] || 30;
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
