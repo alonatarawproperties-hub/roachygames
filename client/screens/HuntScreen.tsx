@@ -312,11 +312,16 @@ export default function HuntScreen() {
   const [isCollecting, setIsCollecting] = useState(false);
 
   const handleStartCatch = async () => {
+    console.log("[handleStartCatch] CALLED!");
     setShowCameraEncounter(false);
     
     const spawn = activeSpawnRef.current;
+    console.log("[handleStartCatch] spawn:", spawn?.id, "name:", spawn?.name, "class:", spawn?.creatureClass);
+    console.log("[handleStartCatch] playerLocation:", !!playerLocation);
+    
     // Phase I detection: check name OR creatureClass
     const isMysteryEgg = spawn?.name?.toLowerCase().includes("mystery egg") || spawn?.creatureClass === "egg";
+    console.log("[handleStartCatch] isMysteryEgg:", isMysteryEgg);
     
     // Phase I: Mystery eggs go directly to API call, no mini-game
     if (isMysteryEgg && spawn && playerLocation) {

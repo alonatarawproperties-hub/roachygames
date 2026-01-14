@@ -115,11 +115,13 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
   }, []);
 
   const handleThrowNet = () => {
+    console.log("[CameraEncounter] handleThrowNet called, isCollecting:", isCollecting, "isMysteryEgg:", isMysteryEgg);
     if (isCollecting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     // Phase I mystery eggs: Skip net animation, call API immediately
     if (isMysteryEgg) {
+      console.log("[CameraEncounter] Calling onStartCatch for mystery egg");
       onStartCatch();
       return;
     }
@@ -301,71 +303,74 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
       </Animated.View>
 
       <GestureDetector gesture={tapGesture}>
-        <View style={StyleSheet.absoluteFill}>
-          <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
-            <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-            <LinearGradient
-              colors={["#FFD700", "#FFA500", "#FF8C00"]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={styles.eggBody}
-            >
-              <View style={styles.eggShine} />
-              <View style={styles.eggShineSmall} />
-              <ThemedText style={styles.eggQuestion}>?</ThemedText>
-              <View style={[styles.eggClassBadge, { backgroundColor: classColor }]}>
-                <Feather name={classIcon as any} size={12} color="#fff" />
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill}>
+            <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
+              <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
+              <LinearGradient
+                colors={["#FFD700", "#FFA500", "#FF8C00"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.eggBody}
+              >
+                <View style={styles.eggShine} />
+                <View style={styles.eggShineSmall} />
+                <ThemedText style={styles.eggQuestion}>?</ThemedText>
+                <View style={[styles.eggClassBadge, { backgroundColor: classColor }]}>
+                  <Feather name={classIcon as any} size={12} color="#fff" />
+                </View>
+              </LinearGradient>
+              <View style={styles.eggSparkles}>
+                <View style={[styles.sparkle, styles.sparkle1]} />
+                <View style={[styles.sparkle, styles.sparkle2]} />
+                <View style={[styles.sparkle, styles.sparkle3]} />
               </View>
-            </LinearGradient>
-            <View style={styles.eggSparkles}>
-              <View style={[styles.sparkle, styles.sparkle1]} />
-              <View style={[styles.sparkle, styles.sparkle2]} />
-              <View style={[styles.sparkle, styles.sparkle3]} />
-            </View>
-          </Animated.View>
+            </Animated.View>
 
-          <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
-            <View style={styles.net}>
-              <Feather name="target" size={60} color={GameColors.primary} />
+            <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
+              <View style={styles.net}>
+                <Feather name="target" size={60} color={GameColors.primary} />
+              </View>
+            </Animated.View>
+          </View>
+
+          <Animated.View 
+            entering={FadeInUp.duration(400).springify()}
+            style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
+            pointerEvents="box-none"
+          >
+            <View style={styles.actionCapsule} pointerEvents="box-none">
+              <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
+                {isCollecting ? (
+                  <>
+                    <ActivityIndicator size="large" color={GameColors.primary} />
+                    <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
+                  </>
+                ) : (
+                  <>
+                    <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
+                    
+                    <Animated.View style={pulseAnimatedStyle}>
+                      <LinearGradient
+                        colors={[GameColors.primary, "#FF6B00"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.catchButton}
+                      >
+                        <View style={styles.catchButtonInner}>
+                          <Feather name="crosshair" size={28} color="#fff" />
+                        </View>
+                      </LinearGradient>
+                    </Animated.View>
+                    
+                    <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+                  </>
+                )}
+              </BlurView>
             </View>
           </Animated.View>
         </View>
       </GestureDetector>
-
-      <Animated.View 
-        entering={FadeInUp.duration(400).springify()}
-        style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
-      >
-        <View style={styles.actionCapsule}>
-          <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
-            {isCollecting ? (
-              <>
-                <ActivityIndicator size="large" color={GameColors.primary} />
-                <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
-              </>
-            ) : (
-              <>
-                <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
-                
-                <Animated.View style={pulseAnimatedStyle}>
-                  <LinearGradient
-                    colors={[GameColors.primary, "#FF6B00"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.catchButton}
-                  >
-                    <View style={styles.catchButtonInner}>
-                      <Feather name="crosshair" size={28} color="#fff" />
-                    </View>
-                  </LinearGradient>
-                </Animated.View>
-                
-                <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
-              </>
-            )}
-          </BlurView>
-        </View>
-      </Animated.View>
     </View>
   );
 }
