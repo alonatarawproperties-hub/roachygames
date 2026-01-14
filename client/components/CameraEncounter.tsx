@@ -6,6 +6,7 @@ import {
   Dimensions,
   Platform,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import Animated, {
@@ -39,9 +40,10 @@ interface CameraEncounterProps {
   spawn: Spawn;
   onStartCatch: () => void;
   onCancel: () => void;
+  isCollecting?: boolean;
 }
 
-export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncounterProps) {
+export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = false }: CameraEncounterProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -110,6 +112,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
   }, []);
 
   const handleThrowNet = () => {
+    if (isCollecting) return; // Block while collecting
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     netOpacity.value = 1;
@@ -319,22 +322,31 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel }: CameraEncount
       >
         <View style={styles.actionCapsule}>
           <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
-            <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
-            
-            <Animated.View style={pulseAnimatedStyle}>
-              <LinearGradient
-                colors={[GameColors.primary, "#FF6B00"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.catchButton}
-              >
-                <View style={styles.catchButtonInner}>
-                  <Feather name="crosshair" size={28} color="#fff" />
-                </View>
-              </LinearGradient>
-            </Animated.View>
-            
-            <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+            {isCollecting ? (
+              <>
+                <ActivityIndicator size="large" color={GameColors.primary} />
+                <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
+              </>
+            ) : (
+              <>
+                <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
+                
+                <Animated.View style={pulseAnimatedStyle}>
+                  <LinearGradient
+                    colors={[GameColors.primary, "#FF6B00"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.catchButton}
+                  >
+                    <View style={styles.catchButtonInner}>
+                      <Feather name="crosshair" size={28} color="#fff" />
+                    </View>
+                  </LinearGradient>
+                </Animated.View>
+                
+                <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+              </>
+            )}
           </BlurView>
         </View>
       </Animated.View>

@@ -315,7 +315,8 @@ export default function HuntScreen() {
     setShowCameraEncounter(false);
     
     const spawn = activeSpawnRef.current;
-    const isMysteryEgg = spawn?.name?.toLowerCase().includes("mystery egg");
+    // Phase I detection: check name OR creatureClass
+    const isMysteryEgg = spawn?.name?.toLowerCase().includes("mystery egg") || spawn?.creatureClass === "egg";
     
     // Phase I: Mystery eggs go directly to API call, no mini-game
     if (isMysteryEgg && spawn && playerLocation) {
@@ -344,17 +345,22 @@ export default function HuntScreen() {
             pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
           });
           refreshPhaseIStats();
+          // Clear on success
+          setSelectedSpawn(null);
+          activeSpawnRef.current = null;
         } else {
+          // On failure, go back to camera encounter to retry
           console.log("[Phase1] Failed:", result?.error);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setShowCameraEncounter(true);
         }
       } catch (error) {
+        // On error, go back to camera encounter to retry
         console.error("[Phase1] API error:", error);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setShowCameraEncounter(true);
       } finally {
         setIsCollecting(false);
-        setSelectedSpawn(null);
-        activeSpawnRef.current = null;
       }
       return;
     }
@@ -858,6 +864,7 @@ export default function HuntScreen() {
             spawn={selectedSpawn}
             onStartCatch={handleStartCatch}
             onCancel={handleCancelEncounter}
+            isCollecting={isCollecting}
           />
         ) : null}
       </Modal>
