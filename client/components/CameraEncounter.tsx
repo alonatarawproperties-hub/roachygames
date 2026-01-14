@@ -46,13 +46,6 @@ interface CameraEncounterProps {
 export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = false }: CameraEncounterProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [debugLog, setDebugLog] = useState<string[]>(["v16 Camera loaded"]);
-  
-  // Debug helper
-  const addDebug = (msg: string) => {
-    console.log("[DEBUG]", msg);
-    setDebugLog(prev => [...prev.slice(-4), msg]);
-  };
 
   const creatureX = useSharedValue(SCREEN_WIDTH / 2 - 60);
   const creatureY = useSharedValue(SCREEN_HEIGHT / 2.5);
@@ -122,18 +115,10 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
   }, []);
 
   const handleThrowNet = () => {
-    addDebug(`throwNet: collecting=${isCollecting}, egg=${isMysteryEgg}`);
-    console.log("[CameraEncounter] handleThrowNet called, isCollecting:", isCollecting, "isMysteryEgg:", isMysteryEgg);
-    if (isCollecting) {
-      addDebug("BLOCKED: already collecting");
-      return;
-    }
+    if (isCollecting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
-    // Phase I mystery eggs: Skip net animation, call API immediately
     if (isMysteryEgg) {
-      addDebug(`Calling onStartCatch(${spawn.id.slice(0,8)})`);
-      console.log("[CameraEncounter] Calling onStartCatch for mystery egg, passing spawn:", spawn.id);
       onStartCatch(spawn);
       return;
     }
@@ -350,16 +335,6 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
             entering={FadeInUp.duration(400).springify()}
             style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
           >
-            {/* v16 DEBUG PANEL */}
-            <View style={{ position: 'absolute', top: -180, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.8)', padding: 8, borderRadius: 8 }}>
-              <ThemedText style={{ color: '#00FF00', fontSize: 10, fontWeight: 'bold' }}>DEBUG v16:</ThemedText>
-              {debugLog.map((log, i) => (
-                <ThemedText key={i} style={{ color: '#fff', fontSize: 9 }}>{log}</ThemedText>
-              ))}
-              <ThemedText style={{ color: '#888', fontSize: 9 }}>spawnId: {spawn?.id?.slice(0,8) || 'N/A'}</ThemedText>
-              <ThemedText style={{ color: '#888', fontSize: 9 }}>isCollecting: {String(isCollecting)}</ThemedText>
-            </View>
-
             {isCollecting ? (
               <View style={styles.actionCapsule}>
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
@@ -369,18 +344,13 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
               </View>
             ) : (
               <Pressable 
-                onPress={() => {
-                  addDebug("GRAB pressed");
-                  handleThrowNet();
-                }} 
+                onPress={handleThrowNet} 
                 style={styles.actionCapsule}
               >
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur} pointerEvents="none">
-                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v16 DEBUG</ThemedText>
-                  
                   <Animated.View style={pulseAnimatedStyle} pointerEvents="none">
                     <LinearGradient
-                      colors={["#00FF00", "#00CC00"]}
+                      colors={["#FFD700", "#FFA500"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.catchButton}
@@ -391,7 +361,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                     </LinearGradient>
                   </Animated.View>
                   
-                  <ThemedText style={[styles.catchLabel, { color: "#00FF00" }]}>GRAB EGG</ThemedText>
+                  <ThemedText style={[styles.catchLabel, { color: "#FFD700" }]}>GRAB EGG</ThemedText>
                 </BlurView>
               </Pressable>
             )}

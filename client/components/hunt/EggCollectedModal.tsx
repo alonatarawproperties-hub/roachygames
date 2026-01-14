@@ -10,13 +10,19 @@ import Animated, {
   withDelay,
   runOnJS,
   Easing,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface EggCollectedModalProps {
   visible: boolean;
@@ -29,18 +35,46 @@ interface EggCollectedModalProps {
   onGoToEggs: () => void;
 }
 
-const RARITY_COLORS: Record<string, { primary: string; glow: string }> = {
-  common: { primary: "#9CA3AF", glow: "rgba(156, 163, 175, 0.5)" },
-  rare: { primary: "#3B82F6", glow: "rgba(59, 130, 246, 0.7)" },
-  epic: { primary: "#A855F7", glow: "rgba(168, 85, 247, 0.8)" },
-  legendary: { primary: "#F59E0B", glow: "rgba(245, 158, 11, 0.9)" },
-};
-
-const RARITY_LABELS: Record<string, string> = {
-  common: "COMMON",
-  rare: "RARE",
-  epic: "EPIC",
-  legendary: "LEGENDARY",
+const RARITY_CONFIG: Record<string, { 
+  primary: string; 
+  secondary: string;
+  glow: string;
+  gradient: [string, string, string];
+  label: string;
+  particles: number;
+}> = {
+  common: { 
+    primary: "#9CA3AF", 
+    secondary: "#6B7280",
+    glow: "rgba(156, 163, 175, 0.4)",
+    gradient: ["#D1D5DB", "#9CA3AF", "#6B7280"],
+    label: "COMMON",
+    particles: 6,
+  },
+  rare: { 
+    primary: "#60A5FA", 
+    secondary: "#3B82F6",
+    glow: "rgba(59, 130, 246, 0.5)",
+    gradient: ["#93C5FD", "#60A5FA", "#3B82F6"],
+    label: "RARE",
+    particles: 10,
+  },
+  epic: { 
+    primary: "#C084FC", 
+    secondary: "#A855F7",
+    glow: "rgba(168, 85, 247, 0.6)",
+    gradient: ["#E9D5FF", "#C084FC", "#A855F7"],
+    label: "EPIC",
+    particles: 16,
+  },
+  legendary: { 
+    primary: "#FCD34D", 
+    secondary: "#F59E0B",
+    glow: "rgba(245, 158, 11, 0.7)",
+    gradient: ["#FEF3C7", "#FCD34D", "#F59E0B"],
+    label: "LEGENDARY",
+    particles: 24,
+  },
 };
 
 export function EggCollectedModal({
@@ -53,113 +87,103 @@ export function EggCollectedModal({
   onContinue,
   onGoToEggs,
 }: EggCollectedModalProps) {
-  const colors = RARITY_COLORS[eggRarity] || RARITY_COLORS.common;
-  const rarityLabel = RARITY_LABELS[eggRarity] || "COMMON";
+  const insets = useSafeAreaInsets();
+  const config = RARITY_CONFIG[eggRarity] || RARITY_CONFIG.common;
   
   const [phase, setPhase] = useState<"reveal" | "complete">("reveal");
+  const [showContent, setShowContent] = useState(false);
   
-  const mysteryEggScale = useSharedValue(0);
-  const mysteryEggOpacity = useSharedValue(1);
-  const revealedEggScale = useSharedValue(0);
-  const revealedEggOpacity = useSharedValue(0);
-  const eggShake = useSharedValue(0);
+  const eggScale = useSharedValue(0);
+  const eggRotation = useSharedValue(0);
+  const glowScale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0);
   const burstScale = useSharedValue(0);
   const burstOpacity = useSharedValue(0);
-  const glowPulse = useSharedValue(1);
-  const contentOpacity = useSharedValue(0);
-  const tapPromptOpacity = useSharedValue(0);
-
-  const startCompletePhase = () => {
-    setPhase("complete");
-  };
+  const shimmerPosition = useSharedValue(-1);
 
   useEffect(() => {
     if (visible) {
       setPhase("reveal");
-      mysteryEggScale.value = 0;
-      mysteryEggOpacity.value = 1;
-      revealedEggScale.value = 0;
-      revealedEggOpacity.value = 0;
-      eggShake.value = 0;
+      setShowContent(false);
+      eggScale.value = 0;
+      eggRotation.value = 0;
+      glowScale.value = 1;
+      glowOpacity.value = 0;
       burstScale.value = 0;
       burstOpacity.value = 0;
-      contentOpacity.value = 0;
-      tapPromptOpacity.value = 0;
+      shimmerPosition.value = -1;
 
-      mysteryEggScale.value = withSpring(1, { damping: 10, stiffness: 100 });
+      eggScale.value = withSpring(1, { damping: 12, stiffness: 100 });
+      glowOpacity.value = withTiming(0.6, { duration: 500 });
 
       setTimeout(() => {
-        eggShake.value = withRepeat(
+        eggRotation.value = withRepeat(
           withSequence(
-            withTiming(-8, { duration: 60 }),
-            withTiming(8, { duration: 60 }),
-            withTiming(-6, { duration: 50 }),
-            withTiming(6, { duration: 50 }),
-            withTiming(-4, { duration: 40 }),
-            withTiming(4, { duration: 40 }),
-            withTiming(0, { duration: 30 })
+            withTiming(-10, { duration: 80, easing: Easing.inOut(Easing.ease) }),
+            withTiming(10, { duration: 80, easing: Easing.inOut(Easing.ease) }),
+            withTiming(-8, { duration: 70, easing: Easing.inOut(Easing.ease) }),
+            withTiming(8, { duration: 70, easing: Easing.inOut(Easing.ease) }),
+            withTiming(-5, { duration: 60, easing: Easing.inOut(Easing.ease) }),
+            withTiming(5, { duration: 60, easing: Easing.inOut(Easing.ease) }),
+            withTiming(0, { duration: 50 })
           ),
           2,
           false
         );
-      }, 400);
+      }, 300);
 
       setTimeout(() => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        burstOpacity.value = withTiming(1, { duration: 100 });
+        burstOpacity.value = withTiming(1, { duration: 150 });
         burstScale.value = withSequence(
-          withSpring(1.5, { damping: 6 }),
-          withTiming(2, { duration: 300 })
+          withSpring(1.8, { damping: 5, stiffness: 150 }),
+          withTiming(2.5, { duration: 400 })
         );
-        burstOpacity.value = withDelay(200, withTiming(0, { duration: 200 }));
+        burstOpacity.value = withDelay(250, withTiming(0, { duration: 250 }));
 
-        mysteryEggOpacity.value = withTiming(0, { duration: 200 });
-        mysteryEggScale.value = withTiming(0.5, { duration: 200 });
-
-        revealedEggOpacity.value = withTiming(1, { duration: 300 });
-        revealedEggScale.value = withSequence(
-          withSpring(1.2, { damping: 8 }),
-          withSpring(1, { damping: 12 })
+        eggScale.value = withSequence(
+          withSpring(1.3, { damping: 6, stiffness: 200 }),
+          withSpring(1, { damping: 10, stiffness: 100 })
         );
 
-        glowPulse.value = withRepeat(
+        glowScale.value = withRepeat(
           withSequence(
-            withTiming(1.3, { duration: 800 }),
-            withTiming(1, { duration: 800 })
+            withTiming(1.2, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+            withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
           ),
           -1
         );
-      }, 1200);
+
+        shimmerPosition.value = withRepeat(
+          withTiming(1, { duration: 2000, easing: Easing.linear }),
+          -1
+        );
+      }, 1000);
 
       setTimeout(() => {
-        contentOpacity.value = withTiming(1, { duration: 400 });
-        tapPromptOpacity.value = withTiming(1, { duration: 400 });
-        runOnJS(startCompletePhase)();
-      }, 2000);
+        setShowContent(true);
+        setPhase("complete");
+      }, 1600);
 
     } else {
-      mysteryEggScale.value = 0;
-      mysteryEggOpacity.value = 1;
-      revealedEggScale.value = 0;
-      revealedEggOpacity.value = 0;
-      contentOpacity.value = 0;
-      tapPromptOpacity.value = 0;
+      eggScale.value = 0;
+      glowOpacity.value = 0;
+      setShowContent(false);
       setPhase("reveal");
     }
   }, [visible]);
 
-  const mysteryEggStyle = useAnimatedStyle(() => ({
+  const eggStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: mysteryEggScale.value },
-      { rotate: `${eggShake.value}deg` },
+      { scale: eggScale.value },
+      { rotate: `${eggRotation.value}deg` },
     ],
-    opacity: mysteryEggOpacity.value,
   }));
 
-  const revealedEggStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: revealedEggScale.value }],
-    opacity: revealedEggOpacity.value,
+  const glowStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: glowScale.value }],
+    opacity: glowOpacity.value,
   }));
 
   const burstStyle = useAnimatedStyle(() => ({
@@ -167,212 +191,306 @@ export function EggCollectedModal({
     opacity: burstOpacity.value,
   }));
 
-  const glowStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: glowPulse.value }],
-  }));
-
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-  }));
-
-  const tapPromptStyle = useAnimatedStyle(() => ({
-    opacity: tapPromptOpacity.value,
-  }));
-
-  const handleTap = () => {
+  const handleContinue = () => {
     if (phase === "complete") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       onContinue();
     }
   };
 
+  const handleGoToEggs = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onGoToEggs();
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <Pressable style={styles.overlay} onPress={handleTap}>
-        <View style={styles.container}>
-          <Animated.View style={[styles.burstContainer, burstStyle]}>
-            <View style={[styles.burst, { backgroundColor: colors.glow }]} />
-          </Animated.View>
+    <Modal visible={visible} transparent={false} animationType="fade">
+      <View style={styles.container}>
+        <LinearGradient
+          colors={["#0a0a0f", "#111118", "#0a0a0f"]}
+          style={StyleSheet.absoluteFill}
+        />
 
-          <Animated.View style={[styles.glowContainer, glowStyle]}>
-            <View style={[styles.glow, { backgroundColor: colors.glow }]} />
-          </Animated.View>
+        <Animated.View style={[styles.burstContainer, burstStyle]}>
+          <View style={[styles.burst, { backgroundColor: config.glow }]} />
+        </Animated.View>
 
-          <Animated.View style={[styles.eggContainer, mysteryEggStyle]}>
-            <View style={styles.mysteryEgg}>
-              <View style={styles.mysteryEggHighlight} />
-              <View style={styles.mysteryEggQuestion}>
-                <ThemedText style={styles.questionMark}>?</ThemedText>
-              </View>
-            </View>
-          </Animated.View>
+        <Animated.View style={[styles.glowContainer, glowStyle]}>
+          <View style={[styles.glowOuter, { backgroundColor: config.glow }]} />
+          <View style={[styles.glowInner, { backgroundColor: config.primary + "40" }]} />
+        </Animated.View>
 
-          <Animated.View style={[styles.eggContainer, revealedEggStyle, styles.revealedEggPosition]}>
-            <View style={[styles.revealedEgg, { backgroundColor: colors.primary }]}>
-              <View style={styles.eggHighlight} />
-            </View>
-          </Animated.View>
+        <View style={[styles.particleContainer]}>
+          {Array.from({ length: config.particles }).map((_, i) => {
+            const angle = (360 / config.particles) * i;
+            const distance = 120 + Math.random() * 40;
+            return (
+              <Animated.View
+                key={i}
+                entering={FadeIn.delay(1200 + i * 50).duration(500)}
+                style={[
+                  styles.particle,
+                  {
+                    backgroundColor: config.primary,
+                    transform: [
+                      { rotate: `${angle}deg` },
+                      { translateY: -distance },
+                    ],
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
 
-          <Animated.View style={[styles.content, contentStyle]}>
-            <ThemedText style={styles.congratsText}>
-              You caught a
-            </ThemedText>
-            <View style={[styles.rarityBadge, { backgroundColor: colors.primary + "30", borderColor: colors.primary }]}>
-              <ThemedText style={[styles.rarityText, { color: colors.primary }]}>
-                {rarityLabel} EGG
+        <Animated.View style={[styles.eggWrapper, eggStyle]}>
+          <LinearGradient
+            colors={config.gradient}
+            start={{ x: 0.3, y: 0 }}
+            end={{ x: 0.7, y: 1 }}
+            style={styles.egg}
+          >
+            <View style={styles.eggShine} />
+            <View style={styles.eggShineSmall} />
+            <View style={[styles.eggShadow, { backgroundColor: config.secondary + "40" }]} />
+          </LinearGradient>
+        </Animated.View>
+
+        {showContent && (
+          <Animated.View 
+            entering={FadeInUp.duration(400).springify()}
+            style={styles.contentContainer}
+          >
+            <ThemedText style={styles.caughtText}>You caught a</ThemedText>
+            
+            <View style={[styles.rarityBadge, { 
+              backgroundColor: config.primary + "20",
+              borderColor: config.primary,
+              shadowColor: config.primary,
+            }]}>
+              <ThemedText style={[styles.rarityText, { color: config.primary }]}>
+                {config.label} EGG
               </ThemedText>
             </View>
 
             {quality === "perfect" && (
-              <View style={styles.perfectBanner}>
-                <Feather name="star" size={14} color="#FFD700" />
+              <Animated.View 
+                entering={FadeIn.delay(200).duration(300)}
+                style={styles.perfectBanner}
+              >
+                <Feather name="star" size={16} color="#FFD700" />
                 <ThemedText style={styles.perfectText}>PERFECT CATCH!</ThemedText>
-                <Feather name="star" size={14} color="#FFD700" />
-              </View>
+                <Feather name="star" size={16} color="#FFD700" />
+              </Animated.View>
             )}
 
-            <View style={styles.rewardsRow}>
-              <View style={styles.rewardItem}>
-                <Feather name="zap" size={20} color="#F59E0B" />
-                <ThemedText style={styles.rewardValue}>+{xpAwarded}</ThemedText>
-                <ThemedText style={styles.rewardLabel}>XP</ThemedText>
-              </View>
-              <View style={styles.rewardItem}>
-                <Feather name="award" size={20} color="#3B82F6" />
-                <ThemedText style={styles.rewardValue}>+{pointsAwarded}</ThemedText>
-                <ThemedText style={styles.rewardLabel}>Points</ThemedText>
-              </View>
-            </View>
+            <Animated.View 
+              entering={FadeInUp.delay(300).duration(400)}
+              style={styles.rewardsCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.rewardsBlur}>
+                <View style={styles.rewardsRow}>
+                  <View style={styles.rewardItem}>
+                    <View style={[styles.rewardIcon, { backgroundColor: "#F59E0B20" }]}>
+                      <Feather name="zap" size={22} color="#F59E0B" />
+                    </View>
+                    <ThemedText style={styles.rewardValue}>+{xpAwarded}</ThemedText>
+                    <ThemedText style={styles.rewardLabel}>XP</ThemedText>
+                  </View>
+                  
+                  <View style={styles.rewardDivider} />
+                  
+                  <View style={styles.rewardItem}>
+                    <View style={[styles.rewardIcon, { backgroundColor: "#3B82F620" }]}>
+                      <Feather name="award" size={22} color="#3B82F6" />
+                    </View>
+                    <ThemedText style={styles.rewardValue}>+{pointsAwarded}</ThemedText>
+                    <ThemedText style={styles.rewardLabel}>Points</ThemedText>
+                  </View>
+                </View>
+              </BlurView>
+            </Animated.View>
 
-            <View style={styles.pitySection}>
-              <ThemedText style={styles.pityTitle}>Next Guaranteed</ThemedText>
+            <Animated.View 
+              entering={FadeInUp.delay(500).duration(400)}
+              style={styles.pityCard}
+            >
+              <ThemedText style={styles.pityTitle}>Next Guaranteed Drop</ThemedText>
               <View style={styles.pityRow}>
                 <View style={styles.pityItem}>
-                  <ThemedText style={[styles.pityCount, { color: "#3B82F6" }]}>{pity.rareIn}</ThemedText>
-                  <ThemedText style={styles.pityLabel}>Rare</ThemedText>
+                  <ThemedText style={[styles.pityCount, { color: "#60A5FA" }]}>
+                    {pity.rareIn}
+                  </ThemedText>
+                  <ThemedText style={[styles.pityLabel, { color: "#60A5FA" }]}>Rare</ThemedText>
                 </View>
+                <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
                 <View style={styles.pityItem}>
-                  <ThemedText style={[styles.pityCount, { color: "#A855F7" }]}>{pity.epicIn}</ThemedText>
-                  <ThemedText style={styles.pityLabel}>Epic</ThemedText>
+                  <ThemedText style={[styles.pityCount, { color: "#C084FC" }]}>
+                    {pity.epicIn}
+                  </ThemedText>
+                  <ThemedText style={[styles.pityLabel, { color: "#C084FC" }]}>Epic</ThemedText>
                 </View>
+                <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
                 <View style={styles.pityItem}>
-                  <ThemedText style={[styles.pityCount, { color: "#F59E0B" }]}>{pity.legendaryIn}</ThemedText>
-                  <ThemedText style={styles.pityLabel}>Legendary</ThemedText>
+                  <ThemedText style={[styles.pityCount, { color: "#FCD34D" }]}>
+                    {pity.legendaryIn}
+                  </ThemedText>
+                  <ThemedText style={[styles.pityLabel, { color: "#FCD34D" }]}>Legendary</ThemedText>
                 </View>
               </View>
-            </View>
+            </Animated.View>
           </Animated.View>
+        )}
 
-          <Animated.View style={[styles.tapPromptContainer, tapPromptStyle]}>
-            <View style={styles.tapPrompt}>
-              <Feather name="chevrons-up" size={24} color={GameColors.textSecondary} />
-              <ThemedText style={styles.tapPromptText}>Tap to hunt more</ThemedText>
-            </View>
+        {showContent && (
+          <Animated.View 
+            entering={FadeInUp.delay(700).duration(400)}
+            style={[styles.buttonContainer, { paddingBottom: insets.bottom + Spacing.lg }]}
+          >
+            <Pressable 
+              style={styles.primaryButton}
+              onPress={handleContinue}
+            >
+              <LinearGradient
+                colors={[config.primary, config.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryButtonGradient}
+              >
+                <Feather name="map" size={20} color="#000" />
+                <ThemedText style={styles.primaryButtonText}>Hunt More</ThemedText>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable 
+              style={[styles.secondaryButton, { borderColor: config.primary + "60" }]}
+              onPress={handleGoToEggs}
+            >
+              <Feather name="package" size={18} color={config.primary} />
+              <ThemedText style={[styles.secondaryButtonText, { color: config.primary }]}>
+                View Eggs
+              </ThemedText>
+            </Pressable>
           </Animated.View>
-        </View>
-      </Pressable>
+        )}
+
+        <Pressable 
+          style={[styles.closeButton, { top: insets.top + Spacing.sm }]}
+          onPress={handleContinue}
+        >
+          <BlurView intensity={30} tint="dark" style={styles.closeButtonBlur}>
+            <Feather name="x" size={20} color="#fff" />
+          </BlurView>
+        </Pressable>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   container: {
+    flex: 1,
     alignItems: "center",
-    padding: Spacing.xl,
-    width: "100%",
+    justifyContent: "center",
   },
   burstContainer: {
     position: "absolute",
-    top: "20%",
+    top: SCREEN_HEIGHT * 0.22,
   },
   burst: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
   },
   glowContainer: {
     position: "absolute",
-    top: "18%",
-  },
-  glow: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-  },
-  eggContainer: {
-    marginBottom: Spacing.xl,
-    zIndex: 10,
-  },
-  revealedEggPosition: {
-    position: "absolute",
-    top: "15%",
-  },
-  mysteryEgg: {
-    width: 100,
-    height: 130,
-    borderRadius: 50,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    backgroundColor: "#4B5563",
+    top: SCREEN_HEIGHT * 0.18,
+    alignItems: "center",
     justifyContent: "center",
+  },
+  glowOuter: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    position: "absolute",
+  },
+  glowInner: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+  },
+  particleContainer: {
+    position: "absolute",
+    top: SCREEN_HEIGHT * 0.28,
+    width: 10,
+    height: 10,
     alignItems: "center",
-    shadowColor: "#9CA3AF",
-    shadowOffset: { width: 0, height: 0 },
+    justifyContent: "center",
+  },
+  particle: {
+    position: "absolute",
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  eggWrapper: {
+    position: "absolute",
+    top: SCREEN_HEIGHT * 0.18,
+  },
+  egg: {
+    width: 120,
+    height: 160,
+    borderRadius: 60,
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 8,
+    shadowRadius: 20,
+    elevation: 15,
+    overflow: "hidden",
   },
-  mysteryEggHighlight: {
+  eggShine: {
     position: "absolute",
-    top: 15,
-    left: 20,
-    width: 30,
-    height: 20,
-    borderRadius: 15,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    top: 20,
+    left: 25,
+    width: 35,
+    height: 25,
+    borderRadius: 17,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    transform: [{ rotate: "-20deg" }],
   },
-  mysteryEggQuestion: {
+  eggShineSmall: {
     position: "absolute",
+    top: 50,
+    left: 30,
+    width: 15,
+    height: 10,
+    borderRadius: 7,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    transform: [{ rotate: "-20deg" }],
   },
-  questionMark: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "rgba(255, 255, 255, 0.4)",
-  },
-  revealedEgg: {
-    width: 100,
-    height: 130,
-    borderRadius: 50,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 25,
-    elevation: 12,
-  },
-  eggHighlight: {
+  eggShadow: {
     position: "absolute",
-    top: 15,
-    left: 20,
-    width: 30,
-    height: 20,
-    borderRadius: 15,
-    backgroundColor: "rgba(255, 255, 255, 0.35)",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
   },
-  content: {
+  contentContainer: {
+    position: "absolute",
+    top: SCREEN_HEIGHT * 0.42,
     alignItems: "center",
-    marginTop: 180,
+    width: "100%",
+    paddingHorizontal: Spacing.lg,
   },
-  congratsText: {
-    fontSize: 20,
-    color: GameColors.textSecondary,
+  caughtText: {
+    fontSize: 18,
+    color: "#9CA3AF",
     marginBottom: Spacing.sm,
+    letterSpacing: 1,
   },
   rarityBadge: {
     paddingHorizontal: Spacing.xl,
@@ -380,80 +498,171 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     borderWidth: 2,
     marginBottom: Spacing.md,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 8,
   },
   rarityText: {
-    fontSize: 22,
-    fontWeight: "bold",
-    letterSpacing: 2,
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: 3,
   },
   perfectBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   perfectText: {
     color: "#FFD700",
-    fontWeight: "bold",
-    fontSize: 14,
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: 2,
+  },
+  rewardsCard: {
+    width: "100%",
+    maxWidth: 280,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    marginBottom: Spacing.lg,
+  },
+  rewardsBlur: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   rewardsRow: {
     flexDirection: "row",
-    gap: Spacing.xl * 2,
-    marginBottom: Spacing.lg,
+    justifyContent: "center",
+    alignItems: "center",
   },
   rewardItem: {
     alignItems: "center",
+    flex: 1,
+  },
+  rewardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
   },
   rewardValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: GameColors.textPrimary,
-    marginTop: Spacing.xs,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
   },
   rewardLabel: {
     fontSize: 12,
-    color: GameColors.textSecondary,
+    color: "#9CA3AF",
+    marginTop: 2,
   },
-  pitySection: {
-    backgroundColor: GameColors.surface,
+  rewardDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginHorizontal: Spacing.lg,
+  },
+  pityCard: {
+    backgroundColor: "rgba(30, 30, 40, 0.8)",
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    width: SCREEN_WIDTH - 80,
+    width: "100%",
     maxWidth: 300,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   pityTitle: {
-    fontSize: 12,
-    color: GameColors.textSecondary,
+    fontSize: 11,
+    color: "#6B7280",
     textAlign: "center",
     marginBottom: Spacing.sm,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
   pityRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "center",
+    alignItems: "center",
   },
   pityItem: {
     alignItems: "center",
+    paddingHorizontal: Spacing.md,
   },
   pityCount: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "700",
   },
   pityLabel: {
-    fontSize: 11,
-    color: GameColors.textTertiary,
+    fontSize: 10,
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
-  tapPromptContainer: {
+  pityDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  buttonContainer: {
     position: "absolute",
-    bottom: 60,
-    alignItems: "center",
+    bottom: 0,
+    width: "100%",
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
   },
-  tapPrompt: {
-    alignItems: "center",
+  primaryButton: {
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  tapPromptText: {
+  primaryButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md + 4,
+    gap: Spacing.sm,
+  },
+  primaryButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#000",
+    letterSpacing: 1,
+  },
+  secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    gap: Spacing.sm,
+  },
+  secondaryButtonText: {
     fontSize: 16,
-    color: GameColors.textSecondary,
-    marginTop: Spacing.xs,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  closeButton: {
+    position: "absolute",
+    left: Spacing.lg,
+    zIndex: 100,
+  },
+  closeButtonBlur: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
 });
