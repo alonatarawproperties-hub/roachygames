@@ -324,7 +324,6 @@ export default function HuntScreen() {
 
   const handleStartCatch = async () => {
     console.log("[handleStartCatch] CALLED!");
-    setShowCameraEncounter(false);
     
     const spawn = activeSpawnRef.current;
     // Use ref for location since state may be null when camera encounter pauses location updates
@@ -332,13 +331,31 @@ export default function HuntScreen() {
     console.log("[handleStartCatch] spawn:", spawn?.id, "name:", spawn?.name, "class:", spawn?.creatureClass);
     console.log("[handleStartCatch] loc from ref:", !!loc, loc?.latitude, loc?.longitude);
     
+    // Guard: No spawn or location = can't proceed
+    if (!spawn) {
+      console.log("[handleStartCatch] ERROR: No spawn available");
+      setShowCameraEncounter(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    
+    if (!loc) {
+      console.log("[handleStartCatch] ERROR: No location available");
+      setShowCameraEncounter(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSelectedSpawn(null);
+      activeSpawnRef.current = null;
+      return;
+    }
+    
     // Phase I detection: check name OR creatureClass
-    const isMysteryEgg = spawn?.name?.toLowerCase().includes("mystery egg") || spawn?.creatureClass === "egg";
+    const isMysteryEgg = spawn.name?.toLowerCase().includes("mystery egg") || spawn.creatureClass === "egg";
     console.log("[handleStartCatch] isMysteryEgg:", isMysteryEgg);
     
     // Phase I: Mystery eggs go directly to API call, no mini-game
-    if (isMysteryEgg && spawn && loc) {
-      console.log("[Phase1] Direct collect - spawning:", spawn.id);
+    if (isMysteryEgg) {
+      console.log("[Phase1] Direct collect - calling API for spawn:", spawn.id);
+      setShowCameraEncounter(false);
       setIsCollecting(true);
       
       try {
@@ -367,16 +384,18 @@ export default function HuntScreen() {
           setSelectedSpawn(null);
           activeSpawnRef.current = null;
         } else {
-          // On failure, go back to camera encounter to retry
+          // On failure, show error and clear state (don't loop back)
           console.log("[Phase1] Failed:", result?.error);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          setShowCameraEncounter(true);
+          setSelectedSpawn(null);
+          activeSpawnRef.current = null;
         }
       } catch (error) {
-        // On error, go back to camera encounter to retry
+        // On error, show error and clear state (don't loop back)
         console.error("[Phase1] API error:", error);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setShowCameraEncounter(true);
+        setSelectedSpawn(null);
+        activeSpawnRef.current = null;
       } finally {
         setIsCollecting(false);
       }
@@ -384,6 +403,7 @@ export default function HuntScreen() {
     }
     
     // Non-mystery eggs: use regular catch mini-game
+    setShowCameraEncounter(false);
     setShowCatchGame(true);
   };
 
