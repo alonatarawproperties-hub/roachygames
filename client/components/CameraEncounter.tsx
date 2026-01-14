@@ -347,8 +347,8 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                     <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
                   </>
                 ) : (
-                  <>
-                    <ThemedText style={styles.instructionSmall}>TAP ANYWHERE</ThemedText>
+                  <Pressable onPress={handleThrowNet} style={styles.catchPressable}>
+                    <ThemedText style={styles.instructionSmall}>TAP TO CATCH</ThemedText>
                     
                     <Animated.View style={pulseAnimatedStyle}>
                       <LinearGradient
@@ -364,7 +364,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                     </Animated.View>
                     
                     <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
-                  </>
+                  </Pressable>
                 )}
               </BlurView>
             </View>
@@ -683,6 +683,10 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.6)",
     letterSpacing: 1,
     marginBottom: Spacing.sm,
+  },
+  catchPressable: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   catchButton: {
     width: 72,
