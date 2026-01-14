@@ -62,6 +62,9 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
   const rarityColor = getRarityColor(spawn.rarity as any) || GameColors.primary;
   const classIcon = getClassIcon(spawn.creatureClass as any) || "target";
   const classColor = getClassColor(spawn.creatureClass as any) || GameColors.primary;
+  
+  // Phase I: Detect mystery eggs to hide rarity until after catching
+  const isMysteryEgg = spawn.name?.toLowerCase().includes("mystery egg") || spawn.creatureClass === "egg";
 
   useEffect(() => {
     floatOffset.value = withRepeat(
@@ -259,18 +262,24 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
         
         <View style={styles.statRibbon}>
           <BlurView intensity={50} tint="dark" style={styles.ribbonBlur}>
-            <View style={[styles.rarityPill, { backgroundColor: rarityColor + "30" }]}>
-              <View style={[styles.rarityDot, { backgroundColor: rarityColor }]} />
-              <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
-                {spawn.rarity.toUpperCase()}
-              </ThemedText>
-            </View>
+            {/* Phase I: Hide rarity for mystery eggs - only show after catching */}
+            {!isMysteryEgg && (
+              <View style={[styles.rarityPill, { backgroundColor: rarityColor + "30" }]}>
+                <View style={[styles.rarityDot, { backgroundColor: rarityColor }]} />
+                <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
+                  {spawn.rarity.toUpperCase()}
+                </ThemedText>
+              </View>
+            )}
             <ThemedText style={styles.creatureName} numberOfLines={1}>
-              {spawn.name}
+              {isMysteryEgg ? "Mystery Egg" : spawn.name}
             </ThemedText>
-            <View style={[styles.classPill, { backgroundColor: classColor + "30" }]}>
-              <Feather name={classIcon as any} size={12} color={classColor} />
-            </View>
+            {/* Phase I: Hide class icon for mystery eggs */}
+            {!isMysteryEgg && (
+              <View style={[styles.classPill, { backgroundColor: classColor + "30" }]}>
+                <Feather name={classIcon as any} size={12} color={classColor} />
+              </View>
+            )}
           </BlurView>
         </View>
 
