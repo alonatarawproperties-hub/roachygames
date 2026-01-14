@@ -309,8 +309,57 @@ export default function HuntScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const handleStartCatch = () => {
+  const [isCollecting, setIsCollecting] = useState(false);
+
+  const handleStartCatch = async () => {
     setShowCameraEncounter(false);
+    
+    const spawn = activeSpawnRef.current;
+    const isMysteryEgg = spawn?.name?.toLowerCase().includes("mystery egg");
+    
+    // Phase I: Mystery eggs go directly to API call, no mini-game
+    if (isMysteryEgg && spawn && playerLocation) {
+      console.log("[Phase1] Direct collect - spawning:", spawn.id);
+      setIsCollecting(true);
+      
+      try {
+        const result = await claimNode(
+          spawn.id,
+          playerLocation.latitude,
+          playerLocation.longitude,
+          "perfect"
+        );
+        
+        console.log("[Phase1] API result:", JSON.stringify(result));
+        
+        if (result && result.success) {
+          const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
+          console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setCollectedEggInfo({
+            rarity: normalizedRarity,
+            xpAwarded: result.xpAwarded || 0,
+            pointsAwarded: result.pointsAwarded || 0,
+            quality: "perfect",
+            pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+          });
+          refreshPhaseIStats();
+        } else {
+          console.log("[Phase1] Failed:", result?.error);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+      } catch (error) {
+        console.error("[Phase1] API error:", error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      } finally {
+        setIsCollecting(false);
+        setSelectedSpawn(null);
+        activeSpawnRef.current = null;
+      }
+      return;
+    }
+    
+    // Non-mystery eggs: use regular catch mini-game
     setShowCatchGame(true);
   };
 
