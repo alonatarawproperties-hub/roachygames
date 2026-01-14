@@ -378,7 +378,7 @@ export default function HuntScreen() {
     // Phase I: Mystery eggs go directly to API call, no mini-game
     if (isMysteryEgg) {
       console.log("[Phase1] Direct collect - calling API for spawn:", spawn.id);
-      setShowCameraEncounter(false);
+      // CRITICAL: Show loading state FIRST, keep modal open during API call
       setIsCollecting(true);
       
       try {
@@ -395,6 +395,9 @@ export default function HuntScreen() {
           const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
           console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // Close camera AFTER API success, BEFORE showing egg modal
+          setShowCameraEncounter(false);
+          setIsCollecting(false);
           setCollectedEggInfo({
             rarity: normalizedRarity,
             xpAwarded: result.xpAwarded || 0,
@@ -403,24 +406,26 @@ export default function HuntScreen() {
             pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
           });
           refreshPhaseIStats();
-          // Clear on success
+          // Clear spawn refs on success
           setSelectedSpawn(null);
           activeSpawnRef.current = null;
         } else {
-          // On failure, show error and clear state (don't loop back)
+          // On failure, close camera and show error
           console.log("[Phase1] Failed:", result?.error);
+          setShowCameraEncounter(false);
+          setIsCollecting(false);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setSelectedSpawn(null);
           activeSpawnRef.current = null;
         }
       } catch (error) {
-        // On error, show error and clear state (don't loop back)
+        // On error, close camera and show error
         console.error("[Phase1] API error:", error);
+        setShowCameraEncounter(false);
+        setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setSelectedSpawn(null);
         activeSpawnRef.current = null;
-      } finally {
-        setIsCollecting(false);
       }
       return;
     }
