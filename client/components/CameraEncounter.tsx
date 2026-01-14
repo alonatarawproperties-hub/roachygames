@@ -347,23 +347,29 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                     <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
                   </>
                 ) : (
-                  <Pressable onPress={handleThrowNet} style={styles.catchPressable}>
-                    <ThemedText style={styles.instructionSmall}>TAP TO CATCH</ThemedText>
+                  <Pressable 
+                    onPress={() => {
+                      console.log("[CATCH BUTTON] PRESSED!");
+                      handleThrowNet();
+                    }} 
+                    style={styles.catchPressable}
+                  >
+                    <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v2 - TAP THE GREEN BUTTON</ThemedText>
                     
                     <Animated.View style={pulseAnimatedStyle}>
                       <LinearGradient
-                        colors={[GameColors.primary, "#FF6B00"]}
+                        colors={["#00FF00", "#00CC00"]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.catchButton}
                       >
                         <View style={styles.catchButtonInner}>
-                          <Feather name="crosshair" size={28} color="#fff" />
+                          <Feather name="crosshair" size={28} color="#000" />
                         </View>
                       </LinearGradient>
                     </Animated.View>
                     
-                    <ThemedText style={styles.catchLabel}>CATCH</ThemedText>
+                    <ThemedText style={[styles.catchLabel, { color: "#00FF00" }]}>GRAB EGG</ThemedText>
                   </Pressable>
                 )}
               </BlurView>
