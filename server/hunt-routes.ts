@@ -1245,6 +1245,182 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
+  // Phase I spawn-based claim - works with wildCreatureSpawns table
+  app.post("/api/hunt/phase1/claim-spawn", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, spawnId, lat, lon, quality } = req.body;
+      
+      if (!walletAddress || !spawnId || lat === undefined || lon === undefined || !quality) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (!['perfect', 'great', 'good'].includes(quality)) {
+        return res.status(400).json({ error: "Invalid quality" });
+      }
+
+      // Verify spawn exists and is not already caught
+      const [spawn] = await db.select()
+        .from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.id, spawnId),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet)
+        ))
+        .limit(1);
+
+      if (!spawn) {
+        return res.status(400).json({ error: "Spawn not found or already caught" });
+      }
+
+      const dayKey = getManilaDate();
+      const weekKey = getManilaWeekKey();
+
+      let [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        [economy] = await db.insert(huntEconomyStats).values({
+          walletAddress,
+          energy: 30,
+          maxEnergy: 30,
+        }).returning();
+      }
+
+      const isNewDay = economy.lastCatchDate !== dayKey;
+      const huntsToday = isNewDay ? 0 : economy.catchesToday;
+      
+      if (huntsToday >= HUNT_CONFIG.DAILY_HUNT_CAP) {
+        return res.status(400).json({ error: "Daily hunt limit reached" });
+      }
+
+      // Use spawn's rarity or select based on pity
+      const pityCounters = {
+        sinceRare: economy.catchesSinceRare + 1,
+        sinceEpic: economy.catchesSinceEpic + 1,
+        sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
+      };
+
+      // Use spawn's rarity for eggs
+      const eggRarity = spawn.rarity || selectEggRarity(pityCounters);
+      
+      const xpAwarded = HUNT_CONFIG.XP_REWARDS[quality] || 30;
+      const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
+      const isPerfect = quality === 'perfect';
+
+      // Mark spawn as caught
+      await db.update(wildCreatureSpawns)
+        .set({
+          caughtByWallet: walletAddress,
+          caughtAt: new Date(),
+          isActive: false,
+        })
+        .where(eq(wildCreatureSpawns.id, spawnId));
+
+      // Update pity counters
+      let newSinceRare = pityCounters.sinceRare;
+      let newSinceEpic = pityCounters.sinceEpic;
+      let newSinceLegendary = pityCounters.sinceLegendary;
+      
+      if (eggRarity === 'legendary') {
+        newSinceLegendary = 0;
+        newSinceEpic = 0;
+        newSinceRare = 0;
+      } else if (eggRarity === 'epic') {
+        newSinceEpic = 0;
+        newSinceRare = 0;
+      } else if (eggRarity === 'rare') {
+        newSinceRare = 0;
+      }
+
+      const newHunterXp = (economy.hunterXp || 0) + xpAwarded;
+      const newHunterLevel = Math.floor(newHunterXp / HUNT_CONFIG.XP_PER_LEVEL) + 1;
+
+      let newStreak = economy.currentStreak;
+      if (isNewDay) {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+      }
+
+      // Update egg inventory
+      const eggField = `egg${eggRarity.charAt(0).toUpperCase() + eggRarity.slice(1)}` as 
+        'eggCommon' | 'eggRare' | 'eggEpic' | 'eggLegendary';
+      const currentEggCount = economy[eggField] || 0;
+
+      const currentWeekKey = economy.currentWeekKey;
+      const isNewWeek = currentWeekKey !== weekKey;
+
+      await db.update(huntEconomyStats)
+        .set({
+          catchesToday: huntsToday + 1,
+          lastCatchDate: dayKey,
+          lastClaimAt: new Date(),
+          catchesSinceRare: newSinceRare,
+          catchesSinceEpic: newSinceEpic,
+          catchesSinceLegendary: newSinceLegendary,
+          [eggField]: currentEggCount + 1,
+          hunterXp: newHunterXp,
+          hunterLevel: newHunterLevel,
+          currentStreak: newStreak,
+          longestStreak: Math.max(newStreak, economy.longestStreak),
+          pointsThisWeek: isNewWeek ? pointsAwarded : (economy.pointsThisWeek || 0) + pointsAwarded,
+          perfectsThisWeek: isNewWeek ? (isPerfect ? 1 : 0) : (economy.perfectsThisWeek || 0) + (isPerfect ? 1 : 0),
+          currentWeekKey: weekKey,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      // Update weekly leaderboard
+      await db.insert(huntWeeklyLeaderboard)
+        .values({
+          weekKey,
+          walletAddress,
+          points: pointsAwarded,
+          perfects: isPerfect ? 1 : 0,
+          eggsTotal: 1,
+        })
+        .onConflictDoUpdate({
+          target: [huntWeeklyLeaderboard.weekKey, huntWeeklyLeaderboard.walletAddress],
+          set: {
+            points: sql`${huntWeeklyLeaderboard.points} + ${pointsAwarded}`,
+            perfects: sql`${huntWeeklyLeaderboard.perfects} + ${isPerfect ? 1 : 0}`,
+            eggsTotal: sql`${huntWeeklyLeaderboard.eggsTotal} + 1`,
+            updatedAt: new Date(),
+          },
+        });
+
+      console.log(`[Phase1] ${walletAddress} claimed spawn ${spawnId}: ${eggRarity} egg, +${xpAwarded}XP, +${pointsAwarded}pts`);
+
+      res.json({
+        success: true,
+        eggRarity,
+        xpAwarded,
+        pointsAwarded,
+        quality,
+        huntsToday: huntsToday + 1,
+        dailyCap: HUNT_CONFIG.DAILY_HUNT_CAP,
+        streakCount: newStreak,
+        eggs: {
+          common: eggRarity === 'common' ? currentEggCount + 1 : (economy.eggCommon || 0),
+          rare: eggRarity === 'rare' ? currentEggCount + 1 : (economy.eggRare || 0),
+          epic: eggRarity === 'epic' ? currentEggCount + 1 : (economy.eggEpic || 0),
+          legendary: eggRarity === 'legendary' ? currentEggCount + 1 : (economy.eggLegendary || 0),
+        },
+        pity: {
+          rareIn: HUNT_CONFIG.PITY_RARE - newSinceRare,
+          epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
+          legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
+        },
+        warmth: economy.warmth || 0,
+        hunterLevel: newHunterLevel,
+        hunterXp: newHunterXp,
+      });
+    } catch (error) {
+      console.error("Phase1 spawn claim error:", error);
+      res.status(500).json({ error: "Failed to claim spawn" });
+    }
+  });
+
   app.post("/api/hunt/recycle", async (req: Request, res: Response) => {
     try {
       const { walletAddress, amount } = req.body;

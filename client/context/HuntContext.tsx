@@ -528,11 +528,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [walletAddress, playerLocation, economyData, queryClient]);
 
-  const claimNode = useCallback(async (nodeId: string, lat: number, lon: number, quality: string) => {
+  const claimNode = useCallback(async (spawnId: string, lat: number, lon: number, quality: string) => {
     try {
-      const response = await apiRequest("POST", "/api/hunt/phase1/claim", {
+      // Phase I: Use spawn-based claim endpoint
+      const response = await apiRequest("POST", "/api/hunt/phase1/claim-spawn", {
         walletAddress,
-        nodeId,
+        spawnId,
         lat,
         lon,
         quality,
@@ -543,11 +544,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/phase1"] });
       }
       return data;
     } catch (error) {
-      console.error("Failed to claim node:", error);
-      return { success: false, error: "Failed to claim node" };
+      console.error("Failed to claim spawn:", error);
+      return { success: false, error: "Failed to claim spawn" };
     }
   }, [walletAddress, queryClient]);
 
