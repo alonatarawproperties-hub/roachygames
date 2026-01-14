@@ -1,0 +1,125 @@
+✅ Copy/paste prompt for the Replit agent (fix this bug)
+Fix Roachy Hunt Catch Flow bug: after tapping GRAB EGG and showing “COLLECTING…”, the app exits/bounces back to the Map instead of showing the rarity reveal modal/screen.
+
+Steps:
+1) Search the mobile code for any automatic dismissal/navigation that runs after claim:
+   - navigation.goBack()
+   - navigation.navigate('Map')
+   - navigation.replace(...)
+   - setCatchOpen(false) / setModalVisible(false)
+   - close(), dismiss(), bottomSheetRef.close()
+   Use ripgrep: rg -n "goBack\\(|navigate\\(|replace\\(|setCatch|setModal|dismiss|close\\(" mobile
+
+2) Specifically inspect the claim mutation code (React Query useMutation):
+   - onSuccess, onError, onSettled/finally
+   Remove ANY auto-close behavior there.
+   The claim should NOT close the Catch screen.
+   On success: store the response (egg_rarity, xp, points, updated pity) and transition UI to “reveal” state.
+
+3) Implement a state machine in Catch UI:
+   phase: 'aim' | 'collecting' | 'reveal'
+   - Start at 'aim' (shows ring game + GRAB EGG button)
+   - On GRAB EGG press: set phase='collecting' and call claim mutation
+   - On claim success: save revealData and set phase='reveal'
+   - On claim error: show toast + set phase back to 'aim' (do NOT go back to map)
+   - Only when user taps “Continue Hunting” on reveal do we navigate back / close.
+
+4) If Catch is a modal/bottom sheet: disable dismiss while collecting/reveal:
+   - disable pan-down-to-close and backdrop press
+   - disable gestures in navigation options if it’s a modal screen:
+     options={{ gestureEnabled:false, headerShown:false }}
+
+5) Add logs so we can confirm the root cause:
+   - log when Catch mounts/unmounts
+   - log when claim starts/succeeds/errors
+   - log whenever navigation.goBack or setCatchOpen(false) is called
+
+Deliver:
+- Catch screen/modal shows reveal reliably after claim.
+- No silent exit to map on success or error.
+- Errors show a visible toast/message and stay on catch screen.
+
+🔧 Reference patch pattern (what the agent should implement)
+
+Use this pattern whether Catch is a Screen or a Modal component:
+
+// CatchScreen.tsx (or CatchModal.tsx)
+type Phase = "aim" | "collecting" | "reveal";
+
+const [phase, setPhase] = useState<Phase>("aim");
+const [reveal, setReveal] = useState<null | {
+  egg_rarity: "common" | "rare" | "epic" | "legendary";
+  xp_awarded: number;
+  points_awarded: number;
+  pity: { rare_in: number; epic_in: number; legendary_in: number };
+}>(null);
+
+useEffect(() => {
+  console.log("[Catch] mounted");
+  return () => console.log("[Catch] unmounted");
+}, []);
+
+const claimMutation = useMutation({
+  mutationFn: apiClaimEgg,
+  onMutate: () => {
+    console.log("[Catch] claim start");
+    setPhase("collecting");
+  },
+  onSuccess: (data) => {
+    console.log("[Catch] claim success", data);
+    setReveal({
+      egg_rarity: data.egg_rarity,
+      xp_awarded: data.xp_awarded,
+      points_awarded: data.points_awarded,
+      pity: data.pity,
+    });
+    setPhase("reveal"); // IMPORTANT: do not close/goBack here
+  },
+  onError: (err: any) => {
+    console.log("[Catch] claim error", err);
+    // show toast/snackbar
+    setPhase("aim"); // IMPORTANT: do not goBack
+  },
+});
+
+function onGrabEggPressed() {
+  if (phase !== "aim") return;
+  const quality = computeQualityFromRingGame(); // perfect/great/good
+  claimMutation.mutate({ node_id, lat, lon, quality });
+}
+
+// UI:
+return (
+  <>
+    {phase === "aim" && <AimUI onGrab={onGrabEggPressed} />}
+    {phase === "collecting" && <CollectingUI text="COLLECTING..." />}
+    {phase === "reveal" && reveal && (
+      <RevealModal
+        rarity={reveal.egg_rarity}
+        xp={reveal.xp_awarded}
+        points={reveal.points_awarded}
+        pity={reveal.pity}
+        onContinue={() => {
+          // ONLY here we close/go back to map
+          navigation.goBack();
+        }}
+      />
+    )}
+  </>
+);
+
+If you’re using a Bottom Sheet modal
+
+Make sure it cannot auto-close:
+
+enablePanDownToClose={false} while phase !== 'aim'
+
+onBackdropPress should do nothing while collecting/reveal
+
+If Catch is a navigation modal screen
+
+Set:
+
+gestureEnabled: false (prevents swipe-down dismissal)
+
+presentation: "transparentModal" (optional)
