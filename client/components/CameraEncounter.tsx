@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -16,11 +16,14 @@ import Animated, {
   withSequence,
   withTiming,
   withSpring,
+  withDelay,
   Easing,
   runOnJS,
+  interpolate,
   FadeIn,
   FadeInDown,
   FadeInUp,
+  FadeOut,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
@@ -46,15 +49,53 @@ interface CameraEncounterProps {
 export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = false }: CameraEncounterProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
+  const [isCatching, setIsCatching] = useState(false);
+  const [showParticles, setShowParticles] = useState(false);
+  const apiCalledRef = useRef(false);
+  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
+  // Reset state when spawn changes
+  useEffect(() => {
+    apiCalledRef.current = false;
+    setIsCatching(false);
+    setShowParticles(false);
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current = [];
+    };
+  }, [spawn.id]);
+
+  // Egg position and idle animations
   const creatureX = useSharedValue(SCREEN_WIDTH / 2 - 60);
   const creatureY = useSharedValue(SCREEN_HEIGHT / 2.5);
   const creatureScale = useSharedValue(1);
   const creatureRotation = useSharedValue(0);
+  const creatureOpacity = useSharedValue(1);
   const glowOpacity = useSharedValue(0.5);
   const floatOffset = useSharedValue(0);
   const pulseScale = useSharedValue(1);
 
+  // Catching animation values
+  const catchProgress = useSharedValue(0);
+  const lassoX = useSharedValue(SCREEN_WIDTH + 50);
+  const lassoY = useSharedValue(SCREEN_HEIGHT);
+  const lassoScale = useSharedValue(0.5);
+  const lassoRotation = useSharedValue(45);
+  const lassoOpacity = useSharedValue(0);
+  
+  // Capture ring effect
+  const captureRingScale = useSharedValue(0);
+  const captureRingOpacity = useSharedValue(0);
+  
+  // Portal effect
+  const portalScale = useSharedValue(0);
+  const portalOpacity = useSharedValue(0);
+  
+  // Shockwave
+  const shockwaveScale = useSharedValue(0);
+  const shockwaveOpacity = useSharedValue(0);
+
+  // Legacy net values (for non-egg creatures)
   const netScale = useSharedValue(0);
   const netOpacity = useSharedValue(0);
   const netY = useSharedValue(SCREEN_HEIGHT);
@@ -63,10 +104,12 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
   const classIcon = getClassIcon(spawn.creatureClass as any) || "target";
   const classColor = getClassColor(spawn.creatureClass as any) || GameColors.primary;
   
-  // Phase I: Detect mystery eggs to hide rarity until after catching
   const isMysteryEgg = spawn.name?.toLowerCase().includes("mystery egg") || spawn.creatureClass === "egg";
 
+  // Idle floating animation
   useEffect(() => {
+    if (isCatching) return;
+    
     floatOffset.value = withRepeat(
       withSequence(
         withTiming(-12, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
@@ -104,6 +147,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
     );
 
     const randomMove = () => {
+      if (isCatching) return;
       const newX = 60 + Math.random() * (SCREEN_WIDTH - 180);
       const newY = 150 + Math.random() * (SCREEN_HEIGHT / 2.5 - 100);
       creatureX.value = withTiming(newX, { duration: 3500, easing: Easing.inOut(Easing.ease) });
@@ -112,18 +156,108 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
 
     const moveInterval = setInterval(randomMove, 4500);
     return () => clearInterval(moveInterval);
-  }, []);
+  }, [isCatching]);
+
+  const callApiOnce = () => {
+    if (apiCalledRef.current) return;
+    apiCalledRef.current = true;
+    onStartCatch(spawn);
+  };
+
+  const startCatchAnimation = () => {
+    // Clear previous timeouts
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
+    
+    setIsCatching(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    // Stop idle animations
+    floatOffset.value = withTiming(0, { duration: 100 });
+    creatureRotation.value = withTiming(0, { duration: 100 });
+
+    // PHASE 1: Energy lasso flies toward egg (0-320ms)
+    lassoOpacity.value = 1;
+    lassoX.value = SCREEN_WIDTH + 50;
+    lassoY.value = SCREEN_HEIGHT - 100;
+    lassoScale.value = 0.6;
+    lassoRotation.value = 30;
+
+    const targetX = creatureX.value + 30;
+    const targetY = creatureY.value + 30;
+
+    lassoX.value = withTiming(targetX, { duration: 320, easing: Easing.out(Easing.cubic) });
+    lassoY.value = withTiming(targetY, { duration: 320, easing: Easing.out(Easing.cubic) });
+    lassoScale.value = withTiming(1.1, { duration: 320 });
+    lassoRotation.value = withTiming(-10, { duration: 320 });
+
+    // PHASE 2: Capture effect (320-560ms)
+    const phase2Timeout = setTimeout(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowParticles(true);
+      
+      creatureScale.value = withSequence(
+        withSpring(0.75, { damping: 8, stiffness: 400 }),
+        withSpring(1.15, { damping: 8, stiffness: 350 }),
+        withSpring(0.9, { damping: 10, stiffness: 300 })
+      );
+
+      captureRingScale.value = 0.5;
+      captureRingOpacity.value = 1;
+      captureRingScale.value = withTiming(1.8, { duration: 300 });
+      captureRingOpacity.value = withTiming(0, { duration: 300 });
+
+      glowOpacity.value = withTiming(1, { duration: 200 });
+      lassoOpacity.value = withTiming(0, { duration: 200 });
+
+      // Call API at 55% progress
+      const apiTimeout = setTimeout(callApiOnce, 100);
+      timeoutsRef.current.push(apiTimeout);
+    }, 320);
+    timeoutsRef.current.push(phase2Timeout);
+
+    // PHASE 3: Egg flies to portal (560-850ms)
+    const phase3Timeout = setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      portalScale.value = 0;
+      portalOpacity.value = 1;
+      portalScale.value = withSpring(1, { damping: 12, stiffness: 200 });
+
+      creatureY.value = withTiming(SCREEN_HEIGHT - 120, { duration: 280, easing: Easing.in(Easing.cubic) });
+      creatureScale.value = withTiming(0.2, { duration: 280 });
+      creatureOpacity.value = withTiming(0, { duration: 280 });
+
+      const shockwaveTimeout = setTimeout(() => {
+        shockwaveScale.value = 0;
+        shockwaveOpacity.value = 0.5;
+        shockwaveScale.value = withTiming(2.5, { duration: 250 });
+        shockwaveOpacity.value = withTiming(0, { duration: 250 });
+        
+        portalScale.value = withDelay(100, withTiming(0, { duration: 150 }));
+        portalOpacity.value = withDelay(100, withTiming(0, { duration: 150 }));
+      }, 200);
+      timeoutsRef.current.push(shockwaveTimeout);
+    }, 560);
+    timeoutsRef.current.push(phase3Timeout);
+
+    // Cleanup animation state after completion (850ms total)
+    const cleanupTimeout = setTimeout(() => {
+      setShowParticles(false);
+    }, 900);
+    timeoutsRef.current.push(cleanupTimeout);
+  };
 
   const handleThrowNet = () => {
-    if (isCollecting) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    if (isCollecting || isCatching) return;
     
     if (isMysteryEgg) {
-      onStartCatch(spawn);
+      startCatchAnimation();
       return;
     }
     
-    // Regular creatures: Show net throw animation
+    // Regular creatures: Legacy net animation
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     netOpacity.value = 1;
     netScale.value = 0.3;
     netY.value = SCREEN_HEIGHT - 200;
@@ -160,10 +294,59 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
       { scale: creatureScale.value },
       { rotate: `${creatureRotation.value}deg` },
     ],
+    opacity: creatureOpacity.value,
   }));
 
   const glowAnimatedStyle = useAnimatedStyle(() => ({
     opacity: glowOpacity.value,
+  }));
+
+  const lassoAnimatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    transform: [
+      { translateX: lassoX.value },
+      { translateY: lassoY.value },
+      { scale: lassoScale.value },
+      { rotate: `${lassoRotation.value}deg` },
+    ],
+    opacity: lassoOpacity.value,
+  }));
+
+  const captureRingAnimatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    left: creatureX.value - 10,
+    top: creatureY.value - 10,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 4,
+    borderColor: '#FFD700',
+    transform: [{ scale: captureRingScale.value }],
+    opacity: captureRingOpacity.value,
+  }));
+
+  const portalAnimatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    bottom: 100,
+    left: SCREEN_WIDTH / 2 - 50,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    transform: [{ scale: portalScale.value }],
+    opacity: portalOpacity.value,
+  }));
+
+  const shockwaveAnimatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    bottom: 100,
+    left: SCREEN_WIDTH / 2 - 50,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#FFD700',
+    transform: [{ scale: shockwaveScale.value }],
+    opacity: shockwaveOpacity.value,
   }));
 
   const netAnimatedStyle = useAnimatedStyle(() => ({
@@ -329,17 +512,76 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                 <Feather name="target" size={60} color={GameColors.primary} />
               </View>
             </Animated.View>
+
+            {/* Energy Lasso */}
+            <Animated.View style={lassoAnimatedStyle}>
+              <View style={styles.lasso}>
+                <LinearGradient
+                  colors={["#FFD700", "#FF8C00", "#FF6B00"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.lassoInner}
+                >
+                  <View style={styles.lassoRing} />
+                  <View style={styles.lassoGlow} />
+                </LinearGradient>
+              </View>
+            </Animated.View>
+
+            {/* Capture Ring */}
+            <Animated.View style={captureRingAnimatedStyle} pointerEvents="none" />
+
+            {/* Particle Burst */}
+            {showParticles && (
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                {[...Array(12)].map((_, i) => {
+                  const angle = (i / 12) * 360;
+                  const rad = (angle * Math.PI) / 180;
+                  const distance = 60 + Math.random() * 40;
+                  return (
+                    <Animated.View
+                      key={i}
+                      entering={FadeIn.duration(100)}
+                      exiting={FadeOut.duration(400)}
+                      style={[
+                        styles.particle,
+                        {
+                          left: SCREEN_WIDTH / 2 - 4 + Math.cos(rad) * distance,
+                          top: SCREEN_HEIGHT / 2.5 + Math.sin(rad) * distance,
+                          backgroundColor: i % 3 === 0 ? '#FFD700' : i % 3 === 1 ? '#FF8C00' : '#FFA500',
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Portal */}
+            <Animated.View style={portalAnimatedStyle} pointerEvents="none">
+              <LinearGradient
+                colors={["#FFD70080", "#FF8C0080", "#00000000"]}
+                style={styles.portalGradient}
+              >
+                <View style={styles.portalInner} />
+              </LinearGradient>
+            </Animated.View>
+
+            {/* Shockwave */}
+            <Animated.View style={shockwaveAnimatedStyle} pointerEvents="none" />
           </View>
 
           <Animated.View 
             entering={FadeInUp.duration(400).springify()}
             style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
           >
-            {isCollecting ? (
+            {isCollecting || isCatching ? (
               <View style={styles.actionCapsule}>
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
                   <ActivityIndicator size="large" color={GameColors.primary} />
-                  <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>COLLECTING...</ThemedText>
+                  <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>
+                    {isCatching ? "CATCHING..." : "COLLECTING..."}
+                  </ThemedText>
                 </BlurView>
               </View>
             ) : (
@@ -709,5 +951,54 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginTop: Spacing.sm,
     letterSpacing: 2,
+  },
+  lasso: {
+    width: 70,
+    height: 70,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lassoInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lassoRing: {
+    position: "absolute",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.8)",
+    borderStyle: "dashed",
+  },
+  lassoGlow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.6)",
+  },
+  particle: {
+    position: "absolute",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  portalGradient: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  portalInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    borderWidth: 3,
+    borderColor: "#FFD700",
   },
 });
