@@ -113,6 +113,7 @@ export default function HuntScreen() {
   const mapRef = useRef<MapViewWrapperRef>(null);
   const loadingFadeAnim = useSharedValue(1);
   const hasAutoSpawned = useRef(false);
+  const activeSpawnRef = useRef<Spawn | null>(null);
 
   const pulseAnim = useSharedValue(1);
 
@@ -303,6 +304,7 @@ export default function HuntScreen() {
       return;
     }
     setSelectedSpawn(spawn);
+    activeSpawnRef.current = spawn;
     setShowCameraEncounter(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
@@ -315,12 +317,14 @@ export default function HuntScreen() {
   const handleCancelEncounter = () => {
     setShowCameraEncounter(false);
     setSelectedSpawn(null);
+    activeSpawnRef.current = null;
   };
 
   const handleCatchResult = async (quality: "perfect" | "great" | "good" | "miss") => {
     if (!selectedSpawn || quality === "miss") {
       setShowCatchGame(false);
       setSelectedSpawn(null);
+      activeSpawnRef.current = null;
       return;
     }
 
@@ -331,22 +335,26 @@ export default function HuntScreen() {
     }
     setShowCatchGame(false);
     setSelectedSpawn(null);
+    activeSpawnRef.current = null;
   };
 
   const handleEscape = () => {
     setShowCatchGame(false);
     setSelectedSpawn(null);
+    activeSpawnRef.current = null;
   };
 
   const handleEggCollected = async (quality: "perfect" | "great" | "good" = "perfect") => {
-    console.log("[EggCollect] Starting claim, spawn:", selectedSpawn?.id, "quality:", quality);
-    if (!selectedSpawn || !playerLocation) {
-      console.log("[EggCollect] Missing spawn or location, aborting");
+    const spawn = activeSpawnRef.current;
+    console.log("[EggCollect] Starting claim, spawn:", spawn?.id, "quality:", quality);
+    if (!spawn || !playerLocation) {
+      console.log("[EggCollect] Missing spawn or location, aborting. spawn:", !!spawn, "location:", !!playerLocation);
+      setShowCatchGame(false);
       return;
     }
     
     const result = await claimNode(
-      selectedSpawn.id,
+      spawn.id,
       playerLocation.latitude,
       playerLocation.longitude,
       quality
@@ -371,6 +379,7 @@ export default function HuntScreen() {
     }
     setShowCatchGame(false);
     setSelectedSpawn(null);
+    activeSpawnRef.current = null;
   };
 
   const handleRevealComplete = () => {
