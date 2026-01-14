@@ -1640,4 +1640,87 @@ export function registerHuntRoutes(app: Express) {
       res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
+
+  app.post("/api/hunt/inventory/fuse", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, rarity, times } = req.body;
+
+      if (!walletAddress || !rarity || !times) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const fusionTimes = parseInt(times);
+      if (isNaN(fusionTimes) || fusionTimes < 1) {
+        return res.status(400).json({ error: "Times must be at least 1" });
+      }
+
+      const FUSION_CONFIG: Record<string, { cost: number; chance: number; sourceField: 'eggCommon' | 'eggRare' | 'eggEpic'; targetField: 'eggRare' | 'eggEpic' | 'eggLegendary' }> = {
+        common: { cost: 5, chance: 1.0, sourceField: 'eggCommon', targetField: 'eggRare' },
+        rare: { cost: 20, chance: 0.15, sourceField: 'eggRare', targetField: 'eggEpic' },
+        epic: { cost: 30, chance: 0.05, sourceField: 'eggEpic', targetField: 'eggLegendary' },
+      };
+
+      const config = FUSION_CONFIG[rarity as string];
+      if (!config) {
+        return res.status(400).json({ error: "Invalid rarity. Must be: common, rare, or epic" });
+      }
+
+      const totalCost = config.cost * fusionTimes;
+
+      const result = await db.transaction(async (tx) => {
+        const [economy] = await tx.select().from(huntEconomyStats)
+          .where(eq(huntEconomyStats.walletAddress, walletAddress))
+          .limit(1);
+
+        if (!economy) {
+          throw new Error("Player not found");
+        }
+
+        const currentEggs = economy[config.sourceField] || 0;
+        if (currentEggs < totalCost) {
+          throw new Error(`Not enough ${rarity} eggs. Need ${totalCost}, have ${currentEggs}`);
+        }
+
+        await tx.update(huntEconomyStats)
+          .set({ [config.sourceField]: sql`${huntEconomyStats[config.sourceField]} - ${totalCost}` })
+          .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+        let successCount = 0;
+        for (let i = 0; i < fusionTimes; i++) {
+          if (Math.random() < config.chance) {
+            successCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          await tx.update(huntEconomyStats)
+            .set({ [config.targetField]: sql`${huntEconomyStats[config.targetField]} + ${successCount}` })
+            .where(eq(huntEconomyStats.walletAddress, walletAddress));
+        }
+
+        const [updated] = await tx.select().from(huntEconomyStats)
+          .where(eq(huntEconomyStats.walletAddress, walletAddress))
+          .limit(1);
+
+        return {
+          successCount,
+          failCount: fusionTimes - successCount,
+          eggs: {
+            common: updated?.eggCommon || 0,
+            rare: updated?.eggRare || 0,
+            epic: updated?.eggEpic || 0,
+            legendary: updated?.eggLegendary || 0,
+          },
+        };
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Fusion error:", error);
+      if (error.message?.includes("Not enough") || error.message?.includes("Player not found")) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Fusion failed" });
+    }
+  });
 }

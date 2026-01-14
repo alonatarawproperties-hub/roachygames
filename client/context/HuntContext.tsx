@@ -577,19 +577,17 @@ export function HuntProvider({ children }: HuntProviderProps) {
 
   const fuseEggs = useCallback(async (rarity: string, times: number = 1) => {
     try {
-      const response = await apiRequest("POST", "/api/hunt/fuse", {
+      const response = await apiRequest("POST", "/api/hunt/inventory/fuse", {
         walletAddress,
         rarity,
         times,
       });
       const data = await response.json();
-      if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
-      }
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
       return data;
     } catch (error) {
       console.error("Failed to fuse eggs:", error);
-      return { success: false, error: "Failed to fuse eggs" };
+      throw error;
     }
   }, [walletAddress, queryClient]);
 

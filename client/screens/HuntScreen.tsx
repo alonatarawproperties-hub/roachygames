@@ -682,8 +682,27 @@ export default function HuntScreen() {
   const [selectedFuseRarity, setSelectedFuseRarity] = useState<'common' | 'rare' | 'epic'>('common');
   const [isRecycling, setIsRecycling] = useState(false);
   const [isFusing, setIsFusing] = useState(false);
+  const [fuseResult, setFuseResult] = useState<{ successCount: number; failCount: number } | null>(null);
 
   const { recycleEggs, fuseEggs } = useHunt();
+
+  const FUSION_COSTS: Record<'common' | 'rare' | 'epic', number> = {
+    common: 5,
+    rare: 20,
+    epic: 30,
+  };
+
+  const FUSION_CHANCES: Record<'common' | 'rare' | 'epic', number> = {
+    common: 100,
+    rare: 15,
+    epic: 5,
+  };
+
+  const FUSION_TARGETS: Record<'common' | 'rare' | 'epic', string> = {
+    common: 'Rare',
+    rare: 'Epic',
+    epic: 'Legendary',
+  };
 
   const handleRecycle = async () => {
     if (!phaseIStats || (phaseIStats.eggs.common || 0) < recycleAmount) return;
@@ -699,18 +718,32 @@ export default function HuntScreen() {
   };
 
   const handleFuse = async () => {
+    const cost = FUSION_COSTS[selectedFuseRarity];
     const eggCount = phaseIStats?.eggs[selectedFuseRarity] || 0;
-    const required = fuseTimes * 5;
+    const required = fuseTimes * cost;
     if (eggCount < required) return;
     setIsFusing(true);
+    setFuseResult(null);
     try {
-      await fuseEggs(selectedFuseRarity, fuseTimes);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const result = await fuseEggs(selectedFuseRarity, fuseTimes);
+      setFuseResult({ successCount: result.successCount, failCount: result.failCount });
+      if (result.successCount > 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
       refreshPhaseIStats();
+      setTimeout(() => setFuseResult(null), 4000);
     } catch (error) {
       console.error("Fuse error:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
     setIsFusing(false);
+  };
+
+  const getFuseMaxTimes = (rarity: 'common' | 'rare' | 'epic') => {
+    const eggCount = phaseIStats?.eggs[rarity] || 0;
+    return Math.floor(eggCount / FUSION_COSTS[rarity]);
   };
 
   const renderEggs = () => {
@@ -776,7 +809,21 @@ export default function HuntScreen() {
 
         <Card style={styles.actionCard}>
           <ThemedText type="h4" style={styles.actionTitle}>Fuse Eggs</ThemedText>
-          <ThemedText style={styles.actionDesc}>Combine 5 eggs into 1 of higher tier</ThemedText>
+          <ThemedText style={styles.actionDesc}>
+            {selectedFuseRarity === 'common' 
+              ? `${FUSION_COSTS.common} Common → 1 Rare (100% success)`
+              : selectedFuseRarity === 'rare'
+              ? `${FUSION_COSTS.rare} Rare → 1 Epic (${FUSION_CHANCES.rare}% chance)`
+              : `${FUSION_COSTS.epic} Epic → 1 Legendary (${FUSION_CHANCES.epic}% chance)`}
+          </ThemedText>
+          {(selectedFuseRarity === 'rare' || selectedFuseRarity === 'epic') && (
+            <View style={styles.fuseWarning}>
+              <Feather name="alert-triangle" size={14} color="#F59E0B" />
+              <ThemedText style={styles.fuseWarningText}>
+                Eggs are consumed on failure
+              </ThemedText>
+            </View>
+          )}
           <View style={styles.fuseRarityRow}>
             {(['common', 'rare', 'epic'] as const).map((r) => (
               <Pressable
@@ -785,7 +832,11 @@ export default function HuntScreen() {
                   styles.fuseRarityBtn,
                   selectedFuseRarity === r && { backgroundColor: RARITY_COLORS[r] + "30" }
                 ]}
-                onPress={() => setSelectedFuseRarity(r)}
+                onPress={() => {
+                  setSelectedFuseRarity(r);
+                  setFuseTimes(1);
+                  setFuseResult(null);
+                }}
               >
                 <ThemedText style={{ color: RARITY_COLORS[r], fontWeight: selectedFuseRarity === r ? "bold" : "normal" }}>
                   {r}
@@ -804,7 +855,7 @@ export default function HuntScreen() {
               <ThemedText style={styles.amountText}>{fuseTimes}x</ThemedText>
               <Pressable 
                 style={styles.amountBtn}
-                onPress={() => setFuseTimes(Math.min(Math.floor(eggs[selectedFuseRarity] / 5), fuseTimes + 1))}
+                onPress={() => setFuseTimes(Math.min(getFuseMaxTimes(selectedFuseRarity), fuseTimes + 1))}
               >
                 <Feather name="plus" size={16} color={GameColors.textPrimary} />
               </Pressable>
@@ -812,20 +863,34 @@ export default function HuntScreen() {
             <Pressable 
               style={[
                 styles.actionButton,
-                (eggs[selectedFuseRarity] < fuseTimes * 5 || isFusing) && styles.actionButtonDisabled
+                (eggs[selectedFuseRarity] < fuseTimes * FUSION_COSTS[selectedFuseRarity] || isFusing) && styles.actionButtonDisabled
               ]}
               onPress={handleFuse}
-              disabled={eggs[selectedFuseRarity] < fuseTimes * 5 || isFusing}
+              disabled={eggs[selectedFuseRarity] < fuseTimes * FUSION_COSTS[selectedFuseRarity] || isFusing}
             >
               <ThemedText style={styles.actionButtonText}>
-                {isFusing ? "..." : `Fuse ${fuseTimes * 5} → ${fuseTimes}`}
+                {isFusing ? "Fusing..." : `Fuse ${fuseTimes * FUSION_COSTS[selectedFuseRarity]} → ${fuseTimes} ${FUSION_TARGETS[selectedFuseRarity]}`}
               </ThemedText>
             </Pressable>
           </View>
+          {fuseResult && (
+            <View style={[styles.fuseResultBanner, fuseResult.successCount > 0 ? styles.fuseResultSuccess : styles.fuseResultFail]}>
+              <Feather 
+                name={fuseResult.successCount > 0 ? "check-circle" : "x-circle"} 
+                size={18} 
+                color={fuseResult.successCount > 0 ? "#10B981" : "#EF4444"} 
+              />
+              <ThemedText style={styles.fuseResultText}>
+                {fuseResult.successCount > 0 
+                  ? `Success x${fuseResult.successCount}${fuseResult.failCount > 0 ? `, Failed x${fuseResult.failCount}` : ''}`
+                  : `Failed x${fuseResult.failCount}`}
+              </ThemedText>
+            </View>
+          )}
         </Card>
 
         <ThemedText style={styles.eggHint}>
-          Hunt nodes to collect eggs. Recycle commons for warmth or fuse 5 eggs into a higher tier.
+          Hunt nodes to collect eggs. Recycle commons for warmth or fuse eggs into higher tiers.
         </ThemedText>
       </ScrollView>
     );
@@ -1430,6 +1495,40 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
     backgroundColor: GameColors.surfaceLight,
+  },
+  fuseWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: "#F59E0B20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.xs,
+  },
+  fuseWarningText: {
+    color: "#F59E0B",
+    fontSize: 12,
+  },
+  fuseResultBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.md,
+  },
+  fuseResultSuccess: {
+    backgroundColor: "#10B98120",
+  },
+  fuseResultFail: {
+    backgroundColor: "#EF444420",
+  },
+  fuseResultText: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: GameColors.textPrimary,
   },
   eggCard: {
     flexDirection: "row",
