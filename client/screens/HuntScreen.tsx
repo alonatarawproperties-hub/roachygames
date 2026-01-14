@@ -402,23 +402,24 @@ export default function HuntScreen() {
       
       console.log("[Phase1] API result:", JSON.stringify(result));
       
-      // v13: Log FULL result for debugging
-      console.log("[Phase1] v13 FULL API result:", JSON.stringify(result, null, 2));
+      // v14 FIX: Check for eggRarity (the actual data) instead of success flag
+      // Backend was returning eggRarity but with success:false, causing reveal to never show
+      console.log("[Phase1] v14 API result:", JSON.stringify(result));
       
-      if (result && result.success) {
+      if (result && result.eggRarity) {
+        // GOT AN EGG! Show the reveal
         const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
-        console.log("[Phase1] SUCCESS! Rarity:", normalizedRarity);
+        console.log("[Phase1] v14 GOT EGG! Rarity:", normalizedRarity);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // Close camera FIRST, then show reveal after delay
+        // Close camera and show reveal
         setIsCollecting(false);
         setShowCameraEncounter(false);
         setSelectedSpawn(null);
         activeSpawnRef.current = null;
         
-        // Small delay to let camera modal fully close before showing reveal
+        // Small delay for modal transition
         setTimeout(() => {
-          console.log("[Phase1] v13 - Setting collectedEggInfo:", normalizedRarity);
           setCollectedEggInfo({
             rarity: normalizedRarity,
             xpAwarded: result.xpAwarded || 0,
@@ -429,22 +430,25 @@ export default function HuntScreen() {
         }, 100);
         
         refreshPhaseIStats();
-      } else {
-        // v13: Show error message to user with Alert
-        const errorMsg = result?.error || "Unknown error - no success returned";
-        console.log("[Phase1] API FAILED:", errorMsg, "Full result:", JSON.stringify(result));
+      } else if (result && result.error) {
+        // Actual error from server
+        console.log("[Phase1] Server error:", result.error);
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        // Show alert so user can see what went wrong
-        Alert.alert("Catch Failed", errorMsg, [{ text: "OK" }]);
+        Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+      } else {
+        // Unknown response
+        console.log("[Phase1] Unknown response:", JSON.stringify(result));
+        setIsCollecting(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Catch Failed", "Something went wrong", [{ text: "OK" }]);
       }
     } catch (error: any) {
-      // v13: Show caught error to user
       const errorMsg = error?.message || String(error) || "Network error";
-      console.error("[Phase1] CAUGHT ERROR:", errorMsg, error);
+      console.error("[Phase1] Network error:", errorMsg);
       setIsCollecting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Catch Error", errorMsg, [{ text: "OK" }]);
+      Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
     }
   };
 
