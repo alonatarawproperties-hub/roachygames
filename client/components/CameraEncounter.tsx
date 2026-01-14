@@ -115,9 +115,16 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
   }, []);
 
   const handleThrowNet = () => {
-    if (isCollecting) return; // Block while collecting
+    if (isCollecting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
+    // Phase I mystery eggs: Skip net animation, call API immediately
+    if (isMysteryEgg) {
+      onStartCatch();
+      return;
+    }
+    
+    // Regular creatures: Show net throw animation
     netOpacity.value = 1;
     netScale.value = 0.3;
     netY.value = SCREEN_HEIGHT - 200;
