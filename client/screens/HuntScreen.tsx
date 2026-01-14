@@ -510,48 +510,6 @@ export default function HuntScreen() {
           Collect eggs now. Your Roachies will hatch when Phase II launches.
         </ThemedText>
       </Card>
-      {collection.length === 0 ? null : (
-        <View style={styles.collectionGrid}>
-          {collection.map((creature) => (
-            <Card key={creature.id} style={styles.creatureCard}>
-              <View
-                style={[
-                  styles.creatureAvatar,
-                  { backgroundColor: RARITY_COLORS[creature.rarity] + "30" },
-                ]}
-              >
-                <Feather
-                  name="target"
-                  size={24}
-                  color={RARITY_COLORS[creature.rarity]}
-                />
-              </View>
-              <ThemedText style={styles.creatureName}>{creature.name}</ThemedText>
-              <View style={styles.creatureStats}>
-                <ThemedText style={styles.creatureLevel}>Lv.{creature.level}</ThemedText>
-                {creature.isPerfect ? (
-                  <Feather name="star" size={12} color="#FFD700" />
-                ) : null}
-              </View>
-              <View
-                style={[
-                  styles.rarityBadge,
-                  { backgroundColor: RARITY_COLORS[creature.rarity] + "30" },
-                ]}
-              >
-                <ThemedText
-                  style={[
-                    styles.rarityText,
-                    { color: RARITY_COLORS[creature.rarity] },
-                  ]}
-                >
-                  {creature.rarity}
-                </ThemedText>
-              </View>
-            </Card>
-          ))}
-        </View>
-      )}
     </ScrollView>
   );
 
