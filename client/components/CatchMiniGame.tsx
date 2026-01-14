@@ -102,20 +102,22 @@ export function CatchMiniGame({ creature, onCatch, onEggCollected, onEscape }: C
     
     setPhase("caught");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLastResult("COLLECTED!");
     
+    // Quick flash animation then immediately call onEggCollected
+    // Don't show our own result - let HuntScreen show EggCollectedModal with proper rarity
     eggCollectScale.value = withSequence(
-      withTiming(1.3, { duration: 200 }),
-      withTiming(0, { duration: 400 })
+      withTiming(1.3, { duration: 150 }),
+      withTiming(0, { duration: 200 })
     );
     
+    // Immediately call onEggCollected - HuntScreen will show proper modal with rarity
     setTimeout(() => {
       if (onEggCollected) {
         onEggCollected(quality);
       } else {
         onCatch("good");
       }
-    }, 600);
+    }, 350);
   }, [phase, onCatch, onEggCollected]);
 
   const startEggCrackAnimation = useCallback((quality: "perfect" | "great" | "good") => {
