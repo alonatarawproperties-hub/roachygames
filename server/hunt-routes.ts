@@ -1247,9 +1247,10 @@ export function registerHuntRoutes(app: Express) {
 
   // Phase I spawn-based claim - works with wildCreatureSpawns table
   app.post("/api/hunt/phase1/claim-spawn", async (req: Request, res: Response) => {
+    console.log(`[Phase1 Claim] ROUTE HIT - body:`, JSON.stringify(req.body));
     try {
       const { walletAddress, spawnId, lat, lon, quality } = req.body;
-      console.log(`[Phase1 Claim] Request: wallet=${walletAddress}, spawn=${spawnId}, quality=${quality}`);
+      console.log(`[Phase1 Claim] Parsed: wallet=${walletAddress}, spawn=${spawnId}, quality=${quality}`);
       
       if (!walletAddress || !spawnId || lat === undefined || lon === undefined || !quality) {
         console.log(`[Phase1 Claim] Missing fields: wallet=${!!walletAddress}, spawn=${!!spawnId}, lat=${lat !== undefined}, lon=${lon !== undefined}, quality=${!!quality}`);
@@ -1418,9 +1419,11 @@ export function registerHuntRoutes(app: Express) {
         hunterLevel: newHunterLevel,
         hunterXp: newHunterXp,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Phase1 spawn claim error:", error);
-      res.status(500).json({ error: "Failed to claim spawn" });
+      // v15: Return actual error message for debugging
+      const errorMessage = error?.message || String(error) || "Unknown server error";
+      res.status(500).json({ error: `Server error: ${errorMessage}` });
     }
   });
 
