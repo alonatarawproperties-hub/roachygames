@@ -354,7 +354,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                 style={styles.actionCapsule}
               >
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur} pointerEvents="none">
-                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v3 - TAP HERE</ThemedText>
+                  <ThemedText style={[styles.instructionSmall, { color: "#00FF00" }]}>v5 - LOCATION FIX</ThemedText>
                   
                   <Animated.View style={pulseAnimatedStyle} pointerEvents="none">
                     <LinearGradient
