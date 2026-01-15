@@ -42,14 +42,14 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
 
 const RARITY_COLORS: Record<string, string> = {
-  common: "#A0A0A0",
+  common: "#6B7B8A",
   rare: "#3A86FF",
   epic: "#9D4EDD",
   legendary: "#FFD700",
 };
 
 const RARITY_GLOWS: Record<string, { color: string; opacity: number; radius: number }> = {
-  common: { color: "#A0A0A0", opacity: 0.3, radius: 8 },
+  common: { color: "#FFFFFF", opacity: 0.35, radius: 10 },
   rare: { color: "#3A86FF", opacity: 0.5, radius: 12 },
   epic: { color: "#9D4EDD", opacity: 0.6, radius: 16 },
   legendary: { color: "#FFD700", opacity: 0.8, radius: 20 },
@@ -58,6 +58,7 @@ const RARITY_GLOWS: Record<string, { color: string; opacity: number; radius: num
 const EggIcon = ({ rarity, size = 40 }: { rarity: string; size?: number }) => {
   const color = RARITY_COLORS[rarity] || RARITY_COLORS.common;
   const glow = RARITY_GLOWS[rarity] || RARITY_GLOWS.common;
+  const isCommon = rarity === 'common';
   
   return (
     <View style={{
@@ -74,39 +75,63 @@ const EggIcon = ({ rarity, size = 40 }: { rarity: string; size?: number }) => {
         width: size * 0.85,
         height: size * 1.1,
         borderRadius: size * 0.425,
-        backgroundColor: color + "30",
+        backgroundColor: isCommon ? '#4A5568' : color + "30",
         borderWidth: 2,
-        borderColor: color,
+        borderColor: isCommon ? '#7B8794' : color,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
       }}>
         <View style={{
           position: 'absolute',
-          top: '15%',
-          left: '20%',
-          width: size * 0.2,
-          height: size * 0.15,
-          borderRadius: size * 0.1,
-          backgroundColor: 'rgba(255,255,255,0.4)',
-          transform: [{ rotate: '-30deg' }],
+          top: '12%',
+          left: '18%',
+          width: size * 0.25,
+          height: size * 0.2,
+          borderRadius: size * 0.125,
+          backgroundColor: isCommon ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.4)',
+          transform: [{ rotate: '-25deg' }],
         }} />
         <View style={{
           position: 'absolute',
-          bottom: '35%',
-          width: '100%',
-          height: 2,
-          backgroundColor: color + "60",
+          top: '22%',
+          left: '35%',
+          width: size * 0.12,
+          height: size * 0.1,
+          borderRadius: size * 0.06,
+          backgroundColor: isCommon ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)',
         }} />
-        <View style={{
-          position: 'absolute',
-          bottom: '25%',
-          left: '30%',
-          width: '40%',
-          height: 2,
-          backgroundColor: color + "40",
-          borderRadius: 1,
-        }} />
+        {!isCommon && (
+          <>
+            <View style={{
+              position: 'absolute',
+              bottom: '35%',
+              width: '100%',
+              height: 2,
+              backgroundColor: color + "60",
+            }} />
+            <View style={{
+              position: 'absolute',
+              bottom: '25%',
+              left: '30%',
+              width: '40%',
+              height: 2,
+              backgroundColor: color + "40",
+              borderRadius: 1,
+            }} />
+          </>
+        )}
+        {isCommon && (
+          <View style={{
+            position: 'absolute',
+            bottom: '15%',
+            left: '25%',
+            width: size * 0.08,
+            height: size * 0.06,
+            borderRadius: size * 0.04,
+            backgroundColor: 'rgba(255,255,255,0.3)',
+          }} />
+        )}
       </View>
     </View>
   );
