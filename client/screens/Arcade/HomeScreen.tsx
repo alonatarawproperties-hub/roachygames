@@ -422,18 +422,49 @@ function TokenBalanceCardWithWebapp() {
   const { user, isGuest, logout, updateUserData } = useAuth();
   const { diamonds, chy, isLoading, refetch } = useWebappBalances();
   const [isSyncing, setIsSyncing] = useState(false);
-  const hasAutoRefreshed = React.useRef(false);
+  const hasAutoSynced = React.useRef(false);
 
-  // Auto-refresh balance once after 2 seconds for Google users landing on home
+  // Auto-sync balance once after 2 seconds for Google users landing on home
+  // This does a full OAuth exchange to ensure webappUserId is correct
   useEffect(() => {
-    if (!hasAutoRefreshed.current && user?.googleId && !isGuest) {
-      const timer = setTimeout(() => {
-        hasAutoRefreshed.current = true;
-        refetch();
+    if (!hasAutoSynced.current && user?.googleId && user?.email && !isGuest) {
+      const timer = setTimeout(async () => {
+        hasAutoSynced.current = true;
+        console.log("[Balance] Auto-syncing for Google user:", user.email);
+        
+        try {
+          const secret = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+          const response = await fetch("https://roachy.games/api/web/oauth/exchange", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(secret ? { "x-api-secret": secret } : {}),
+            },
+            body: JSON.stringify({
+              googleId: user.googleId,
+              email: user.email,
+              displayName: user.displayName || (user.email ? user.email.split("@")[0] : "User"),
+            }),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            const webappId = result.user?.id;
+            if (webappId && webappId !== user.webappUserId) {
+              console.log("[Balance] Updating webappUserId:", webappId);
+              await updateUserData({ webappUserId: webappId });
+            }
+          }
+          
+          await refetch();
+        } catch (err) {
+          console.warn("[Balance] Auto-sync error:", err);
+          await refetch();
+        }
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [user?.googleId, isGuest, refetch]);
+  }, [user?.googleId, user?.email, isGuest, refetch, updateUserData]);
 
   const handleGuestSignIn = () => {
     Alert.alert(
