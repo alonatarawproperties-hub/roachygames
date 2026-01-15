@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Pressable, Modal, Dimensions, Image } from "react-native";
+import { View, StyleSheet, Pressable, Modal, Dimensions, Image, ScrollView } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -227,6 +227,9 @@ export function EggCollectedModal({
     onGoToEggs();
   };
 
+  const isSmallScreen = SCREEN_HEIGHT < 700;
+  const eggSize = isSmallScreen ? { width: 140, height: 170 } : { width: 180, height: 220 };
+
   return (
     <Modal visible={visible} transparent={false} animationType="fade">
       <View style={styles.container}>
@@ -235,137 +238,148 @@ export function EggCollectedModal({
           style={StyleSheet.absoluteFill}
         />
 
-        <Animated.View style={[styles.burstContainer, burstStyle]}>
-          <View style={[styles.burst, { backgroundColor: config.glow }]} />
-        </Animated.View>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent, 
+            { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.xl }
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.eggSection}>
+            <Animated.View style={[styles.burstContainer, burstStyle]}>
+              <View style={[styles.burst, { backgroundColor: config.glow }]} />
+            </Animated.View>
 
-        <Animated.View style={[styles.glowContainer, glowStyle]}>
-          <View style={[styles.glowOuter, { backgroundColor: config.glow }]} />
-          <View style={[styles.glowInner, { backgroundColor: config.primary + "40" }]} />
-        </Animated.View>
+            <Animated.View style={[styles.glowContainer, glowStyle]}>
+              <View style={[styles.glowOuter, { backgroundColor: config.glow }]} />
+              <View style={[styles.glowInner, { backgroundColor: config.primary + "40" }]} />
+            </Animated.View>
 
-        <View style={[styles.particleContainer]}>
-          {Array.from({ length: config.particles }).map((_, i) => {
-            const angle = (360 / config.particles) * i;
-            const distance = 120 + Math.random() * 40;
-            return (
-              <Animated.View
-                key={i}
-                entering={FadeIn.delay(1200 + i * 50).duration(500)}
-                style={[
-                  styles.particle,
-                  {
-                    backgroundColor: config.primary,
-                    transform: [
-                      { rotate: `${angle}deg` },
-                      { translateY: -distance },
-                    ],
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-
-        <Animated.View style={[styles.eggWrapper, eggStyle]}>
-          <Image 
-            source={EGG_IMAGES[eggRarity] || EGG_IMAGES.common}
-            style={styles.eggImage}
-            resizeMode="contain"
-          />
-        </Animated.View>
-
-        {showContent && (
-          <Animated.View 
-            entering={FadeInUp.duration(400).springify()}
-            style={styles.contentContainer}
-          >
-            <ThemedText style={styles.caughtText}>You caught a</ThemedText>
-            
-            <View style={[styles.rarityBadge, { 
-              backgroundColor: config.primary + "20",
-              borderColor: config.primary,
-              shadowColor: config.primary,
-            }]}>
-              <ThemedText style={[styles.rarityText, { color: config.primary }]}>
-                {config.label} EGG
-              </ThemedText>
+            <View style={styles.particleContainer}>
+              {Array.from({ length: config.particles }).map((_, i) => {
+                const angle = (360 / config.particles) * i;
+                const distance = isSmallScreen ? 80 : 100;
+                return (
+                  <Animated.View
+                    key={i}
+                    entering={FadeIn.delay(1200 + i * 50).duration(500)}
+                    style={[
+                      styles.particle,
+                      {
+                        backgroundColor: config.primary,
+                        transform: [
+                          { rotate: `${angle}deg` },
+                          { translateY: -distance },
+                        ],
+                      },
+                    ]}
+                  />
+                );
+              })}
             </View>
 
-            {quality === "perfect" && (
-              <Animated.View 
-                entering={FadeIn.delay(200).duration(300)}
-                style={styles.perfectBanner}
-              >
-                <Feather name="star" size={16} color="#FFD700" />
-                <ThemedText style={styles.perfectText}>PERFECT CATCH!</ThemedText>
-                <Feather name="star" size={16} color="#FFD700" />
-              </Animated.View>
-            )}
-
-            <Animated.View 
-              entering={FadeInUp.delay(300).duration(400)}
-              style={styles.rewardsCard}
-            >
-              <BlurView intensity={20} tint="dark" style={styles.rewardsBlur}>
-                <View style={styles.rewardsRow}>
-                  <View style={styles.rewardItem}>
-                    <View style={[styles.rewardIcon, { backgroundColor: "#F59E0B20" }]}>
-                      <Feather name="zap" size={22} color="#F59E0B" />
-                    </View>
-                    <ThemedText style={styles.rewardValue}>+{xpAwarded}</ThemedText>
-                    <ThemedText style={styles.rewardLabel}>XP</ThemedText>
-                  </View>
-                  
-                  <View style={styles.rewardDivider} />
-                  
-                  <View style={styles.rewardItem}>
-                    <View style={[styles.rewardIcon, { backgroundColor: "#3B82F620" }]}>
-                      <Feather name="award" size={22} color="#3B82F6" />
-                    </View>
-                    <ThemedText style={styles.rewardValue}>+{pointsAwarded}</ThemedText>
-                    <ThemedText style={styles.rewardLabel}>Points</ThemedText>
-                  </View>
-                </View>
-              </BlurView>
+            <Animated.View style={[styles.eggWrapper, eggStyle]}>
+              <Image 
+                source={EGG_IMAGES[eggRarity] || EGG_IMAGES.common}
+                style={[styles.eggImage, eggSize]}
+                resizeMode="contain"
+              />
             </Animated.View>
+          </View>
 
+          {showContent && (
             <Animated.View 
-              entering={FadeInUp.delay(500).duration(400)}
-              style={styles.pityCard}
+              entering={FadeInUp.duration(400).springify()}
+              style={styles.contentContainer}
             >
-              <ThemedText style={styles.pityTitle}>Next Guaranteed Drop</ThemedText>
-              <View style={styles.pityRow}>
-                <View style={styles.pityItem}>
-                  <ThemedText style={[styles.pityCount, { color: "#60A5FA" }]}>
-                    {pity.rareIn}
-                  </ThemedText>
-                  <ThemedText style={[styles.pityLabel, { color: "#60A5FA" }]}>Rare</ThemedText>
-                </View>
-                <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
-                <View style={styles.pityItem}>
-                  <ThemedText style={[styles.pityCount, { color: "#C084FC" }]}>
-                    {pity.epicIn}
-                  </ThemedText>
-                  <ThemedText style={[styles.pityLabel, { color: "#C084FC" }]}>Epic</ThemedText>
-                </View>
-                <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
-                <View style={styles.pityItem}>
-                  <ThemedText style={[styles.pityCount, { color: "#FCD34D" }]}>
-                    {pity.legendaryIn}
-                  </ThemedText>
-                  <ThemedText style={[styles.pityLabel, { color: "#FCD34D" }]}>Legendary</ThemedText>
-                </View>
+              <ThemedText style={styles.caughtText}>You caught a</ThemedText>
+              
+              <View style={[styles.rarityBadge, { 
+                backgroundColor: config.primary + "20",
+                borderColor: config.primary,
+                shadowColor: config.primary,
+              }]}>
+                <ThemedText style={[styles.rarityText, { color: config.primary }]}>
+                  {config.label} EGG
+                </ThemedText>
               </View>
-            </Animated.View>
-          </Animated.View>
-        )}
 
-        {showContent && (
-          <Animated.View 
-            entering={FadeInUp.delay(700).duration(400)}
-            style={[styles.buttonContainer, { paddingBottom: insets.bottom + Spacing.lg }]}
-          >
+              {quality === "perfect" && (
+                <Animated.View 
+                  entering={FadeIn.delay(200).duration(300)}
+                  style={styles.perfectBanner}
+                >
+                  <Feather name="star" size={14} color="#FFD700" />
+                  <ThemedText style={styles.perfectText}>PERFECT CATCH!</ThemedText>
+                  <Feather name="star" size={14} color="#FFD700" />
+                </Animated.View>
+              )}
+
+              <Animated.View 
+                entering={FadeInUp.delay(300).duration(400)}
+                style={styles.rewardsCard}
+              >
+                <BlurView intensity={20} tint="dark" style={styles.rewardsBlur}>
+                  <View style={styles.rewardsRow}>
+                    <View style={styles.rewardItem}>
+                      <View style={[styles.rewardIcon, { backgroundColor: "#F59E0B20" }]}>
+                        <Feather name="zap" size={20} color="#F59E0B" />
+                      </View>
+                      <ThemedText style={styles.rewardValue}>+{xpAwarded}</ThemedText>
+                      <ThemedText style={styles.rewardLabel}>XP</ThemedText>
+                    </View>
+                    
+                    <View style={styles.rewardDivider} />
+                    
+                    <View style={styles.rewardItem}>
+                      <View style={[styles.rewardIcon, { backgroundColor: "#3B82F620" }]}>
+                        <Feather name="award" size={20} color="#3B82F6" />
+                      </View>
+                      <ThemedText style={styles.rewardValue}>+{pointsAwarded}</ThemedText>
+                      <ThemedText style={styles.rewardLabel}>Points</ThemedText>
+                    </View>
+                  </View>
+                </BlurView>
+              </Animated.View>
+
+              <Animated.View 
+                entering={FadeInUp.delay(500).duration(400)}
+                style={styles.pityCard}
+              >
+                <ThemedText style={styles.pityTitle}>Next Guaranteed Drop</ThemedText>
+                <View style={styles.pityRow}>
+                  <View style={styles.pityItem}>
+                    <ThemedText style={[styles.pityCount, { color: "#60A5FA" }]}>
+                      {pity.rareIn}
+                    </ThemedText>
+                    <ThemedText style={[styles.pityLabel, { color: "#60A5FA" }]}>Rare</ThemedText>
+                  </View>
+                  <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
+                  <View style={styles.pityItem}>
+                    <ThemedText style={[styles.pityCount, { color: "#C084FC" }]}>
+                      {pity.epicIn}
+                    </ThemedText>
+                    <ThemedText style={[styles.pityLabel, { color: "#C084FC" }]}>Epic</ThemedText>
+                  </View>
+                  <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
+                  <View style={styles.pityItem}>
+                    <ThemedText style={[styles.pityCount, { color: "#FCD34D" }]}>
+                      {pity.legendaryIn}
+                    </ThemedText>
+                    <ThemedText style={[styles.pityLabel, { color: "#FCD34D" }]}>Legendary</ThemedText>
+                  </View>
+                </View>
+              </Animated.View>
+            </Animated.View>
+          )}
+
+          {showContent && (
+            <Animated.View 
+              entering={FadeInUp.delay(700).duration(400)}
+              style={styles.buttonContainer}
+            >
             <Pressable 
               style={styles.primaryButton}
               onPress={handleContinue}
@@ -390,8 +404,9 @@ export function EggCollectedModal({
                 View Eggs
               </ThemedText>
             </Pressable>
-          </Animated.View>
-        )}
+            </Animated.View>
+          )}
+        </ScrollView>
 
         <Pressable 
           style={[styles.closeButton, { top: insets.top + Spacing.sm }]}
@@ -409,12 +424,23 @@ export function EggCollectedModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: "center",
+  },
+  eggSection: {
+    height: SCREEN_HEIGHT * 0.38,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
   },
   burstContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.24,
     alignSelf: "center",
   },
   burst: {
@@ -424,7 +450,6 @@ const styles = StyleSheet.create({
   },
   glowContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.20,
     alignSelf: "center",
     alignItems: "center",
     justifyContent: "center",
@@ -442,7 +467,6 @@ const styles = StyleSheet.create({
   },
   particleContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.26,
     alignSelf: "center",
     width: 10,
     height: 10,
@@ -456,26 +480,20 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   eggWrapper: {
-    position: "absolute",
-    top: SCREEN_HEIGHT * 0.16,
-    alignSelf: "center",
     alignItems: "center",
     justifyContent: "center",
   },
   eggImage: {
-    width: 180,
-    height: 220,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 15 },
     shadowOpacity: 0.6,
     shadowRadius: 25,
   },
   contentContainer: {
-    position: "absolute",
-    top: SCREEN_HEIGHT * 0.46,
     alignItems: "center",
     width: "100%",
     paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
   },
   caughtText: {
     fontSize: 18,
@@ -599,11 +617,11 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   buttonContainer: {
-    position: "absolute",
-    bottom: 0,
     width: "100%",
     paddingHorizontal: Spacing.xl,
     gap: Spacing.md,
+    marginTop: Spacing.xl,
+    paddingBottom: Spacing.md,
   },
   primaryButton: {
     borderRadius: BorderRadius.lg,
