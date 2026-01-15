@@ -1102,7 +1102,9 @@ export function registerHuntRoutes(app: Express) {
       const currentStreak = isNewDay 
         ? (economy.lastCatchDate === manilaYesterday ? economy.currentStreak + 1 : 1)
         : economy.currentStreak;
-      const dailyCap = computeDailyCap(currentStreak);
+      
+      const currentLevel = computeLevelFromXp(economy.hunterXp || 0).level;
+      const dailyCap = computeDailyCap(currentStreak, currentLevel);
       
       if (huntsToday >= dailyCap) {
         return res.status(400).json({ error: "Daily hunt limit reached" });
@@ -1347,7 +1349,9 @@ export function registerHuntRoutes(app: Express) {
       if (isNewDay) {
         newStreak = economy.lastCatchDate === manilaYest ? economy.currentStreak + 1 : 1;
       }
-      const dailyCap = computeDailyCap(newStreak);
+      
+      const currentLevel = computeLevelFromXp(economy.hunterXp || 0).level;
+      const dailyCap = computeDailyCap(newStreak, currentLevel);
       
       if (huntsToday >= dailyCap) {
         return res.status(400).json({ error: "Daily hunt limit reached" });

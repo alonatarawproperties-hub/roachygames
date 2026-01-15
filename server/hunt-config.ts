@@ -240,7 +240,13 @@ export function getStreakXpMult(streak: number): number {
   return 1.0;
 }
 
-export function computeDailyCap(streak: number): number {
+export function computeDailyCap(streak: number, level: number = 1): number {
+  const levelBaseCap = getDailyCapForLevel(level);
+  const streakBonus = getStreakCapBonus(streak);
+  return levelBaseCap + streakBonus;
+}
+
+export function computeDailyCapLegacy(streak: number): number {
   return HUNT_CONFIG.DAILY_HUNT_CAP + getStreakCapBonus(streak);
 }
 
