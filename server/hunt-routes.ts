@@ -24,6 +24,11 @@ import {
   calculateDistance,
   generateDeterministicNodes,
   selectEggRarity,
+  computeLevelFromXp,
+  getStreakXpMult,
+  computeDailyCap,
+  isHeatModeActive,
+  shouldAwardStreakChest,
 } from "./hunt-config";
 
 const RARITY_RATES = {
@@ -1087,7 +1092,13 @@ export function registerHuntRoutes(app: Express) {
       const isNewDay = economy.lastCatchDate !== dayKey;
       const huntsToday = isNewDay ? 0 : economy.catchesToday;
       
-      if (huntsToday >= HUNT_CONFIG.DAILY_HUNT_CAP) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const currentStreak = isNewDay 
+        ? (economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1)
+        : economy.currentStreak;
+      const dailyCap = computeDailyCap(currentStreak);
+      
+      if (huntsToday >= dailyCap) {
         return res.status(400).json({ error: "Daily hunt limit reached" });
       }
 
@@ -1112,13 +1123,14 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ error: `Too far from node. Distance: ${Math.round(distance)}m` });
       }
 
+      const heatModeActive = isHeatModeActive(economy.heatModeUntil);
       const pityCounters = {
         sinceRare: economy.catchesSinceRare + 1,
         sinceEpic: economy.catchesSinceEpic + 1,
         sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
       };
 
-      const eggRarity = selectEggRarity(pityCounters);
+      const eggRarity = selectEggRarity(pityCounters, heatModeActive);
       
       const xpAwarded = HUNT_CONFIG.XP_REWARDS[quality] || 30;
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
@@ -1151,13 +1163,31 @@ export function registerHuntRoutes(app: Express) {
         newSinceRare = 0;
       }
 
-      const newHunterXp = (economy.hunterXp || 0) + xpAwarded;
-      const newHunterLevel = Math.floor(newHunterXp / HUNT_CONFIG.XP_PER_LEVEL) + 1;
-
       let newStreak = economy.currentStreak;
       if (isNewDay) {
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
         newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+      }
+
+      const streakXpMult = getStreakXpMult(newStreak);
+      const xpBase = HUNT_CONFIG.XP_REWARDS[quality] || 30;
+      const isFirstCatchToday = isNewDay || huntsToday === 0;
+      const firstCatchBonus = isFirstCatchToday ? HUNT_CONFIG.FIRST_CATCH_BONUS_XP : 0;
+      const xpFinal = Math.round((xpBase + firstCatchBonus) * streakXpMult);
+      
+      const newHunterXp = (economy.hunterXp || 0) + xpFinal;
+      const levelInfo = computeLevelFromXp(newHunterXp);
+      const newHunterLevel = levelInfo.level;
+
+      let warmthBonus = 0;
+      if (isPerfect) {
+        warmthBonus = HUNT_CONFIG.WARMTH.PERFECT_CATCH_BONUS_WARMTH;
+      }
+
+      let streakChestReward = { warmth: 0, xp: 0 };
+      const lastChestDay = economy.lastStreakChestDay || 0;
+      if (newStreak > lastChestDay && shouldAwardStreakChest(newStreak)) {
+        streakChestReward = HUNT_CONFIG.STREAK.CHEST_REWARD;
       }
 
       const eggField = `egg${eggRarity.charAt(0).toUpperCase() + eggRarity.slice(1)}` as 
@@ -1166,6 +1196,11 @@ export function registerHuntRoutes(app: Express) {
 
       const currentWeekKey = economy.currentWeekKey;
       const isNewWeek = currentWeekKey !== weekKey;
+
+      const totalXpGain = xpFinal + streakChestReward.xp;
+      const totalWarmthGain = warmthBonus + streakChestReward.warmth;
+      const finalHunterXp = (economy.hunterXp || 0) + totalXpGain;
+      const finalLevelInfo = computeLevelFromXp(finalHunterXp);
 
       await db.update(huntEconomyStats)
         .set({
@@ -1176,10 +1211,12 @@ export function registerHuntRoutes(app: Express) {
           catchesSinceEpic: newSinceEpic,
           catchesSinceLegendary: newSinceLegendary,
           [eggField]: currentEggCount + 1,
-          hunterXp: newHunterXp,
-          hunterLevel: newHunterLevel,
+          hunterXp: finalHunterXp,
+          hunterLevel: finalLevelInfo.level,
+          warmth: (economy.warmth || 0) + totalWarmthGain,
           currentStreak: newStreak,
           longestStreak: Math.max(newStreak, economy.longestStreak),
+          lastStreakChestDay: streakChestReward.warmth > 0 ? newStreak : (economy.lastStreakChestDay || 0),
           pointsThisWeek: isNewWeek ? pointsAwarded : (economy.pointsThisWeek || 0) + pointsAwarded,
           perfectsThisWeek: isNewWeek ? (isPerfect ? 1 : 0) : (economy.perfectsThisWeek || 0) + (isPerfect ? 1 : 0),
           currentWeekKey: weekKey,
@@ -1217,12 +1254,16 @@ export function registerHuntRoutes(app: Express) {
       res.json({
         success: true,
         eggRarity,
-        xpAwarded,
+        xpAwarded: totalXpGain,
         pointsAwarded,
         quality,
         huntsToday: huntsToday + 1,
-        dailyCap: HUNT_CONFIG.DAILY_HUNT_CAP,
+        dailyCap,
         streakCount: newStreak,
+        streakXpMult,
+        firstCatchBonus: isFirstCatchToday ? firstCatchBonus : 0,
+        streakChestAwarded: streakChestReward.warmth > 0,
+        heatModeActive,
         eggs: {
           common: eggRarity === 'common' ? currentEggCount + 1 : (economy.eggCommon || 0),
           rare: eggRarity === 'rare' ? currentEggCount + 1 : (economy.eggRare || 0),
@@ -1234,9 +1275,9 @@ export function registerHuntRoutes(app: Express) {
           epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
           legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
         },
-        warmth: economy.warmth || 0,
-        hunterLevel: newHunterLevel,
-        hunterXp: newHunterXp,
+        warmth: (economy.warmth || 0) + totalWarmthGain,
+        hunterLevel: finalLevelInfo.level,
+        hunterXp: finalHunterXp,
         recentDrops: recentClaims.map(c => c.eggRarity),
       });
     } catch (error) {
@@ -1293,26 +1334,30 @@ export function registerHuntRoutes(app: Express) {
       const isNewDay = economy.lastCatchDate !== dayKey;
       const huntsToday = isNewDay ? 0 : economy.catchesToday;
       
-      if (huntsToday >= HUNT_CONFIG.DAILY_HUNT_CAP) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      let newStreak = economy.currentStreak;
+      if (isNewDay) {
+        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+      }
+      const dailyCap = computeDailyCap(newStreak);
+      
+      if (huntsToday >= dailyCap) {
         return res.status(400).json({ error: "Daily hunt limit reached" });
       }
 
-      // Use spawn's rarity or select based on pity
+      const heatModeActive = isHeatModeActive(economy.heatModeUntil);
       const pityCounters = {
         sinceRare: economy.catchesSinceRare + 1,
         sinceEpic: economy.catchesSinceEpic + 1,
         sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
       };
 
-      // Normalize rarity - "uncommon" becomes "common" for egg inventory
-      let rawRarity = spawn.rarity || selectEggRarity(pityCounters);
+      let rawRarity = spawn.rarity || selectEggRarity(pityCounters, heatModeActive);
       const eggRarity = rawRarity === 'uncommon' ? 'common' : rawRarity;
       
-      const xpAwarded = HUNT_CONFIG.XP_REWARDS[quality] || 30;
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
       const isPerfect = quality === 'perfect';
 
-      // Mark spawn as caught
       await db.update(wildCreatureSpawns)
         .set({
           caughtByWallet: walletAddress,
@@ -1321,7 +1366,6 @@ export function registerHuntRoutes(app: Express) {
         })
         .where(eq(wildCreatureSpawns.id, spawnId));
 
-      // Update pity counters
       let newSinceRare = pityCounters.sinceRare;
       let newSinceEpic = pityCounters.sinceEpic;
       let newSinceLegendary = pityCounters.sinceLegendary;
@@ -1337,22 +1381,34 @@ export function registerHuntRoutes(app: Express) {
         newSinceRare = 0;
       }
 
-      const newHunterXp = (economy.hunterXp || 0) + xpAwarded;
-      const newHunterLevel = Math.floor(newHunterXp / HUNT_CONFIG.XP_PER_LEVEL) + 1;
+      const streakXpMult = getStreakXpMult(newStreak);
+      const xpBase = HUNT_CONFIG.XP_REWARDS[quality] || 30;
+      const isFirstCatchToday = isNewDay || huntsToday === 0;
+      const firstCatchBonus = isFirstCatchToday ? HUNT_CONFIG.FIRST_CATCH_BONUS_XP : 0;
+      const xpFinal = Math.round((xpBase + firstCatchBonus) * streakXpMult);
 
-      let newStreak = economy.currentStreak;
-      if (isNewDay) {
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+      let warmthBonus = 0;
+      if (isPerfect) {
+        warmthBonus = HUNT_CONFIG.WARMTH.PERFECT_CATCH_BONUS_WARMTH;
       }
 
-      // Update egg inventory
+      let streakChestReward = { warmth: 0, xp: 0 };
+      const lastChestDay = economy.lastStreakChestDay || 0;
+      if (newStreak > lastChestDay && shouldAwardStreakChest(newStreak)) {
+        streakChestReward = HUNT_CONFIG.STREAK.CHEST_REWARD;
+      }
+
       const eggField = `egg${eggRarity.charAt(0).toUpperCase() + eggRarity.slice(1)}` as 
         'eggCommon' | 'eggRare' | 'eggEpic' | 'eggLegendary';
       const currentEggCount = economy[eggField] || 0;
 
       const currentWeekKey = economy.currentWeekKey;
       const isNewWeek = currentWeekKey !== weekKey;
+
+      const totalXpGain = xpFinal + streakChestReward.xp;
+      const totalWarmthGain = warmthBonus + streakChestReward.warmth;
+      const finalHunterXp = (economy.hunterXp || 0) + totalXpGain;
+      const finalLevelInfo = computeLevelFromXp(finalHunterXp);
 
       await db.update(huntEconomyStats)
         .set({
@@ -1363,10 +1419,12 @@ export function registerHuntRoutes(app: Express) {
           catchesSinceEpic: newSinceEpic,
           catchesSinceLegendary: newSinceLegendary,
           [eggField]: currentEggCount + 1,
-          hunterXp: newHunterXp,
-          hunterLevel: newHunterLevel,
+          hunterXp: finalHunterXp,
+          hunterLevel: finalLevelInfo.level,
+          warmth: (economy.warmth || 0) + totalWarmthGain,
           currentStreak: newStreak,
           longestStreak: Math.max(newStreak, economy.longestStreak),
+          lastStreakChestDay: streakChestReward.warmth > 0 ? newStreak : (economy.lastStreakChestDay || 0),
           pointsThisWeek: isNewWeek ? pointsAwarded : (economy.pointsThisWeek || 0) + pointsAwarded,
           perfectsThisWeek: isNewWeek ? (isPerfect ? 1 : 0) : (economy.perfectsThisWeek || 0) + (isPerfect ? 1 : 0),
           currentWeekKey: weekKey,
@@ -1393,17 +1451,21 @@ export function registerHuntRoutes(app: Express) {
           },
         });
 
-      console.log(`[Phase1] ${walletAddress} claimed spawn ${spawnId}: ${eggRarity} egg, +${xpAwarded}XP, +${pointsAwarded}pts`);
+      console.log(`[Phase1] ${walletAddress} claimed spawn ${spawnId}: ${eggRarity} egg, +${xpFinal}XP, +${pointsAwarded}pts`);
 
       res.json({
         success: true,
         eggRarity,
-        xpAwarded,
+        xpAwarded: xpFinal,
         pointsAwarded,
         quality,
         huntsToday: huntsToday + 1,
-        dailyCap: HUNT_CONFIG.DAILY_HUNT_CAP,
+        dailyCap,
         streakCount: newStreak,
+        streakXpMult,
+        firstCatchBonus: isFirstCatchToday ? firstCatchBonus : 0,
+        streakChestAwarded: streakChestReward.warmth > 0,
+        heatModeActive,
         eggs: {
           common: eggRarity === 'common' ? currentEggCount + 1 : (economy.eggCommon || 0),
           rare: eggRarity === 'rare' ? currentEggCount + 1 : (economy.eggRare || 0),
@@ -1415,9 +1477,9 @@ export function registerHuntRoutes(app: Express) {
           epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
           legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
         },
-        warmth: economy.warmth || 0,
-        hunterLevel: newHunterLevel,
-        hunterXp: newHunterXp,
+        warmth: (economy.warmth || 0) + totalWarmthGain,
+        hunterLevel: finalLevelInfo.level,
+        hunterXp: finalHunterXp,
       });
     } catch (error: any) {
       console.error("Phase1 spawn claim error:", error);
@@ -1479,6 +1541,77 @@ export function registerHuntRoutes(app: Express) {
     } catch (error) {
       console.error("Recycle error:", error);
       res.status(500).json({ error: "Failed to recycle" });
+    }
+  });
+
+  app.post("/api/hunt/warmth/spend", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, action } = req.body;
+      
+      if (!walletAddress || !action) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const validActions = ['tracker_ping', 'second_attempt', 'heat_mode'];
+      if (!validActions.includes(action)) {
+        return res.status(400).json({ error: "Invalid action. Must be: tracker_ping, second_attempt, or heat_mode" });
+      }
+
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+
+      if (!economy) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const costs: Record<string, number> = {
+        tracker_ping: HUNT_CONFIG.WARMTH.SPEND.TRACKER_PING,
+        second_attempt: HUNT_CONFIG.WARMTH.SPEND.SECOND_ATTEMPT,
+        heat_mode: HUNT_CONFIG.WARMTH.SPEND.HEAT_MODE,
+      };
+
+      const cost = costs[action];
+      const currentWarmth = economy.warmth || 0;
+
+      if (currentWarmth < cost) {
+        return res.status(400).json({ error: `Not enough warmth. Need ${cost}, have ${currentWarmth}` });
+      }
+
+      let updateData: any = {
+        warmth: currentWarmth - cost,
+        updatedAt: new Date(),
+      };
+
+      let effectDetails: any = { action, cost };
+
+      if (action === 'heat_mode') {
+        const heatModeUntil = new Date(Date.now() + HUNT_CONFIG.WARMTH.HEAT_MODE_MINUTES * 60 * 1000);
+        updateData.heatModeUntil = heatModeUntil;
+        effectDetails.heatModeUntil = heatModeUntil.toISOString();
+        effectDetails.durationMinutes = HUNT_CONFIG.WARMTH.HEAT_MODE_MINUTES;
+      }
+
+      await db.update(huntEconomyStats)
+        .set(updateData)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await db.insert(huntActivityLog).values({
+        walletAddress,
+        activityType: 'warmth_spend',
+        details: JSON.stringify(effectDetails),
+      });
+
+      res.json({
+        success: true,
+        action,
+        warmthSpent: cost,
+        newWarmth: currentWarmth - cost,
+        ...effectDetails,
+      });
+    } catch (error) {
+      console.error("Warmth spend error:", error);
+      res.status(500).json({ error: "Failed to spend warmth" });
     }
   });
 
@@ -1609,12 +1742,21 @@ export function registerHuntRoutes(app: Express) {
         .orderBy(desc(huntClaims.createdAt))
         .limit(5);
 
+      const currentStreak = economy.currentStreak || 0;
+      const dailyCap = computeDailyCap(currentStreak);
+      const streakXpMult = getStreakXpMult(currentStreak);
+      const heatModeActive = isHeatModeActive(economy.heatModeUntil);
+      const heatModeUntil = economy.heatModeUntil ? new Date(economy.heatModeUntil).toISOString() : null;
+      
       res.json({
         walletAddress,
         huntsToday: isNewDay ? 0 : economy.catchesToday,
-        dailyCap: HUNT_CONFIG.DAILY_HUNT_CAP,
-        streakCount: economy.currentStreak,
+        dailyCap,
+        streakCount: currentStreak,
         longestStreak: economy.longestStreak,
+        streakXpMult,
+        heatModeActive,
+        heatModeUntil,
         eggs: {
           common: economy.eggCommon || 0,
           rare: economy.eggRare || 0,

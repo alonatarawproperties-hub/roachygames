@@ -166,6 +166,8 @@ export const huntEconomyStats = pgTable("hunt_economy_stats", {
   pointsThisWeek: integer("points_this_week").notNull().default(0),
   perfectsThisWeek: integer("perfects_this_week").notNull().default(0),
   currentWeekKey: text("current_week_key"),
+  heatModeUntil: timestamp("heat_mode_until"),
+  lastStreakChestDay: integer("last_streak_chest_day").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
