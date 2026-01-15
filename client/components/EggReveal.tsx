@@ -43,9 +43,9 @@ interface EggRevealProps {
 
 const RARITY_COLORS: Record<string, { primary: string; secondary: string; glow: string }> = {
   common: {
-    primary: "#9CA3AF",
-    secondary: "#6B7280",
-    glow: "rgba(156, 163, 175, 0.5)",
+    primary: "#6B7B8A",
+    secondary: "#4A5568",
+    glow: "rgba(255, 255, 255, 0.4)",
   },
   rare: {
     primary: "#3B82F6",
@@ -223,19 +223,30 @@ export function EggReveal({ creature, catchQuality, onComplete }: EggRevealProps
             style={[
               styles.egg,
               {
-                backgroundColor: colors.primary,
-                shadowColor: colors.glow,
+                backgroundColor: creature.rarity === "common" ? colors.secondary : colors.primary,
+                shadowColor: creature.rarity === "common" ? "#FFFFFF" : colors.glow,
+                borderWidth: creature.rarity === "common" ? 2 : 0,
+                borderColor: creature.rarity === "common" ? "#7B8794" : "transparent",
               },
             ]}
           >
-            <View style={styles.eggHighlight} />
+            <View style={[
+              styles.eggHighlight,
+              creature.rarity === "common" && styles.eggHighlightCommon
+            ]} />
+            {creature.rarity === "common" && (
+              <View style={styles.eggHighlightSecondary} />
+            )}
+            {creature.rarity === "common" && (
+              <View style={styles.eggHighlightTertiary} />
+            )}
             {phase === "crack" && (
               <View style={styles.crackContainer}>
                 <View style={styles.crack} />
               </View>
             )}
           </View>
-          <ThemedText style={[styles.rarityLabel, { color: colors.primary }]}>
+          <ThemedText style={[styles.rarityLabel, { color: creature.rarity === "common" ? "#9CA3AF" : colors.primary }]}>
             {creature.rarity.toUpperCase()}
           </ThemedText>
         </Animated.View>
@@ -397,6 +408,31 @@ const styles = StyleSheet.create({
     height: 25,
     borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.3)",
+  },
+  eggHighlightCommon: {
+    width: 45,
+    height: 30,
+    top: 18,
+    left: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.55)",
+  },
+  eggHighlightSecondary: {
+    position: "absolute",
+    top: 38,
+    left: 45,
+    width: 22,
+    height: 16,
+    borderRadius: 11,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+  },
+  eggHighlightTertiary: {
+    position: "absolute",
+    bottom: 30,
+    left: 35,
+    width: 12,
+    height: 10,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
   crackContainer: {
     ...StyleSheet.absoluteFillObject,
