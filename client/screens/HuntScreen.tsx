@@ -39,6 +39,7 @@ import { HuntLoadingOverlay } from "@/components/HuntLoadingOverlay";
 import { HuntLeaderboard } from "@/components/hunt/HuntLeaderboard";
 import { EggCollectedModal } from "@/components/hunt/EggCollectedModal";
 import { FusionAnimationModal } from "@/components/hunt/FusionAnimationModal";
+import { LevelProgressSheet } from "@/components/hunt/LevelProgressSheet";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
@@ -154,6 +155,7 @@ export default function HuntScreen() {
   const [selectedRaid, setSelectedRaid] = useState<Raid | null>(null);
   const [activeTab, setActiveTab] = useState<"map" | "collection" | "eggs" | "leaderboard">("map");
   const [mapReady, setMapReady] = useState(false);
+  const [showLevelSheet, setShowLevelSheet] = useState(false);
   const mapRef = useRef<MapViewWrapperRef>(null);
   const loadingFadeAnim = useSharedValue(1);
   const hasAutoSpawned = useRef(false);
@@ -614,10 +616,15 @@ export default function HuntScreen() {
               </View>
             )}
           </View>
-          <View style={styles.levelBadgePremium}>
+          <Pressable 
+            style={styles.levelBadgePremium}
+            onPress={() => setShowLevelSheet(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Feather name="award" size={12} color={GameColors.gold} />
             <ThemedText style={styles.levelTextPremium}>Lv.{hunterLevel}</ThemedText>
-          </View>
+            <Feather name="chevron-right" size={12} color={GameColors.textTertiary} />
+          </Pressable>
         </View>
         
         <View style={styles.statsMainRow}>
