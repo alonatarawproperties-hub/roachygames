@@ -308,10 +308,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
   },
   sheet: {
+    minHeight: SCREEN_HEIGHT * 0.6,
     maxHeight: SCREEN_HEIGHT * 0.85,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: "hidden",
+    backgroundColor: "#0a0908",
   },
   header: {
     flexDirection: "row",
