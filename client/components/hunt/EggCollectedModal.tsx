@@ -44,10 +44,10 @@ const RARITY_CONFIG: Record<string, {
   particles: number;
 }> = {
   common: { 
-    primary: "#9CA3AF", 
-    secondary: "#6B7280",
-    glow: "rgba(156, 163, 175, 0.4)",
-    gradient: ["#D1D5DB", "#9CA3AF", "#6B7280"],
+    primary: "#7B8794", 
+    secondary: "#4A5568",
+    glow: "rgba(255, 255, 255, 0.35)",
+    gradient: ["#8899A6", "#6B7B8A", "#4A5568"],
     label: "COMMON",
     particles: 6,
   },
@@ -248,10 +248,22 @@ export function EggCollectedModal({
             colors={config.gradient}
             start={{ x: 0.3, y: 0 }}
             end={{ x: 0.7, y: 1 }}
-            style={styles.egg}
+            style={[
+              styles.egg, 
+              eggRarity === "common" && styles.eggCommon
+            ]}
           >
-            <View style={styles.eggShine} />
-            <View style={styles.eggShineSmall} />
+            <View style={[
+              styles.eggShine,
+              eggRarity === "common" && styles.eggShineCommon
+            ]} />
+            <View style={[
+              styles.eggShineSmall,
+              eggRarity === "common" && styles.eggShineSmallCommon
+            ]} />
+            {eggRarity === "common" && (
+              <View style={styles.eggShineTertiary} />
+            )}
             <View style={[styles.eggShadow, { backgroundColor: config.secondary + "40" }]} />
           </LinearGradient>
         </Animated.View>
@@ -450,6 +462,12 @@ const styles = StyleSheet.create({
     elevation: 15,
     overflow: "hidden",
   },
+  eggCommon: {
+    borderWidth: 2,
+    borderColor: "#7B8794",
+    shadowColor: "#FFFFFF",
+    shadowOpacity: 0.4,
+  },
   eggShine: {
     position: "absolute",
     top: 20,
@@ -460,6 +478,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.4)",
     transform: [{ rotate: "-20deg" }],
   },
+  eggShineCommon: {
+    width: 45,
+    height: 30,
+    top: 18,
+    left: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.55)",
+  },
   eggShineSmall: {
     position: "absolute",
     top: 50,
@@ -469,6 +494,22 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: "rgba(255, 255, 255, 0.25)",
     transform: [{ rotate: "-20deg" }],
+  },
+  eggShineSmallCommon: {
+    width: 22,
+    height: 15,
+    top: 48,
+    left: 48,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+  },
+  eggShineTertiary: {
+    position: "absolute",
+    bottom: 40,
+    left: 35,
+    width: 12,
+    height: 10,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
   eggShadow: {
     position: "absolute",
