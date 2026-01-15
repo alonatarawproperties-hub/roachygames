@@ -726,9 +726,9 @@ export default function HuntScreen() {
   };
 
   const FUSION_TARGETS: Record<'common' | 'rare' | 'epic', string> = {
-    common: 'Rare',
-    rare: 'Epic',
-    epic: 'Legendary',
+    common: 'rare',
+    rare: 'epic',
+    epic: 'legendary',
   };
 
   const handleRecycle = async () => {
