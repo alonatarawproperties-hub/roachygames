@@ -90,6 +90,11 @@ export async function apiRequest(
 ): Promise<Response> {
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
+  
+  // Debug: Log the API URL being used (helps diagnose production vs dev issues)
+  if (route.includes('/fuse') || route.includes('/hunt')) {
+    console.log(`[API] ${method} ${url.toString()} (base: ${baseUrl})`);
+  }
 
   const headers: Record<string, string> = {};
   
