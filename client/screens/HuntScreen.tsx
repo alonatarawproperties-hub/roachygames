@@ -11,6 +11,7 @@ import {
   AppState,
   AppStateStatus,
   Alert,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -55,14 +56,21 @@ const RARITY_GLOWS: Record<string, { color: string; opacity: number; radius: num
   legendary: { color: "#FFD700", opacity: 0.8, radius: 20 },
 };
 
+const EGG_IMAGES = {
+  common: require('@/assets/hunt/egg-common.png'),
+  rare: require('@/assets/hunt/egg-rare.png'),
+  epic: require('@/assets/hunt/egg-epic.png'),
+  legendary: require('@/assets/hunt/egg-legendary.png'),
+};
+
 const EggIcon = ({ rarity, size = 40 }: { rarity: string; size?: number }) => {
-  const color = RARITY_COLORS[rarity] || RARITY_COLORS.common;
   const glow = RARITY_GLOWS[rarity] || RARITY_GLOWS.common;
+  const imageSource = EGG_IMAGES[rarity as keyof typeof EGG_IMAGES] || EGG_IMAGES.common;
   
   return (
     <View style={{
       width: size,
-      height: size * 1.2,
+      height: size * 1.3,
       justifyContent: 'center',
       alignItems: 'center',
       shadowColor: glow.color,
@@ -70,44 +78,14 @@ const EggIcon = ({ rarity, size = 40 }: { rarity: string; size?: number }) => {
       shadowRadius: glow.radius,
       shadowOffset: { width: 0, height: 0 },
     }}>
-      <View style={{
-        width: size * 0.85,
-        height: size * 1.1,
-        borderRadius: size * 0.425,
-        backgroundColor: color + "30",
-        borderWidth: 2,
-        borderColor: color,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
-      }}>
-        <View style={{
-          position: 'absolute',
-          top: '15%',
-          left: '20%',
-          width: size * 0.2,
-          height: size * 0.15,
-          borderRadius: size * 0.1,
-          backgroundColor: 'rgba(255,255,255,0.4)',
-          transform: [{ rotate: '-30deg' }],
-        }} />
-        <View style={{
-          position: 'absolute',
-          bottom: '35%',
-          width: '100%',
-          height: 2,
-          backgroundColor: color + "60",
-        }} />
-        <View style={{
-          position: 'absolute',
-          bottom: '25%',
-          left: '30%',
-          width: '40%',
-          height: 2,
-          backgroundColor: color + "40",
-          borderRadius: 1,
-        }} />
-      </View>
+      <Image
+        source={imageSource}
+        style={{
+          width: size,
+          height: size * 1.3,
+        }}
+        resizeMode="contain"
+      />
     </View>
   );
 };
