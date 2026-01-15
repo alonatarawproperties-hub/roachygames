@@ -36,8 +36,24 @@ export const HUNT_CONFIG = {
   
   FIRST_CATCH_BONUS_XP: 100,
   
-  LEVEL_XP: [0, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500],
-  LEVEL_AFTER_10_INCREMENT: 1200,
+  LEVEL_XP_THRESHOLDS: [0, 500, 1200, 2200, 3600, 5400, 7600, 10200, 13200, 16600],
+  LEVEL_AFTER_10_INCREMENT: 4500,
+  
+  LEVEL_XP: [0, 500, 700, 1000, 1400, 1800, 2200, 2600, 3000, 3400],
+  
+  LEVEL_DAILY_CAPS: {
+    1: 25, 2: 25, 3: 30, 4: 30, 5: 35, 6: 35, 7: 40, 8: 40, 9: 40, 10: 50
+  } as Record<number, number>,
+  
+  LEVEL_WARMTH_CAPS: {
+    1: 10, 2: 10, 3: 10, 4: 15, 5: 15, 6: 20, 7: 20, 8: 20, 9: 30, 10: 30
+  } as Record<number, number>,
+  
+  LEVEL_UNLOCKS: {
+    trackerPing: 3,
+    secondAttempt: 4,
+    heatMode: 5,
+  } as Record<string, number>,
   
   STREAK: {
     CAP_BONUS: [
@@ -220,34 +236,88 @@ export function computeDailyCap(streak: number): number {
   return HUNT_CONFIG.DAILY_HUNT_CAP + getStreakCapBonus(streak);
 }
 
-export function computeLevelFromXp(totalXp: number): { level: number; xpIntoLevel: number; xpForNext: number } {
-  let cumulativeXp = 0;
+export function computeLevelFromXp(totalXp: number): { 
+  level: number; 
+  xpIntoLevel: number; 
+  xpForNext: number;
+  currentLevelStartXp: number;
+  nextLevelTotalXp: number;
+} {
+  const thresholds = HUNT_CONFIG.LEVEL_XP_THRESHOLDS;
   
-  for (let i = 0; i < HUNT_CONFIG.LEVEL_XP.length; i++) {
-    const xpNeeded = HUNT_CONFIG.LEVEL_XP[i];
-    if (totalXp < cumulativeXp + xpNeeded) {
+  for (let i = 0; i < thresholds.length; i++) {
+    const currentThreshold = thresholds[i];
+    const nextThreshold = i < thresholds.length - 1 
+      ? thresholds[i + 1] 
+      : thresholds[thresholds.length - 1] + HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT;
+    
+    if (totalXp < nextThreshold) {
       return {
         level: i + 1,
-        xpIntoLevel: totalXp - cumulativeXp,
-        xpForNext: xpNeeded,
+        xpIntoLevel: totalXp - currentThreshold,
+        xpForNext: nextThreshold - currentThreshold,
+        currentLevelStartXp: currentThreshold,
+        nextLevelTotalXp: nextThreshold,
       };
     }
-    cumulativeXp += xpNeeded;
   }
   
-  let level = HUNT_CONFIG.LEVEL_XP.length + 1;
-  let xpRemaining = totalXp - cumulativeXp;
+  const level10Xp = thresholds[thresholds.length - 1];
+  let level = thresholds.length;
+  let currentLevelStart = level10Xp;
   
-  while (xpRemaining >= HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT) {
-    xpRemaining -= HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT;
+  while (totalXp >= currentLevelStart + HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT) {
+    currentLevelStart += HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT;
     level++;
   }
   
   return {
     level,
-    xpIntoLevel: xpRemaining,
+    xpIntoLevel: totalXp - currentLevelStart,
     xpForNext: HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT,
+    currentLevelStartXp: currentLevelStart,
+    nextLevelTotalXp: currentLevelStart + HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT,
   };
+}
+
+export function getDailyCapForLevel(level: number): number {
+  const caps = HUNT_CONFIG.LEVEL_DAILY_CAPS;
+  for (let l = level; l >= 1; l--) {
+    if (caps[l] !== undefined) {
+      return caps[l];
+    }
+  }
+  return 25;
+}
+
+export function getWarmthCapForLevel(level: number): number {
+  const caps = HUNT_CONFIG.LEVEL_WARMTH_CAPS;
+  for (let l = level; l >= 1; l--) {
+    if (caps[l] !== undefined) {
+      return caps[l];
+    }
+  }
+  return 10;
+}
+
+export function getUnlockedFeatures(level: number): {
+  trackerPing: boolean;
+  secondAttempt: boolean;
+  heatMode: boolean;
+} {
+  return {
+    trackerPing: level >= HUNT_CONFIG.LEVEL_UNLOCKS.trackerPing,
+    secondAttempt: level >= HUNT_CONFIG.LEVEL_UNLOCKS.secondAttempt,
+    heatMode: level >= HUNT_CONFIG.LEVEL_UNLOCKS.heatMode,
+  };
+}
+
+export function getNextUnlock(level: number): string | null {
+  const unlocks = HUNT_CONFIG.LEVEL_UNLOCKS;
+  if (level < unlocks.trackerPing) return `Lv${unlocks.trackerPing}: Tracker Ping`;
+  if (level < unlocks.secondAttempt) return `Lv${unlocks.secondAttempt}: Second Attempt`;
+  if (level < unlocks.heatMode) return `Lv${unlocks.heatMode}: Heat Mode`;
+  return null;
 }
 
 export function isHeatModeActive(heatModeUntil: Date | null): boolean {

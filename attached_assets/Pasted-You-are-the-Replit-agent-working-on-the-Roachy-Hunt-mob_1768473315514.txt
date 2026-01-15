@@ -1,0 +1,202 @@
+You are the Replit agent working on the Roachy Hunt mobile app (React/React Native or webview UI inside the app). Implement a complete, production-ready “Level Progression” system + UI, fully connected to existing Hunt state, and DO NOT ask questions—make reasonable defaults and implement.
+
+========================================================
+GOAL
+========================================================
+Make the “Lv.X” badge in Hunter Stats clickable. On tap, open a “Level Progress” bottom sheet (preferred) or a full screen modal/page if bottom sheet is not available. This screen must clearly show the player’s progress, XP, unlocks, and roadmap, synced with the Hunt backend state.
+
+No CHY anywhere. Keep UI consistent with Roachy Hunt theme (dark, warm gradients, orange accents, soft rounded cards). No casino vibe.
+
+========================================================
+DATA / STATE REQUIREMENTS
+========================================================
+1) Ensure /api/hunt/state (or equivalent existing endpoint) returns all of these fields (add to response + DB if missing):
+- userId
+- level (int)
+- xp (int)
+- xpThisLevel (int) [optional, can compute]
+- xpToNextLevel (int)
+- dailyHuntsUsed (int)
+- dailyHuntsCap (int)  // e.g. 25 base, increases with levels
+- streak (int)
+- warmth (int)
+- warmthCap (int)
+- pityRareRemaining (int)       // "Rare in X"
+- pityEpicRemaining (int)       // "Epic in X"
+- pityLegendaryRemaining (int)  // "Legendary in X" (set to 180 max pity)
+- unlockedFeatures: {
+    trackerPing: boolean,
+    secondAttempt: boolean,
+    heatMode: boolean
+  }
+- warmthShopCosts: {
+    trackerPing: 2,
+    secondAttempt: 1,
+    heatMode: 10
+  }
+- heatModeActive (boolean)
+- heatModeEndsAt (timestamp | null)
+
+2) Legendary pity must be EXACTLY 180 total (not 172). Rare=20, Epic=60. Ensure counters decrement correctly based on hunts/catches and reset on successful drop.
+
+3) Persist new progression fields in DB:
+- level, xp, streak, warmth, warmthCap, dailyHuntsCap
+- heatModeActive, heatModeEndsAt
+- unlocked features flags (or derive from level using config)
+
+If you already have a HuntUser table/model, extend it. If not, create it. Make migrations if needed.
+
+========================================================
+LEVELING / PROGRESSION RULES (IMPLEMENT NOW)
+========================================================
+A) XP Gain (already used in catch results; enforce consistently):
+- Perfect catch: +150 XP
+- Great catch: +75 XP
+- Good catch: +30 XP
+Optional (implement): Daily streak bonus on first hunt of the day:
+- streakBonusXP = 50 * min(streak, 7)
+
+B) Level XP thresholds (define in one config file and reuse everywhere):
+Implement a simple table for Lv1–Lv10, and for Lv10+ use a formula.
+Example (use this exact table):
+Lv1: 0
+Lv2: 500
+Lv3: 1200
+Lv4: 2200
+Lv5: 3600
+Lv6: 5400
+Lv7: 7600
+Lv8: 10200
+Lv9: 13200
+Lv10: 16600
+
+For level >10:
+nextLevelXP = 16600 + (level-10) * 4500
+
+Compute:
+- currentLevelStartXP
+- nextLevelTotalXP
+- xpThisLevel = xp - currentLevelStartXP
+- xpToNextLevel = nextLevelTotalXP - xp
+
+C) Level Benefits (show clearly in UI and enforce in backend):
+- dailyHuntsCap increases with levels:
+  Lv1: 25
+  Lv3: 30
+  Lv5: 35
+  Lv7: 40
+  Lv10: 50
+(For other levels, keep previous cap)
+- warmthCap increases:
+  Lv1: 10
+  Lv4: 15
+  Lv6: 20
+  Lv9: 30
+- Feature unlocks:
+  Lv3 unlock: Tracker Ping (cost 2 warmth)
+  Lv4 unlock: Second Attempt (cost 1 warmth)
+  Lv5 unlock: Heat Mode (cost 10 warmth, lasts 20 minutes)
+
+D) Warmth earning:
+- Recycling Common eggs increases warmth (already in concept). Keep current behavior if exists.
+If not implemented yet, add:
+- Recycle 1 Common Egg -> +1 Warmth, consumes 1 Common egg
+Enforce warmthCap (cannot exceed).
+
+E) Warmth spending (implement):
+- Tracker Ping (2 warmth): reveals approximate direction/distance to nearest egg marker or highlights 1 marker for 30 seconds
+- Second Attempt (1 warmth): if player fails a catch minigame, allow 1 retry immediately
+- Heat Mode (10 warmth): 20-minute boost; while active:
+  - +20% XP gain from catches
+  - +10% better rarity chance OR reduce pity counters by +1 extra per catch (choose ONE, implement XP-only if you want safer)
+Must show active timer in UI when enabled.
+
+========================================================
+UI/UX IMPLEMENTATION
+========================================================
+1) Make the Lv badge clickable:
+- In Hunter Stats component, wrap Lv badge with Pressable / button.
+- On press, open LevelProgress sheet.
+
+2) Level Progress Bottom Sheet layout:
+Header:
+- Title: “Level Progress”
+- Close (X)
+
+Hero card:
+- “Lv.{level}”
+- XP Progress bar with text: “{xpThisLevel} / {xpToNextLevel + xpThisLevel} XP”
+- Subtext: “Next unlock: {nextUnlockLabel}” (compute from roadmap)
+
+Sections:
+A) “Unlocked Benefits” (for current level)
+Show as bullets / small chips:
+- Daily Hunt Cap: {dailyHuntsCap}/day
+- Warmth Cap: {warmthCap}
+- Tracker Ping: Unlocked/Locked
+- Second Attempt: Unlocked/Locked
+- Heat Mode: Unlocked/Locked (or “Active: mm:ss” if active)
+
+B) “Your Progress”
+- Streak: {streak} day(s) (tooltip explaining: “Streak increases daily bonus and keeps momentum”)
+- Warmth: {warmth}/{warmthCap} (tooltip: “Earn by recycling commons; spend on tools”)
+- Pity counters:
+  - Rare in {pityRareRemaining}
+  - Epic in {pityEpicRemaining}
+  - Legendary in {pityLegendaryRemaining} (180-based)
+
+C) “How to earn XP”
+List:
+- Perfect catch: +150 XP
+- Great catch: +75 XP
+- Good catch: +30 XP
+- Streak bonus: +{streakBonusXP} (if enabled; show max 7 days)
+
+D) “Roadmap (Lv1–Lv10)”
+Scrollable vertical list showing each level and its main unlocks/cap increases.
+Highlight current level.
+Example row:
+- Lv3 — Unlock Tracker Ping + Daily Cap 30/day
+
+3) Styling guidelines:
+- Keep same background blur + warm brown gradients as current Hunt UI.
+- Use accent colors per rarity where needed:
+  Common = silver/gray
+  Rare = blue
+  Epic = purple
+  Legendary = gold
+- Avoid slot-machine/casino feel; keep clean, “RPG progression” vibe.
+
+4) Performance:
+- Use cached state; fetch /api/hunt/state on open + when closing catch result screen.
+- Avoid rerender loops.
+
+========================================================
+BUG FIX NOTE (IMPORTANT)
+========================================================
+If currently the app “bounces back to map” after catch and does not proceed to rarity reveal screen, fix it as part of this work:
+- Ensure the navigation to the reveal route happens AFTER the catch result is computed and persisted.
+- Prevent unmount/close handlers from firing early.
+- Add console logs around: onCatchSuccess -> persist -> navigate('Reveal') to verify flow.
+- Ensure the reveal screen reads the most recent catch result from state/DB.
+
+========================================================
+DELIVERABLES
+========================================================
+1) Code changes with clear file list in your final message:
+- Config file: huntProgressionConfig.ts (levels, caps, unlocks, costs)
+- Backend: updated Hunt state route + DB schema/migration
+- Frontend: LevelProgressSheet component + hook to open/close
+- Updated HunterStats to open the sheet
+- Any new UI components (ProgressBar, RoadmapRow, Tooltip)
+
+2) Include test checklist in final response:
+- Level badge opens sheet
+- XP bar updates after catches
+- Level ups apply caps/unlocks
+- Warmth cap enforced
+- Heat mode timer works and expires
+- Pity counters show correct values (Rare 20, Epic 60, Legendary 180)
+- Catch flow goes to reveal screen reliably
+
+Implement now.
