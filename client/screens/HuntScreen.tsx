@@ -1319,6 +1319,27 @@ export default function HuntScreen() {
         />
       )}
 
+      <LevelProgressSheet
+        visible={showLevelSheet}
+        onClose={() => setShowLevelSheet(false)}
+        level={phaseIStats?.level ?? phaseIStats?.hunterLevel ?? 1}
+        xp={phaseIStats?.xp ?? phaseIStats?.hunterXp ?? 0}
+        xpThisLevel={phaseIStats?.xpThisLevel ?? 0}
+        xpToNextLevel={phaseIStats?.xpToNextLevel ?? 500}
+        dailyCap={phaseIStats?.dailyCap ?? 25}
+        dailyCapBase={phaseIStats?.dailyCapBase ?? 25}
+        dailyCapStreakBonus={phaseIStats?.dailyCapStreakBonus ?? 0}
+        warmth={phaseIStats?.warmth ?? 0}
+        warmthCap={phaseIStats?.warmthCap ?? 10}
+        streak={phaseIStats?.streakCount ?? 0}
+        pity={phaseIStats?.pity ?? { rareIn: 20, epicIn: 60, legendaryIn: 180 }}
+        unlockedFeatures={phaseIStats?.unlockedFeatures ?? { trackerPing: false, secondAttempt: false, heatMode: false }}
+        nextUnlock={phaseIStats?.nextUnlock ?? "Tracker Ping at Lv.3"}
+        heatModeActive={phaseIStats?.heatModeActive ?? false}
+        heatModeUntil={phaseIStats?.heatModeUntil ?? null}
+        warmthShopCosts={phaseIStats?.warmthShopCosts ?? { trackerPing: 3, secondAttempt: 5, heatMode: 10 }}
+      />
+
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
           gpsReady={gpsReady}

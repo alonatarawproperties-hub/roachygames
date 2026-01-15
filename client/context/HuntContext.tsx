@@ -58,6 +58,8 @@ export interface PhaseIStats {
   walletAddress: string;
   huntsToday: number;
   dailyCap: number;
+  dailyCapBase: number;
+  dailyCapStreakBonus: number;
   streakCount: number;
   longestStreak: number;
   streakXpMult?: number;
@@ -75,6 +77,24 @@ export interface PhaseIStats {
     legendaryIn: number;
   };
   warmth: number;
+  warmthCap: number;
+  level: number;
+  xp: number;
+  xpThisLevel: number;
+  xpToNextLevel: number;
+  currentLevelStartXp: number;
+  nextLevelTotalXp: number;
+  unlockedFeatures: {
+    trackerPing: boolean;
+    secondAttempt: boolean;
+    heatMode: boolean;
+  };
+  nextUnlock: string | null;
+  warmthShopCosts: {
+    trackerPing: number;
+    secondAttempt: number;
+    heatMode: number;
+  };
   hunterLevel: number;
   hunterXp: number;
   boostTokens: number;
@@ -344,11 +364,23 @@ export function HuntProvider({ children }: HuntProviderProps) {
           walletAddress,
           huntsToday: 0,
           dailyCap: 25,
+          dailyCapBase: 25,
+          dailyCapStreakBonus: 0,
           streakCount: 0,
           longestStreak: 0,
           eggs: { common: 0, rare: 0, epic: 0, legendary: 0 },
-          pity: { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+          pity: { rareIn: 20, epicIn: 60, legendaryIn: 180 },
           warmth: 0,
+          warmthCap: 10,
+          level: 1,
+          xp: 0,
+          xpThisLevel: 0,
+          xpToNextLevel: 500,
+          currentLevelStartXp: 0,
+          nextLevelTotalXp: 500,
+          unlockedFeatures: { trackerPing: false, secondAttempt: false, heatMode: false },
+          nextUnlock: "Tracker Ping at Lv.3",
+          warmthShopCosts: { trackerPing: 3, secondAttempt: 5, heatMode: 10 },
           hunterLevel: 1,
           hunterXp: 0,
           boostTokens: 0,
