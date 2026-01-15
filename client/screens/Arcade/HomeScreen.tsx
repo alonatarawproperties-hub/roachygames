@@ -422,6 +422,18 @@ function TokenBalanceCardWithWebapp() {
   const { user, isGuest, logout, updateUserData } = useAuth();
   const { diamonds, chy, isLoading, refetch } = useWebappBalances();
   const [isSyncing, setIsSyncing] = useState(false);
+  const hasAutoRefreshed = React.useRef(false);
+
+  // Auto-refresh balance once after 2 seconds for Google users landing on home
+  useEffect(() => {
+    if (!hasAutoRefreshed.current && user?.googleId && !isGuest) {
+      const timer = setTimeout(() => {
+        hasAutoRefreshed.current = true;
+        refetch();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user?.googleId, isGuest, refetch]);
 
   const handleGuestSignIn = () => {
     Alert.alert(
