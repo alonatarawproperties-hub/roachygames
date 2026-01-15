@@ -100,6 +100,14 @@ export function getManilaDate(): string {
   return manilaTime.toISOString().split('T')[0];
 }
 
+export function getManilaYesterday(): string {
+  const now = new Date();
+  const manilaOffset = 8 * 60;
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const manilaTime = new Date(utcTime + (manilaOffset * 60000) - 86400000);
+  return manilaTime.toISOString().split('T')[0];
+}
+
 export function getManilaWeekKey(): string {
   const now = new Date();
   const manilaOffset = 8 * 60;

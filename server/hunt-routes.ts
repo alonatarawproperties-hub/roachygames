@@ -20,6 +20,7 @@ import { logUserActivity } from "./economy-routes";
 import {
   HUNT_CONFIG,
   getManilaDate,
+  getManilaYesterday,
   getManilaWeekKey,
   calculateDistance,
   generateDeterministicNodes,
@@ -438,13 +439,13 @@ export function registerHuntRoutes(app: Express) {
         catchLongitude: (longitude || spawn.longitude).toString(),
       }).returning();
 
-      const today = new Date().toISOString().split('T')[0];
-      const isNewDay = economy.lastCatchDate !== today;
+      const manilaToday = getManilaDate();
+      const manilaYest = getManilaYesterday();
+      const isNewDay = economy.lastCatchDate !== manilaToday;
       let newStreak = economy.currentStreak;
 
       if (isNewDay) {
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+        newStreak = economy.lastCatchDate === manilaYest ? economy.currentStreak + 1 : 1;
       }
 
       let newCatchesSinceRare = spawn.rarity === 'rare' || spawn.rarity === 'epic' || spawn.rarity === 'legendary' 
@@ -461,7 +462,7 @@ export function registerHuntRoutes(app: Express) {
           catchesSinceEpic: newCatchesSinceEpic,
           currentStreak: newStreak,
           longestStreak: Math.max(newStreak, economy.longestStreak),
-          lastCatchDate: today,
+          lastCatchDate: manilaToday,
           lastDailyReset: isNewDay ? new Date() : economy.lastDailyReset,
           updatedAt: new Date(),
         })
@@ -1097,9 +1098,9 @@ export function registerHuntRoutes(app: Express) {
       const isNewDay = economy.lastCatchDate !== dayKey;
       const huntsToday = isNewDay ? 0 : economy.catchesToday;
       
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const manilaYesterday = getManilaYesterday();
       const currentStreak = isNewDay 
-        ? (economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1)
+        ? (economy.lastCatchDate === manilaYesterday ? economy.currentStreak + 1 : 1)
         : economy.currentStreak;
       const dailyCap = computeDailyCap(currentStreak);
       
@@ -1170,8 +1171,7 @@ export function registerHuntRoutes(app: Express) {
 
       let newStreak = economy.currentStreak;
       if (isNewDay) {
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+        newStreak = economy.lastCatchDate === manilaYesterday ? economy.currentStreak + 1 : 1;
       }
 
       const streakXpMult = getStreakXpMult(newStreak);
@@ -1342,10 +1342,10 @@ export function registerHuntRoutes(app: Express) {
       const isNewDay = economy.lastCatchDate !== dayKey;
       const huntsToday = isNewDay ? 0 : economy.catchesToday;
       
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const manilaYest = getManilaYesterday();
       let newStreak = economy.currentStreak;
       if (isNewDay) {
-        newStreak = economy.lastCatchDate === yesterday ? economy.currentStreak + 1 : 1;
+        newStreak = economy.lastCatchDate === manilaYest ? economy.currentStreak + 1 : 1;
       }
       const dailyCap = computeDailyCap(newStreak);
       
