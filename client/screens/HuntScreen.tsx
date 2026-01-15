@@ -745,14 +745,26 @@ export default function HuntScreen() {
   };
 
   const handleFuse = async () => {
+    console.log("[Fusion] handleFuse called", { selectedFuseRarity, fuseTimes });
     const cost = FUSION_COSTS[selectedFuseRarity];
     const eggCount = phaseIStats?.eggs[selectedFuseRarity] || 0;
     const required = fuseTimes * cost;
-    if (eggCount < required) return;
+    console.log("[Fusion] Eggs check:", { eggCount, required, cost });
+    
+    if (eggCount < required) {
+      console.log("[Fusion] Not enough eggs, returning early");
+      Alert.alert("Not Enough Eggs", `You need ${required} ${selectedFuseRarity} eggs but only have ${eggCount}.`);
+      return;
+    }
+    
     setIsFusing(true);
     setFuseResult(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     try {
+      console.log("[Fusion] Calling fuseEggs API...");
       const result = await fuseEggs(selectedFuseRarity, fuseTimes);
+      console.log("[Fusion] API result:", result);
       setFuseResult({ successCount: result.successCount, failCount: result.failCount });
       if (result.successCount > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -761,11 +773,13 @@ export default function HuntScreen() {
       }
       refreshPhaseIStats();
       setTimeout(() => setFuseResult(null), 4000);
-    } catch (error) {
-      console.error("Fuse error:", error);
+    } catch (error: any) {
+      console.error("[Fusion] Error:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Fusion Failed", error?.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsFusing(false);
     }
-    setIsFusing(false);
   };
 
   const getFuseMaxTimes = (rarity: 'common' | 'rare' | 'epic') => {
@@ -794,8 +808,41 @@ export default function HuntScreen() {
           </View>
         </View>
         
-        <View style={styles.eggGridPremium}>
-          {(['common', 'rare', 'epic', 'legendary'] as const).map((rarity) => {
+        <View style={styles.eggGridRow}>
+          {(['common', 'rare'] as const).map((rarity) => {
+            const glow = RARITY_GLOWS[rarity];
+            const count = eggs[rarity];
+            return (
+              <View 
+                key={rarity} 
+                style={[
+                  styles.eggCardPremium,
+                  { 
+                    borderColor: RARITY_COLORS[rarity] + "40",
+                    shadowColor: glow.color,
+                    shadowOpacity: count > 0 ? glow.opacity * 0.5 : 0,
+                    shadowRadius: glow.radius,
+                    shadowOffset: { width: 0, height: 0 },
+                  }
+                ]}
+              >
+                <View style={styles.eggCardInner}>
+                  <EggIcon rarity={rarity} size={36} />
+                  <View style={styles.eggCardInfo}>
+                    <ThemedText style={[styles.eggCardCount, { color: RARITY_COLORS[rarity] }]}>
+                      {count}
+                    </ThemedText>
+                    <ThemedText style={styles.eggCardLabel}>
+                      {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.eggGridRow}>
+          {(['epic', 'legendary'] as const).map((rarity) => {
             const glow = RARITY_GLOWS[rarity];
             const count = eggs[rarity];
             return (
@@ -2054,8 +2101,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
+  eggGridRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
   eggCardPremium: {
-    width: "48%",
+    flex: 1,
     backgroundColor: GameColors.surfaceElevated,
     borderRadius: BorderRadius.md,
     borderWidth: 1.5,
