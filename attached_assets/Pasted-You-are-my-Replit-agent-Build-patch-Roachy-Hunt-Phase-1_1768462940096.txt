@@ -1,0 +1,320 @@
+You are my Replit agent. Build/patch Roachy Hunt Phase 1 progression + economy (NO CHY) and make it Battles-ready.
+
+STACK (assume current app is Expo React Native + TypeScript):
+- Expo React Native (iOS/Android)
+- React Navigation (native stack)
+- Zustand (or existing state lib in repo)
+- Backend: Node/Express (or existing API server) + Postgres
+- ORM: use whatever repo already uses (Drizzle/Prisma). If none, use Drizzle.
+- Tests: Jest (logic tests)
+
+GOALS
+1) Implement progression systems with exact numbers:
+   - XP, Levels, Level unlocks
+   - Streak (daily), Hunt cap bonus, XP multiplier, streak chest
+   - Warmth (earned by recycling common eggs + optional perfect catch), spend on Tracker Ping / Second Attempt / Heat Mode
+   - Fusion rules (chance-based but not casino UI): 
+        Common→Rare: 5 eggs, 100%
+        Rare→Epic: 20 eggs, 15%
+        Epic→Legendary: 30 eggs, 5%
+   - Pity counters (“Next guaranteed drop”):
+        Rare every 20 catches
+        Epic every 60 catches
+        Legendary every 180 catches
+     Counters reset when that rarity drops naturally OR via pity drop.
+2) Fix the bug: after Catch, app “bounces back to map” instead of going to Reveal screen.
+   - Ensure navigation is deterministic: Catch -> Reveal (modal) -> back to Map only via buttons.
+   - Prevent component unmount / state reset mid-transition.
+3) Prepare assets wiring: use local PNG references for eggs/glows/auras by rarity.
+4) Provide clean API endpoints + DB schema to persist everything.
+5) Minimal UI changes: keep existing look. Add correct numbers, counters, and actions.
+
+========================================
+A) CONSTANTS (single source of truth)
+Create: /src/gameConfig/huntConfig.ts
+
+export const HUNT = {
+  DAILY_BASE_CAP: 25,
+
+  XP: {
+    GOOD: 30,
+    GREAT: 75,
+    PERFECT: 150,
+    FIRST_CATCH_BONUS: 100,
+  },
+
+  LEVEL_XP: [
+    // total XP required to reach level N (or per-level requirement, pick one and keep consistent)
+    // Use per-level requirement list:
+    // Lv1->2 300, 2->3 600, 3->4 1000, 4->5 1500, 5->6 2100, 6->7 2800, 7->8 3600, 8->9 4500, 9->10 5500
+  ],
+  LEVEL_AFTER_10_INCREMENT: 1200,
+
+  STREAK: {
+    // cap bonus by streak day range
+    CAP_BONUS: [
+      { minDay: 2, maxDay: 3, bonus: 2 },
+      { minDay: 4, maxDay: 6, bonus: 4 },
+      { minDay: 7, maxDay: 13, bonus: 6 },
+      { minDay: 14, maxDay: 9999, bonus: 8 },
+    ],
+    XP_MULT: [
+      { minDay: 1, maxDay: 2, mult: 1.0 },
+      { minDay: 3, maxDay: 6, mult: 1.10 },
+      { minDay: 7, maxDay: 13, mult: 1.20 },
+      { minDay: 14, maxDay: 9999, mult: 1.30 },
+    ],
+    CHEST_EVERY_N_DAYS: 3,
+    CHEST_REWARD: { warmth: 3, xp: 250 },
+  },
+
+  WARMTH: {
+    RECYCLE_COMMON_TO_WARMTH: 1,
+    PERFECT_CATCH_BONUS_WARMTH: 1, // OPTIONAL: keep behind feature flag if desired
+    SPEND: {
+      TRACKER_PING: 2,
+      SECOND_ATTEMPT: 1,
+      HEAT_MODE: 10,
+    },
+    HEAT_MODE_MINUTES: 20,
+  },
+
+  PITY: {
+    RARE_GUARANTEE: 20,
+    EPIC_GUARANTEE: 60,
+    LEGENDARY_GUARANTEE: 180,
+  },
+
+  FUSION: {
+    COMMON_TO_RARE: { cost: 5, chance: 1.0 },
+    RARE_TO_EPIC: { cost: 20, chance: 0.15 },
+    EPIC_TO_LEGENDARY: { cost: 30, chance: 0.05 },
+  },
+
+  RARITIES: ["common", "rare", "epic", "legendary"] as const,
+};
+
+========================================
+B) DATABASE SCHEMA (persist player state)
+Add/ensure tables:
+
+1) player_progress
+- user_id (pk, fk)
+- xp_total int not null default 0
+- level int not null default 1
+- warmth int not null default 0
+- streak_count int not null default 0
+- last_hunt_date date nullable (for streak)
+- hunts_today int not null default 0
+- hunts_today_date date nullable
+- heat_mode_until timestamptz nullable
+
+2) egg_inventory
+- user_id (pk,fk)
+- common_count int default 0
+- rare_count int default 0
+- epic_count int default 0
+- legendary_count int default 0
+
+3) pity_counters
+- user_id (pk,fk)
+- rare_in int not null default 20   // counts down
+- epic_in int not null default 60
+- legendary_in int not null default 180
+
+4) hunt_events (for debugging + analytics)
+- id uuid pk
+- user_id fk
+- ts timestamptz default now()
+- event_type text (catch_start, catch_result, reveal_shown, recycle, fusion_attempt, etc)
+- payload jsonb
+
+5) daily_rewards (optional but recommended)
+- user_id
+- date
+- claimed_streak_chest boolean default false
+
+Migration must be idempotent. If schema already exists, adapt.
+
+========================================
+C) SERVER API (Node/Express)
+Create routes under /api/hunt (or existing pattern).
+All endpoints must:
+- authenticate user
+- be idempotent where needed
+- return full updated state (progress + inventory + pity) so UI stays consistent
+
+Endpoints:
+
+GET /api/hunt/state
+Returns:
+{
+  progress: { xp_total, level, warmth, streak_count, hunts_today, daily_cap, heat_mode_until },
+  pity: { rare_in, epic_in, legendary_in },
+  inventory: { common, rare, epic, legendary }
+}
+
+POST /api/hunt/checkin
+Purpose: update streak if new day, reset hunts_today if date changed.
+Logic:
+- If last_hunt_date is yesterday: streak_count += 1
+- If last_hunt_date is today: no change
+- Else: streak_count = 0 or 1? (Use: if first hunt today and missed days => streak resets to 0 then becomes 1 upon first hunt; in UI show 1 after first hunt/checkin)
+- Update last_hunt_date = today when a catch completes successfully.
+- Reset hunts_today if hunts_today_date != today.
+Return updated state.
+
+POST /api/hunt/catch/resolve
+Body: { quality: "good"|"great"|"perfect", usedSecondAttempt?: boolean }
+Server authoritative result:
+Steps:
+1) Validate hunts_today < daily_cap (daily_cap = 25 + streak cap bonus)
+2) Compute xpEarned = XP[quality] + (first catch today ? FIRST_CATCH_BONUS : 0)
+3) Apply streak XP multiplier mult = from streak_count (after checkin logic for today)
+   xpFinal = round(xpEarned * mult)
+4) Optionally add warmth bonus if perfect (config flag)
+5) Decrement pity counters by 1 each catch (rare_in--, epic_in--, legendary_in--)
+6) Determine drop rarity:
+   - If legendary_in <= 0 => legendary drop and reset legendary_in = 180
+   - else if epic_in <= 0 => epic drop and reset epic_in = 60
+   - else if rare_in <= 0 => rare drop and reset rare_in = 20
+   - else normal RNG (keep simple):
+       base probabilities (suggest):
+         common 0.85, rare 0.12, epic 0.025, legendary 0.005
+       If Heat Mode active: improve spawn experience ONLY (do NOT change legendary chance). If you must, only slightly raise rare/epic but keep legendary same.
+   - If rarity dropped naturally, reset its counter as well.
+7) Update inventory +1 for that rarity.
+8) Update hunts_today += 1, set hunts_today_date=today, set last_hunt_date=today
+9) Add hunt_events rows for debugging: catch_result + payload includes rarity, quality, xpFinal, pity_before/after.
+Return:
+{
+  drop: { rarity, eggAssetKey },
+  rewards: { xp: xpFinal, warmthDelta, firstCatchBonusApplied, streakMult },
+  updatedState: ...
+}
+
+POST /api/hunt/warmth/spend
+Body: { action: "tracker_ping"|"second_attempt"|"heat_mode" }
+- Validate enough warmth
+- Deduct warmth
+- If heat_mode: set heat_mode_until = now + 20min
+Return updated state.
+
+POST /api/hunt/recycle
+Body: { count: number }  // common eggs only
+- Validate inventory.common >= count
+- inventory.common -= count
+- warmth += count * 1
+Return updated state.
+
+POST /api/hunt/fusion
+Body: { from: "common"|"rare"|"epic", attempts: number } 
+Rules:
+- common: cost 5, chance 1.0 => each attempt consumes 5 common and produces 1 rare guaranteed
+- rare: cost 20, chance 0.15 => each attempt consumes 20 rare, if success produce 1 epic else nothing
+- epic: cost 30, chance 0.05 => each attempt consumes 30 epic, if success produce 1 legendary else nothing
+IMPORTANT UX TEXT: “Eggs are consumed on failure” (for rare/epic).
+Return:
+{ results: [{ success:boolean, produced?:rarity }...], updatedState }
+
+========================================
+D) CLIENT UI / UX (Expo RN)
+Screens:
+- MapScreen (Hunt)
+- CatchScreen (mini-game)
+- RevealScreen (modal)
+- EggsScreen (inventory, recycle, fusion lab)
+- StatsHeader (Hunter Stats)
+
+Critical: FIX NAV BUG (bounce back to map)
+Implement navigation flow as a state machine:
+
+1) From MapScreen:
+   - onTapEggMarker => navigate("Catch", { markerId, startedAt })
+   - DO NOT set global state that auto-returns to Map on focus.
+
+2) CatchScreen:
+   - when user finishes mini-game => call POST /api/hunt/catch/resolve
+   - On success: navigation.replace("Reveal", { drop, rewards, updatedStateSnapshot })
+     (replace prevents back-stack weirdness)
+   - Ensure CatchScreen does NOT call navigation.goBack() in finally blocks.
+
+3) RevealScreen (modal presentation):
+   - Shows egg + rarity label + XP/Points UI + next guaranteed drop counters
+   - Buttons:
+     - “Hunt More” => navigation.popToTop() or navigate("Map") with a param to refresh
+     - “View Eggs” => navigate("Eggs")
+   - DO NOT auto-dismiss on state changes; dismiss only by button.
+
+Also add defensive logging:
+- console.log + hunt_events “reveal_shown”
+- If API returns but screen doesn’t show, log navigation state.
+
+UI Implementation Details:
+- Stats header shows: hunts_today/daily_cap, streak_count, warmth
+- show pity counters: “Rare in X / Epic in Y / Legendary in Z”
+- Eggs screen shows counts in cards (not one-by-one list)
+- Recycle section: +/- stepper, CTA “+1 Warmth”
+- Fusion section: segmented control common/rare/epic, shows:
+  cost, success %, attempts stepper, CTA “Fuse”
+  and a small warning text for rare/epic: “Eggs are consumed on failure.”
+
+Assets Wiring (local):
+Create /src/assets/eggs and /src/assets/fx and map:
+egg_common, egg_rare, egg_epic, egg_legendary
+glow_common, glow_rare, glow_epic, glow_legendary
+aura_common, aura_rare, aura_epic, aura_legendary
+
+Create: /src/gameConfig/assetMap.ts
+export const EggAssets = { common: require(...), ... }
+export const GlowAssets = { ... }
+export const AuraAssets = { ... }
+
+RevealScreen layers:
+Aura (opacity ~0.7) -> Glow (opacity ~0.45) -> Egg
+
+========================================
+E) PROGRESSION HELPERS (shared logic)
+Create: /src/lib/progression.ts
+Functions:
+- computeLevelFromXp(totalXp): { level, xpIntoLevel, xpForNext }
+- getStreakCapBonus(streak)
+- getStreakXpMult(streak)
+- computeDailyCap(streak)
+- isHeatModeActive(heat_mode_until)
+- applyPityAndRng(pity, heatModeActive): returns rarity + updated pity
+
+Server and client must use same constants. Prefer server as source of truth; client uses helpers only for displaying projections.
+
+========================================
+F) TESTS (Jest)
+Add tests for:
+1) pity counters:
+- start rare_in=1 => next resolve yields rare and resets to 20
+- natural rare also resets to 20
+2) streak cap + multiplier boundaries
+3) fusion probabilities: deterministic by injecting RNG seed/mocked Math.random
+4) level calculation correctness for thresholds
+
+========================================
+G) DELIVERABLES
+1) Implement DB migrations
+2) Implement endpoints
+3) Patch navigation bug (Catch -> Reveal)
+4) Update UI to show:
+   - Hunts today / cap
+   - Streak
+   - Warmth
+   - Pity “Rare in / Epic in / Legendary in”
+   - Eggs counts + Recycle + Fusion flows
+5) Add tests
+6) Provide a short README section: “How progression works” + “How to add Phase 2 hatching later”
+
+IMPORTANT:
+- Keep “casino vibes” out: no flashy slot-machine UI; just clean success % and clear warning text.
+- Do NOT introduce CHY anywhere.
+- Ensure everything persists across app restarts.
+- Make sure the bug is fixed: after catch resolve success, RevealScreen MUST show consistently.
+- If any existing architecture differs, adapt to the repo instead of rewriting everything.
+
+Start by scanning the repo to locate current Hunt screens/components and existing backend patterns, then implement changes with minimal disruption.
