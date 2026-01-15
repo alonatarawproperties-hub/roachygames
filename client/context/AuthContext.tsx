@@ -6,6 +6,8 @@ import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { exchangeOAuthUser } from "@/lib/webapp-api";
+import { useQueryClient, QueryClient } from "@tanstack/react-query";
+import { WEBAPP_BALANCES_QUERY_KEY } from "@/hooks/useWebappBalances";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -88,6 +90,7 @@ async function secureStoreDelete(key: string): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     loadStoredAuth();
@@ -327,6 +330,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]);
 
         setUser(finalUser);
+        
+        // Auto-refresh webapp balances after successful Google login
+        if (finalUser.webappUserId) {
+          queryClient.invalidateQueries({
+            queryKey: [WEBAPP_BALANCES_QUERY_KEY, finalUser.webappUserId],
+          });
+        }
+        
         return { success: true };
       }
 
@@ -339,7 +350,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("[Auth] Google login error:", error);
       return { success: false, error: error.message || "Google sign-in failed" };
     }
-  }, []);
+  }, [queryClient]);
 
   const loginWithWallet = useCallback(async (walletAddress: string, signMessage: SignMessageFn) => {
     try {
