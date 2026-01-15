@@ -64,7 +64,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     isLocked: false,
     isComingSoon: false,
     isBetaOnly: true,
-    betaTesters: ["zajkcomshop@gmail.com", "engagedglobal@gmail.com"],
+    betaTesters: ["zajkcomshop@gmail.com", "engagedglobal@gmail.com", "alonatarawproperties@gmail.com"],
     category: "adventure",
     playerCount: "Solo & Multiplayer",
     rewards: ["Roachy NFTs", "XP", "Eggs", "Rare Drops"],
