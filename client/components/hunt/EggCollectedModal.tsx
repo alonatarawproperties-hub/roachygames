@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Pressable, Modal, Dimensions } from "react-native";
+import { View, StyleSheet, Pressable, Modal, Dimensions, Image } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,6 +21,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+
+const EggCommon = require("@/assets/hunt/egg-common.png");
+const EggRare = require("@/assets/hunt/egg-rare.png");
+const EggEpic = require("@/assets/hunt/egg-epic.png");
+const EggLegendary = require("@/assets/hunt/egg-legendary.png");
+
+const EGG_IMAGES: Record<string, any> = {
+  common: EggCommon,
+  rare: EggRare,
+  epic: EggEpic,
+  legendary: EggLegendary,
+};
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -244,16 +256,11 @@ export function EggCollectedModal({
         </View>
 
         <Animated.View style={[styles.eggWrapper, eggStyle]}>
-          <LinearGradient
-            colors={config.gradient}
-            start={{ x: 0.3, y: 0 }}
-            end={{ x: 0.7, y: 1 }}
-            style={styles.egg}
-          >
-            <View style={styles.eggShine} />
-            <View style={styles.eggShineSmall} />
-            <View style={[styles.eggShadow, { backgroundColor: config.secondary + "40" }]} />
-          </LinearGradient>
+          <Image 
+            source={EGG_IMAGES[eggRarity] || EGG_IMAGES.common}
+            style={styles.eggImage}
+            resizeMode="contain"
+          />
         </Animated.View>
 
         {showContent && (
@@ -436,52 +443,19 @@ const styles = StyleSheet.create({
   eggWrapper: {
     position: "absolute",
     top: SCREEN_HEIGHT * 0.18,
-  },
-  egg: {
-    width: 120,
-    height: 160,
-    borderRadius: 60,
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 15,
-    overflow: "hidden",
   },
-  eggShine: {
-    position: "absolute",
-    top: 20,
-    left: 25,
-    width: 35,
-    height: 25,
-    borderRadius: 17,
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
-    transform: [{ rotate: "-20deg" }],
-  },
-  eggShineSmall: {
-    position: "absolute",
-    top: 50,
-    left: 30,
-    width: 15,
-    height: 10,
-    borderRadius: 7,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    transform: [{ rotate: "-20deg" }],
-  },
-  eggShadow: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
+  eggImage: {
+    width: 160,
+    height: 200,
   },
   contentContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.42,
+    top: SCREEN_HEIGHT * 0.46,
     alignItems: "center",
     width: "100%",
     paddingHorizontal: Spacing.lg,

@@ -1,6 +1,6 @@
 import { Platform, Dimensions, PixelRatio } from "react-native";
 
-export const OTA_VERSION = "v33-beta-access";
+export const OTA_VERSION = "v34-official-eggs";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BASE_WIDTH = 375;
