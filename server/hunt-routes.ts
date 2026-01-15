@@ -1283,6 +1283,9 @@ export function registerHuntRoutes(app: Express) {
         warmth: (economy.warmth || 0) + totalWarmthGain,
         hunterLevel: finalLevelInfo.level,
         hunterXp: finalHunterXp,
+        level: finalLevelInfo.level,
+        xpThisLevel: finalLevelInfo.xpIntoLevel,
+        xpToNextLevel: finalLevelInfo.xpForNext,
         recentDrops: recentClaims.map(c => c.eggRarity),
       });
     } catch (error) {
@@ -1485,6 +1488,9 @@ export function registerHuntRoutes(app: Express) {
         warmth: (economy.warmth || 0) + totalWarmthGain,
         hunterLevel: finalLevelInfo.level,
         hunterXp: finalHunterXp,
+        level: finalLevelInfo.level,
+        xpThisLevel: finalLevelInfo.xpIntoLevel,
+        xpToNextLevel: finalLevelInfo.xpForNext,
       });
     } catch (error: any) {
       console.error("Phase1 spawn claim error:", error);
