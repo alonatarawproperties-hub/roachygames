@@ -1,6 +1,6 @@
 import { Platform, Dimensions, PixelRatio } from "react-native";
 
-export const OTA_VERSION = "v36-responsive-modal";
+export const OTA_VERSION = "v37-bottom-spacing";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BASE_WIDTH = 375;

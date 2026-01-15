@@ -242,7 +242,7 @@ export function EggCollectedModal({
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent, 
-            { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.xl }
+            { paddingTop: insets.top + Spacing.xl, paddingBottom: Math.max(insets.bottom, 34) + Spacing["2xl"] }
           ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
