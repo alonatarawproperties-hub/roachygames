@@ -38,6 +38,7 @@ import { MapViewWrapper, MapViewWrapperRef } from "@/components/MapViewWrapper";
 import { HuntLoadingOverlay } from "@/components/HuntLoadingOverlay";
 import { HuntLeaderboard } from "@/components/hunt/HuntLeaderboard";
 import { EggCollectedModal } from "@/components/hunt/EggCollectedModal";
+import { FusionAnimationModal } from "@/components/hunt/FusionAnimationModal";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
@@ -725,6 +726,14 @@ export default function HuntScreen() {
   const [isRecycling, setIsRecycling] = useState(false);
   const [isFusing, setIsFusing] = useState(false);
   const [fuseResult, setFuseResult] = useState<{ successCount: number; failCount: number } | null>(null);
+  const [fusionAnimation, setFusionAnimation] = useState<{
+    visible: boolean;
+    inputRarity: 'common' | 'rare' | 'epic';
+    outputRarity: 'rare' | 'epic' | 'legendary';
+    inputCount: number;
+    successCount: number;
+    failCount: number;
+  } | null>(null);
 
   const { recycleEggs, fuseEggs } = useHunt();
 
@@ -780,14 +789,20 @@ export default function HuntScreen() {
       console.log("[Fusion] Calling fuseEggs API...");
       const result = await fuseEggs(selectedFuseRarity, fuseTimes);
       console.log("[Fusion] API result:", result);
-      setFuseResult({ successCount: result.successCount, failCount: result.failCount });
-      if (result.successCount > 0) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      }
+      
+      const targetRarity = FUSION_TARGETS[selectedFuseRarity] as 'rare' | 'epic' | 'legendary';
+      const inputCount = fuseTimes * FUSION_COSTS[selectedFuseRarity];
+      
+      setFusionAnimation({
+        visible: true,
+        inputRarity: selectedFuseRarity,
+        outputRarity: targetRarity,
+        inputCount,
+        successCount: result.successCount,
+        failCount: result.failCount,
+      });
+      
       refreshPhaseIStats();
-      setTimeout(() => setFuseResult(null), 4000);
     } catch (error: any) {
       console.error("[Fusion] Error:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -1281,6 +1296,21 @@ export default function HuntScreen() {
           setActiveTab("eggs");
         }}
       />
+
+      {fusionAnimation && (
+        <FusionAnimationModal
+          visible={fusionAnimation.visible}
+          inputRarity={fusionAnimation.inputRarity}
+          outputRarity={fusionAnimation.outputRarity}
+          inputCount={fusionAnimation.inputCount}
+          successCount={fusionAnimation.successCount}
+          failCount={fusionAnimation.failCount}
+          onComplete={() => {
+            setFusionAnimation(null);
+            setIsFusing(false);
+          }}
+        />
+      )}
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
