@@ -591,9 +591,11 @@ export default function HuntScreen() {
     const huntsToday = stats?.huntsToday ?? economy?.catchesToday ?? 0;
     const dailyCap = stats?.dailyCap ?? 25;
     const streakCount = stats?.streakCount ?? economy?.currentStreak ?? 0;
+    const streakXpMult = stats?.streakXpMult ?? 1.0;
+    const heatModeActive = stats?.heatModeActive ?? false;
     const rareIn = stats?.pity?.rareIn ?? Math.max(0, 20 - (economy?.catchesSinceRare ?? 0));
     const epicIn = stats?.pity?.epicIn ?? Math.max(0, 60 - (economy?.catchesSinceEpic ?? 0));
-    const legendaryIn = stats?.pity?.legendaryIn ?? 200;
+    const legendaryIn = stats?.pity?.legendaryIn ?? 180;
     const hunterLevel = stats?.hunterLevel ?? 1;
     const warmth = stats?.warmth ?? 0;
     const huntProgress = Math.min(1, huntsToday / dailyCap);
@@ -604,6 +606,12 @@ export default function HuntScreen() {
         <View style={styles.statsHeader}>
           <View style={styles.statsHeaderLeft}>
             <ThemedText style={styles.statsTitle}>Hunter Stats</ThemedText>
+            {heatModeActive && (
+              <View style={styles.heatModeBadge}>
+                <Feather name="thermometer" size={10} color="#FFFFFF" />
+                <ThemedText style={styles.heatModeText}>HEAT</ThemedText>
+              </View>
+            )}
           </View>
           <View style={styles.levelBadgePremium}>
             <Feather name="award" size={12} color={GameColors.gold} />
@@ -626,17 +634,24 @@ export default function HuntScreen() {
             <View style={[styles.statIconCircle, { backgroundColor: '#22C55E20' }]}>
               <Feather name="zap" size={16} color="#22C55E" />
             </View>
-            <ThemedText style={styles.statValuePremium}>{streakCount}</ThemedText>
+            <View style={styles.statValueRow}>
+              <ThemedText style={styles.statValuePremium}>{streakCount}</ThemedText>
+              {streakXpMult > 1 && (
+                <View style={styles.xpMultBadge}>
+                  <ThemedText style={styles.xpMultText}>{streakXpMult.toFixed(1)}x</ThemedText>
+                </View>
+              )}
+            </View>
             <ThemedText style={styles.statLabelPremium}>Streak</ThemedText>
           </View>
           
           <View style={styles.statDivider} />
           
           <View style={styles.statBlock}>
-            <View style={[styles.statIconCircle, { backgroundColor: '#F9731620' }]}>
-              <Feather name="sun" size={16} color="#F97316" />
+            <View style={[styles.statIconCircle, { backgroundColor: heatModeActive ? '#EF444420' : '#F9731620' }]}>
+              <Feather name={heatModeActive ? "thermometer" : "sun"} size={16} color={heatModeActive ? "#EF4444" : "#F97316"} />
             </View>
-            <ThemedText style={styles.statValuePremium}>{warmth}</ThemedText>
+            <ThemedText style={[styles.statValuePremium, heatModeActive && { color: '#EF4444' }]}>{warmth}</ThemedText>
             <ThemedText style={styles.statLabelPremium}>Warmth</ThemedText>
           </View>
         </View>
@@ -1987,6 +2002,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  heatModeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  heatModeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  statValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  xpMultBadge: {
+    backgroundColor: "#22C55E",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  xpMultText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   statsTitle: {
     fontSize: 18,

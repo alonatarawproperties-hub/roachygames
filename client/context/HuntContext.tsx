@@ -60,6 +60,9 @@ export interface PhaseIStats {
   dailyCap: number;
   streakCount: number;
   longestStreak: number;
+  streakXpMult?: number;
+  heatModeActive?: boolean;
+  heatModeUntil?: string | null;
   eggs: {
     common: number;
     rare: number;
