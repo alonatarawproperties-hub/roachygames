@@ -26,9 +26,14 @@ import {
   selectEggRarity,
   computeLevelFromXp,
   getStreakXpMult,
+  getStreakCapBonus,
   computeDailyCap,
   isHeatModeActive,
   shouldAwardStreakChest,
+  getDailyCapForLevel,
+  getWarmthCapForLevel,
+  getUnlockedFeatures,
+  getNextUnlock,
 } from "./hunt-config";
 
 const RARITY_RATES = {
@@ -1743,15 +1748,27 @@ export function registerHuntRoutes(app: Express) {
         .limit(5);
 
       const currentStreak = economy.currentStreak || 0;
-      const dailyCap = computeDailyCap(currentStreak);
+      const hunterXp = economy.hunterXp || 0;
+      const levelInfo = computeLevelFromXp(hunterXp);
+      const level = levelInfo.level;
+      
+      const baseDailyCap = getDailyCapForLevel(level);
+      const streakBonus = getStreakCapBonus(currentStreak);
+      const dailyCap = baseDailyCap + streakBonus;
+      
+      const warmthCap = getWarmthCapForLevel(level);
       const streakXpMult = getStreakXpMult(currentStreak);
       const heatModeActive = isHeatModeActive(economy.heatModeUntil);
       const heatModeUntil = economy.heatModeUntil ? new Date(economy.heatModeUntil).toISOString() : null;
+      const unlockedFeatures = getUnlockedFeatures(level);
+      const nextUnlock = getNextUnlock(level);
       
       res.json({
         walletAddress,
         huntsToday: isNewDay ? 0 : economy.catchesToday,
         dailyCap,
+        dailyCapBase: baseDailyCap,
+        dailyCapStreakBonus: streakBonus,
         streakCount: currentStreak,
         longestStreak: economy.longestStreak,
         streakXpMult,
@@ -1769,8 +1786,22 @@ export function registerHuntRoutes(app: Express) {
           legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - (economy.catchesSinceLegendary || 0)),
         },
         warmth: economy.warmth || 0,
-        hunterLevel: economy.hunterLevel || 1,
-        hunterXp: economy.hunterXp || 0,
+        warmthCap,
+        level,
+        xp: hunterXp,
+        xpThisLevel: levelInfo.xpIntoLevel,
+        xpToNextLevel: levelInfo.xpForNext,
+        currentLevelStartXp: levelInfo.currentLevelStartXp,
+        nextLevelTotalXp: levelInfo.nextLevelTotalXp,
+        unlockedFeatures,
+        nextUnlock,
+        warmthShopCosts: {
+          trackerPing: HUNT_CONFIG.WARMTH.SPEND.TRACKER_PING,
+          secondAttempt: HUNT_CONFIG.WARMTH.SPEND.SECOND_ATTEMPT,
+          heatMode: HUNT_CONFIG.WARMTH.SPEND.HEAT_MODE,
+        },
+        hunterLevel: level,
+        hunterXp,
         boostTokens: economy.boostTokens || 0,
         recentDrops: recentClaims.map(c => c.eggRarity),
         weekKey,
