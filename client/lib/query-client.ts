@@ -17,7 +17,8 @@ async function getAuthToken(): Promise<string | null> {
  * @returns {string} The API base URL
  */
 // Mobile backend server for authentication and game features
-const PRODUCTION_API_URL = "https://roachy-games-mobile--alon0x144.replit.app";
+// NOTE: This should point to the deployed Replit app's autoscale URL
+const PRODUCTION_API_URL = "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev:5000";
 
 // Webapp server for CHY balance sync (separate from mobile backend)
 export const WEBAPP_API_URL = "https://roachy.games";
