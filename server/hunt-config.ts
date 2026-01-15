@@ -10,7 +10,7 @@ export const HUNT_CONFIG = {
   
   PITY_RARE: 20,
   PITY_EPIC: 60,
-  PITY_LEGENDARY: 200,
+  PITY_LEGENDARY: 180,
   
   BASE_RATES: {
     common: 0.85,
@@ -34,7 +34,44 @@ export const HUNT_CONFIG = {
     good: 30,
   } as Record<string, number>,
   
-  XP_PER_LEVEL: 1000,
+  FIRST_CATCH_BONUS_XP: 100,
+  
+  LEVEL_XP: [0, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500],
+  LEVEL_AFTER_10_INCREMENT: 1200,
+  
+  STREAK: {
+    CAP_BONUS: [
+      { minDay: 2, maxDay: 3, bonus: 2 },
+      { minDay: 4, maxDay: 6, bonus: 4 },
+      { minDay: 7, maxDay: 13, bonus: 6 },
+      { minDay: 14, maxDay: 9999, bonus: 8 },
+    ],
+    XP_MULT: [
+      { minDay: 1, maxDay: 2, mult: 1.0 },
+      { minDay: 3, maxDay: 6, mult: 1.10 },
+      { minDay: 7, maxDay: 13, mult: 1.20 },
+      { minDay: 14, maxDay: 9999, mult: 1.30 },
+    ],
+    CHEST_EVERY_N_DAYS: 3,
+    CHEST_REWARD: { warmth: 3, xp: 250 },
+  },
+  
+  WARMTH: {
+    RECYCLE_COMMON_TO_WARMTH: 1,
+    PERFECT_CATCH_BONUS_WARMTH: 1,
+    SPEND: {
+      TRACKER_PING: 2,
+      SECOND_ATTEMPT: 1,
+      HEAT_MODE: 10,
+    },
+    HEAT_MODE_MINUTES: 20,
+  },
+  
+  FUSION: {
+    COMMON_TO_RARE: { cost: 5, chance: 1.0 },
+    RARE_TO_EPIC: { cost: 20, chance: 0.15 },
+    EPIC_TO_LEGENDARY: { cost: 30, chance: 0.05 },
+  },
   
   BOOST_HUNTS_THRESHOLD: 10,
 };
@@ -129,7 +166,7 @@ export function selectEggRarity(pityCounters: {
   sinceRare: number;
   sinceEpic: number;
   sinceLegendary: number;
-}): 'common' | 'rare' | 'epic' | 'legendary' {
+}, heatModeActive: boolean = false): 'common' | 'rare' | 'epic' | 'legendary' {
   if (pityCounters.sinceLegendary >= HUNT_CONFIG.PITY_LEGENDARY) {
     return 'legendary';
   }
@@ -140,13 +177,84 @@ export function selectEggRarity(pityCounters: {
     return 'rare';
   }
   
+  let rates = { ...HUNT_CONFIG.BASE_RATES };
+  if (heatModeActive) {
+    rates = {
+      common: 0.78,
+      rare: 0.17,
+      epic: 0.048,
+      legendary: 0.002,
+    };
+  }
+  
   const roll = Math.random();
   let cumulative = 0;
-  for (const [rarity, rate] of Object.entries(HUNT_CONFIG.BASE_RATES)) {
+  for (const [rarity, rate] of Object.entries(rates)) {
     cumulative += rate;
     if (roll <= cumulative) {
       return rarity as 'common' | 'rare' | 'epic' | 'legendary';
     }
   }
   return 'common';
+}
+
+export function getStreakCapBonus(streak: number): number {
+  for (const tier of HUNT_CONFIG.STREAK.CAP_BONUS) {
+    if (streak >= tier.minDay && streak <= tier.maxDay) {
+      return tier.bonus;
+    }
+  }
+  return 0;
+}
+
+export function getStreakXpMult(streak: number): number {
+  for (const tier of HUNT_CONFIG.STREAK.XP_MULT) {
+    if (streak >= tier.minDay && streak <= tier.maxDay) {
+      return tier.mult;
+    }
+  }
+  return 1.0;
+}
+
+export function computeDailyCap(streak: number): number {
+  return HUNT_CONFIG.DAILY_HUNT_CAP + getStreakCapBonus(streak);
+}
+
+export function computeLevelFromXp(totalXp: number): { level: number; xpIntoLevel: number; xpForNext: number } {
+  let cumulativeXp = 0;
+  
+  for (let i = 0; i < HUNT_CONFIG.LEVEL_XP.length; i++) {
+    const xpNeeded = HUNT_CONFIG.LEVEL_XP[i];
+    if (totalXp < cumulativeXp + xpNeeded) {
+      return {
+        level: i + 1,
+        xpIntoLevel: totalXp - cumulativeXp,
+        xpForNext: xpNeeded,
+      };
+    }
+    cumulativeXp += xpNeeded;
+  }
+  
+  let level = HUNT_CONFIG.LEVEL_XP.length + 1;
+  let xpRemaining = totalXp - cumulativeXp;
+  
+  while (xpRemaining >= HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT) {
+    xpRemaining -= HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT;
+    level++;
+  }
+  
+  return {
+    level,
+    xpIntoLevel: xpRemaining,
+    xpForNext: HUNT_CONFIG.LEVEL_AFTER_10_INCREMENT,
+  };
+}
+
+export function isHeatModeActive(heatModeUntil: Date | null): boolean {
+  if (!heatModeUntil) return false;
+  return new Date() < new Date(heatModeUntil);
+}
+
+export function shouldAwardStreakChest(streak: number): boolean {
+  return streak > 0 && streak % HUNT_CONFIG.STREAK.CHEST_EVERY_N_DAYS === 0;
 }
