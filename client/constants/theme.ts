@@ -1,6 +1,6 @@
 import { Platform, Dimensions, PixelRatio } from "react-native";
 
-export const OTA_VERSION = "v34-official-eggs";
+export const OTA_VERSION = "v35-egg-centered-animated";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BASE_WIDTH = 375;

@@ -107,6 +107,7 @@ export function EggCollectedModal({
   
   const eggScale = useSharedValue(0);
   const eggRotation = useSharedValue(0);
+  const eggFloat = useSharedValue(0);
   const glowScale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
   const burstScale = useSharedValue(0);
@@ -119,6 +120,7 @@ export function EggCollectedModal({
       setShowContent(false);
       eggScale.value = 0;
       eggRotation.value = 0;
+      eggFloat.value = 0;
       glowScale.value = 1;
       glowOpacity.value = 0;
       burstScale.value = 0;
@@ -171,6 +173,15 @@ export function EggCollectedModal({
           withTiming(1, { duration: 2000, easing: Easing.linear }),
           -1
         );
+
+        eggFloat.value = withRepeat(
+          withSequence(
+            withTiming(-8, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+            withTiming(8, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+          ),
+          -1,
+          true
+        );
       }, 1000);
 
       setTimeout(() => {
@@ -190,6 +201,7 @@ export function EggCollectedModal({
     transform: [
       { scale: eggScale.value },
       { rotate: `${eggRotation.value}deg` },
+      { translateY: eggFloat.value },
     ],
   }));
 
@@ -402,7 +414,8 @@ const styles = StyleSheet.create({
   },
   burstContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.22,
+    top: SCREEN_HEIGHT * 0.24,
+    alignSelf: "center",
   },
   burst: {
     width: 300,
@@ -411,7 +424,8 @@ const styles = StyleSheet.create({
   },
   glowContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.18,
+    top: SCREEN_HEIGHT * 0.20,
+    alignSelf: "center",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -428,7 +442,8 @@ const styles = StyleSheet.create({
   },
   particleContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.28,
+    top: SCREEN_HEIGHT * 0.26,
+    alignSelf: "center",
     width: 10,
     height: 10,
     alignItems: "center",
@@ -442,16 +457,18 @@ const styles = StyleSheet.create({
   },
   eggWrapper: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 15,
+    top: SCREEN_HEIGHT * 0.16,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   eggImage: {
-    width: 160,
-    height: 200,
+    width: 180,
+    height: 220,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
   },
   contentContainer: {
     position: "absolute",
