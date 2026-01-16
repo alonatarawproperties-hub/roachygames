@@ -171,7 +171,7 @@ export default function HuntScreen() {
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b12",
+    build: "v1.0.0-node-b13",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -435,17 +435,33 @@ export default function HuntScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
   
+  const getActiveReservation = () => {
+    const now = Date.now();
+    for (const [spawnId, until] of Object.entries(spawnReservations)) {
+      if (new Date(until).getTime() > now) {
+        return spawnId;
+      }
+    }
+    return null;
+  };
+  
   const handleReserveSpawn = async () => {
     if (!selectedSpawn) return;
+    
+    const existingReservation = getActiveReservation();
+    if (existingReservation && existingReservation !== selectedSpawn.id) {
+      dbg({ reserve: "ALREADY_RESERVED" });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setReserveToast("You already have an active reservation!");
+      setTimeout(() => setReserveToast(null), 3000);
+      return;
+    }
     
     setIsReservingSpawn(true);
     dbg({ reserve: "RESERVING..." });
     
     const reserveUntil = new Date(Date.now() + 8 * 60 * 1000);
-    setSpawnReservations(prev => ({
-      ...prev,
-      [selectedSpawn.id]: reserveUntil,
-    }));
+    setSpawnReservations({ [selectedSpawn.id]: reserveUntil });
     
     setIsReservingSpawn(false);
     dbg({ reserve: `OK until ${reserveUntil.toLocaleTimeString()}` });
