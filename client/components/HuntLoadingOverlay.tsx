@@ -27,6 +27,10 @@ interface HuntLoadingOverlayProps {
   permissionDenied?: boolean;
   onRequestPermission?: () => void;
   onClose?: () => void;
+  timeoutError?: boolean;
+  elapsedSeconds?: number;
+  stage?: string;
+  onRetry?: () => void;
 }
 
 const getGpsLabel = (accuracy: number | null | undefined, ready: boolean) => {
@@ -56,6 +60,10 @@ export function HuntLoadingOverlay({
   permissionDenied,
   onRequestPermission,
   onClose,
+  timeoutError,
+  elapsedSeconds,
+  stage,
+  onRetry,
 }: HuntLoadingOverlayProps) {
   const pulseAnim = useSharedValue(0);
   const rotateAnim = useSharedValue(0);
@@ -91,6 +99,7 @@ export function HuntLoadingOverlay({
   }));
 
   const getCurrentMessage = () => {
+    if (timeoutError) return "Connection timed out";
     if (permissionDenied) return "Location permission required";
     if (!gpsReady) return "Acquiring GPS signal...";
     if (!dataReady) return "Loading hunt data...";
@@ -215,6 +224,26 @@ export function HuntLoadingOverlay({
               <Feather name="settings" size={16} color="#fff" />
               <ThemedText style={styles.settingsButtonText}>Open Settings</ThemedText>
             </Pressable>
+          </View>
+        ) : null}
+
+        {timeoutError && onRetry ? (
+          <View style={styles.permissionContainer}>
+            <ThemedText style={styles.permissionText}>
+              Taking too long to connect. Tap retry or close and try again later.
+            </ThemedText>
+            <Pressable style={styles.settingsButton} onPress={onRetry}>
+              <Feather name="refresh-cw" size={16} color="#fff" />
+              <ThemedText style={styles.settingsButtonText}>Retry</ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {stage || elapsedSeconds !== undefined ? (
+          <View style={styles.debugContainer}>
+            <ThemedText style={styles.debugText}>
+              {stage || "—"} | {elapsedSeconds ?? 0}s
+            </ThemedText>
           </View>
         ) : null}
       </View>
@@ -373,5 +402,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1a1408",
+  },
+  debugContainer: {
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 8,
+  },
+  debugText: {
+    fontSize: 10,
+    color: GameColors.textSecondary,
+    fontFamily: "monospace",
   },
 });

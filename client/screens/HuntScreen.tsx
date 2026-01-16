@@ -181,7 +181,7 @@ export default function HuntScreen() {
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "b22",
+    build: "tapfix-0116",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -192,11 +192,16 @@ export default function HuntScreen() {
     reservs: 0,
   });
   
+  const [loadingStage, setLoadingStage] = useState("INIT");
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const loadingStartRef = useRef<number>(Date.now());
+  
   const dbg = useCallback((patch: Partial<typeof debug>) => {
     setDebug((d) => ({
       ...d,
       ...patch,
-      tapCount: (d.tapCount ?? 0) + 1,
+      tapCount: patch.lastTap ? (d.tapCount ?? 0) + 1 : d.tapCount,
       ts: new Date().toISOString(),
     }));
   }, []);
@@ -240,12 +245,39 @@ export default function HuntScreen() {
     }
   }, []);
 
+  const handleRetryLoading = useCallback(() => {
+    setLoadingTimeout(false);
+    setLoadingStage("RETRY");
+    setElapsedSeconds(0);
+    loadingStartRef.current = Date.now();
+    loadingFadeAnim.value = 1;
+    setMapReady(false);
+    startLocationTracking();
+  }, []);
+
   useEffect(() => {
     if (allReady) {
       loadingFadeAnim.value = withTiming(0, { duration: 400, easing: Easing.ease });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLoadingStage("READY");
     }
   }, [allReady]);
+
+  // Timeout guard: 15s max loading time
+  useEffect(() => {
+    if (allReady || loadingTimeout) return;
+    
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - loadingStartRef.current) / 1000);
+      setElapsedSeconds(elapsed);
+      if (elapsed >= 15 && !allReady) {
+        setLoadingTimeout(true);
+        setLoadingStage("TIMEOUT");
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [allReady, loadingTimeout]);
 
   const loadingOverlayStyle = useAnimatedStyle(() => ({
     opacity: loadingFadeAnim.value,
@@ -271,6 +303,7 @@ export default function HuntScreen() {
 
   const startLocationTracking = useCallback(async () => {
     let hasInitialLocation = false;
+    setLoadingStage("GPS_START");
     
     try {
       // First check current permission status
@@ -312,6 +345,7 @@ export default function HuntScreen() {
           hasInitialLocation = true;
           bestAccuracyRef.current = accuracy;
           setGpsAccuracy(accuracy);
+          setLoadingStage("GPS_OK");
           updateLocation(
             quickLocation.coords.latitude, 
             quickLocation.coords.longitude,
@@ -321,6 +355,7 @@ export default function HuntScreen() {
         }
       } catch (error) {
         console.log("[Hunt] Quick location failed, waiting for watch...", error);
+        setLoadingStage("GPS_WAIT");
       }
 
       // Clean up existing subscription
@@ -1649,13 +1684,15 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
-      <View style={styles.debugOverlay}>
-        <ThemedText style={styles.buildTag}>BUILD: b23</ThemedText>
-        <ThemedText style={styles.debugText}>nodes: {debug.nodes} | reservs: {debug.reservs} | taps: {debug.tapCount}</ThemedText>
-        <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
-        <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
-        <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
-        <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
+      <View style={styles.debugOverlay} pointerEvents="box-none">
+        <View style={styles.debugPanel} pointerEvents="auto">
+          <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
+          <ThemedText style={styles.debugText}>nodes: {debug.nodes} | reservs: {debug.reservs} | taps: {debug.tapCount}</ThemedText>
+          <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
+          <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
+          <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
+          <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
+        </View>
       </View>
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
@@ -1667,6 +1704,10 @@ export default function HuntScreen() {
           permissionDenied={permissionDenied}
           onRequestPermission={handleRequestPermission}
           onClose={() => navigation.goBack()}
+          timeoutError={loadingTimeout}
+          elapsedSeconds={elapsedSeconds}
+          stage={loadingStage}
+          onRetry={handleRetryLoading}
         />
       </Animated.View>
     </View>
@@ -2816,10 +2857,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 100,
     right: Spacing.md,
+    zIndex: 900,
+  },
+  debugPanel: {
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    zIndex: 900,
   },
   debugText: {
     fontSize: 10,

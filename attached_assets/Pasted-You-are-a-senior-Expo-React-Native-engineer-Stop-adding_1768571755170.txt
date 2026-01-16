@@ -1,0 +1,108 @@
+You are a senior Expo/React-Native engineer. Stop adding features. Fix two regressions with proof, using ONLY these files unless absolutely necessary:
+- client/screens/HuntScreen.tsx
+- client/components/HuntLoadingOverlay.tsx
+- client/components/MapViewWrapper.tsx
+
+Bugs:
+A) Node tap/reserve: tapping a node gives haptic but NOTHING happens. Debug overlay does not update (lastTap/nodeId stays “—”).
+B) New regression: Hunt is stuck forever on loading (“Preparing hunting grounds” etc.). This started after recent overlay changes.
+
+Rules:
+- No refactors. Minimal diffs.
+- Add instrumentation so we can SEE where taps die.
+- Ensure overlays do NOT block touches unless intended.
+- Provide final summary: root causes + exact files/lines changed.
+
+========================
+STEP 1 — FIX BUG B (STUCK LOADING) FIRST
+========================
+In client/screens/HuntScreen.tsx:
+1) Find the init sequence (GPS acquisition + hunt data fetch + preparing hunting grounds).
+2) Wrap init in:
+   - try/catch/finally
+   - Ensure loading state ALWAYS clears in finally (even on error).
+3) Add a 15s timeout guard:
+   - If init exceeds 15s, set loading to “ERROR_TIMEOUT”
+   - Show overlay with a Retry button (calls init again)
+4) Add stage logs:
+   - A single function logStage(stage: string) that also sets a debug state { stage, ts }
+   - Stages: "GPS_START", "GPS_OK", "GPS_FAIL", "DATA_START", "DATA_OK", "DATA_FAIL", "MAP_READY"
+5) IMPORTANT: Loading overlay must not trap app permanently:
+   - If GPS fails, allow fallback to last known coords (for dev) OR continue with default coords.
+   - The map must still render with nodes if data exists.
+
+In client/components/HuntLoadingOverlay.tsx:
+1) Ensure overlay does NOT block touches when it should be dismissed or when user needs to exit:
+   - The root full-screen container must use pointerEvents:
+     - When actively loading: pointerEvents="auto"
+     - When error/timeout state: pointerEvents="auto" but buttons clickable
+   - Any decorative layers must be pointerEvents="none"
+2) Ensure the close button and Retry button are always clickable:
+   - Put them ABOVE any blur/gradient, with zIndex/elevation.
+3) Add visible debug lines on the overlay:
+   - stage, elapsedSeconds, lastErrorMessage
+
+After Step 1: confirm HuntScreen reaches the map reliably.
+
+========================
+STEP 2 — FIX BUG A (NODE TAPS NOT FIRING)
+========================
+Goal: PROVE if taps are blocked by overlay/layer OR marker handlers never fire.
+
+In client/screens/HuntScreen.tsx:
+1) Add a small on-screen debug panel (top-right) that shows live values:
+   - buildId (hardcode string "tapfix-<date>")
+   - tapsCount
+   - lastTapSource ("MAP" | "MARKER" | "UI")
+   - lastNodeId
+   - lastTapTs
+   - reserveAttempts
+   - lastReserveResult / lastError
+2) The debug panel container must NOT block map touches:
+   - wrapper: pointerEvents="box-none"
+   - the panel itself: pointerEvents="auto" and only occupies its small area
+
+In client/components/MapViewWrapper.tsx:
+1) Add TapProbe instrumentation at THREE levels:
+   A) MapView onPress => calls props.onTapProbe({source:"MAP", coord, ts})
+   B) Marker onPress => calls props.onTapProbe({source:"MARKER", nodeId, ts})
+   C) If you wrap marker visuals in Pressable/Touchable, that wrapper must also call onTapProbe({source:"UI", nodeId, ts})
+2) Ensure Marker onPress ALWAYS triggers:
+   - Use Marker’s onPress directly, do NOT rely only on wrapping views.
+   - If possible: inside onPress handler, call event?.stopPropagation?.() to prevent MapView onPress clearing state.
+3) Check for touch interception:
+   - Search in MapViewWrapper for any absolute overlays, gradients, containers above the map.
+   - Any non-interactive overlay must use pointerEvents="none".
+   - If there is a full-screen view sitting above map (even transparent), remove it or set pointerEvents="none".
+4) Ensure selecting a node actually changes state:
+   - Add a selectedNodeId state in HuntScreen (or existing selection state).
+   - On marker tap: setSelectedNode(node) and show Node Details bottom sheet/modal.
+   - Confirm: debug panel should update lastNodeId immediately on tap.
+
+Reservation:
+In client/screens/HuntScreen.tsx:
+1) Add a deterministic reserve flow:
+   - onReserve(nodeId):
+     - increment reserveAttempts
+     - set lastReserveResult="START"
+     - call reserve API/service
+     - on success: set lastReserveResult="OK" and mark node reserved in local state
+     - on fail: set lastReserveResult="FAIL:<msg>"
+2) If tap probe shows MARKER taps happening but reserve doesn’t, it’s a logic/API issue.
+   If tap probe shows NOTHING, it’s a touch interception/marker handler issue.
+We must identify which with logs.
+
+========================
+STEP 3 — VERIFY CHANGES (NO GUESSING)
+========================
+- When I tap anywhere on the map, debug panel must increment tapsCount and show lastTapSource="MAP".
+- When I tap a node marker, debug panel must show lastTapSource="MARKER" and lastNodeId=<id>.
+- When I press Reserve, reserveAttempts increments and lastReserveResult changes.
+- Loading overlay must never remain forever; after 15s it must show Timeout + Retry.
+
+Output required:
+1) List the exact changes made in each of the 3 files.
+2) State the root cause you found for the stuck loading.
+3) State the root cause you found for taps not firing (overlay blocking vs marker not wired).
+
+Proceed now.
