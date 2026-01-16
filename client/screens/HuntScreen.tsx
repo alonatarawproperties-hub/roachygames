@@ -757,7 +757,12 @@ export default function HuntScreen() {
   };
 
   const allMapNodes = React.useMemo(() => {
-    if (!mapNodesData) return [];
+    if (!mapNodesData) {
+      console.log("[HuntScreen] No mapNodesData yet");
+      return [];
+    }
+    const total = mapNodesData.personalNodes.length + mapNodesData.hotspots.length + mapNodesData.events.length;
+    console.log(`[HuntScreen] mapNodesData: ${total} nodes (${mapNodesData.personalNodes.length} personal, ${mapNodesData.hotspots.length} hotspots, ${mapNodesData.events.length} events)`);
     return [
       ...mapNodesData.personalNodes,
       ...mapNodesData.hotspots,

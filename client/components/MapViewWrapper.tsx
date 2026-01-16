@@ -454,6 +454,10 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           })}
 
           {/* Map Nodes - Personal, Hotspot, Event */}
+          {(() => {
+            console.log(`[MapViewWrapper] Rendering ${mapNodes?.length || 0} node markers`);
+            return null;
+          })()}
           {mapNodes && mapNodes.length > 0 && MarkerComponent && onNodeTap ? mapNodes.map((node) => {
             const nodeLat = node.lat;
             const nodeLng = node.lng;
