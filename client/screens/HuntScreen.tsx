@@ -516,10 +516,9 @@ export default function HuntScreen() {
       setTimeout(() => setReserveToast(null), 3000);
     } catch (err: any) {
       console.log("[RESERVE] Exception:", err.message);
-      dbg({ reserve: `ERROR: ${err.message}` });
+      dbg({ reserve: `ERR:${err.message?.slice(0, 20)}` });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setReserveToast(`Failed: ${err.message}`);
-      setTimeout(() => setReserveToast(null), 3000);
+      Alert.alert("Reserve Failed", err.message || "Unknown error");
     } finally {
       setIsReservingSpawn(false);
     }
@@ -1639,22 +1638,14 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
-      {/* Debug overlay hidden - uncomment to debug spawn taps
       <View style={styles.debugOverlay}>
-        <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
+        <ThemedText style={styles.buildTag}>BUILD: b21</ThemedText>
         <ThemedText style={styles.debugText}>nodes: {debug.nodes} | taps: {debug.tapCount}</ThemedText>
         <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
         <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
         <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
         <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
-        <Pressable 
-          style={styles.debugButton} 
-          onPress={() => dbg({ lastTap: "DEBUG_TEST_BUTTON" })}
-        >
-          <ThemedText style={styles.debugButtonText}>TEST TAP</ThemedText>
-        </Pressable>
       </View>
-      */}
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
