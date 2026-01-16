@@ -109,16 +109,15 @@ export function SpawnReserveSheet({
       animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.container} pointerEvents="box-none">
+      <View style={styles.container}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
         <Animated.View
           style={[
             styles.sheet,
             animatedSheetStyle,
-            { paddingBottom: insets.bottom + Spacing.md },
+            { paddingBottom: insets.bottom + Spacing.md, zIndex: 10 },
           ]}
-          pointerEvents="box-none"
         >
           <View style={styles.handle} />
 
