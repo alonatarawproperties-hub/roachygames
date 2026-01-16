@@ -1582,6 +1582,7 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
+      {/* Debug overlay hidden - uncomment to debug spawn taps
       <View style={styles.debugOverlay}>
         <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
         <ThemedText style={styles.debugText}>nodes: {debug.nodes} | taps: {debug.tapCount}</ThemedText>
@@ -1596,6 +1597,7 @@ export default function HuntScreen() {
           <ThemedText style={styles.debugButtonText}>TEST TAP</ThemedText>
         </Pressable>
       </View>
+      */}
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
