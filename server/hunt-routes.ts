@@ -240,6 +240,113 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
+  app.post("/api/hunt/spawns/reserve", async (req: Request, res: Response) => {
+    try {
+      const { spawnId, lat, lng } = req.body;
+      const walletAddress = req.headers["x-wallet-address"] as string;
+
+      if (!walletAddress) {
+        return res.status(401).json({ error: "Wallet address required" });
+      }
+      if (!spawnId) {
+        return res.status(400).json({ error: "spawnId required" });
+      }
+
+      const now = new Date();
+
+      const [spawn] = await db.select().from(wildCreatureSpawns).where(eq(wildCreatureSpawns.id, spawnId));
+      if (!spawn) {
+        return res.status(404).json({ error: "Spawn not found" });
+      }
+      if (new Date(spawn.expiresAt) < now) {
+        return res.status(400).json({ error: "Spawn expired" });
+      }
+      if (spawn.caughtByWallet) {
+        return res.status(400).json({ error: "Spawn already caught" });
+      }
+
+      if (spawn.reservedByWallet && spawn.reservedByWallet !== walletAddress) {
+        if (spawn.reservedUntil && new Date(spawn.reservedUntil) > now) {
+          return res.status(400).json({ error: "Spawn reserved by another player" });
+        }
+      }
+
+      const existingReservation = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.reservedByWallet, walletAddress),
+          gte(wildCreatureSpawns.reservedUntil!, now),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet)
+        ))
+        .limit(1);
+
+      if (existingReservation.length > 0 && existingReservation[0].id !== spawnId) {
+        return res.status(400).json({ error: "You already have an active reservation" });
+      }
+
+      if (lat !== undefined && lng !== undefined) {
+        const spawnLat = parseFloat(spawn.latitude);
+        const spawnLng = parseFloat(spawn.longitude);
+        const distance = calculateDistance(lat, lng, spawnLat, spawnLng);
+        const RESERVE_RANGE_M = 5000;
+        if (distance > RESERVE_RANGE_M) {
+          return res.status(400).json({ error: "Spawn too far to reserve (max 5km)" });
+        }
+      }
+
+      const reservedUntil = new Date(now.getTime() + 8 * 60 * 1000);
+
+      await db.update(wildCreatureSpawns)
+        .set({
+          reservedByWallet: walletAddress,
+          reservedUntil,
+        })
+        .where(eq(wildCreatureSpawns.id, spawnId));
+
+      console.log(`[HUNT] Spawn ${spawnId} reserved by ${walletAddress} until ${reservedUntil.toISOString()}`);
+
+      res.json({
+        success: true,
+        spawnId,
+        reservedUntil: reservedUntil.toISOString(),
+      });
+    } catch (error) {
+      console.error("Spawn reserve error:", error);
+      res.status(500).json({ error: "Failed to reserve spawn" });
+    }
+  });
+
+  app.get("/api/hunt/spawns/reservations", async (req: Request, res: Response) => {
+    try {
+      const now = new Date();
+
+      const reservations = await db.select({
+        spawnId: wildCreatureSpawns.id,
+        reservedByWallet: wildCreatureSpawns.reservedByWallet,
+        reservedUntil: wildCreatureSpawns.reservedUntil,
+      }).from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.reservedUntil!, now)
+        ));
+
+      const callerWallet = req.headers["x-wallet-address"] as string;
+      
+      const formatted = reservations.map(r => ({
+        spawnId: r.spawnId,
+        reservedByWallet: r.reservedByWallet,
+        reservedUntil: r.reservedUntil?.toISOString(),
+        isOwn: r.reservedByWallet === callerWallet,
+      }));
+
+      res.json({ reservations: formatted });
+    } catch (error) {
+      console.error("Spawn reservations error:", error);
+      res.status(500).json({ error: "Failed to fetch reservations" });
+    }
+  });
+
   app.post("/api/hunt/spawn", async (req: Request, res: Response) => {
     try {
       const { latitude, longitude, count = 5 } = req.body;

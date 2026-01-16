@@ -50,12 +50,13 @@ interface CollectResponse {
 }
 
 export interface SpawnReservation {
-  nodeId: string;
-  isOwn: boolean;
+  spawnId: string;
+  reservedByWallet: string;
   reservedUntil: string;
+  isOwn: boolean;
 }
 
-interface ReservationsResponse {
+interface SpawnReservationsResponse {
   reservations: SpawnReservation[];
 }
 
@@ -63,27 +64,27 @@ export function useSpawnReservations() {
   const { user, isGuest } = useAuth();
   const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
 
-  return useQuery<ReservationsResponse>({
-    queryKey: ["/api/nodes/reservations", walletAddress],
+  return useQuery<SpawnReservationsResponse>({
+    queryKey: ["/api/hunt/spawns/reservations", walletAddress],
     queryFn: async () => {
       if (!walletAddress) {
         return { reservations: [] };
       }
 
-      const response = await fetch(`${getApiUrl()}/api/nodes/reservations`, {
+      const response = await fetch(`${getApiUrl()}/api/hunt/spawns/reservations`, {
         headers: {
           "x-wallet-address": walletAddress,
         },
       });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch reservations");
+        throw new Error("Failed to fetch spawn reservations");
       }
 
       return response.json();
     },
     enabled: !!walletAddress,
-    refetchInterval: 5000, // Refresh every 5s to keep countdowns accurate
+    refetchInterval: 5000,
     staleTime: 3000,
   });
 }

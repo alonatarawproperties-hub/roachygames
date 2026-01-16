@@ -43,9 +43,10 @@ interface NearbyPlayer {
 }
 
 interface SpawnReservationInfo {
-  nodeId: string;
+  spawnId: string;
   isOwn: boolean;
   reservedUntil: string;
+  reservedByWallet?: string;
 }
 
 interface MapViewWrapperProps {
@@ -474,7 +475,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               }
               
               // Check reservation status for this spawn
-              const reservation = spawnReservations?.find(r => r.nodeId === spawn.id);
+              const reservation = spawnReservations?.find(r => r.spawnId === spawn.id);
               const isReserved = reservation && new Date(reservation.reservedUntil).getTime() > Date.now();
               const isOwnReservation = reservation?.isOwn === true;
               
