@@ -193,6 +193,7 @@ export function SpawnReserveSheet({
             ) : (
               <Button
                 onPress={() => {
+                  console.log("[SpawnReserveSheet] Reserve button pressed, isReserving:", isReserving);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   onReserve();
                 }}

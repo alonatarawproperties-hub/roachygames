@@ -179,7 +179,7 @@ export default function HuntScreen() {
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b16",
+    build: "v1.0.0-node-b17",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -456,7 +456,18 @@ export default function HuntScreen() {
   };
   
   const handleReserveSpawn = async () => {
-    if (!selectedSpawn || !playerLocation) return;
+    console.log("[RESERVE] handleReserveSpawn called", { 
+      selectedSpawn: selectedSpawn?.id, 
+      playerLocation: !!playerLocation,
+      user: user?.walletAddress 
+    });
+    
+    if (!selectedSpawn || !playerLocation) {
+      console.log("[RESERVE] Missing data", { selectedSpawn: !!selectedSpawn, playerLocation: !!playerLocation });
+      setReserveToast("Missing spawn or location data");
+      setTimeout(() => setReserveToast(null), 3000);
+      return;
+    }
     
     const existingReservation = getActiveSpawnReservation();
     if (existingReservation && existingReservation !== selectedSpawn.id) {
@@ -471,7 +482,10 @@ export default function HuntScreen() {
     dbg({ reserve: "RESERVING..." });
     
     try {
-      const response = await fetch(`${getApiUrl()}/api/hunt/spawns/reserve`, {
+      const apiUrl = getApiUrl();
+      console.log("[RESERVE] Calling API:", `${apiUrl}/api/hunt/spawns/reserve`);
+      
+      const response = await fetch(`${apiUrl}/api/hunt/spawns/reserve`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -484,10 +498,16 @@ export default function HuntScreen() {
         }),
       });
       
+      console.log("[RESERVE] Response status:", response.status);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.log("[RESERVE] Error response:", errorData);
         throw new Error(errorData.error || "Failed to reserve spawn");
       }
+      
+      const data = await response.json();
+      console.log("[RESERVE] Success:", data);
       
       await refetchSpawnReservations();
       dbg({ reserve: "OK - server reserved" });
@@ -495,6 +515,7 @@ export default function HuntScreen() {
       setReserveToast("Spawn reserved! Walk there within 8 minutes.");
       setTimeout(() => setReserveToast(null), 3000);
     } catch (err: any) {
+      console.log("[RESERVE] Exception:", err.message);
       dbg({ reserve: `ERROR: ${err.message}` });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setReserveToast(`Failed: ${err.message}`);
