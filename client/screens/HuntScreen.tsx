@@ -140,7 +140,7 @@ export default function HuntScreen() {
   } = useHunt();
   
   useGamePresence("roachy-hunt");
-  const { nearbyPlayers, setLocation: setPresenceLocation } = usePresenceContext();
+  const { nearbyPlayers, isVisible, setVisibility, setLocation: setPresenceLocation } = usePresenceContext();
   
   useEffect(() => {
     if (playerLocation) {
