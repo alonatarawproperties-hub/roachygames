@@ -4,24 +4,14 @@ import {
   StyleSheet,
   Pressable,
   Modal,
-  Dimensions,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
-import { Button } from "@/components/Button";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import type { Spawn } from "@/context/HuntContext";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_HEIGHT = 300;
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
@@ -52,16 +42,7 @@ export function SpawnReserveSheet({
   onNavigate,
 }: SpawnReserveSheetProps) {
   const insets = useSafeAreaInsets();
-  const translateY = useSharedValue(SHEET_HEIGHT);
   const [countdown, setCountdown] = useState("");
-
-  useEffect(() => {
-    if (visible && spawn) {
-      translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
-    } else {
-      translateY.value = withTiming(SHEET_HEIGHT, { duration: 200 });
-    }
-  }, [visible, spawn]);
 
   useEffect(() => {
     if (!reservedUntil) {
@@ -85,11 +66,7 @@ export function SpawnReserveSheet({
     return () => clearInterval(interval);
   }, [reservedUntil]);
 
-  const animatedSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  if (!spawn) return null;
+  if (!visible || !spawn) return null;
 
   const rarityColor = RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common;
   const distanceText = playerDistance
@@ -102,23 +79,31 @@ export function SpawnReserveSheet({
   const CATCH_RADIUS = 100;
   const canCatch = playerDistance !== null && playerDistance <= CATCH_RADIUS;
 
+  const handleReservePress = () => {
+    console.log("[SpawnReserveSheet] RESERVE PRESSED");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onReserve();
+  };
+
+  const handleNavigatePress = () => {
+    console.log("[SpawnReserveSheet] NAVIGATE PRESSED");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onNavigate();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="none"
+      animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={styles.modalContainer}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={styles.backdrop} />
+        </TouchableWithoutFeedback>
 
-        <Animated.View
-          style={[
-            styles.sheet,
-            animatedSheetStyle,
-            { paddingBottom: insets.bottom + Spacing.md, zIndex: 10 },
-          ]}
-        >
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.md }]}>
           <View style={styles.handle} />
 
           <View style={styles.header}>
@@ -160,34 +145,17 @@ export function SpawnReserveSheet({
 
           <View style={styles.actions}>
             {isReserved ? (
-              canCatch ? (
-                <Button
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    onNavigate();
-                  }}
-                  style={styles.primaryButton}
-                >
-                  Catch Now
-                </Button>
-              ) : (
-                <Button
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    onNavigate();
-                  }}
-                  style={styles.primaryButton}
-                >
-                  Navigate
-                </Button>
-              )
+              <Pressable
+                onPress={handleNavigatePress}
+                style={styles.primaryButton}
+              >
+                <ThemedText style={styles.primaryButtonText}>
+                  {canCatch ? "Catch Now" : "Navigate"}
+                </ThemedText>
+              </Pressable>
             ) : (
               <Pressable
-                onPress={() => {
-                  console.log("[SpawnReserveSheet] Reserve button PRESSED");
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  onReserve();
-                }}
+                onPress={handleReservePress}
                 disabled={isReserving}
                 style={[styles.reserveButton, isReserving && { opacity: 0.5 }]}
               >
@@ -201,19 +169,19 @@ export function SpawnReserveSheet({
               <ThemedText style={styles.closeText}>Close</ThemedText>
             </Pressable>
           </View>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
@@ -222,7 +190,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    minHeight: SHEET_HEIGHT,
   },
   handle: {
     width: 40,
@@ -307,6 +274,16 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     width: "100%",
+    height: 48,
+    backgroundColor: GameColors.gold,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#000",
   },
   reserveButton: {
     width: "100%",
