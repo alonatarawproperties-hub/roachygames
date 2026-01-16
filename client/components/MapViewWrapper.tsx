@@ -42,12 +42,19 @@ interface NearbyPlayer {
   lng: number;
 }
 
+interface SpawnReservationInfo {
+  nodeId: string;
+  isOwn: boolean;
+  reservedUntil: string;
+}
+
 interface MapViewWrapperProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
   raids: Raid[];
   mapNodes?: MapNode[];
   nearbyPlayers?: NearbyPlayer[];
+  spawnReservations?: SpawnReservationInfo[];
   gpsAccuracy?: number | null;
   isVisible?: boolean;
   onToggleVisibility?: () => void;
@@ -257,7 +264,7 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, isVisible = true, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, spawnReservations, gpsAccuracy, isVisible = true, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -455,7 +462,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             </MarkerComponent>
           ) : null}
 
-          {/* Spawn markers - Golden mystery eggs */}
+          {/* Spawn markers - Colored based on reservation status */}
           {spawns && spawns.length > 0 && MarkerComponent ? (() => {
             console.log(`[MapViewWrapper] Rendering ${spawns.length} spawn markers`);
             return spawns.map((spawn) => {
@@ -465,6 +472,28 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 console.log(`[MapViewWrapper] Invalid spawn coordinates: ${spawn.latitude}, ${spawn.longitude}`);
                 return null;
               }
+              
+              // Check reservation status for this spawn
+              const reservation = spawnReservations?.find(r => r.nodeId === spawn.id);
+              const isReserved = reservation && new Date(reservation.reservedUntil).getTime() > Date.now();
+              const isOwnReservation = reservation?.isOwn === true;
+              
+              // Calculate countdown for reserved spawns
+              let countdown = "";
+              if (isReserved && reservation) {
+                const remaining = Math.max(0, new Date(reservation.reservedUntil).getTime() - Date.now());
+                const mins = Math.floor(remaining / 60000);
+                const secs = Math.floor((remaining % 60000) / 1000);
+                countdown = `${mins}:${secs.toString().padStart(2, '0')}`;
+              }
+              
+              // Determine marker colors
+              const markerColor = isReserved 
+                ? (isOwnReservation ? "#22C55E" : "#EF4444")  // Green for own, Red for others
+                : "#FFB800"; // Default golden
+              const glowColor = isReserved
+                ? (isOwnReservation ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)")
+                : "rgba(255, 184, 0, 0.3)";
               
               return (
                 <MarkerComponent
@@ -482,14 +511,19 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                     console.log(`[MapViewWrapper] Spawn onSelect (iOS): ${spawn.id}`);
                     onSpawnTap(spawn);
                   }}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                  tracksViewChanges={false}
+                  anchor={{ x: 0.5, y: isReserved ? 1 : 0.5 }}
+                  tracksViewChanges={isReserved}
                   tappable={true}
                 >
-                  <View style={styles.eggMarkerContainer} pointerEvents="none">
-                    <View style={styles.eggMarkerGlow} />
-                    <View style={styles.eggMarkerBody}>
-                      <Feather name="gift" size={14} color="#8B4513" />
+                  <View style={[styles.eggMarkerContainer, isReserved && styles.reservedMarkerContainer]} pointerEvents="none">
+                    {isReserved && countdown ? (
+                      <View style={[styles.countdownBadge, { backgroundColor: markerColor }]}>
+                        <ThemedText style={styles.countdownText}>{countdown}</ThemedText>
+                      </View>
+                    ) : null}
+                    <View style={[styles.eggMarkerGlow, { backgroundColor: glowColor }]} />
+                    <View style={[styles.eggMarkerBody, { backgroundColor: markerColor }]}>
+                      <Feather name="gift" size={14} color="#fff" />
                     </View>
                   </View>
                 </MarkerComponent>
@@ -1045,6 +1079,20 @@ const styles = StyleSheet.create({
   },
   visibilityButtonOff: {
     borderColor: GameColors.textSecondary,
+  },
+  reservedMarkerContainer: {
+    alignItems: "center",
+  },
+  countdownBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  countdownText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#fff",
   },
 });
 

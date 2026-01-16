@@ -45,7 +45,7 @@ import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
-import { useMapNodes, useReserveNode, MapNode } from "@/hooks/useMapNodes";
+import { useMapNodes, useReserveNode, useSpawnReservations, MapNode } from "@/hooks/useMapNodes";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#A0A0A0",
@@ -174,11 +174,10 @@ export default function HuntScreen() {
   const lastMarkerTapRef = useRef<number>(0);
   
   const [showSpawnReserveSheet, setShowSpawnReserveSheet] = useState(false);
-  const [spawnReservations, setSpawnReservations] = useState<Record<string, Date>>({}); 
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b14",
+    build: "v1.0.0-node-b15",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -201,6 +200,8 @@ export default function HuntScreen() {
     playerLocation?.latitude ?? null,
     playerLocation?.longitude ?? null
   );
+  const { data: reservationsData, refetch: refetchReservations } = useSpawnReservations();
+  const serverReservations = reservationsData?.reservations || [];
   const reserveNodeMutation = useReserveNode();
   const loadingFadeAnim = useSharedValue(1);
   const hasAutoSpawned = useRef(false);
@@ -424,7 +425,8 @@ export default function HuntScreen() {
     setSelectedSpawn(spawn);
     activeSpawnRef.current = spawn;
     
-    const hasReservation = spawnReservations[spawn.id] && new Date(spawnReservations[spawn.id]).getTime() > Date.now();
+    const ownReservation = serverReservations.find(r => r.nodeId === spawn.id && r.isOwn);
+    const hasReservation = ownReservation && new Date(ownReservation.reservedUntil).getTime() > Date.now();
     
     if (dist <= CATCH_RADIUS_M || hasReservation) {
       if (dist <= CATCH_RADIUS_M) {
@@ -443,23 +445,22 @@ export default function HuntScreen() {
   };
   
   const getActiveReservation = () => {
+    // Check server-side reservations for own active reservation
     const now = Date.now();
-    for (const [spawnId, until] of Object.entries(spawnReservations)) {
-      if (new Date(until).getTime() > now) {
-        return spawnId;
-      }
-    }
-    return null;
+    const ownReservation = serverReservations.find(r => 
+      r.isOwn && new Date(r.reservedUntil).getTime() > now
+    );
+    return ownReservation?.nodeId || null;
   };
   
   const handleReserveSpawn = async () => {
-    if (!selectedSpawn) return;
+    if (!selectedSpawn || !playerLocation) return;
     
     const existingReservation = getActiveReservation();
     if (existingReservation && existingReservation !== selectedSpawn.id) {
       dbg({ reserve: "ALREADY_RESERVED" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setReserveToast("You already have an active reservation!");
+      setReserveToast("You still have an ongoing reservation. Complete it first!");
       setTimeout(() => setReserveToast(null), 3000);
       return;
     }
@@ -467,12 +468,26 @@ export default function HuntScreen() {
     setIsReservingSpawn(true);
     dbg({ reserve: "RESERVING..." });
     
-    const reserveUntil = new Date(Date.now() + 8 * 60 * 1000);
-    setSpawnReservations({ [selectedSpawn.id]: reserveUntil });
-    
-    setIsReservingSpawn(false);
-    dbg({ reserve: `OK until ${reserveUntil.toLocaleTimeString()}` });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await reserveNodeMutation.mutateAsync({
+        nodeId: selectedSpawn.id,
+        lat: playerLocation.latitude,
+        lng: playerLocation.longitude,
+      });
+      
+      await refetchReservations();
+      dbg({ reserve: "OK - server reserved" });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setReserveToast("Spawn reserved! Walk there within 8 minutes.");
+      setTimeout(() => setReserveToast(null), 3000);
+    } catch (err: any) {
+      dbg({ reserve: `ERROR: ${err.message}` });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setReserveToast(`Failed: ${err.message}`);
+      setTimeout(() => setReserveToast(null), 3000);
+    } finally {
+      setIsReservingSpawn(false);
+    }
   };
   
   const handleSpawnNavigate = () => {
@@ -904,6 +919,7 @@ export default function HuntScreen() {
         raids={raids}
         mapNodes={allMapNodes}
         nearbyPlayers={nearbyPlayers}
+        spawnReservations={serverReservations}
         gpsAccuracy={gpsAccuracy}
         isVisible={isVisible}
         onToggleVisibility={() => setVisibility(!isVisible)}
@@ -914,6 +930,7 @@ export default function HuntScreen() {
         onRefresh={() => {
           spawnCreatures();
           refetchMapNodes();
+          refetchReservations();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }}
         onMapReady={() => setMapReady(true)}
@@ -1570,7 +1587,10 @@ export default function HuntScreen() {
         spawn={selectedSpawn}
         playerDistance={selectedSpawn?.distance ?? null}
         isReserving={isReservingSpawn}
-        reservedUntil={selectedSpawn ? spawnReservations[selectedSpawn.id] ?? null : null}
+        reservedUntil={selectedSpawn ? (() => {
+          const res = serverReservations.find(r => r.nodeId === selectedSpawn.id && r.isOwn);
+          return res ? new Date(res.reservedUntil) : null;
+        })() : null}
         onClose={() => setShowSpawnReserveSheet(false)}
         onReserve={handleReserveSpawn}
         onNavigate={handleSpawnNavigate}

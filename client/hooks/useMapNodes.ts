@@ -49,6 +49,45 @@ interface CollectResponse {
   collectedAt: string;
 }
 
+export interface SpawnReservation {
+  nodeId: string;
+  isOwn: boolean;
+  reservedUntil: string;
+}
+
+interface ReservationsResponse {
+  reservations: SpawnReservation[];
+}
+
+export function useSpawnReservations() {
+  const { user, isGuest } = useAuth();
+  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
+
+  return useQuery<ReservationsResponse>({
+    queryKey: ["/api/nodes/reservations", walletAddress],
+    queryFn: async () => {
+      if (!walletAddress) {
+        return { reservations: [] };
+      }
+
+      const response = await fetch(`${getApiUrl()}/api/nodes/reservations`, {
+        headers: {
+          "x-wallet-address": walletAddress,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch reservations");
+      }
+
+      return response.json();
+    },
+    enabled: !!walletAddress,
+    refetchInterval: 5000, // Refresh every 5s to keep countdowns accurate
+    staleTime: 3000,
+  });
+}
+
 export function useMapNodes(lat: number | null, lng: number | null) {
   const { user, isGuest } = useAuth();
   const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
