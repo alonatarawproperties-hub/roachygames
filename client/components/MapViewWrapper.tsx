@@ -892,8 +892,8 @@ const styles = StyleSheet.create({
     height: 48,
   },
   spawnMarkerImage: {
-    width: 40,
-    height: 48,
+    width: 80,
+    height: 96,
   },
   eggMarkerGlow: {
     position: "absolute",
