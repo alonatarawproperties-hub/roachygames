@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -117,6 +118,7 @@ function getSpawnPosition(id: string, index: number): { left: `${number}%`; top:
 export default function HuntScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const navigation = useNavigation();
   const {
     walletAddress,
     playerLocation,
@@ -1648,7 +1650,7 @@ export default function HuntScreen() {
       ) : null}
 
       <View style={styles.debugOverlay}>
-        <ThemedText style={styles.buildTag}>BUILD: b22</ThemedText>
+        <ThemedText style={styles.buildTag}>BUILD: b23</ThemedText>
         <ThemedText style={styles.debugText}>nodes: {debug.nodes} | reservs: {debug.reservs} | taps: {debug.tapCount}</ThemedText>
         <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
         <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
@@ -1664,6 +1666,7 @@ export default function HuntScreen() {
           gpsAccuracy={gpsAccuracy}
           permissionDenied={permissionDenied}
           onRequestPermission={handleRequestPermission}
+          onClose={() => navigation.goBack()}
         />
       </Animated.View>
     </View>

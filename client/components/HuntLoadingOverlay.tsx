@@ -26,6 +26,7 @@ interface HuntLoadingOverlayProps {
   gpsAccuracy?: number | null;
   permissionDenied?: boolean;
   onRequestPermission?: () => void;
+  onClose?: () => void;
 }
 
 const getGpsLabel = (accuracy: number | null | undefined, ready: boolean) => {
@@ -54,6 +55,7 @@ export function HuntLoadingOverlay({
   gpsAccuracy,
   permissionDenied,
   onRequestPermission,
+  onClose,
 }: HuntLoadingOverlayProps) {
   const pulseAnim = useSharedValue(0);
   const rotateAnim = useSharedValue(0);
@@ -112,6 +114,12 @@ export function HuntLoadingOverlay({
         colors={["#1a1408", "#2d2010", "#1a1408"]}
         style={StyleSheet.absoluteFill}
       />
+
+      {onClose ? (
+        <Pressable style={styles.closeButton} onPress={onClose}>
+          <Feather name="x" size={24} color="#fff" />
+        </Pressable>
+      ) : null}
 
       <View style={styles.content}>
         <Animated.View style={[styles.logoContainer, pulseStyle]}>
@@ -220,6 +228,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 100,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 60,
+    left: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 101,
   },
   content: {
     alignItems: "center",
