@@ -49,46 +49,6 @@ interface CollectResponse {
   collectedAt: string;
 }
 
-export interface SpawnReservation {
-  spawnId: string;
-  reservedByWallet: string;
-  reservedUntil: string;
-  isOwn: boolean;
-}
-
-interface SpawnReservationsResponse {
-  reservations: SpawnReservation[];
-}
-
-export function useSpawnReservations() {
-  const { user, isGuest } = useAuth();
-  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
-
-  return useQuery<SpawnReservationsResponse>({
-    queryKey: ["/api/hunt/spawns/reservations", walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) {
-        return { reservations: [] };
-      }
-
-      const response = await fetch(`${getApiUrl()}/api/hunt/spawns/reservations`, {
-        headers: {
-          "x-wallet-address": walletAddress,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch spawn reservations");
-      }
-
-      return response.json();
-    },
-    enabled: !!walletAddress,
-    refetchInterval: 5000,
-    staleTime: 3000,
-  });
-}
-
 export function useMapNodes(lat: number | null, lng: number | null) {
   const { user, isGuest } = useAuth();
   const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);

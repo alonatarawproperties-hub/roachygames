@@ -26,11 +26,6 @@ interface HuntLoadingOverlayProps {
   gpsAccuracy?: number | null;
   permissionDenied?: boolean;
   onRequestPermission?: () => void;
-  onClose?: () => void;
-  timeoutError?: boolean;
-  elapsedSeconds?: number;
-  stage?: string;
-  onRetry?: () => void;
 }
 
 const getGpsLabel = (accuracy: number | null | undefined, ready: boolean) => {
@@ -59,11 +54,6 @@ export function HuntLoadingOverlay({
   gpsAccuracy,
   permissionDenied,
   onRequestPermission,
-  onClose,
-  timeoutError,
-  elapsedSeconds,
-  stage,
-  onRetry,
 }: HuntLoadingOverlayProps) {
   const pulseAnim = useSharedValue(0);
   const rotateAnim = useSharedValue(0);
@@ -99,7 +89,6 @@ export function HuntLoadingOverlay({
   }));
 
   const getCurrentMessage = () => {
-    if (timeoutError) return "Connection timed out";
     if (permissionDenied) return "Location permission required";
     if (!gpsReady) return "Acquiring GPS signal...";
     if (!dataReady) return "Loading hunt data...";
@@ -123,12 +112,6 @@ export function HuntLoadingOverlay({
         colors={["#1a1408", "#2d2010", "#1a1408"]}
         style={StyleSheet.absoluteFill}
       />
-
-      {onClose ? (
-        <Pressable style={styles.closeButton} onPress={onClose}>
-          <Feather name="x" size={24} color="#fff" />
-        </Pressable>
-      ) : null}
 
       <View style={styles.content}>
         <Animated.View style={[styles.logoContainer, pulseStyle]}>
@@ -226,26 +209,6 @@ export function HuntLoadingOverlay({
             </Pressable>
           </View>
         ) : null}
-
-        {timeoutError && onRetry ? (
-          <View style={styles.permissionContainer}>
-            <ThemedText style={styles.permissionText}>
-              Taking too long to connect. Tap retry or close and try again later.
-            </ThemedText>
-            <Pressable style={styles.settingsButton} onPress={onRetry}>
-              <Feather name="refresh-cw" size={16} color="#fff" />
-              <ThemedText style={styles.settingsButtonText}>Retry</ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {stage || elapsedSeconds !== undefined ? (
-          <View style={styles.debugContainer}>
-            <ThemedText style={styles.debugText}>
-              {stage || "—"} | {elapsedSeconds ?? 0}s
-            </ThemedText>
-          </View>
-        ) : null}
       </View>
     </View>
   );
@@ -257,18 +220,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 100,
-  },
-  closeButton: {
-    position: "absolute",
-    top: 60,
-    left: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 101,
   },
   content: {
     alignItems: "center",
@@ -402,17 +353,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1a1408",
-  },
-  debugContainer: {
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderRadius: 8,
-  },
-  debugText: {
-    fontSize: 10,
-    color: GameColors.textSecondary,
-    fontFamily: "monospace",
   },
 });

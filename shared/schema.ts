@@ -80,8 +80,6 @@ export const wildCreatureSpawns = pgTable("wild_creature_spawns", {
   caughtAt: timestamp("caught_at"),
   expiresAt: timestamp("expires_at").notNull(),
   spawnedAt: timestamp("spawned_at").notNull().default(sql`now()`),
-  reservedByWallet: text("reserved_by_wallet"),
-  reservedUntil: timestamp("reserved_until"),
 });
 
 export const huntCaughtCreatures = pgTable("hunt_caught_creatures", {

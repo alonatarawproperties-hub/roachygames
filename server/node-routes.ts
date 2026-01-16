@@ -762,40 +762,4 @@ export function registerNodeRoutes(app: Express) {
       res.status(500).json({ error: "Failed to collect" });
     }
   });
-
-  // Get all active reservations (for showing on map)
-  app.get("/api/nodes/reservations", async (req: Request, res: Response) => {
-    try {
-      const walletAddress = req.headers["x-wallet-address"] as string;
-      const now = new Date();
-
-      // Get all active reservations that haven't expired
-      const reservations = await db
-        .select({
-          nodeId: huntNodePlayerState.nodeId,
-          walletAddress: huntNodePlayerState.walletAddress,
-          reservedUntil: huntNodePlayerState.reservedUntil,
-        })
-        .from(huntNodePlayerState)
-        .where(
-          and(
-            eq(huntNodePlayerState.status, "RESERVED"),
-            gte(huntNodePlayerState.reservedUntil, now)
-          )
-        );
-
-      // Transform to client-friendly format
-      const result = reservations.map(r => ({
-        nodeId: r.nodeId,
-        isOwn: r.walletAddress === walletAddress,
-        reservedUntil: r.reservedUntil,
-      }));
-
-      log("RESERVATIONS", `Returning ${result.length} active reservations`);
-      res.json({ reservations: result });
-    } catch (err: any) {
-      log("RESERVATIONS", `Error: ${err.message}`);
-      res.status(500).json({ error: "Failed to get reservations" });
-    }
-  });
 }

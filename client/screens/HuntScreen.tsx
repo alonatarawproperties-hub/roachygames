@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -46,9 +45,7 @@ import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
-import { useMapNodes, useReserveNode, useSpawnReservations, MapNode } from "@/hooks/useMapNodes";
-import { useAuth } from "@/context/AuthContext";
-import { getApiUrl } from "@/lib/query-client";
+import { useMapNodes, useReserveNode, MapNode } from "@/hooks/useMapNodes";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#A0A0A0",
@@ -118,7 +115,6 @@ function getSpawnPosition(id: string, index: number): { left: `${number}%`; top:
 export default function HuntScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const navigation = useNavigation();
   const {
     walletAddress,
     playerLocation,
@@ -178,10 +174,11 @@ export default function HuntScreen() {
   const lastMarkerTapRef = useRef<number>(0);
   
   const [showSpawnReserveSheet, setShowSpawnReserveSheet] = useState(false);
+  const [spawnReservations, setSpawnReservations] = useState<Record<string, Date>>({}); 
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "tapfix-0116",
+    build: "v1.0.0-node-b14",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -189,19 +186,13 @@ export default function HuntScreen() {
     lastNet: "",
     ts: "",
     nodes: 0,
-    reservs: 0,
   });
-  
-  const [loadingStage, setLoadingStage] = useState("INIT");
-  const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const loadingStartRef = useRef<number>(Date.now());
   
   const dbg = useCallback((patch: Partial<typeof debug>) => {
     setDebug((d) => ({
       ...d,
       ...patch,
-      tapCount: patch.lastTap ? (d.tapCount ?? 0) + 1 : d.tapCount,
+      tapCount: (d.tapCount ?? 0) + 1,
       ts: new Date().toISOString(),
     }));
   }, []);
@@ -210,9 +201,6 @@ export default function HuntScreen() {
     playerLocation?.latitude ?? null,
     playerLocation?.longitude ?? null
   );
-  const { data: reservationsData, refetch: refetchSpawnReservations } = useSpawnReservations();
-  const spawnReservations = reservationsData?.reservations || [];
-  const { user, isGuest } = useAuth();
   const reserveNodeMutation = useReserveNode();
   const loadingFadeAnim = useSharedValue(1);
   const hasAutoSpawned = useRef(false);
@@ -245,39 +233,12 @@ export default function HuntScreen() {
     }
   }, []);
 
-  const handleRetryLoading = useCallback(() => {
-    setLoadingTimeout(false);
-    setLoadingStage("RETRY");
-    setElapsedSeconds(0);
-    loadingStartRef.current = Date.now();
-    loadingFadeAnim.value = 1;
-    setMapReady(false);
-    startLocationTracking();
-  }, []);
-
   useEffect(() => {
     if (allReady) {
       loadingFadeAnim.value = withTiming(0, { duration: 400, easing: Easing.ease });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setLoadingStage("READY");
     }
   }, [allReady]);
-
-  // Timeout guard: 15s max loading time
-  useEffect(() => {
-    if (allReady || loadingTimeout) return;
-    
-    const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - loadingStartRef.current) / 1000);
-      setElapsedSeconds(elapsed);
-      if (elapsed >= 15 && !allReady) {
-        setLoadingTimeout(true);
-        setLoadingStage("TIMEOUT");
-      }
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [allReady, loadingTimeout]);
 
   const loadingOverlayStyle = useAnimatedStyle(() => ({
     opacity: loadingFadeAnim.value,
@@ -303,7 +264,6 @@ export default function HuntScreen() {
 
   const startLocationTracking = useCallback(async () => {
     let hasInitialLocation = false;
-    setLoadingStage("GPS_START");
     
     try {
       // First check current permission status
@@ -345,7 +305,6 @@ export default function HuntScreen() {
           hasInitialLocation = true;
           bestAccuracyRef.current = accuracy;
           setGpsAccuracy(accuracy);
-          setLoadingStage("GPS_OK");
           updateLocation(
             quickLocation.coords.latitude, 
             quickLocation.coords.longitude,
@@ -355,7 +314,6 @@ export default function HuntScreen() {
         }
       } catch (error) {
         console.log("[Hunt] Quick location failed, waiting for watch...", error);
-        setLoadingStage("GPS_WAIT");
       }
 
       // Clean up existing subscription
@@ -466,8 +424,7 @@ export default function HuntScreen() {
     setSelectedSpawn(spawn);
     activeSpawnRef.current = spawn;
     
-    const ownReservation = spawnReservations.find(r => r.spawnId === spawn.id && r.isOwn);
-    const hasReservation = ownReservation && new Date(ownReservation.reservedUntil).getTime() > Date.now();
+    const hasReservation = spawnReservations[spawn.id] && new Date(spawnReservations[spawn.id]).getTime() > Date.now();
     
     if (dist <= CATCH_RADIUS_M || hasReservation) {
       if (dist <= CATCH_RADIUS_M) {
@@ -485,33 +442,24 @@ export default function HuntScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
   
-  const getActiveSpawnReservation = () => {
+  const getActiveReservation = () => {
     const now = Date.now();
-    const ownReservation = spawnReservations.find(r => 
-      r.isOwn && new Date(r.reservedUntil).getTime() > now
-    );
-    return ownReservation?.spawnId || null;
+    for (const [spawnId, until] of Object.entries(spawnReservations)) {
+      if (new Date(until).getTime() > now) {
+        return spawnId;
+      }
+    }
+    return null;
   };
   
   const handleReserveSpawn = async () => {
-    console.log("[RESERVE] handleReserveSpawn called", { 
-      selectedSpawn: selectedSpawn?.id, 
-      playerLocation: !!playerLocation,
-      user: user?.walletAddress 
-    });
+    if (!selectedSpawn) return;
     
-    if (!selectedSpawn || !playerLocation) {
-      console.log("[RESERVE] Missing data", { selectedSpawn: !!selectedSpawn, playerLocation: !!playerLocation });
-      setReserveToast("Missing spawn or location data");
-      setTimeout(() => setReserveToast(null), 3000);
-      return;
-    }
-    
-    const existingReservation = getActiveSpawnReservation();
+    const existingReservation = getActiveReservation();
     if (existingReservation && existingReservation !== selectedSpawn.id) {
       dbg({ reserve: "ALREADY_RESERVED" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setReserveToast("You still have an ongoing reservation. Complete it first!");
+      setReserveToast("You already have an active reservation!");
       setTimeout(() => setReserveToast(null), 3000);
       return;
     }
@@ -519,47 +467,12 @@ export default function HuntScreen() {
     setIsReservingSpawn(true);
     dbg({ reserve: "RESERVING..." });
     
-    try {
-      const apiUrl = getApiUrl();
-      console.log("[RESERVE] Calling API:", `${apiUrl}/api/hunt/spawns/reserve`);
-      
-      const response = await fetch(`${apiUrl}/api/hunt/spawns/reserve`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wallet-address": user?.walletAddress || `guest_${user?.id || "anon"}`,
-        },
-        body: JSON.stringify({
-          spawnId: selectedSpawn.id,
-          lat: playerLocation.latitude,
-          lng: playerLocation.longitude,
-        }),
-      });
-      
-      console.log("[RESERVE] Response status:", response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.log("[RESERVE] Error response:", errorData);
-        throw new Error(errorData.error || "Failed to reserve spawn");
-      }
-      
-      const data = await response.json();
-      console.log("[RESERVE] Success:", data);
-      
-      await refetchSpawnReservations();
-      dbg({ reserve: "OK - server reserved" });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setReserveToast("Spawn reserved! Walk there within 8 minutes.");
-      setTimeout(() => setReserveToast(null), 3000);
-    } catch (err: any) {
-      console.log("[RESERVE] Exception:", err.message);
-      dbg({ reserve: `ERR:${err.message?.slice(0, 20)}` });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Reserve Failed", err.message || "Unknown error");
-    } finally {
-      setIsReservingSpawn(false);
-    }
+    const reserveUntil = new Date(Date.now() + 8 * 60 * 1000);
+    setSpawnReservations({ [selectedSpawn.id]: reserveUntil });
+    
+    setIsReservingSpawn(false);
+    dbg({ reserve: `OK until ${reserveUntil.toLocaleTimeString()}` });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
   
   const handleSpawnNavigate = () => {
@@ -982,14 +895,6 @@ export default function HuntScreen() {
     setDebug((d) => ({ ...d, nodes: allMapNodes.length }));
   }, [allMapNodes.length]);
 
-  // Update debug with reservations count
-  useEffect(() => {
-    setDebug((d) => ({ ...d, reservs: spawnReservations.length }));
-    if (spawnReservations.length > 0) {
-      console.log("[RESERV DEBUG]", JSON.stringify(spawnReservations));
-    }
-  }, [spawnReservations]);
-
   const renderMapView = () => {
     return (
       <MapViewWrapper
@@ -999,7 +904,6 @@ export default function HuntScreen() {
         raids={raids}
         mapNodes={allMapNodes}
         nearbyPlayers={nearbyPlayers}
-        spawnReservations={spawnReservations}
         gpsAccuracy={gpsAccuracy}
         isVisible={isVisible}
         onToggleVisibility={() => setVisibility(!isVisible)}
@@ -1010,7 +914,6 @@ export default function HuntScreen() {
         onRefresh={() => {
           spawnCreatures();
           refetchMapNodes();
-          refetchSpawnReservations();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }}
         onMapReady={() => setMapReady(true)}
@@ -1667,10 +1570,7 @@ export default function HuntScreen() {
         spawn={selectedSpawn}
         playerDistance={selectedSpawn?.distance ?? null}
         isReserving={isReservingSpawn}
-        reservedUntil={selectedSpawn ? (() => {
-          const res = spawnReservations.find(r => r.spawnId === selectedSpawn.id && r.isOwn);
-          return res ? new Date(res.reservedUntil) : null;
-        })() : null}
+        reservedUntil={selectedSpawn ? spawnReservations[selectedSpawn.id] ?? null : null}
         onClose={() => setShowSpawnReserveSheet(false)}
         onReserve={handleReserveSpawn}
         onNavigate={handleSpawnNavigate}
@@ -1684,16 +1584,22 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
-      <View style={styles.debugOverlay} pointerEvents="box-none">
-        <View style={styles.debugPanel} pointerEvents="auto">
-          <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
-          <ThemedText style={styles.debugText}>nodes: {debug.nodes} | reservs: {debug.reservs} | taps: {debug.tapCount}</ThemedText>
-          <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
-          <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
-          <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
-          <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
-        </View>
+      {/* Debug overlay hidden - uncomment to debug spawn taps
+      <View style={styles.debugOverlay}>
+        <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
+        <ThemedText style={styles.debugText}>nodes: {debug.nodes} | taps: {debug.tapCount}</ThemedText>
+        <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
+        <Pressable 
+          style={styles.debugButton} 
+          onPress={() => dbg({ lastTap: "DEBUG_TEST_BUTTON" })}
+        >
+          <ThemedText style={styles.debugButtonText}>TEST TAP</ThemedText>
+        </Pressable>
       </View>
+      */}
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
@@ -1703,11 +1609,6 @@ export default function HuntScreen() {
           gpsAccuracy={gpsAccuracy}
           permissionDenied={permissionDenied}
           onRequestPermission={handleRequestPermission}
-          onClose={() => navigation.goBack()}
-          timeoutError={loadingTimeout}
-          elapsedSeconds={elapsedSeconds}
-          stage={loadingStage}
-          onRetry={handleRetryLoading}
         />
       </Animated.View>
     </View>
@@ -2857,12 +2758,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 100,
     right: Spacing.md,
-    zIndex: 900,
-  },
-  debugPanel: {
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
+    zIndex: 900,
   },
   debugText: {
     fontSize: 10,
