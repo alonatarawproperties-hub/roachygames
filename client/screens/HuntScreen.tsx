@@ -905,6 +905,8 @@ export default function HuntScreen() {
         mapNodes={allMapNodes}
         nearbyPlayers={nearbyPlayers}
         gpsAccuracy={gpsAccuracy}
+        isVisible={isVisible}
+        onToggleVisibility={() => setVisibility(!isVisible)}
         onSpawnTap={handleSpawnTap}
         onRaidTap={(raid) => setSelectedRaid(raid)}
         onNodeTap={handleNodeTap}

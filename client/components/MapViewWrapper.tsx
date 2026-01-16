@@ -49,6 +49,8 @@ interface MapViewWrapperProps {
   mapNodes?: MapNode[];
   nearbyPlayers?: NearbyPlayer[];
   gpsAccuracy?: number | null;
+  isVisible?: boolean;
+  onToggleVisibility?: () => void;
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onNodeTap?: (node: MapNode) => void;
@@ -255,7 +257,7 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, isVisible = true, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -609,6 +611,18 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             iconName="refresh-cw" 
             onPress={handleRefresh}
           />
+          {onToggleVisibility ? (
+            <Pressable 
+              style={[styles.visibilityButton, !isVisible && styles.visibilityButtonOff]}
+              onPress={onToggleVisibility}
+            >
+              <Feather 
+                name={isVisible ? "eye" : "eye-off"} 
+                size={20} 
+                color={isVisible ? "#22C55E" : GameColors.textSecondary} 
+              />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Coordinates display - Bottom Left inside map container */}
@@ -1018,6 +1032,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 2,
     elevation: 3,
+  },
+  visibilityButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#22C55E",
+  },
+  visibilityButtonOff: {
+    borderColor: GameColors.textSecondary,
   },
 });
 
