@@ -46,6 +46,7 @@ interface MapViewWrapperProps {
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onNodeTap?: (node: MapNode) => void;
+  onMapPress?: () => void;
   onRefresh: () => void;
   onMapReady?: () => void;
 }
@@ -248,7 +249,7 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, gpsAccuracy, onSpawnTap, onRaidTap, onNodeTap, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, gpsAccuracy, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -358,6 +359,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           userInterfaceStyle="dark"
           onError={handleMapError}
           onMapReady={handleNativeMapReady}
+          onPress={() => onMapPress?.()}
           initialRegion={{
             latitude: playerLocation.latitude,
             longitude: playerLocation.longitude,
@@ -483,9 +485,9 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 tracksViewChanges={true}
                 stopPropagation={true}
               >
-                <View style={styles.nodeMarkerContainer}>
-                  <View style={[styles.nodeMarkerGlow, { backgroundColor: qualityColor + "40" }]} />
-                  <View style={[styles.nodeMarkerBody, { borderColor: qualityColor }, isReserved && styles.nodeMarkerReserved]}>
+                <View style={styles.nodeMarkerContainer} pointerEvents="box-only">
+                  <View style={[styles.nodeMarkerGlow, { backgroundColor: qualityColor + "40" }]} pointerEvents="none" />
+                  <View style={[styles.nodeMarkerBody, { borderColor: qualityColor }, isReserved && styles.nodeMarkerReserved]} pointerEvents="none">
                     <Feather 
                       name={node.type === "HOTSPOT" ? "zap" : node.type === "EVENT" ? "star" : "map-pin"} 
                       size={12} 
@@ -493,7 +495,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                     />
                   </View>
                   {typeLabel ? (
-                    <View style={[styles.nodeTypeBadge, { backgroundColor: typeBadgeColor }]}>
+                    <View style={[styles.nodeTypeBadge, { backgroundColor: typeBadgeColor }]} pointerEvents="none">
                       <ThemedText style={styles.nodeTypeBadgeText}>{typeLabel}</ThemedText>
                     </View>
                   ) : null}

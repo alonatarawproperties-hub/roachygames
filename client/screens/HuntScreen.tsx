@@ -164,7 +164,25 @@ export default function HuntScreen() {
   const [showNodeSheet, setShowNodeSheet] = useState(false);
   const [reserveToast, setReserveToast] = useState<string | null>(null);
   const lastMarkerTapRef = useRef<number>(0);
-  const [debugInfo, setDebugInfo] = useState({ lastTap: 0, nodeId: "", reserveStatus: "" });
+  
+  const [debug, setDebug] = useState({
+    build: "v1.0.0-node-b4",
+    tapCount: 0,
+    lastTap: "",
+    nodeId: "",
+    reserve: "",
+    lastNet: "",
+    ts: "",
+  });
+  
+  const dbg = useCallback((patch: Partial<typeof debug>) => {
+    setDebug((d) => ({
+      ...d,
+      ...patch,
+      tapCount: (d.tapCount ?? 0) + 1,
+      ts: new Date().toISOString(),
+    }));
+  }, []);
   
   const { data: mapNodesData, refetch: refetchMapNodes } = useMapNodes(
     playerLocation?.latitude ?? null,
@@ -390,19 +408,24 @@ export default function HuntScreen() {
   };
 
   const handleNodeTap = useCallback((node: MapNode) => {
-    const now = Date.now();
-    lastMarkerTapRef.current = now;
+    dbg({ lastTap: "NODE_PRESS", nodeId: node.nodeId });
     console.log("NODE_TAP", node.nodeId, node.type, node.quality);
-    setDebugInfo((prev) => ({ ...prev, lastTap: now, nodeId: node.nodeId }));
     
+    lastMarkerTapRef.current = Date.now();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedNode(node);
     setShowNodeSheet(true);
-  }, []);
+  }, [dbg]);
+  
+  const handleMapPress = useCallback(() => {
+    dbg({ lastTap: "MAP_PRESS" });
+    console.log("MAP_PRESS");
+  }, [dbg]);
 
   const handleReserveNode = useCallback(async () => {
     if (!selectedNode || !playerLocation) {
       console.log("RESERVE_BLOCKED: no node or location", { selectedNode: !!selectedNode, playerLocation: !!playerLocation });
+      dbg({ reserve: "BLOCKED: missing data" });
       setReserveToast("Missing node or location");
       setTimeout(() => setReserveToast(null), 3000);
       return;
@@ -415,7 +438,7 @@ export default function HuntScreen() {
       playerLat: playerLocation.latitude,
       playerLng: playerLocation.longitude,
     });
-    setDebugInfo((prev) => ({ ...prev, reserveStatus: "PENDING..." }));
+    dbg({ reserve: "START", lastNet: "/api/map/nodes/reserve" });
     setReserveToast("Calling /api/map/nodes/reserve...");
 
     try {
@@ -426,7 +449,7 @@ export default function HuntScreen() {
       });
       
       console.log("RESERVE_SUCCESS", JSON.stringify(result));
-      setDebugInfo((prev) => ({ ...prev, reserveStatus: `OK: ${result.reservationId?.slice(0,8) || "done"}` }));
+      dbg({ reserve: `OK: ${result.reservationId?.slice(0,8) || "done"}` });
       
       setSelectedNode((prev) =>
         prev ? { ...prev, status: "RESERVED", reservedUntil: result.reservedUntil } : null
@@ -439,12 +462,12 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       console.error("RESERVE_FAIL", error.message, error);
-      setDebugInfo((prev) => ({ ...prev, reserveStatus: `FAIL: ${error.message}` }));
+      dbg({ reserve: `ERR: ${error?.message ?? "unknown"}` });
       setReserveToast(`FAIL: ${error.message || "Unknown error"}`);
       setTimeout(() => setReserveToast(null), 5000);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [selectedNode, playerLocation, reserveNodeMutation, refetchMapNodes]);
+  }, [selectedNode, playerLocation, reserveNodeMutation, refetchMapNodes, dbg]);
 
   const handleNavigateToNode = useCallback(() => {
     if (!selectedNode) return;
@@ -797,6 +820,7 @@ export default function HuntScreen() {
         onSpawnTap={handleSpawnTap}
         onRaidTap={(raid) => setSelectedRaid(raid)}
         onNodeTap={handleNodeTap}
+        onMapPress={handleMapPress}
         onRefresh={() => {
           spawnCreatures();
           refetchMapNodes();
@@ -1459,17 +1483,20 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
-      <View style={styles.debugOverlay} pointerEvents="none">
-        <ThemedText style={styles.buildTag}>BUILD: v1.0.0-node-b3</ThemedText>
-        <ThemedText style={styles.debugText}>
-          lastTap: {debugInfo.lastTap > 0 ? new Date(debugInfo.lastTap).toLocaleTimeString() : "—"}
-        </ThemedText>
-        <ThemedText style={styles.debugText}>
-          nodeId: {debugInfo.nodeId ? debugInfo.nodeId.slice(0, 8) : "—"}
-        </ThemedText>
-        <ThemedText style={styles.debugText}>
-          reserve: {debugInfo.reserveStatus || "—"}
-        </ThemedText>
+      <View style={styles.debugOverlay}>
+        <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
+        <ThemedText style={styles.debugText}>taps: {debug.tapCount}</ThemedText>
+        <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>net: {debug.lastNet || "—"}</ThemedText>
+        <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
+        <Pressable 
+          style={styles.debugButton} 
+          onPress={() => dbg({ lastTap: "DEBUG_TEST_BUTTON" })}
+        >
+          <ThemedText style={styles.debugButtonText}>TEST TAP</ThemedText>
+        </Pressable>
       </View>
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
@@ -2645,5 +2672,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     marginBottom: 4,
+  },
+  debugButton: {
+    backgroundColor: "#3B82F6",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    marginTop: 6,
+    alignItems: "center" as const,
+  },
+  debugButtonText: {
+    fontSize: 10,
+    color: "#fff",
+    fontWeight: "bold" as const,
   },
 });
