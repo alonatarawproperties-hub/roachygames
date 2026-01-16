@@ -7,7 +7,7 @@ import {
   huntEventWindows,
   huntEconomyStats,
 } from "@shared/schema";
-import { eq, and, or, gte, lte, inArray, sql, desc, isNull } from "drizzle-orm";
+import { eq, and, or, gte, lte, lt, inArray, sql, desc, isNull } from "drizzle-orm";
 import { resolvedConfig, ACTIVE_SCENARIO, selectQuality, NodeType, NodeQuality } from "./huntSpawnConfig";
 import {
   haversineMeters,
@@ -23,6 +23,70 @@ import {
 function log(context: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [NODE] [${context}] ${message}`, data ? JSON.stringify(data) : "");
+}
+
+async function expireNodes() {
+  const now = new Date();
+  try {
+    const expiredNodes = await db
+      .select({ id: huntNodes.id })
+      .from(huntNodes)
+      .where(lt(huntNodes.expiresAt, now));
+
+    if (expiredNodes.length === 0) return;
+
+    const expiredIds = expiredNodes.map((n) => n.id);
+
+    await db
+      .update(huntNodePlayerState)
+      .set({ status: "EXPIRED", updatedAt: now })
+      .where(
+        and(
+          inArray(huntNodePlayerState.nodeId, expiredIds),
+          inArray(huntNodePlayerState.status, ["AVAILABLE", "RESERVED"])
+        )
+      );
+
+    log("CRON", `Expired ${expiredNodes.length} nodes`);
+  } catch (err: any) {
+    log("CRON", `Expire error: ${err.message}`);
+  }
+}
+
+async function cleanupOldData() {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  try {
+    await db
+      .delete(huntLocationSamples)
+      .where(lt(huntLocationSamples.createdAt, oneDayAgo));
+
+    await db
+      .delete(huntNodes)
+      .where(lt(huntNodes.expiresAt, oneWeekAgo));
+
+    log("CRON", "Cleaned up old location samples and expired nodes");
+  } catch (err: any) {
+    log("CRON", `Cleanup error: ${err.message}`);
+  }
+}
+
+let cronStarted = false;
+function startCronJobs() {
+  if (cronStarted) return;
+  cronStarted = true;
+
+  setInterval(() => {
+    expireNodes();
+  }, 60 * 1000);
+
+  setInterval(() => {
+    cleanupOldData();
+  }, 60 * 60 * 1000);
+
+  log("CRON", "Cron jobs started: expire every 1min, cleanup every 1hr");
 }
 
 function selectDistanceBucket(): { minM: number; maxM: number } {
@@ -348,6 +412,8 @@ async function getHotspotsForUserInRegion(walletAddress: string, regionKey: stri
 }
 
 export function registerNodeRoutes(app: Express) {
+  startCronJobs();
+
   app.post("/api/location/update", async (req: Request, res: Response) => {
     try {
       const { lat, lng, accuracy, speedMps, headingDeg, clientTime } = req.body;
