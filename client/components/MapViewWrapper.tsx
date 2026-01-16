@@ -542,15 +542,16 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             const nodeLng = node.lng;
             if (isNaN(nodeLat) || isNaN(nodeLng)) return null;
             
-            const qualityColor = getQualityColor(node.quality);
-            const typeLabel = getTypeLabel(node.type);
-            const typeBadgeColor = getTypeBadgeColor(node.type);
             const nodeIsActiveReserved = isActiveReserved(node);
             const isMine = reservedByMe[node.nodeId];
             
             const nodeMarkerIcon = nodeIsActiveReserved
               ? (isMine ? SPAWN_RESERVED_BY_YOU : SPAWN_RESERVED_BY_OTHER)
               : spawnMarkerImage;
+            
+            const auraColor = nodeIsActiveReserved 
+              ? (isMine ? "#A855F7" : "#3B82F6")
+              : null;
             
             return (
               <MarkerComponent
@@ -566,11 +567,16 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 tracksViewChanges={false}
                 tappable={true}
               >
-                <Image 
-                  source={nodeMarkerIcon} 
-                  style={styles.spawnMarkerImage} 
-                  resizeMode="contain"
-                />
+                <View style={styles.nodeMarkerWrapper}>
+                  {auraColor ? (
+                    <View style={[styles.reservedAura, { backgroundColor: auraColor }]} />
+                  ) : null}
+                  <Image 
+                    source={nodeMarkerIcon} 
+                    style={styles.spawnMarkerImage} 
+                    resizeMode="contain"
+                  />
+                </View>
               </MarkerComponent>
             );
           }) : null}
@@ -897,6 +903,20 @@ const styles = StyleSheet.create({
   spawnMarkerImage: {
     width: 80,
     height: 96,
+  },
+  nodeMarkerWrapper: {
+    width: 100,
+    height: 116,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reservedAura: {
+    position: "absolute",
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    opacity: 0.5,
+    top: 10,
   },
   eggMarkerGlow: {
     position: "absolute",
