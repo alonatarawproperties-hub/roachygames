@@ -40,9 +40,11 @@ import { HuntLeaderboard } from "@/components/hunt/HuntLeaderboard";
 import { EggCollectedModal } from "@/components/hunt/EggCollectedModal";
 import { FusionAnimationModal } from "@/components/hunt/FusionAnimationModal";
 import { LevelProgressSheet } from "@/components/hunt/LevelProgressSheet";
+import { NodeDetailsBottomSheet } from "@/components/hunt/NodeDetailsBottomSheet";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
+import { useMapNodes, useReserveNode, MapNode } from "@/hooks/useMapNodes";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#A0A0A0",
@@ -157,6 +159,18 @@ export default function HuntScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [showLevelSheet, setShowLevelSheet] = useState(false);
   const mapRef = useRef<MapViewWrapperRef>(null);
+  
+  const [selectedNode, setSelectedNode] = useState<MapNode | null>(null);
+  const [showNodeSheet, setShowNodeSheet] = useState(false);
+  const [reserveToast, setReserveToast] = useState<string | null>(null);
+  const lastMarkerTapRef = useRef<number>(0);
+  const [debugInfo, setDebugInfo] = useState({ lastTap: 0, nodeId: "", reserveStatus: "" });
+  
+  const { data: mapNodesData, refetch: refetchMapNodes } = useMapNodes(
+    playerLocation?.latitude ?? null,
+    playerLocation?.longitude ?? null
+  );
+  const reserveNodeMutation = useReserveNode();
   const loadingFadeAnim = useSharedValue(1);
   const hasAutoSpawned = useRef(false);
   const activeSpawnRef = useRef<Spawn | null>(null);
@@ -360,7 +374,6 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
-    // CRITICAL: Store player location NOW before camera encounter pauses location updates
     if (playerLocation) {
       playerLocationRef.current = {
         latitude: playerLocation.latitude,
@@ -375,6 +388,61 @@ export default function HuntScreen() {
     setShowCameraEncounter(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
+
+  const handleNodeTap = useCallback((node: MapNode) => {
+    const now = Date.now();
+    lastMarkerTapRef.current = now;
+    console.log("NODE_TAP", node.nodeId, node.type, node.quality);
+    setDebugInfo((prev) => ({ ...prev, lastTap: now, nodeId: node.nodeId }));
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedNode(node);
+    setShowNodeSheet(true);
+  }, []);
+
+  const handleReserveNode = useCallback(async () => {
+    if (!selectedNode || !playerLocation) return;
+
+    try {
+      const result = await reserveNodeMutation.mutateAsync({
+        nodeId: selectedNode.nodeId,
+        lat: playerLocation.latitude,
+        lng: playerLocation.longitude,
+      });
+      
+      console.log("RESERVE_SUCCESS", result);
+      setDebugInfo((prev) => ({ ...prev, reserveStatus: "OK" }));
+      
+      setSelectedNode((prev) =>
+        prev ? { ...prev, status: "RESERVED", reservedUntil: result.reservedUntil } : null
+      );
+      
+      setReserveToast("Reserved for 90s");
+      setTimeout(() => setReserveToast(null), 3000);
+      
+      refetchMapNodes();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error: any) {
+      console.error("RESERVE_FAIL", error.message);
+      setDebugInfo((prev) => ({ ...prev, reserveStatus: `FAIL: ${error.message}` }));
+      setReserveToast(error.message || "Reserve failed");
+      setTimeout(() => setReserveToast(null), 3000);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [selectedNode, playerLocation, reserveNodeMutation, refetchMapNodes]);
+
+  const handleNavigateToNode = useCallback(() => {
+    if (!selectedNode) return;
+    console.log("NAVIGATE_TO_NODE", selectedNode.nodeId);
+    setShowNodeSheet(false);
+  }, [selectedNode]);
+
+  const handleCloseNodeSheet = useCallback(() => {
+    const timeSinceTap = Date.now() - lastMarkerTapRef.current;
+    if (timeSinceTap < 300) return;
+    setShowNodeSheet(false);
+    setSelectedNode(null);
+  }, []);
 
   const [isCollecting, setIsCollecting] = useState(false);
 
@@ -688,6 +756,15 @@ export default function HuntScreen() {
     }
   };
 
+  const allMapNodes = React.useMemo(() => {
+    if (!mapNodesData) return [];
+    return [
+      ...mapNodesData.personalNodes,
+      ...mapNodesData.hotspots,
+      ...mapNodesData.events,
+    ];
+  }, [mapNodesData]);
+
   const renderMapView = () => {
     return (
       <MapViewWrapper
@@ -695,11 +772,14 @@ export default function HuntScreen() {
         playerLocation={playerLocation}
         spawns={spawns}
         raids={raids}
+        mapNodes={allMapNodes}
         gpsAccuracy={gpsAccuracy}
         onSpawnTap={handleSpawnTap}
         onRaidTap={(raid) => setSelectedRaid(raid)}
+        onNodeTap={handleNodeTap}
         onRefresh={() => {
           spawnCreatures();
+          refetchMapNodes();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }}
         onMapReady={() => setMapReady(true)}
@@ -1339,6 +1419,39 @@ export default function HuntScreen() {
         heatModeUntil={phaseIStats?.heatModeUntil ?? null}
         warmthShopCosts={phaseIStats?.warmthShopCosts ?? { trackerPing: 3, secondAttempt: 5, heatMode: 10 }}
       />
+
+      <NodeDetailsBottomSheet
+        visible={showNodeSheet}
+        node={selectedNode}
+        playerLat={playerLocation?.latitude ?? null}
+        playerLng={playerLocation?.longitude ?? null}
+        isReserving={reserveNodeMutation.isPending}
+        onClose={handleCloseNodeSheet}
+        onReserve={handleReserveNode}
+        onNavigate={handleNavigateToNode}
+      />
+
+      {reserveToast ? (
+        <View style={styles.toastContainer} pointerEvents="none">
+          <View style={styles.toast}>
+            <ThemedText style={styles.toastText}>{reserveToast}</ThemedText>
+          </View>
+        </View>
+      ) : null}
+
+      {__DEV__ && (
+        <View style={styles.debugOverlay} pointerEvents="none">
+          <ThemedText style={styles.debugText}>
+            lastTap: {debugInfo.lastTap > 0 ? new Date(debugInfo.lastTap).toLocaleTimeString() : "—"}
+          </ThemedText>
+          <ThemedText style={styles.debugText}>
+            nodeId: {debugInfo.nodeId ? debugInfo.nodeId.slice(0, 8) : "—"}
+          </ThemedText>
+          <ThemedText style={styles.debugText}>
+            reserve: {debugInfo.reserveStatus || "—"}
+          </ThemedText>
+        </View>
+      )}
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
@@ -2474,5 +2587,37 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.xl,
     paddingHorizontal: Spacing.lg,
+  },
+  toastContainer: {
+    position: "absolute",
+    bottom: 120,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 999,
+  },
+  toast: {
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  toastText: {
+    fontSize: 14,
+    color: "#fff",
+  },
+  debugOverlay: {
+    position: "absolute",
+    top: 100,
+    right: Spacing.md,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    zIndex: 900,
+  },
+  debugText: {
+    fontSize: 10,
+    color: "#22C55E",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 });

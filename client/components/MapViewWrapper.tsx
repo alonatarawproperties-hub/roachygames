@@ -16,6 +16,8 @@ import { ThemedText } from "./ThemedText";
 import { LeafletMapView, LeafletMapViewRef } from "./LeafletMapView";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import type { Spawn, Raid } from "@/context/HuntContext";
+import type { MapNode, NodeQuality, NodeType } from "@/hooks/useMapNodes";
+import { getQualityColor, getTypeLabel, getTypeBadgeColor } from "@/hooks/useMapNodes";
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
@@ -39,9 +41,11 @@ interface MapViewWrapperProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
   raids: Raid[];
+  mapNodes?: MapNode[];
   gpsAccuracy?: number | null;
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
+  onNodeTap?: (node: MapNode) => void;
   onRefresh: () => void;
   onMapReady?: () => void;
 }
@@ -244,7 +248,7 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, gpsAccuracy, onSpawnTap, onRaidTap, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, gpsAccuracy, onSpawnTap, onRaidTap, onNodeTap, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -448,6 +452,51 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               </MarkerComponent>
             );
           })}
+
+          {/* Map Nodes - Personal, Hotspot, Event */}
+          {mapNodes && mapNodes.length > 0 && MarkerComponent && onNodeTap ? mapNodes.map((node) => {
+            const nodeLat = node.lat;
+            const nodeLng = node.lng;
+            if (isNaN(nodeLat) || isNaN(nodeLng)) return null;
+            
+            const qualityColor = getQualityColor(node.quality);
+            const typeLabel = getTypeLabel(node.type);
+            const typeBadgeColor = getTypeBadgeColor(node.type);
+            const isReserved = node.status === "RESERVED" || node.status === "ARRIVED";
+            
+            return (
+              <MarkerComponent
+                key={node.nodeId}
+                coordinate={{
+                  latitude: nodeLat,
+                  longitude: nodeLng,
+                }}
+                onPress={(e: any) => {
+                  e.stopPropagation?.();
+                  onNodeTap(node);
+                }}
+                anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={true}
+                stopPropagation={true}
+              >
+                <View style={styles.nodeMarkerContainer}>
+                  <View style={[styles.nodeMarkerGlow, { backgroundColor: qualityColor + "40" }]} />
+                  <View style={[styles.nodeMarkerBody, { borderColor: qualityColor }, isReserved && styles.nodeMarkerReserved]}>
+                    <Feather 
+                      name={node.type === "HOTSPOT" ? "zap" : node.type === "EVENT" ? "star" : "map-pin"} 
+                      size={12} 
+                      color={qualityColor} 
+                    />
+                  </View>
+                  {typeLabel ? (
+                    <View style={[styles.nodeTypeBadge, { backgroundColor: typeBadgeColor }]}>
+                      <ThemedText style={styles.nodeTypeBadgeText}>{typeLabel}</ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+              </MarkerComponent>
+            );
+          }) : null}
         </MapViewComponent>
 
         {/* GPS Signal Indicator - Top Left below status bar area */}
@@ -826,6 +875,49 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 3,
     marginTop: 3,
+  },
+  nodeMarkerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 52,
+  },
+  nodeMarkerGlow: {
+    position: "absolute",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  nodeMarkerBody: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  nodeMarkerReserved: {
+    backgroundColor: "rgba(34, 197, 94, 0.2)",
+    borderStyle: "dashed" as const,
+  },
+  nodeTypeBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  nodeTypeBadgeText: {
+    fontSize: 7,
+    fontWeight: "700",
+    color: "#fff",
   },
 });
 
