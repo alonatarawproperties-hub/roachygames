@@ -169,6 +169,7 @@ export default function HuntScreen() {
   const mapRef = useRef<MapViewWrapperRef>(null);
   
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null);
+  const [reservedByMe, setReservedByMe] = useState<Record<string, true>>({});
   const [showNodeSheet, setShowNodeSheet] = useState(false);
   const [reserveToast, setReserveToast] = useState<string | null>(null);
   const lastMarkerTapRef = useRef<number>(0);
@@ -533,6 +534,8 @@ export default function HuntScreen() {
       console.log("RESERVE_SUCCESS", JSON.stringify(result));
       dbg({ reserve: `OK: ${result.reservationId?.slice(0,8) || "done"}` });
       
+      setReservedByMe((prev) => ({ ...prev, [selectedNode.nodeId]: true }));
+      
       setSelectedNode((prev) =>
         prev ? { ...prev, status: "RESERVED", reservedUntil: result.reservedUntil } : null
       );
@@ -895,6 +898,24 @@ export default function HuntScreen() {
     setDebug((d) => ({ ...d, nodes: allMapNodes.length }));
   }, [allMapNodes.length]);
 
+  // Cleanup expired reservations from reservedByMe
+  useEffect(() => {
+    if (allMapNodes.length === 0) return;
+    const nodeMap = new Map(allMapNodes.map((n) => [n.nodeId, n]));
+    setReservedByMe((prev) => {
+      const next: Record<string, true> = {};
+      for (const nodeId of Object.keys(prev)) {
+        const node = nodeMap.get(nodeId);
+        if (node && node.status === "RESERVED" && node.reservedUntil) {
+          if (new Date(node.reservedUntil).getTime() > Date.now()) {
+            next[nodeId] = true;
+          }
+        }
+      }
+      return next;
+    });
+  }, [allMapNodes]);
+
   const renderMapView = () => {
     return (
       <MapViewWrapper
@@ -906,6 +927,7 @@ export default function HuntScreen() {
         nearbyPlayers={nearbyPlayers}
         gpsAccuracy={gpsAccuracy}
         isVisible={isVisible}
+        reservedByMe={reservedByMe}
         onToggleVisibility={() => setVisibility(!isVisible)}
         onSpawnTap={handleSpawnTap}
         onRaidTap={(raid) => setSelectedRaid(raid)}

@@ -2,6 +2,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } f
 import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
 
 const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
+import { SPAWN_RESERVED_BY_YOU, SPAWN_RESERVED_BY_OTHER } from "@/assets/spawns";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,6 +53,7 @@ interface MapViewWrapperProps {
   nearbyPlayers?: NearbyPlayer[];
   gpsAccuracy?: number | null;
   isVisible?: boolean;
+  reservedByMe?: Record<string, true>;
   onToggleVisibility?: () => void;
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
@@ -258,8 +260,14 @@ function FallbackMapView({
   );
 }
 
+const isActiveReserved = (n: MapNode) => {
+  if (n.status !== "RESERVED" && n.status !== "ARRIVED") return false;
+  if (!n.reservedUntil) return true;
+  return new Date(n.reservedUntil).getTime() > Date.now();
+};
+
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, isVisible = true, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -537,7 +545,12 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             const qualityColor = getQualityColor(node.quality);
             const typeLabel = getTypeLabel(node.type);
             const typeBadgeColor = getTypeBadgeColor(node.type);
-            const isReserved = node.status === "RESERVED" || node.status === "ARRIVED";
+            const nodeIsActiveReserved = isActiveReserved(node);
+            const isMine = reservedByMe[node.nodeId];
+            
+            const nodeMarkerIcon = nodeIsActiveReserved
+              ? (isMine ? SPAWN_RESERVED_BY_YOU : SPAWN_RESERVED_BY_OTHER)
+              : spawnMarkerImage;
             
             return (
               <MarkerComponent
@@ -553,21 +566,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 tracksViewChanges={false}
                 tappable={true}
               >
-                <View style={styles.nodeMarkerContainer}>
-                  <View style={[styles.nodeMarkerGlow, { backgroundColor: qualityColor + "40" }]} />
-                  <View style={[styles.nodeMarkerBody, { borderColor: qualityColor }, isReserved && styles.nodeMarkerReserved]}>
-                    <Feather 
-                      name={node.type === "HOTSPOT" ? "zap" : node.type === "EVENT" ? "star" : "map-pin"} 
-                      size={12} 
-                      color={qualityColor} 
-                    />
-                  </View>
-                  {typeLabel ? (
-                    <View style={[styles.nodeTypeBadge, { backgroundColor: typeBadgeColor }]}>
-                      <ThemedText style={styles.nodeTypeBadgeText}>{typeLabel}</ThemedText>
-                    </View>
-                  ) : null}
-                </View>
+                <Image 
+                  source={nodeMarkerIcon} 
+                  style={styles.spawnMarkerImage} 
+                  resizeMode="contain"
+                />
               </MarkerComponent>
             );
           }) : null}

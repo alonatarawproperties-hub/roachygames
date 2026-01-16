@@ -1,0 +1,88 @@
+You are working on Roachy Hunt (React Native / TypeScript).
+
+GOAL
+Change the map spawn marker icons based on reservation ownership:
+- Purple egg marker = RESERVED by ME (known locally)
+- Blue egg marker = RESERVED but NOT known locally as mine (treat as "others" in UX)
+- Default marker = not reserved
+
+IMPORTANT LIMITATION
+Backend does not return reservedBy wallet for a node. Frontend MapNode has:
+- status: "AVAILABLE" | "RESERVED" | ...
+- reservedUntil: string | null
+No reservedBy field.
+So "reserved by other" will be inferred as: node is RESERVED but not in local reservedByMe set.
+
+FILES
+- client/screens/HuntScreen.tsx
+- client/components/MapViewWrapper.tsx
+- client/hooks/useMapNodes.ts (type is here)
+Do NOT modify HuntLoadingOverlay unless absolutely necessary.
+
+ASSETS
+Add 2 PNGs (transparent background) to client/assets/spawns/:
+- reserved_by_you.png  (purple)
+- reserved_by_other.png (blue)
+
+Create/Update:
+- client/assets/spawns/index.ts
+  export const SPAWN_RESERVED_BY_YOU = require("./reserved_by_you.png");
+  export const SPAWN_RESERVED_BY_OTHER = require("./reserved_by_other.png");
+
+IMPLEMENTATION PLAN (minimal diff, no refactors)
+1) Track "reserved by me" locally in HuntScreen
+- Create a state or ref in client/screens/HuntScreen.tsx:
+  const [reservedByMe, setReservedByMe] = useState<Record<string, true>>({});
+- When reserve API call succeeds for a nodeId, setReservedByMe(prev => ({...prev, [nodeId]: true}))
+- Also, if a node becomes AVAILABLE/EXPIRED or reservedUntil is null or in the past, remove it from reservedByMe (cleanup) so icons revert.
+  (Do this in a useEffect that runs when nodes array updates.)
+
+2) Pass reservedByMe to MapViewWrapper
+- Add a prop: reservedByMe: Record<string, true>
+- Ensure MapViewWrapper rerenders when nodes or reservedByMe changes.
+
+3) Choose marker icon inside MapViewWrapper based on node status + reservedByMe
+In client/components/MapViewWrapper.tsx:
+- import { SPAWN_RESERVED_BY_YOU, SPAWN_RESERVED_BY_OTHER } from "../assets/spawns";
+(or correct relative path based on current structure)
+- Add helper:
+  const isActiveReserved = (n: MapNode) => {
+    if (n.status !== "RESERVED") return false;
+    if (!n.reservedUntil) return true; // status says reserved; tolerate missing until
+    return new Date(n.reservedUntil).getTime() > Date.now();
+  };
+
+- For each node marker, decide icon:
+  if (isActiveReserved(node)) {
+     if (reservedByMe[node.nodeId]) icon = SPAWN_RESERVED_BY_YOU; else icon = SPAWN_RESERVED_BY_OTHER;
+  } else {
+     icon = existingDefaultIcon; // keep the current icon logic unchanged
+  }
+
+4) Do NOT break presses / reservation flow
+- Do not change onPress handlers or hitSlop logic.
+- Do not change marker clustering or map press wiring.
+- Only swap icon source.
+
+5) Add a tiny debug counter (optional, but helpful)
+If HuntScreen already has a debug overlay flag, add:
+- reservedByMeCount = number of nodes where isActiveReserved && reservedByMe[nodeId]
+- reservedOtherCount = number of nodes where isActiveReserved && !reservedByMe[nodeId]
+Display in debug overlay only (no production UI changes).
+
+EDGE CASES TO HANDLE
+- If app was reinstalled or reservation was done on another device: it will show BLUE even if it's actually mine. This is expected until backend provides reservedByWallet.
+- When reservedUntil passes, marker should revert to default (either by cleanup effect or next refresh).
+
+DELIVERABLES
+- Add new assets + exports
+- Update HuntScreen to manage reservedByMe and pass prop
+- Update MapViewWrapper to select correct icon
+- No other unrelated changes
+
+After implementing, write a short note:
+- Purple = locally known reserved-by-me
+- Blue = reserved but not locally known (others/unknown)
+- What would be required to make it truly accurate (backend returning reservedByWallet)
+
+NOW IMPLEMENT.
