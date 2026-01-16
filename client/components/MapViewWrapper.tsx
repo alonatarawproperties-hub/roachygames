@@ -1,5 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from "react";
-import { View, StyleSheet, Pressable, Platform } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
+
+const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -486,12 +488,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                   tracksViewChanges={false}
                   tappable={true}
                 >
-                  <View style={styles.eggMarkerContainer} pointerEvents="none">
-                    <View style={styles.eggMarkerGlow} />
-                    <View style={styles.eggMarkerBody}>
-                      <Feather name="gift" size={14} color="#8B4513" />
-                    </View>
-                  </View>
+                  <Image 
+                    source={spawnMarkerImage} 
+                    style={styles.spawnMarkerImage} 
+                    resizeMode="contain"
+                  />
                 </MarkerComponent>
               );
             });
@@ -887,6 +888,10 @@ const styles = StyleSheet.create({
   eggMarkerContainer: {
     alignItems: "center",
     justifyContent: "center",
+    width: 40,
+    height: 48,
+  },
+  spawnMarkerImage: {
     width: 40,
     height: 48,
   },
