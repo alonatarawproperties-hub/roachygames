@@ -434,15 +434,24 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               return (
                 <MarkerComponent
                   key={spawn.id}
+                  identifier={spawn.id}
                   coordinate={{
                     latitude: spawnLat,
                     longitude: spawnLng,
                   }}
-                  onPress={() => onSpawnTap(spawn)}
+                  onPress={() => {
+                    console.log(`[MapViewWrapper] Spawn onPress: ${spawn.id}`);
+                    onSpawnTap(spawn);
+                  }}
+                  onSelect={() => {
+                    console.log(`[MapViewWrapper] Spawn onSelect (iOS): ${spawn.id}`);
+                    onSpawnTap(spawn);
+                  }}
                   anchor={{ x: 0.5, y: 0.5 }}
-                  tracksViewChanges={true}
+                  tracksViewChanges={false}
+                  tappable={true}
                 >
-                  <View style={styles.eggMarkerContainer}>
+                  <View style={styles.eggMarkerContainer} pointerEvents="none">
                     <View style={styles.eggMarkerGlow} />
                     <View style={styles.eggMarkerBody}>
                       <Feather name="gift" size={14} color="#8B4513" />

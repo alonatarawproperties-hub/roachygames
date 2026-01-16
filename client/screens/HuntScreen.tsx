@@ -166,7 +166,7 @@ export default function HuntScreen() {
   const lastMarkerTapRef = useRef<number>(0);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b8",
+    build: "v1.0.0-node-b9",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
