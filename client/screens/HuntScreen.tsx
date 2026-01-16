@@ -401,7 +401,22 @@ export default function HuntScreen() {
   }, []);
 
   const handleReserveNode = useCallback(async () => {
-    if (!selectedNode || !playerLocation) return;
+    if (!selectedNode || !playerLocation) {
+      console.log("RESERVE_BLOCKED: no node or location", { selectedNode: !!selectedNode, playerLocation: !!playerLocation });
+      setReserveToast("Missing node or location");
+      setTimeout(() => setReserveToast(null), 3000);
+      return;
+    }
+
+    console.log("RESERVE_START", {
+      nodeId: selectedNode.nodeId,
+      type: selectedNode.type,
+      quality: selectedNode.quality,
+      playerLat: playerLocation.latitude,
+      playerLng: playerLocation.longitude,
+    });
+    setDebugInfo((prev) => ({ ...prev, reserveStatus: "PENDING..." }));
+    setReserveToast("Calling /api/map/nodes/reserve...");
 
     try {
       const result = await reserveNodeMutation.mutateAsync({
@@ -410,23 +425,23 @@ export default function HuntScreen() {
         lng: playerLocation.longitude,
       });
       
-      console.log("RESERVE_SUCCESS", result);
-      setDebugInfo((prev) => ({ ...prev, reserveStatus: "OK" }));
+      console.log("RESERVE_SUCCESS", JSON.stringify(result));
+      setDebugInfo((prev) => ({ ...prev, reserveStatus: `OK: ${result.reservationId?.slice(0,8) || "done"}` }));
       
       setSelectedNode((prev) =>
         prev ? { ...prev, status: "RESERVED", reservedUntil: result.reservedUntil } : null
       );
       
-      setReserveToast("Reserved for 90s");
-      setTimeout(() => setReserveToast(null), 3000);
+      setReserveToast(`RESERVED! ID: ${result.reservationId?.slice(0,8) || "ok"} until ${result.reservedUntil ? new Date(result.reservedUntil).toLocaleTimeString() : "?"}`);
+      setTimeout(() => setReserveToast(null), 5000);
       
       refetchMapNodes();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      console.error("RESERVE_FAIL", error.message);
+      console.error("RESERVE_FAIL", error.message, error);
       setDebugInfo((prev) => ({ ...prev, reserveStatus: `FAIL: ${error.message}` }));
-      setReserveToast(error.message || "Reserve failed");
-      setTimeout(() => setReserveToast(null), 3000);
+      setReserveToast(`FAIL: ${error.message || "Unknown error"}`);
+      setTimeout(() => setReserveToast(null), 5000);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }, [selectedNode, playerLocation, reserveNodeMutation, refetchMapNodes]);
@@ -1444,19 +1459,18 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
-      {__DEV__ && (
-        <View style={styles.debugOverlay} pointerEvents="none">
-          <ThemedText style={styles.debugText}>
-            lastTap: {debugInfo.lastTap > 0 ? new Date(debugInfo.lastTap).toLocaleTimeString() : "—"}
-          </ThemedText>
-          <ThemedText style={styles.debugText}>
-            nodeId: {debugInfo.nodeId ? debugInfo.nodeId.slice(0, 8) : "—"}
-          </ThemedText>
-          <ThemedText style={styles.debugText}>
-            reserve: {debugInfo.reserveStatus || "—"}
-          </ThemedText>
-        </View>
-      )}
+      <View style={styles.debugOverlay} pointerEvents="none">
+        <ThemedText style={styles.buildTag}>BUILD: v1.0.0-node-b3</ThemedText>
+        <ThemedText style={styles.debugText}>
+          lastTap: {debugInfo.lastTap > 0 ? new Date(debugInfo.lastTap).toLocaleTimeString() : "—"}
+        </ThemedText>
+        <ThemedText style={styles.debugText}>
+          nodeId: {debugInfo.nodeId ? debugInfo.nodeId.slice(0, 8) : "—"}
+        </ThemedText>
+        <ThemedText style={styles.debugText}>
+          reserve: {debugInfo.reserveStatus || "—"}
+        </ThemedText>
+      </View>
 
       <Animated.View style={[StyleSheet.absoluteFill, loadingOverlayStyle]}>
         <HuntLoadingOverlay
@@ -2624,5 +2638,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#22C55E",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  buildTag: {
+    fontSize: 11,
+    color: "#FFD700",
+    fontWeight: "bold",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    marginBottom: 4,
   },
 });
