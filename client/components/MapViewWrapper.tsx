@@ -360,6 +360,18 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           onError={handleMapError}
           onMapReady={handleNativeMapReady}
           onPress={() => onMapPress?.()}
+          onMarkerPress={(e: any) => {
+            const markerId = e?.nativeEvent?.id || e?.nativeEvent?.identifier;
+            console.log("[MapView] onMarkerPress fired, id:", markerId);
+            if (markerId && mapNodes && onNodeTap) {
+              const node = mapNodes.find((n) => n.nodeId === markerId);
+              if (node) {
+                console.log("[MapView] Found node for marker:", node.nodeId);
+                onNodeTap(node);
+                return;
+              }
+            }
+          }}
           initialRegion={{
             latitude: playerLocation.latitude,
             longitude: playerLocation.longitude,
