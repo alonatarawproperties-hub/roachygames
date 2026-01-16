@@ -789,7 +789,7 @@ export default function HuntScreen() {
     const heatModeActive = stats?.heatModeActive ?? false;
     const rareIn = stats?.pity?.rareIn ?? Math.max(0, 20 - (economy?.catchesSinceRare ?? 0));
     const epicIn = stats?.pity?.epicIn ?? Math.max(0, 60 - (economy?.catchesSinceEpic ?? 0));
-    const legendaryIn = stats?.pity?.legendaryIn ?? 180;
+    const legendaryIn = stats?.pity?.legendaryIn ?? 250;
     const hunterLevel = stats?.level ?? stats?.hunterLevel ?? 1;
     const warmth = stats?.warmth ?? 0;
     const huntProgress = Math.min(1, huntsToday / dailyCap);
@@ -1568,7 +1568,7 @@ export default function HuntScreen() {
         warmth={phaseIStats?.warmth ?? 0}
         warmthCap={phaseIStats?.warmthCap ?? 10}
         streak={phaseIStats?.streakCount ?? 0}
-        pity={phaseIStats?.pity ?? { rareIn: 20, epicIn: 60, legendaryIn: 180 }}
+        pity={phaseIStats?.pity ?? { rareIn: 20, epicIn: 60, legendaryIn: 250 }}
         unlockedFeatures={phaseIStats?.unlockedFeatures ?? { trackerPing: false, secondAttempt: false, heatMode: false }}
         nextUnlock={phaseIStats?.nextUnlock ?? null}
         heatModeActive={phaseIStats?.heatModeActive ?? false}

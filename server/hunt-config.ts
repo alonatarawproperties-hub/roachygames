@@ -10,7 +10,7 @@ export const HUNT_CONFIG = {
   
   PITY_RARE: 20,
   PITY_EPIC: 60,
-  PITY_LEGENDARY: 180,
+  PITY_LEGENDARY: 250,
   
   BASE_RATES: {
     common: 0.85,
