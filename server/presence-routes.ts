@@ -44,10 +44,11 @@ function getNearbyPlayers(sessionId: string, lat: number, lng: number): Array<{l
     if (entry.sessionId === sessionId) continue;
     if (!entry.visible || entry.lat === null || entry.lng === null) continue;
     
-    const dist = haversineDistance(lat, lng, entry.lat, entry.lng);
-    if (dist <= NEARBY_RADIUS_KM) {
-      nearby.push({ lat: entry.lat, lng: entry.lng });
-    }
+    // TODO: Re-enable distance filter when player count grows
+    // const dist = haversineDistance(lat, lng, entry.lat, entry.lng);
+    // if (dist <= NEARBY_RADIUS_KM) {
+    nearby.push({ lat: entry.lat, lng: entry.lng });
+    // }
   }
   
   return nearby;
