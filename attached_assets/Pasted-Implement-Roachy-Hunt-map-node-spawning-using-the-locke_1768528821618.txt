@@ -1,0 +1,202 @@
+Implement Roachy Hunt map node spawning using the locked design: B + E + D + F
+(B=Hybrid Personal+Hotspots, E=Route Runner, D=Reservation guarantee, F=Daily Events)
+Do NOT ask questions. Make reasonable defaults. Do not refactor unrelated parts. Fix only what is needed.
+
+========================================================
+1) ADD CONFIG + SCENARIOS (switchable)
+========================================================
+Create:
+- src/config/huntSpawnConfig.ts
+
+Include:
+- ACTIVE_SCENARIO = "S1_BALANCED"
+- config blocks: GRID, MOVEMENT, CATCH, RESERVATION, PERSONAL, HOTSPOT, ROUTE_RUNNER, EVENTS, QUALITY, RARITY, FUSION, WARMTH
+- scenario overrides for S1..S5
+- deepMerge utility
+- resolvedConfig = deepMerge(BASE, SCENARIOS[ACTIVE_SCENARIO])
+
+Use Scenario 1 Balanced as default.
+
+========================================================
+2) DATABASE TABLES (minimal but complete)
+========================================================
+Add migrations and models for:
+
+A) nodes
+- id (uuid pk)
+- type: "PERSONAL" | "HOTSPOT" | "EVENT"
+- regionKey (string)   // cell approx 5km
+- cellKey (string)     // smaller cell if needed
+- lat (double)
+- lng (double)
+- quality: "POOR" | "GOOD" | "GREAT" | "EXCELLENT"
+- startsAt (timestamptz)
+- expiresAt (timestamptz)
+- groupId (nullable string) // for hotspot clusters
+- eventKey (nullable string)
+
+B) node_player_state
+- id (uuid pk)
+- nodeId (fk nodes)
+- userId (fk users)
+- status: "AVAILABLE" | "RESERVED" | "ARRIVED" | "COLLECTED" | "EXPIRED"
+- reservedUntil (timestamptz nullable)
+- arrivedAt (timestamptz nullable)
+- collectedAt (timestamptz nullable)
+Unique index: (nodeId, userId)
+
+C) location_samples
+- id uuid
+- userId
+- lat, lng
+- accuracy
+- speedMps
+- headingDeg
+- createdAt
+
+D) events (optional but recommended)
+- key (string pk) e.g. NIGHT_HUNT_YYYYMMDD
+- windowKey (string) e.g. NIGHT_HUNT
+- startsAt, endsAt
+- createdAt
+
+If the repo already has tables for user, inventory, pity etc, DO NOT duplicate; only add these spawn-related tables.
+
+========================================================
+3) REGION + CELL HELPERS
+========================================================
+Create:
+- src/lib/geo.ts
+
+Functions:
+- haversineMeters(a,b)
+- makeRegionKey(lat,lng): string  (approx 5km grid; simple rounding is ok)
+- randomOffsetMeters(lat,lng, distanceM, bearingDeg): {lat,lng}
+- headingFromLastSamples(samples): deg|null
+- clampTeleport(samples): boolean (detect >500m in <15s)
+
+Keep it simple. No external geo libs needed.
+
+========================================================
+4) SERVER ENDPOINTS (spawn + reserve + validate)
+========================================================
+Add:
+
+POST /api/location/update
+body: { lat,lng,accuracy,speedMps,headingDeg, clientTime }
+- Save sample
+- Update user's lastKnownLocation
+
+GET /api/map/nodes?lat=&lng=
+Return combined node list for that user:
+{
+  scenario: ACTIVE_SCENARIO,
+  personalNodes: [{nodeId, type, lat,lng, quality, expiresAt, status, reservedUntil}],
+  hotspots: [{nodeId, groupId, lat,lng, quality, expiresAt, status, reservedUntil}],
+  events: [{nodeId, eventKey, lat,lng, quality, expiresAt, status, reservedUntil}],
+}
+
+This endpoint must:
+A) Ensure PERSONAL nodes exist for the user:
+- Maintain PERSONAL.ACTIVE_AT_ONCE nodes in node_player_state where status in (AVAILABLE, RESERVED, ARRIVED) and node not expired.
+- If less than required, spawn new PERSONAL nodes around user location using Route Runner bias:
+  - If moving (speedMps >= MOVEMENT.MOVING_SPEED_MPS): spawn ahead within ±HEADING_CONE_DEGREES, distance in ROUTE_RUNNER range
+  - Else: spawn by buckets PERSONAL.DISTANCE_BUCKETS
+- Insert nodes row + node_player_state row for that user.
+
+B) Ensure HOTSPOTS exist for that region:
+- Determine regionKey from lat/lng
+- If no active hotspots for regionKey OR rotation time passed:
+  - create HOTSPOT.HOTSPOTS_PER_CELL anchors and for each anchor generate HOTSPOT.NODES_PER_HOTSPOT nodes with groupId
+  - quality Good/GREAT/EXCELLENT using QUALITY.WEIGHTS_HOTSPOT
+  - expiresAt = now + HOTSPOT.EXPIRE_MS
+- For this user, create node_player_state rows lazily when first seen OR on reserve (either is fine).
+
+C) Ensure EVENTS nodes during active window:
+- Determine if current time falls into any EVENTS.WINDOWS (local timezone Asia/Manila by default)
+- If active:
+  - Ensure each user has eventDropsPerWindow EVENT nodes for the window key (instanced)
+  - spawn within [minM,maxM], expires at window end or expireMs
+
+POST /api/nodes/reserve
+body: { nodeId, lat,lng }
+- Validate node exists and not expired
+- Enforce 1 active reservation per user (cancel previous by setting status AVAILABLE if needed)
+- Set node_player_state status RESERVED + reservedUntil = now + RESERVATION.DURATION_MS
+- Return { reservationId, reservedUntil, nodeId, status:"RESERVED" }
+
+POST /api/nodes/arrive
+body: { reservationId, lat,lng }
+- Validate within CATCH.ARRIVAL_DISTANCE_M
+- Set status ARRIVED + arrivedAt
+- Return updated
+
+========================================================
+5) CATCH VALIDATION INTEGRATION (must prevent wasted trips)
+========================================================
+Before allowing Catch start/resolve:
+- If status ARRIVED => allow even if reservation expired within GRACE_ON_EXPIRE_MS
+- Else require distance <= CATCH.START_DISTANCE_M
+Integrate into existing catch flow endpoints:
+- /api/catch/start must check reservation/arrival/distance
+- /api/catch/resolve must check again and then mark node_player_state COLLECTED + collectedAt
+
+========================================================
+6) CLIENT UI CHANGES (minimal but exciting)
+========================================================
+Map markers:
+- Render different marker styles:
+  - Personal nodes: normal egg marker
+  - Hotspots: clustered egg marker (badge “HOT”)
+  - Event: special marker with “EVENT” badge
+Each marker tooltip shows:
+- Distance (meters)
+- Signal quality (Poor/Good/Great/Excellent)
+- Timer (expiresAt - now)
+
+Reservation UX:
+- On marker tap, call /nodes/reserve
+- Show lock icon + countdown “Reserved 7:59”
+- Show CTA “Navigate / Start Catch”
+- When within ARRIVAL_DISTANCE_M, auto-call /nodes/arrive (or button)
+- Only then allow Catch minigame to open (or allow within START_DISTANCE_M)
+
+Route Runner:
+- While moving, refreshing the map should feel like nodes appear “ahead”
+- Do not constantly reshuffle; only top-up when collected/expired or after RESHUFFLE_COOLDOWN_MS.
+
+No-waste safety:
+- If player has a reservation and arrives, node must not disappear until they finish catch attempt.
+
+========================================================
+7) CRON JOBS
+========================================================
+Add node-cron jobs:
+- every minute: expire nodes past expiresAt; set node_player_state EXPIRED if still AVAILABLE/RESERVED
+- every 15 minutes: rotate hotspots per regionKey that has activity
+- every day at 20:00 local: create event window record for Night Hunt (or compute on fly)
+
+========================================================
+8) LOGGING + DEBUG (to avoid 12 revisions)
+========================================================
+Add server logs:
+- when spawning personal nodes (count, regionKey, moving/standing)
+- when rotating hotspots
+- when reserving, arriving, collecting
+Add client logs:
+- state transitions (MAP_IDLE -> RESERVED -> ARRIVED -> CATCH -> RESOLVE -> REVEAL)
+This will fix the “bounce back” style bugs.
+
+========================================================
+DELIVER
+========================================================
+- All endpoints working
+- Map shows personal + hotspots + event markers
+- Reservation prevents wasted travel
+- Catch works only with valid distance/reservation
+- Nodes spawn per-player globally (any city works)
+- Route Runner makes spawns feel “ahead” when moving
+- Hotspots rotate and feel social
+- Night Hunt event spawns excellent nodes during window
+
+Output a final summary listing files changed + how to test quickly.

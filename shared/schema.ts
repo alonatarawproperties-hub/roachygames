@@ -897,3 +897,56 @@ export type ChyTransaction = typeof chyTransactions.$inferSelect;
 export type RateLimitTracking = typeof rateLimitTracking.$inferSelect;
 export type GameSessionToken = typeof gameSessionTokens.$inferSelect;
 export type SecurityAuditLog = typeof securityAuditLog.$inferSelect;
+
+export const huntNodes = pgTable("hunt_nodes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(), // PERSONAL | HOTSPOT | EVENT
+  regionKey: text("region_key").notNull(),
+  cellKey: text("cell_key").notNull(),
+  lat: real("lat").notNull(),
+  lng: real("lng").notNull(),
+  quality: text("quality").notNull().default("GOOD"), // POOR | GOOD | GREAT | EXCELLENT
+  startsAt: timestamp("starts_at").notNull().default(sql`now()`),
+  expiresAt: timestamp("expires_at").notNull(),
+  groupId: text("group_id"), // for hotspot clusters
+  eventKey: text("event_key"), // for event nodes
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const huntNodePlayerState = pgTable("hunt_node_player_state", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nodeId: varchar("node_id").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  status: text("status").notNull().default("AVAILABLE"), // AVAILABLE | RESERVED | ARRIVED | COLLECTED | EXPIRED
+  reservedUntil: timestamp("reserved_until"),
+  arrivedAt: timestamp("arrived_at"),
+  collectedAt: timestamp("collected_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => ({
+  nodeUserUnique: unique().on(table.nodeId, table.walletAddress),
+}));
+
+export const huntLocationSamples = pgTable("hunt_location_samples", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  lat: real("lat").notNull(),
+  lng: real("lng").notNull(),
+  accuracy: real("accuracy"),
+  speedMps: real("speed_mps"),
+  headingDeg: real("heading_deg"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const huntEventWindows = pgTable("hunt_event_windows", {
+  key: varchar("key").primaryKey(),
+  windowKey: text("window_key").notNull(), // NIGHT_HUNT, LUNCH_RUSH
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export type HuntNode = typeof huntNodes.$inferSelect;
+export type HuntNodePlayerState = typeof huntNodePlayerState.$inferSelect;
+export type HuntLocationSample = typeof huntLocationSamples.$inferSelect;
+export type HuntEventWindow = typeof huntEventWindows.$inferSelect;
