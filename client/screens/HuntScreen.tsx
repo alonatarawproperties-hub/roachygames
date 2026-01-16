@@ -179,7 +179,7 @@ export default function HuntScreen() {
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b17",
+    build: "b22",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -187,6 +187,7 @@ export default function HuntScreen() {
     lastNet: "",
     ts: "",
     nodes: 0,
+    reservs: 0,
   });
   
   const dbg = useCallback((patch: Partial<typeof debug>) => {
@@ -944,6 +945,14 @@ export default function HuntScreen() {
     setDebug((d) => ({ ...d, nodes: allMapNodes.length }));
   }, [allMapNodes.length]);
 
+  // Update debug with reservations count
+  useEffect(() => {
+    setDebug((d) => ({ ...d, reservs: spawnReservations.length }));
+    if (spawnReservations.length > 0) {
+      console.log("[RESERV DEBUG]", JSON.stringify(spawnReservations));
+    }
+  }, [spawnReservations]);
+
   const renderMapView = () => {
     return (
       <MapViewWrapper
@@ -1639,8 +1648,8 @@ export default function HuntScreen() {
       ) : null}
 
       <View style={styles.debugOverlay}>
-        <ThemedText style={styles.buildTag}>BUILD: b21</ThemedText>
-        <ThemedText style={styles.debugText}>nodes: {debug.nodes} | taps: {debug.tapCount}</ThemedText>
+        <ThemedText style={styles.buildTag}>BUILD: b22</ThemedText>
+        <ThemedText style={styles.debugText}>nodes: {debug.nodes} | reservs: {debug.reservs} | taps: {debug.tapCount}</ThemedText>
         <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
         <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
         <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
