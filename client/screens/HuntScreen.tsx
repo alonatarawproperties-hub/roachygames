@@ -41,6 +41,7 @@ import { EggCollectedModal } from "@/components/hunt/EggCollectedModal";
 import { FusionAnimationModal } from "@/components/hunt/FusionAnimationModal";
 import { LevelProgressSheet } from "@/components/hunt/LevelProgressSheet";
 import { NodeDetailsBottomSheet } from "@/components/hunt/NodeDetailsBottomSheet";
+import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence } from "@/context/PresenceContext";
@@ -165,8 +166,12 @@ export default function HuntScreen() {
   const [reserveToast, setReserveToast] = useState<string | null>(null);
   const lastMarkerTapRef = useRef<number>(0);
   
+  const [showSpawnReserveSheet, setShowSpawnReserveSheet] = useState(false);
+  const [spawnReservations, setSpawnReservations] = useState<Record<string, Date>>({}); 
+  const [isReservingSpawn, setIsReservingSpawn] = useState(false);
+  
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b11",
+    build: "v1.0.0-node-b12",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -392,26 +397,73 @@ export default function HuntScreen() {
     dbg({ lastTap: "SPAWN_TAP", nodeId: spawn.id });
     console.log("[handleSpawnTap] Spawn tapped:", spawn.id, spawn.name, "distance:", spawn.distance);
     
-    // Allow reserving spawns up to 5km away - player has 8 mins to reach it
+    const CATCH_RADIUS_M = 100;
     const RESERVE_RANGE_M = 5000;
-    if ((spawn.distance || 0) > RESERVE_RANGE_M) {
+    const dist = spawn.distance || 0;
+    
+    if (dist > RESERVE_RANGE_M) {
       dbg({ reserve: "TOO_FAR (>5km)" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
+    
     if (playerLocation) {
       playerLocationRef.current = {
         latitude: playerLocation.latitude,
         longitude: playerLocation.longitude,
       };
-      console.log("[handleSpawnTap] Stored location:", playerLocationRef.current);
-    } else {
-      console.log("[handleSpawnTap] WARNING: No playerLocation available!");
     }
+    
     setSelectedSpawn(spawn);
     activeSpawnRef.current = spawn;
-    setShowCameraEncounter(true);
+    
+    const hasReservation = spawnReservations[spawn.id] && new Date(spawnReservations[spawn.id]).getTime() > Date.now();
+    
+    if (dist <= CATCH_RADIUS_M || hasReservation) {
+      if (dist <= CATCH_RADIUS_M) {
+        dbg({ reserve: "IN_RANGE" });
+        setShowCameraEncounter(true);
+      } else {
+        dbg({ reserve: "RESERVED_FAR" });
+        setShowSpawnReserveSheet(true);
+      }
+    } else {
+      dbg({ reserve: "SHOW_SHEET" });
+      setShowSpawnReserveSheet(true);
+    }
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+  
+  const handleReserveSpawn = async () => {
+    if (!selectedSpawn) return;
+    
+    setIsReservingSpawn(true);
+    dbg({ reserve: "RESERVING..." });
+    
+    const reserveUntil = new Date(Date.now() + 8 * 60 * 1000);
+    setSpawnReservations(prev => ({
+      ...prev,
+      [selectedSpawn.id]: reserveUntil,
+    }));
+    
+    setIsReservingSpawn(false);
+    dbg({ reserve: `OK until ${reserveUntil.toLocaleTimeString()}` });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+  
+  const handleSpawnNavigate = () => {
+    if (!selectedSpawn) return;
+    
+    const dist = selectedSpawn.distance || 0;
+    const CATCH_RADIUS_M = 100;
+    
+    if (dist <= CATCH_RADIUS_M) {
+      setShowSpawnReserveSheet(false);
+      setShowCameraEncounter(true);
+    } else {
+      setShowSpawnReserveSheet(false);
+    }
   };
 
   const handleNodeTap = useCallback((node: MapNode) => {
@@ -1485,6 +1537,17 @@ export default function HuntScreen() {
         onClose={handleCloseNodeSheet}
         onReserve={handleReserveNode}
         onNavigate={handleNavigateToNode}
+      />
+
+      <SpawnReserveSheet
+        visible={showSpawnReserveSheet}
+        spawn={selectedSpawn}
+        playerDistance={selectedSpawn?.distance ?? null}
+        isReserving={isReservingSpawn}
+        reservedUntil={selectedSpawn ? spawnReservations[selectedSpawn.id] ?? null : null}
+        onClose={() => setShowSpawnReserveSheet(false)}
+        onReserve={handleReserveSpawn}
+        onNavigate={handleSpawnNavigate}
       />
 
       {reserveToast ? (
