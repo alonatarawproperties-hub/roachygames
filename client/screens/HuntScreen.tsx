@@ -166,7 +166,7 @@ export default function HuntScreen() {
   const lastMarkerTapRef = useRef<number>(0);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b10",
+    build: "v1.0.0-node-b11",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -390,10 +390,12 @@ export default function HuntScreen() {
 
   const handleSpawnTap = (spawn: Spawn) => {
     dbg({ lastTap: "SPAWN_TAP", nodeId: spawn.id });
-    console.log("[handleSpawnTap] Spawn tapped:", spawn.id, spawn.name);
+    console.log("[handleSpawnTap] Spawn tapped:", spawn.id, spawn.name, "distance:", spawn.distance);
     
-    if ((spawn.distance || 0) > 100) {
-      dbg({ reserve: "TOO_FAR" });
+    // Allow reserving spawns up to 5km away - player has 8 mins to reach it
+    const RESERVE_RANGE_M = 5000;
+    if ((spawn.distance || 0) > RESERVE_RANGE_M) {
+      dbg({ reserve: "TOO_FAR (>5km)" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
