@@ -53,15 +53,12 @@ export function SpawnReserveSheet({
 }: SpawnReserveSheetProps) {
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(SHEET_HEIGHT);
-  const backdropOpacity = useSharedValue(0);
   const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     if (visible && spawn) {
-      backdropOpacity.value = withTiming(1, { duration: 200 });
       translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
     } else {
-      backdropOpacity.value = withTiming(0, { duration: 150 });
       translateY.value = withTiming(SHEET_HEIGHT, { duration: 200 });
     }
   }, [visible, spawn]);
@@ -92,10 +89,6 @@ export function SpawnReserveSheet({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const animatedBackdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value * 0.5,
-  }));
-
   if (!spawn) return null;
 
   const rarityColor = RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common;
@@ -116,10 +109,8 @@ export function SpawnReserveSheet({
       animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <Animated.View style={[styles.backdrop, animatedBackdropStyle]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        </Animated.View>
+      <View style={styles.container} pointerEvents="box-none">
+        <Pressable style={styles.backdrop} onPress={onClose} />
 
         <Animated.View
           style={[
@@ -127,6 +118,7 @@ export function SpawnReserveSheet({
             animatedSheetStyle,
             { paddingBottom: insets.bottom + Spacing.md },
           ]}
+          pointerEvents="box-none"
         >
           <View style={styles.handle} />
 
@@ -191,17 +183,19 @@ export function SpawnReserveSheet({
                 </Button>
               )
             ) : (
-              <Button
+              <Pressable
                 onPress={() => {
-                  console.log("[SpawnReserveSheet] Reserve button pressed, isReserving:", isReserving);
+                  console.log("[SpawnReserveSheet] Reserve button PRESSED");
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   onReserve();
                 }}
                 disabled={isReserving}
-                style={styles.primaryButton}
+                style={[styles.reserveButton, isReserving && { opacity: 0.5 }]}
               >
-                {isReserving ? "Reserving..." : "Reserve for 8 min"}
-              </Button>
+                <ThemedText style={styles.reserveButtonText}>
+                  {isReserving ? "Reserving..." : "Reserve for 8 min"}
+                </ThemedText>
+              </Pressable>
             )}
 
             <Pressable style={styles.closeButton} onPress={onClose}>
@@ -221,7 +215,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
     backgroundColor: GameColors.surface,
@@ -314,6 +308,19 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     width: "100%",
+  },
+  reserveButton: {
+    width: "100%",
+    height: 48,
+    backgroundColor: GameColors.gold,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reserveButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#000",
   },
   closeButton: {
     alignItems: "center",
