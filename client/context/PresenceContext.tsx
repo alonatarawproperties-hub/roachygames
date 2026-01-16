@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { AppState, AppStateStatus } from "react-native";
 import * as Crypto from "expo-crypto";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 
@@ -9,17 +10,31 @@ interface PresenceStats {
   playingByGame: Record<string, number>;
 }
 
+interface NearbyPlayer {
+  lat: number;
+  lng: number;
+}
+
 interface PresenceContextType {
   stats: PresenceStats;
+  nearbyPlayers: NearbyPlayer[];
+  isVisible: boolean;
   setCurrentGame: (gameId: string | null) => void;
+  setLocation: (lat: number, lng: number) => void;
+  setVisibility: (visible: boolean) => void;
 }
 
 const PresenceContext = createContext<PresenceContextType>({
   stats: { onlineCount: 0, playingByGame: {} },
+  nearbyPlayers: [],
+  isVisible: true,
   setCurrentGame: () => {},
+  setLocation: () => {},
+  setVisibility: () => {},
 });
 
 const HEARTBEAT_INTERVAL_MS = 30000;
+const VISIBILITY_KEY = "presence_visible";
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -27,10 +42,22 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     onlineCount: 0,
     playingByGame: {},
   });
+  const [nearbyPlayers, setNearbyPlayers] = useState<NearbyPlayer[]>([]);
+  const [isVisible, setIsVisible] = useState(true);
   const sessionIdRef = useRef<string | null>(null);
   const currentGameRef = useRef<string | null>(null);
+  const locationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const visibleRef = useRef(true);
   const heartbeatInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    AsyncStorage.getItem(VISIBILITY_KEY).then((val) => {
+      const visible = val !== "false";
+      setIsVisible(visible);
+      visibleRef.current = visible;
+    });
+  }, []);
 
   const getSessionId = useCallback(async (): Promise<string> => {
     if (!sessionIdRef.current) {
@@ -42,6 +69,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const sendHeartbeat = useCallback(async () => {
     try {
       const sid = await getSessionId();
+      const loc = locationRef.current;
       const response = await fetch(`${getApiUrl()}/api/presence/heartbeat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -49,6 +77,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
           sessionId: sid,
           userId: user?.id || null,
           currentGame: currentGameRef.current,
+          lat: loc?.lat ?? null,
+          lng: loc?.lng ?? null,
+          visible: visibleRef.current,
         }),
       });
       
@@ -58,6 +89,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
           onlineCount: data.onlineCount || 0,
           playingByGame: data.playingByGame || {},
         });
+        setNearbyPlayers(data.nearbyPlayers || []);
       }
     } catch (error) {
       // Silently fail - presence is non-critical
@@ -79,6 +111,17 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
   const setCurrentGame = useCallback((gameId: string | null) => {
     currentGameRef.current = gameId;
+    sendHeartbeat();
+  }, [sendHeartbeat]);
+
+  const setLocation = useCallback((lat: number, lng: number) => {
+    locationRef.current = { lat, lng };
+  }, []);
+
+  const setVisibility = useCallback(async (visible: boolean) => {
+    visibleRef.current = visible;
+    setIsVisible(visible);
+    await AsyncStorage.setItem(VISIBILITY_KEY, visible ? "true" : "false");
     sendHeartbeat();
   }, [sendHeartbeat]);
 
@@ -106,7 +149,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   }, [sendHeartbeat, sendLeave]);
 
   return (
-    <PresenceContext.Provider value={{ stats, setCurrentGame }}>
+    <PresenceContext.Provider value={{ stats, nearbyPlayers, isVisible, setCurrentGame, setLocation, setVisibility }}>
       {children}
     </PresenceContext.Provider>
   );
