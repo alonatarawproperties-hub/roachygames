@@ -166,7 +166,7 @@ export default function HuntScreen() {
   const lastMarkerTapRef = useRef<number>(0);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b9",
+    build: "v1.0.0-node-b10",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -389,7 +389,11 @@ export default function HuntScreen() {
   }, [playerLocation, spawns.length, isLoading, spawnCreatures]);
 
   const handleSpawnTap = (spawn: Spawn) => {
+    dbg({ lastTap: "SPAWN_TAP", nodeId: spawn.id });
+    console.log("[handleSpawnTap] Spawn tapped:", spawn.id, spawn.name);
+    
     if ((spawn.distance || 0) > 100) {
+      dbg({ reserve: "TOO_FAR" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }

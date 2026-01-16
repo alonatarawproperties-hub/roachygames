@@ -362,9 +362,35 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           onPress={(e: any) => {
             const coord = e?.nativeEvent?.coordinate;
             console.log("[MapView] onPress coord:", coord?.latitude, coord?.longitude);
-            if (coord && mapNodes && onNodeTap) {
-              // Find closest node within 30m tap threshold
-              const TAP_THRESHOLD_M = 30;
+            
+            const TAP_THRESHOLD_M = 50; // 50m tap radius for better touch detection
+            
+            // Check spawns first (egg markers)
+            if (coord && spawns && spawns.length > 0) {
+              let closestSpawn: Spawn | null = null;
+              let closestDist = Infinity;
+              for (const spawn of spawns) {
+                const spawnLat = parseFloat(String(spawn.latitude));
+                const spawnLng = parseFloat(String(spawn.longitude));
+                if (isNaN(spawnLat) || isNaN(spawnLng)) continue;
+                
+                const dLat = (spawnLat - coord.latitude) * 111320;
+                const dLng = (spawnLng - coord.longitude) * 111320 * Math.cos(coord.latitude * Math.PI / 180);
+                const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+                if (dist < TAP_THRESHOLD_M && dist < closestDist) {
+                  closestDist = dist;
+                  closestSpawn = spawn;
+                }
+              }
+              if (closestSpawn) {
+                console.log("[MapView] Tap hit SPAWN:", closestSpawn.id, "dist:", closestDist.toFixed(1));
+                onSpawnTap(closestSpawn);
+                return;
+              }
+            }
+            
+            // Check nodes
+            if (coord && mapNodes && mapNodes.length > 0 && onNodeTap) {
               let closestNode: MapNode | null = null;
               let closestDist = Infinity;
               for (const node of mapNodes) {
@@ -377,11 +403,12 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 }
               }
               if (closestNode) {
-                console.log("[MapView] Tap hit node:", closestNode.nodeId, "dist:", closestDist.toFixed(1));
+                console.log("[MapView] Tap hit NODE:", closestNode.nodeId, "dist:", closestDist.toFixed(1));
                 onNodeTap(closestNode);
                 return;
               }
             }
+            
             onMapPress?.();
           }}
           initialRegion={{
