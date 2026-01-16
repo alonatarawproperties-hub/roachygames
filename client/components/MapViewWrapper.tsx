@@ -37,11 +37,17 @@ export interface PlayerLocation {
   heading?: number;
 }
 
+interface NearbyPlayer {
+  lat: number;
+  lng: number;
+}
+
 interface MapViewWrapperProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
   raids: Raid[];
   mapNodes?: MapNode[];
+  nearbyPlayers?: NearbyPlayer[];
   gpsAccuracy?: number | null;
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
@@ -249,7 +255,7 @@ function FallbackMapView({
 }
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, gpsAccuracy, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -562,6 +568,22 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               </MarkerComponent>
             );
           }) : null}
+
+          {/* Nearby Players - Anonymous dots */}
+          {nearbyPlayers && nearbyPlayers.length > 0 && MarkerComponent ? nearbyPlayers.map((player, idx) => (
+            <MarkerComponent
+              key={`player-${idx}-${player.lat}-${player.lng}`}
+              coordinate={{
+                latitude: player.lat,
+                longitude: player.lng,
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              tappable={false}
+            >
+              <View style={styles.nearbyPlayerDot} />
+            </MarkerComponent>
+          )) : null}
         </MapViewComponent>
 
         {/* GPS Signal Indicator - Top Left below status bar area */}
@@ -983,6 +1005,19 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: "700",
     color: "#fff",
+  },
+  nearbyPlayerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#22C55E",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
 });
 

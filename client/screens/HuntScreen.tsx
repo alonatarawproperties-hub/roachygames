@@ -44,7 +44,7 @@ import { NodeDetailsBottomSheet } from "@/components/hunt/NodeDetailsBottomSheet
 import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
-import { useGamePresence } from "@/context/PresenceContext";
+import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
 import { useMapNodes, useReserveNode, MapNode } from "@/hooks/useMapNodes";
 
 const RARITY_COLORS: Record<string, string> = {
@@ -140,6 +140,13 @@ export default function HuntScreen() {
   } = useHunt();
   
   useGamePresence("roachy-hunt");
+  const { nearbyPlayers, setLocation: setPresenceLocation } = usePresenceContext();
+  
+  useEffect(() => {
+    if (playerLocation) {
+      setPresenceLocation(playerLocation.latitude, playerLocation.longitude);
+    }
+  }, [playerLocation?.latitude, playerLocation?.longitude, setPresenceLocation]);
 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -171,7 +178,7 @@ export default function HuntScreen() {
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b13",
+    build: "v1.0.0-node-b14",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
@@ -896,6 +903,7 @@ export default function HuntScreen() {
         spawns={spawns}
         raids={raids}
         mapNodes={allMapNodes}
+        nearbyPlayers={nearbyPlayers}
         gpsAccuracy={gpsAccuracy}
         onSpawnTap={handleSpawnTap}
         onRaidTap={(raid) => setSelectedRaid(raid)}
