@@ -473,21 +473,20 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             return (
               <MarkerComponent
                 key={node.nodeId}
+                identifier={node.nodeId}
                 coordinate={{
                   latitude: nodeLat,
                   longitude: nodeLng,
                 }}
-                onPress={(e: any) => {
-                  e.stopPropagation?.();
-                  onNodeTap(node);
-                }}
+                onPress={() => onNodeTap(node)}
+                onSelect={() => onNodeTap(node)}
                 anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={true}
-                stopPropagation={true}
+                tracksViewChanges={false}
+                tappable={true}
               >
-                <View style={styles.nodeMarkerContainer} pointerEvents="box-only">
-                  <View style={[styles.nodeMarkerGlow, { backgroundColor: qualityColor + "40" }]} pointerEvents="none" />
-                  <View style={[styles.nodeMarkerBody, { borderColor: qualityColor }, isReserved && styles.nodeMarkerReserved]} pointerEvents="none">
+                <View style={styles.nodeMarkerContainer}>
+                  <View style={[styles.nodeMarkerGlow, { backgroundColor: qualityColor + "40" }]} />
+                  <View style={[styles.nodeMarkerBody, { borderColor: qualityColor }, isReserved && styles.nodeMarkerReserved]}>
                     <Feather 
                       name={node.type === "HOTSPOT" ? "zap" : node.type === "EVENT" ? "star" : "map-pin"} 
                       size={12} 
@@ -495,7 +494,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                     />
                   </View>
                   {typeLabel ? (
-                    <View style={[styles.nodeTypeBadge, { backgroundColor: typeBadgeColor }]} pointerEvents="none">
+                    <View style={[styles.nodeTypeBadge, { backgroundColor: typeBadgeColor }]}>
                       <ThemedText style={styles.nodeTypeBadgeText}>{typeLabel}</ThemedText>
                     </View>
                   ) : null}
