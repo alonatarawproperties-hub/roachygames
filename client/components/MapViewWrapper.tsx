@@ -359,18 +359,30 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           userInterfaceStyle="dark"
           onError={handleMapError}
           onMapReady={handleNativeMapReady}
-          onPress={() => onMapPress?.()}
-          onMarkerPress={(e: any) => {
-            const markerId = e?.nativeEvent?.id || e?.nativeEvent?.identifier;
-            console.log("[MapView] onMarkerPress fired, id:", markerId);
-            if (markerId && mapNodes && onNodeTap) {
-              const node = mapNodes.find((n) => n.nodeId === markerId);
-              if (node) {
-                console.log("[MapView] Found node for marker:", node.nodeId);
-                onNodeTap(node);
+          onPress={(e: any) => {
+            const coord = e?.nativeEvent?.coordinate;
+            console.log("[MapView] onPress coord:", coord?.latitude, coord?.longitude);
+            if (coord && mapNodes && onNodeTap) {
+              // Find closest node within 30m tap threshold
+              const TAP_THRESHOLD_M = 30;
+              let closestNode: MapNode | null = null;
+              let closestDist = Infinity;
+              for (const node of mapNodes) {
+                const dLat = (node.lat - coord.latitude) * 111320;
+                const dLng = (node.lng - coord.longitude) * 111320 * Math.cos(coord.latitude * Math.PI / 180);
+                const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+                if (dist < TAP_THRESHOLD_M && dist < closestDist) {
+                  closestDist = dist;
+                  closestNode = node;
+                }
+              }
+              if (closestNode) {
+                console.log("[MapView] Tap hit node:", closestNode.nodeId, "dist:", closestDist.toFixed(1));
+                onNodeTap(closestNode);
                 return;
               }
             }
+            onMapPress?.();
           }}
           initialRegion={{
             latitude: playerLocation.latitude,
