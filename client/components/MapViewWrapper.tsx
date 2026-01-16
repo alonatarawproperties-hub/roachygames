@@ -549,10 +549,6 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               ? (isMine ? SPAWN_RESERVED_BY_YOU : SPAWN_RESERVED_BY_OTHER)
               : spawnMarkerImage;
             
-            const auraColor = nodeIsActiveReserved 
-              ? (isMine ? "#A855F7" : "#3B82F6")
-              : null;
-            
             return (
               <MarkerComponent
                 key={node.nodeId}
@@ -567,16 +563,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 tracksViewChanges={false}
                 tappable={true}
               >
-                <View style={styles.nodeMarkerWrapper}>
-                  {auraColor ? (
-                    <View style={[styles.reservedAura, { backgroundColor: auraColor }]} />
-                  ) : null}
-                  <Image 
-                    source={nodeMarkerIcon} 
-                    style={styles.spawnMarkerImage} 
-                    resizeMode="contain"
-                  />
-                </View>
+                <Image 
+                  source={nodeMarkerIcon} 
+                  style={styles.spawnMarkerImage} 
+                  resizeMode="contain"
+                />
               </MarkerComponent>
             );
           }) : null}
