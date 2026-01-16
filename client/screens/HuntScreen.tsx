@@ -166,13 +166,14 @@ export default function HuntScreen() {
   const lastMarkerTapRef = useRef<number>(0);
   
   const [debug, setDebug] = useState({
-    build: "v1.0.0-node-b7",
+    build: "v1.0.0-node-b8",
     tapCount: 0,
     lastTap: "",
     nodeId: "",
     reserve: "",
     lastNet: "",
     ts: "",
+    nodes: 0,
   });
   
   const dbg = useCallback((patch: Partial<typeof debug>) => {
@@ -807,6 +808,11 @@ export default function HuntScreen() {
       ...mapNodesData.events,
     ];
   }, [mapNodesData]);
+
+  // Update debug with node count
+  useEffect(() => {
+    setDebug((d) => ({ ...d, nodes: allMapNodes.length }));
+  }, [allMapNodes.length]);
 
   const renderMapView = () => {
     return (
@@ -1485,11 +1491,10 @@ export default function HuntScreen() {
 
       <View style={styles.debugOverlay}>
         <ThemedText style={styles.buildTag}>BUILD: {debug.build}</ThemedText>
-        <ThemedText style={styles.debugText}>taps: {debug.tapCount}</ThemedText>
+        <ThemedText style={styles.debugText}>nodes: {debug.nodes} | taps: {debug.tapCount}</ThemedText>
         <ThemedText style={styles.debugText}>lastTap: {debug.lastTap || "—"}</ThemedText>
         <ThemedText style={styles.debugText}>nodeId: {debug.nodeId ? debug.nodeId.slice(0, 8) : "—"}</ThemedText>
         <ThemedText style={styles.debugText}>reserve: {debug.reserve || "—"}</ThemedText>
-        <ThemedText style={styles.debugText}>net: {debug.lastNet || "—"}</ThemedText>
         <ThemedText style={styles.debugText}>ts: {debug.ts ? debug.ts.slice(11, 19) : "—"}</ThemedText>
         <Pressable 
           style={styles.debugButton} 
