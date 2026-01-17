@@ -150,14 +150,14 @@ function RoachyCard({
         {/* Selection Indicator */}
         {isSelected && (
           <View style={[styles.selectedBadge, { backgroundColor: GameColors.primary }]}>
-            <Feather name="check" size={16} color={GameColors.background} />
+            <Feather name="check" size={12} color={GameColors.background} />
           </View>
         )}
 
         {/* Class Icon and Name */}
         <View style={styles.cardHeader}>
           <View style={[styles.classIconBg, { backgroundColor: classColor }]}>
-            <Feather name={CLASS_ICONS[roachy.roachyClass] as any} size={20} color="#FFFFFF" />
+            <Feather name={CLASS_ICONS[roachy.roachyClass] as any} size={16} color="#FFFFFF" />
           </View>
           <View style={styles.nameSection}>
             <ThemedText type="h4" style={styles.roachyName}>
@@ -589,52 +589,52 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   roachiesGrid: {
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   roachyCard: {
     backgroundColor: GameColors.surfaceElevated,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    borderWidth: 2,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
     borderColor: GameColors.surfaceGlow,
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
     shadowOffset: { width: 0, height: 0 },
   },
   roachyCardSelected: {
-    borderWidth: 3,
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
+    borderWidth: 2,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
   },
   selectedBadge: {
     position: "absolute",
-    top: Spacing.md,
-    right: Spacing.md,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
     shadowColor: GameColors.primary,
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
     shadowOffset: { width: 0, height: 0 },
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
   },
   classIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.sm,
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.xs,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
     shadowOffset: { width: 0, height: 0 },
   },
   nameSection: {
@@ -642,66 +642,72 @@ const styles = StyleSheet.create({
   },
   roachyName: {
     color: GameColors.textPrimary,
-    marginBottom: Spacing.sm,
+    marginBottom: 2,
     fontWeight: "600",
+    fontSize: 15,
   },
   classRarityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     flexWrap: "wrap",
   },
   badge: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   levelBadge: {
     backgroundColor: GameColors.primary + "30",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   levelText: {
     color: GameColors.primary,
     fontWeight: "600",
+    fontSize: 11,
   },
   statsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    gap: Spacing.xs,
   },
   statItem: {
     flex: 1,
     alignItems: "center",
     backgroundColor: GameColors.background,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
   },
   statLabel: {
     color: GameColors.textTertiary,
-    marginBottom: Spacing.xs,
+    marginBottom: 1,
     fontWeight: "600",
+    fontSize: 10,
   },
   statValue: {
     color: GameColors.textPrimary,
     fontWeight: "700",
+    fontSize: 14,
   },
   totalStatsBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: GameColors.surfaceGlow,
   },
   totalStatsLabel: {
     color: GameColors.textSecondary,
     fontWeight: "600",
+    fontSize: 11,
   },
   totalStatsValue: {
     fontWeight: "700",
+    fontSize: 13,
   },
   loadingContainer: {
     flex: 1,

@@ -92,14 +92,15 @@ export function BattlesHomeScreen() {
     retry: 2,
   });
 
-  const stats = statsResponse?.stats || {
-    mmr: 1200,
-    wins: 0,
-    losses: 0,
-    winStreak: 0,
-    lossStreak: 0,
-    dailyWins: 0,
-    dailyWinsMax: 3,
+  const rawStats = statsResponse?.stats;
+  const stats = {
+    mmr: rawStats?.mmr ?? 1000,
+    wins: rawStats?.wins ?? 0,
+    losses: rawStats?.losses ?? 0,
+    winStreak: rawStats?.winStreak ?? 0,
+    lossStreak: rawStats?.lossStreak ?? 0,
+    dailyWins: rawStats?.dailyWins ?? 0,
+    dailyWinsMax: rawStats?.dailyWinsMax ?? 3,
   };
 
   const currentRank = getRankTier(stats.mmr);

@@ -81,7 +81,9 @@ export function SkillCard({
           </View>
           <Text
             style={[styles.title, size === "small" && styles.titleSmall, isDisabled && styles.textDisabled]}
-            numberOfLines={1}
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
           >
             {title}
           </Text>
@@ -158,11 +160,11 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   titleSmall: {
-    fontSize: 9,
+    fontSize: 8,
   },
   textDisabled: {
     color: "rgba(255,255,255,0.5)",
