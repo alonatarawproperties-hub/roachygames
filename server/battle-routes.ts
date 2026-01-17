@@ -804,11 +804,11 @@ export function registerBattleRoutes(app: Express) {
     }
   });
 
-  app.get("/api/battles/stats", async (req: Request, res: Response) => {
+  app.get("/api/battles/stats/:walletAddress", async (req: Request, res: Response) => {
     try {
-      const { walletAddress } = req.query;
+      const { walletAddress } = req.params;
       
-      if (!walletAddress || typeof walletAddress !== 'string') {
+      if (!walletAddress) {
         return res.status(400).json({ success: false, error: "Missing walletAddress" });
       }
       
