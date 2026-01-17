@@ -19,6 +19,7 @@ import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { BattleArenaStage } from "@/components/BattleArenaStage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RoachyClass = "TANK" | "ASSASSIN" | "MAGE" | "SUPPORT";
@@ -645,6 +646,17 @@ export function BattleMatchScreen() {
   const allActionsSelected = alivePlayerRoachies.every((r) => actions.has(r.id));
   const finisherReady = matchState.player.momentum >= MAX_MOMENTUM;
 
+  const playerActiveIndex =
+    (matchState.player as any).activeIndex ??
+    matchState.player.team.findIndex((r: any) => r.isAlive);
+  const opponentActiveIndex =
+    (matchState.opponent as any).activeIndex ??
+    matchState.opponent.team.findIndex((r: any) => r.isAlive);
+  const playerActive =
+    matchState.player.team[Math.max(0, playerActiveIndex)] ?? matchState.player.team[0];
+  const opponentActive =
+    matchState.opponent.team[Math.max(0, opponentActiveIndex)] ?? matchState.opponent.team[0];
+
   return (
     <View style={[styles.container, { paddingLeft: insets.left, paddingRight: insets.right }]}>
       {showPerfectRead && (
@@ -723,22 +735,12 @@ export function BattleMatchScreen() {
           )}
         </View>
 
-        <View style={styles.arenaCenter}>
-          <View style={styles.arenaIcon}>
-            <Feather name="target" size={48} color={GameColors.gold} />
-          </View>
-          {finisherReady && (
-            <Animated.View style={[styles.finisherBadge, { transform: [{ scale: pulseAnim }] }]}>
-              <Text style={styles.finisherBadgeText}>FINISHER READY!</Text>
-            </Animated.View>
-          )}
-          {isLocked && (
-            <View style={styles.lockedBadge}>
-              <Feather name="lock" size={20} color={GameColors.textPrimary} />
-              <Text style={styles.lockedText}>Waiting...</Text>
-            </View>
-          )}
-        </View>
+        <BattleArenaStage
+          playerActive={playerActive}
+          opponentActive={opponentActive}
+          finisherReady={finisherReady}
+          isLocked={isLocked}
+        />
 
         <View style={styles.enemySide}>
           <Text style={styles.sideLabel}>
