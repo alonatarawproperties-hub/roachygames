@@ -106,17 +106,14 @@ export function useThemedAlert() {
     setAlertState((prev) => ({ ...prev, visible: false }));
   }, []);
 
-  const AlertComponent = useCallback(
-    () => (
-      <ThemedAlert
-        visible={alertState.visible}
-        title={alertState.title}
-        message={alertState.message}
-        buttons={alertState.buttons}
-        onDismiss={hideAlert}
-      />
-    ),
-    [alertState, hideAlert]
+  const AlertComponent = () => (
+    <ThemedAlert
+      visible={alertState.visible}
+      title={alertState.title}
+      message={alertState.message}
+      buttons={alertState.buttons}
+      onDismiss={hideAlert}
+    />
   );
 
   return { showAlert, hideAlert, AlertComponent };
