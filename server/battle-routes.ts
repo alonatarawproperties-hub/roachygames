@@ -28,6 +28,25 @@ interface BattleRoachy {
   isKO: boolean;
 }
 
+// Transform server BattleRoachy to client-expected format
+function toClientRoachy(r: BattleRoachy) {
+  return {
+    id: r.instanceId || r.id,
+    name: r.name,
+    class: r.roachyClass,
+    rarity: r.rarity,
+    hp: r.stats.hp,
+    maxHp: r.stats.maxHp,
+    atk: r.stats.atk,
+    def: r.stats.def,
+    spd: r.stats.spd,
+    isAlive: !r.isKO,
+    skillA: r.skillA,
+    skillB: r.skillB,
+    cooldowns: { skillA: 0, skillB: 0 },
+  };
+}
+
 interface PlayerState {
   playerId: string;
   team: BattleRoachy[];
@@ -745,13 +764,13 @@ export function registerBattleRoutes(app: Express) {
             player1: {
               momentum: match.player1.momentum,
               kos: match.player1.kos,
-              team: match.player1.team,
+              team: match.player1.team.map(toClientRoachy),
               activeIndex: match.player1.activeIndex,
             },
             player2: {
               momentum: match.player2.momentum,
               kos: match.player2.kos,
-              team: match.player2.team,
+              team: match.player2.team.map(toClientRoachy),
               activeIndex: match.player2.activeIndex,
             },
           },
@@ -788,7 +807,7 @@ export function registerBattleRoutes(app: Express) {
             playerId: match.player1.playerId,
             momentum: match.player1.momentum,
             kos: match.player1.kos,
-            team: match.player1.team,
+            team: match.player1.team.map(toClientRoachy),
             activeIndex: match.player1.activeIndex,
             teamSubmitted: match.player1TeamSubmitted,
           },
@@ -796,7 +815,7 @@ export function registerBattleRoutes(app: Express) {
             playerId: match.player2.playerId,
             momentum: match.player2.momentum,
             kos: match.player2.kos,
-            team: match.player2.team,
+            team: match.player2.team.map(toClientRoachy),
             activeIndex: match.player2.activeIndex,
             teamSubmitted: match.player2TeamSubmitted,
           },
