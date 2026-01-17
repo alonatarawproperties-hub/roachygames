@@ -97,6 +97,7 @@ const matchStore: Map<string, MatchState> = new Map();
 const queueStore: Map<string, QueueEntry> = new Map();
 const playerStatsStore: Map<string, PlayerStats> = new Map();
 const playerMatchMap: Map<string, string> = new Map();
+const pendingTeamStore: Map<string, string[]> = new Map(); // playerId -> selected roachyIds
 
 function generateMatchId(): string {
   return `battle_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -410,6 +411,32 @@ function updatePlayerStatsAfterMatch(match: MatchState): void {
 }
 
 export function registerBattleRoutes(app: Express) {
+  // Confirm team selection before matchmaking
+  app.post("/api/battles/team/confirm", async (req: Request, res: Response) => {
+    try {
+      const { playerId, roachyIds } = req.body;
+      
+      if (!playerId) {
+        return res.status(400).json({ success: false, error: "Missing playerId" });
+      }
+      
+      if (!roachyIds || !Array.isArray(roachyIds) || roachyIds.length !== 3) {
+        return res.status(400).json({ success: false, error: "Must select exactly 3 roachies" });
+      }
+      
+      // Store the pending team selection
+      pendingTeamStore.set(playerId, roachyIds);
+      
+      const teamId = `team_${playerId}_${Date.now()}`;
+      console.log("[Battles] Team confirmed for player:", playerId, "roachyIds:", roachyIds);
+      
+      res.json({ success: true, teamId });
+    } catch (error) {
+      console.error("Error confirming team:", error);
+      res.status(500).json({ success: false, error: "Failed to confirm team" });
+    }
+  });
+
   app.post("/api/battles/queue/join", async (req: Request, res: Response) => {
     try {
       const { playerId } = req.body;
