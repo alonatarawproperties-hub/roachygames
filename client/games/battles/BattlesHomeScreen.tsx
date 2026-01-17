@@ -51,11 +51,12 @@ export function BattlesHomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  const guestWalletRef = useRef<string | null>(null);
-  if (!guestWalletRef.current) {
-    guestWalletRef.current = "guest_" + Date.now();
+  const guestIdRef = useRef<string | null>(null);
+  if (!guestIdRef.current) {
+    guestIdRef.current = "guest_" + Date.now();
   }
-  const walletAddress = user?.walletAddress || user?.id || guestWalletRef.current;
+  // Use Google user ID (user.id) as the primary identifier for battles
+  const playerId = user?.id || user?.googleId || guestIdRef.current;
 
   const pulseValue = useSharedValue(0);
 
@@ -73,12 +74,13 @@ export function BattlesHomeScreen() {
 
   // Fetch battle stats
   const { data: statsResponse, isLoading: statsLoading, error: statsError } = useQuery<BattleStatsResponse>({
-    queryKey: ["/api/battles/stats", walletAddress],
+    queryKey: ["/api/battles/stats", playerId],
     queryFn: () =>
-      fetch(new URL(`/api/battles/stats/${walletAddress}`, getApiUrl()).toString()).then((r) => {
+      fetch(new URL(`/api/battles/stats/${playerId}`, getApiUrl()).toString()).then((r) => {
         if (!r.ok) throw new Error("Failed to fetch stats");
         return r.json();
       }),
+    enabled: !!playerId,
     retry: 2,
   });
 
@@ -98,7 +100,7 @@ export function BattlesHomeScreen() {
   const playRankedMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/battles/queue", {
-        walletAddress,
+        playerId,
         gameMode: "ranked",
       });
       return res.json();

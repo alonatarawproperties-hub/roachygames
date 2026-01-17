@@ -234,7 +234,7 @@ export function TeamSelectScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  const walletAddress = user?.walletAddress || user?.id || `guest_${Date.now()}`;
+  const playerId = user?.id || user?.googleId || `guest_${Date.now()}`;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Fetch roster
@@ -243,12 +243,13 @@ export function TeamSelectScreen() {
     isLoading: rosterLoading,
     error: rosterError,
   } = useQuery<RosterResponse>({
-    queryKey: ["/api/battles/roster", walletAddress],
+    queryKey: ["/api/battles/roster", playerId],
     queryFn: () =>
-      fetch(new URL(`/api/battles/roster/${walletAddress}`, getApiUrl()).toString()).then((r) => {
+      fetch(new URL(`/api/battles/roster/${playerId}`, getApiUrl()).toString()).then((r) => {
         if (!r.ok) throw new Error("Failed to fetch roster");
         return r.json();
       }),
+    enabled: !!playerId,
     retry: 2,
   });
 
@@ -262,7 +263,7 @@ export function TeamSelectScreen() {
   const confirmTeamMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/battles/team/confirm", {
-        walletAddress,
+        playerId,
         roachyIds: selectedIds,
       });
       return res.json();

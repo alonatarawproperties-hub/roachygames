@@ -29,7 +29,7 @@ interface BattleRoachy {
 }
 
 interface PlayerState {
-  walletAddress: string;
+  playerId: string;
   team: BattleRoachy[];
   activeIndex: number;
   momentum: number;
@@ -80,13 +80,13 @@ interface MatchState {
 }
 
 interface QueueEntry {
-  walletAddress: string;
+  playerId: string;
   mmr: number;
   joinedAt: Date;
 }
 
 interface PlayerStats {
-  walletAddress: string;
+  playerId: string;
   mmr: number;
   wins: number;
   losses: number;
@@ -106,22 +106,22 @@ function generateInstanceId(): string {
   return `inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
-function getOrCreatePlayerStats(walletAddress: string): PlayerStats {
-  let stats = playerStatsStore.get(walletAddress);
+function getOrCreatePlayerStats(playerId: string): PlayerStats {
+  let stats = playerStatsStore.get(playerId);
   if (!stats) {
     stats = {
-      walletAddress,
+      playerId,
       mmr: BATTLE_CONFIG.STARTING_MMR,
       wins: 0,
       losses: 0,
       draws: 0,
     };
-    playerStatsStore.set(walletAddress, stats);
+    playerStatsStore.set(playerId, stats);
   }
   return stats;
 }
 
-function createMockRoster(walletAddress: string): BattleRoachy[] {
+function createMockRoster(playerId: string): BattleRoachy[] {
   const roster: BattleRoachy[] = [];
   const shuffled = [...STARTER_ROACHIES].sort(() => Math.random() - 0.5);
   
@@ -148,7 +148,7 @@ function createBotPlayer(): PlayerState {
   const botTeam = botRoster.slice(0, BATTLE_CONFIG.TEAM_SIZE);
   
   return {
-    walletAddress: 'BOT_PLAYER',
+    playerId: 'BOT_PLAYER',
     team: botTeam,
     activeIndex: 0,
     momentum: BATTLE_CONFIG.STARTING_MOMENTUM,
@@ -307,7 +307,7 @@ function resolveTurn(match: MatchState): TurnResult {
   if (p2Roachy.stats.hp <= 0) {
     p2Roachy.isKO = true;
     match.player1.kos++;
-    result.koEvents.push({ playerId: match.player2.walletAddress, roachyId: p2Roachy.instanceId });
+    result.koEvents.push({ playerId: match.player2.playerId, roachyId: p2Roachy.instanceId });
     
     for (let i = 0; i < match.player2.team.length; i++) {
       if (!match.player2.team[i].isKO) {
@@ -320,7 +320,7 @@ function resolveTurn(match: MatchState): TurnResult {
   if (p1Roachy.stats.hp <= 0) {
     p1Roachy.isKO = true;
     match.player2.kos++;
-    result.koEvents.push({ playerId: match.player1.walletAddress, roachyId: p1Roachy.instanceId });
+    result.koEvents.push({ playerId: match.player1.playerId, roachyId: p1Roachy.instanceId });
     
     for (let i = 0; i < match.player1.team.length; i++) {
       if (!match.player1.team[i].isKO) {
@@ -336,14 +336,14 @@ function resolveTurn(match: MatchState): TurnResult {
 function checkMatchEnd(match: MatchState): void {
   if (match.player1.kos >= BATTLE_CONFIG.KOS_TO_WIN) {
     match.status = 'completed';
-    match.winner = match.player1.walletAddress;
+    match.winner = match.player1.playerId;
     match.winReason = 'ko';
     return;
   }
   
   if (match.player2.kos >= BATTLE_CONFIG.KOS_TO_WIN) {
     match.status = 'completed';
-    match.winner = match.player2.walletAddress;
+    match.winner = match.player2.playerId;
     match.winReason = 'ko';
     return;
   }
@@ -361,9 +361,9 @@ function checkMatchEnd(match: MatchState): void {
     const p2HpPercent = p2TotalHp / p2MaxHp;
     
     if (p1HpPercent > p2HpPercent) {
-      match.winner = match.player1.walletAddress;
+      match.winner = match.player1.playerId;
     } else if (p2HpPercent > p1HpPercent) {
-      match.winner = match.player2.walletAddress;
+      match.winner = match.player2.playerId;
     } else {
       match.winner = null;
     }
@@ -371,9 +371,9 @@ function checkMatchEnd(match: MatchState): void {
 }
 
 function updatePlayerStatsAfterMatch(match: MatchState): void {
-  if (match.player2.walletAddress === 'BOT_PLAYER') {
-    const p1Stats = getOrCreatePlayerStats(match.player1.walletAddress);
-    if (match.winner === match.player1.walletAddress) {
+  if (match.player2.playerId === 'BOT_PLAYER') {
+    const p1Stats = getOrCreatePlayerStats(match.player1.playerId);
+    if (match.winner === match.player1.playerId) {
       p1Stats.wins++;
       p1Stats.mmr += 15;
     } else if (match.winner === 'BOT_PLAYER') {
@@ -385,16 +385,16 @@ function updatePlayerStatsAfterMatch(match: MatchState): void {
     return;
   }
   
-  const p1Stats = getOrCreatePlayerStats(match.player1.walletAddress);
-  const p2Stats = getOrCreatePlayerStats(match.player2.walletAddress);
+  const p1Stats = getOrCreatePlayerStats(match.player1.playerId);
+  const p2Stats = getOrCreatePlayerStats(match.player2.playerId);
   
-  if (match.winner === match.player1.walletAddress) {
+  if (match.winner === match.player1.playerId) {
     const { winnerNew, loserNew } = calculateNewMmr(p1Stats.mmr, p2Stats.mmr);
     p1Stats.mmr = winnerNew;
     p2Stats.mmr = loserNew;
     p1Stats.wins++;
     p2Stats.losses++;
-  } else if (match.winner === match.player2.walletAddress) {
+  } else if (match.winner === match.player2.playerId) {
     const { winnerNew, loserNew } = calculateNewMmr(p2Stats.mmr, p1Stats.mmr);
     p2Stats.mmr = winnerNew;
     p1Stats.mmr = loserNew;
@@ -412,13 +412,13 @@ function updatePlayerStatsAfterMatch(match: MatchState): void {
 export function registerBattleRoutes(app: Express) {
   app.post("/api/battles/queue/join", async (req: Request, res: Response) => {
     try {
-      const { walletAddress } = req.body;
+      const { playerId } = req.body;
       
-      if (!walletAddress) {
-        return res.status(400).json({ success: false, error: "Missing walletAddress" });
+      if (!playerId) {
+        return res.status(400).json({ success: false, error: "Missing playerId" });
       }
       
-      const existingMatchId = playerMatchMap.get(walletAddress);
+      const existingMatchId = playerMatchMap.get(playerId);
       if (existingMatchId) {
         const existingMatch = matchStore.get(existingMatchId);
         if (existingMatch && existingMatch.status !== 'completed') {
@@ -426,9 +426,9 @@ export function registerBattleRoutes(app: Express) {
         }
       }
       
-      const stats = getOrCreatePlayerStats(walletAddress);
+      const stats = getOrCreatePlayerStats(playerId);
       
-      queueStore.delete(walletAddress);
+      queueStore.delete(playerId);
       
       const ratingRange = 200;
       for (const [otherWallet, entry] of queueStore.entries()) {
@@ -439,14 +439,14 @@ export function registerBattleRoutes(app: Express) {
           const match: MatchState = {
             matchId,
             player1: {
-              walletAddress,
+              playerId,
               team: [],
               activeIndex: 0,
               momentum: BATTLE_CONFIG.STARTING_MOMENTUM,
               kos: 0,
             },
             player2: {
-              walletAddress: otherWallet,
+              playerId: otherWallet,
               team: [],
               activeIndex: 0,
               momentum: BATTLE_CONFIG.STARTING_MOMENTUM,
@@ -466,15 +466,15 @@ export function registerBattleRoutes(app: Express) {
           };
           
           matchStore.set(matchId, match);
-          playerMatchMap.set(walletAddress, matchId);
+          playerMatchMap.set(playerId, matchId);
           playerMatchMap.set(otherWallet, matchId);
           
           return res.json({ success: true, matchFound: true, matchId });
         }
       }
       
-      queueStore.set(walletAddress, {
-        walletAddress,
+      queueStore.set(playerId, {
+        playerId,
         mmr: stats.mmr,
         joinedAt: new Date(),
       });
@@ -488,13 +488,13 @@ export function registerBattleRoutes(app: Express) {
 
   app.post("/api/battles/queue/leave", async (req: Request, res: Response) => {
     try {
-      const { walletAddress } = req.body;
+      const { playerId } = req.body;
       
-      if (!walletAddress) {
-        return res.status(400).json({ success: false, error: "Missing walletAddress" });
+      if (!playerId) {
+        return res.status(400).json({ success: false, error: "Missing playerId" });
       }
       
-      queueStore.delete(walletAddress);
+      queueStore.delete(playerId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error leaving battle queue:", error);
@@ -502,11 +502,11 @@ export function registerBattleRoutes(app: Express) {
     }
   });
 
-  app.get("/api/battles/queue/check/:walletAddress", async (req: Request, res: Response) => {
+  app.get("/api/battles/queue/check/:playerId", async (req: Request, res: Response) => {
     try {
-      const { walletAddress } = req.params;
+      const { playerId } = req.params;
       
-      const existingMatchId = playerMatchMap.get(walletAddress);
+      const existingMatchId = playerMatchMap.get(playerId);
       if (existingMatchId) {
         const existingMatch = matchStore.get(existingMatchId);
         if (existingMatch && existingMatch.status !== 'completed') {
@@ -514,7 +514,7 @@ export function registerBattleRoutes(app: Express) {
         }
       }
       
-      const entry = queueStore.get(walletAddress);
+      const entry = queueStore.get(playerId);
       if (!entry) {
         return res.json({ matchFound: false, inQueue: false });
       }
@@ -522,7 +522,7 @@ export function registerBattleRoutes(app: Express) {
       const waitTime = Date.now() - entry.joinedAt.getTime();
       
       if (waitTime > BATTLE_CONFIG.QUEUE_TIMEOUT_BOT_MS) {
-        queueStore.delete(walletAddress);
+        queueStore.delete(playerId);
         
         const matchId = generateMatchId();
         const botPlayer = createBotPlayer();
@@ -530,7 +530,7 @@ export function registerBattleRoutes(app: Express) {
         const match: MatchState = {
           matchId,
           player1: {
-            walletAddress,
+            playerId,
             team: [],
             activeIndex: 0,
             momentum: BATTLE_CONFIG.STARTING_MOMENTUM,
@@ -551,7 +551,7 @@ export function registerBattleRoutes(app: Express) {
         };
         
         matchStore.set(matchId, match);
-        playerMatchMap.set(walletAddress, matchId);
+        playerMatchMap.set(playerId, matchId);
         
         return res.json({ matchFound: true, matchId, isBot: true });
       }
@@ -565,13 +565,13 @@ export function registerBattleRoutes(app: Express) {
 
   app.get("/api/battles/roster", async (req: Request, res: Response) => {
     try {
-      const { walletAddress } = req.query;
+      const { playerId } = req.query;
       
-      if (!walletAddress || typeof walletAddress !== 'string') {
-        return res.status(400).json({ success: false, error: "Missing walletAddress" });
+      if (!playerId || typeof playerId !== 'string') {
+        return res.status(400).json({ success: false, error: "Missing playerId" });
       }
       
-      const roster = createMockRoster(walletAddress);
+      const roster = createMockRoster(playerId);
       res.json({ success: true, roster });
     } catch (error) {
       console.error("Error fetching battle roster:", error);
@@ -581,9 +581,9 @@ export function registerBattleRoutes(app: Express) {
 
   app.post("/api/battles/match/submit-team", async (req: Request, res: Response) => {
     try {
-      const { walletAddress, matchId, team } = req.body;
+      const { playerId, matchId, team } = req.body;
       
-      if (!walletAddress || !matchId || !team || !Array.isArray(team)) {
+      if (!playerId || !matchId || !team || !Array.isArray(team)) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
       
@@ -600,8 +600,8 @@ export function registerBattleRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Match not in team selection phase" });
       }
       
-      const isPlayer1 = match.player1.walletAddress === walletAddress;
-      const isPlayer2 = match.player2.walletAddress === walletAddress;
+      const isPlayer1 = match.player1.playerId === playerId;
+      const isPlayer2 = match.player2.playerId === playerId;
       
       if (!isPlayer1 && !isPlayer2) {
         return res.status(403).json({ success: false, error: "Not a player in this match" });
@@ -642,9 +642,9 @@ export function registerBattleRoutes(app: Express) {
 
   app.post("/api/battles/match/submit-turn", async (req: Request, res: Response) => {
     try {
-      const { walletAddress, matchId, action } = req.body;
+      const { playerId, matchId, action } = req.body;
       
-      if (!walletAddress || !matchId || !action) {
+      if (!playerId || !matchId || !action) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
       
@@ -657,8 +657,8 @@ export function registerBattleRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Match is not active" });
       }
       
-      const isPlayer1 = match.player1.walletAddress === walletAddress;
-      const isPlayer2 = match.player2.walletAddress === walletAddress;
+      const isPlayer1 = match.player1.playerId === playerId;
+      const isPlayer2 = match.player2.playerId === playerId;
       
       if (!isPlayer1 && !isPlayer2) {
         return res.status(403).json({ success: false, error: "Not a player in this match" });
@@ -723,7 +723,7 @@ export function registerBattleRoutes(app: Express) {
   app.get("/api/battles/match/:matchId", async (req: Request, res: Response) => {
     try {
       const { matchId } = req.params;
-      const { walletAddress } = req.query;
+      const { playerId } = req.query;
       
       const match = matchStore.get(matchId);
       if (!match) {
@@ -740,7 +740,7 @@ export function registerBattleRoutes(app: Express) {
           winReason: match.winReason,
           isAgainstBot: match.isAgainstBot,
           player1: {
-            walletAddress: match.player1.walletAddress,
+            playerId: match.player1.playerId,
             momentum: match.player1.momentum,
             kos: match.player1.kos,
             team: match.player1.team,
@@ -748,7 +748,7 @@ export function registerBattleRoutes(app: Express) {
             teamSubmitted: match.player1TeamSubmitted,
           },
           player2: {
-            walletAddress: match.player2.walletAddress,
+            playerId: match.player2.playerId,
             momentum: match.player2.momentum,
             kos: match.player2.kos,
             team: match.player2.team,
@@ -756,7 +756,7 @@ export function registerBattleRoutes(app: Express) {
             teamSubmitted: match.player2TeamSubmitted,
           },
           turnHistory: match.turnHistory,
-          hasPendingAction: walletAddress === match.player1.walletAddress
+          hasPendingAction: playerId === match.player1.playerId
             ? !!match.pendingActions.player1
             : !!match.pendingActions.player2,
         },
@@ -769,9 +769,9 @@ export function registerBattleRoutes(app: Express) {
 
   app.post("/api/battles/match/forfeit", async (req: Request, res: Response) => {
     try {
-      const { walletAddress, matchId } = req.body;
+      const { playerId, matchId } = req.body;
       
-      if (!walletAddress || !matchId) {
+      if (!playerId || !matchId) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
       
@@ -784,8 +784,8 @@ export function registerBattleRoutes(app: Express) {
         return res.status(400).json({ success: false, error: "Match already completed" });
       }
       
-      const isPlayer1 = match.player1.walletAddress === walletAddress;
-      const isPlayer2 = match.player2.walletAddress === walletAddress;
+      const isPlayer1 = match.player1.playerId === playerId;
+      const isPlayer2 = match.player2.playerId === playerId;
       
       if (!isPlayer1 && !isPlayer2) {
         return res.status(403).json({ success: false, error: "Not a player in this match" });
@@ -793,7 +793,7 @@ export function registerBattleRoutes(app: Express) {
       
       match.status = 'completed';
       match.winReason = 'forfeit';
-      match.winner = isPlayer1 ? match.player2.walletAddress : match.player1.walletAddress;
+      match.winner = isPlayer1 ? match.player2.playerId : match.player1.playerId;
       
       updatePlayerStatsAfterMatch(match);
       
@@ -804,15 +804,15 @@ export function registerBattleRoutes(app: Express) {
     }
   });
 
-  app.get("/api/battles/stats/:walletAddress", async (req: Request, res: Response) => {
+  app.get("/api/battles/stats/:playerId", async (req: Request, res: Response) => {
     try {
-      const { walletAddress } = req.params;
+      const { playerId } = req.params;
       
-      if (!walletAddress) {
-        return res.status(400).json({ success: false, error: "Missing walletAddress" });
+      if (!playerId) {
+        return res.status(400).json({ success: false, error: "Missing playerId" });
       }
       
-      const stats = getOrCreatePlayerStats(walletAddress);
+      const stats = getOrCreatePlayerStats(playerId);
       const rank = getRankFromMmr(stats.mmr);
       
       res.json({

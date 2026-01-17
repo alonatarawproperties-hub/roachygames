@@ -49,7 +49,7 @@ interface BattleRoachy {
 }
 
 interface PlayerState {
-  walletAddress: string;
+  playerId: string;
   team: BattleRoachy[];
   momentum: number;
   knockouts: number;
@@ -123,7 +123,7 @@ export function BattleMatchScreen() {
   const { user } = useAuth();
 
   const { matchId } = route.params;
-  const walletAddress = user?.walletAddress || "";
+  const playerId = user?.id || user?.googleId || "";
 
   const [timeLeft, setTimeLeft] = useState(TURN_TIME_SECONDS);
   const [selectedRoachyIndex, setSelectedRoachyIndex] = useState(0);
@@ -192,7 +192,7 @@ export function BattleMatchScreen() {
         clearInterval(timerInterval.current);
       }
       
-      const isVictory = matchState.winner === walletAddress;
+      const isVictory = matchState.winner === playerId;
       // TODO: These values should come from the API response once updated
       const rankDelta = isVictory ? 25 : -15;
       const xpGained = 150;
@@ -207,7 +207,7 @@ export function BattleMatchScreen() {
         // dailyBonusProgress: Optional, would be fetched from user stats if available
       });
     }
-  }, [matchState?.phase, matchState?.winner, navigation, matchId, walletAddress]);
+  }, [matchState?.phase, matchState?.winner, navigation, matchId, playerId]);
 
   useEffect(() => {
     if (matchState?.lastTurnEvents) {
@@ -275,7 +275,7 @@ export function BattleMatchScreen() {
     mutationFn: async (turnActions: RoachyAction[]) => {
       const response = await apiRequest("POST", "/api/battles/match/submit-turn", {
         matchId,
-        walletAddress,
+        playerId,
         actions: turnActions,
       });
       return response.json();
@@ -384,7 +384,7 @@ export function BattleMatchScreen() {
             try {
               await apiRequest("POST", "/api/battles/match/forfeit", {
                 matchId,
-                walletAddress,
+                playerId,
               });
               navigation.replace("BattlesHome");
             } catch (error) {

@@ -32,7 +32,7 @@ export function BattleMatchmakingScreen() {
   const { user } = useAuth();
 
   const { team } = route.params;
-  const walletAddress = user?.walletAddress || "";
+  const playerId = user?.id || user?.googleId || "";
 
   const [waitTime, setWaitTime] = useState(0);
   const [searching, setSearching] = useState(true);
@@ -47,7 +47,7 @@ export function BattleMatchmakingScreen() {
     const joinQueue = async () => {
       try {
         await apiRequest("POST", "/api/battles/queue/join", {
-          walletAddress,
+          playerId,
           team,
         });
       } catch (error) {
@@ -57,17 +57,17 @@ export function BattleMatchmakingScreen() {
       }
     };
 
-    if (walletAddress && team && team.length === 3) {
+    if (playerId && team && team.length === 3) {
       joinQueue();
     }
 
     return () => {
       // Cleanup: leave queue on unmount if still searching
-      if (searching && walletAddress) {
-        leaveQueue(walletAddress).catch(console.error);
+      if (searching && playerId) {
+        leaveQueue(playerId).catch(console.error);
       }
     };
-  }, [walletAddress, team, navigation]);
+  }, [playerId, team, navigation]);
 
   // Setup animations
   useEffect(() => {
@@ -130,12 +130,12 @@ export function BattleMatchmakingScreen() {
 
   // Poll queue status every 2 seconds
   useEffect(() => {
-    if (!searching || !walletAddress) return;
+    if (!searching || !playerId) return;
 
     const checkMatch = async () => {
       try {
         const url = new URL(
-          `/api/battles/queue/check/${walletAddress}`,
+          `/api/battles/queue/check/${playerId}`,
           getApiUrl()
         );
         const response = await fetch(url.toString());
@@ -149,7 +149,7 @@ export function BattleMatchmakingScreen() {
             await apiRequest("POST", "/api/battles/match/submit-team", {
               matchId: data.matchId,
               team,
-              walletAddress,
+              playerId,
             });
           } catch (submitError) {
             console.error(
@@ -174,12 +174,12 @@ export function BattleMatchmakingScreen() {
 
     const interval = setInterval(checkMatch, 2000);
     return () => clearInterval(interval);
-  }, [searching, walletAddress, team, navigation]);
+  }, [searching, playerId, team, navigation]);
 
   const leaveQueue = async (address: string) => {
     try {
       await apiRequest("POST", "/api/battles/queue/leave", {
-        walletAddress: address,
+        playerId: address,
       });
     } catch (error) {
       console.error("[BattleMatchmaking] Error leaving queue:", error);
@@ -188,7 +188,7 @@ export function BattleMatchmakingScreen() {
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      await leaveQueue(walletAddress);
+      await leaveQueue(playerId);
     },
     onSuccess: () => {
       setSearching(false);
