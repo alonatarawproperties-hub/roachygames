@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
@@ -59,40 +59,6 @@ export function HuntLeaderboard() {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
-  const renderItem = ({ item }: { item: LeaderboardEntry }) => {
-    const rankStyle = getRankStyle(item.rank);
-    const isTopThree = item.rank <= 3;
-    const displayName = item.displayName || item.walletAddress.slice(0, 8) + "...";
-
-    return (
-      <View style={styles.entryRow}>
-        <View style={[styles.rankBadge, { backgroundColor: rankStyle.bg }]}>
-          {isTopThree ? (
-            <Feather name="award" size={12} color={rankStyle.text} />
-          ) : (
-            <ThemedText style={[styles.rankText, { color: rankStyle.text }]}>
-              {item.rank}
-            </ThemedText>
-          )}
-        </View>
-        <View style={styles.userInfo}>
-          <ThemedText style={styles.username}>
-            {displayName}
-          </ThemedText>
-          <ThemedText style={styles.perfectsText}>
-            {item.perfects} perfects
-          </ThemedText>
-        </View>
-        <View style={styles.valueContainer}>
-          <ThemedText style={styles.valueText}>
-            {item.points.toLocaleString()}
-          </ThemedText>
-          <ThemedText style={styles.unitText}>pts</ThemedText>
-        </View>
-      </View>
-    );
-  };
-
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -103,48 +69,108 @@ export function HuntLeaderboard() {
 
   if (error || !data) {
     return (
-      <View style={styles.centerContainer}>
-        <Feather name="alert-circle" size={48} color={GameColors.textSecondary} />
-        <ThemedText style={styles.errorText}>{error || "No data"}</ThemedText>
-      </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={GameColors.primary}
+          />
+        }
+      >
+        <ThemedText type="h4" style={styles.sectionTitle}>
+          Weekly Leaderboard
+        </ThemedText>
+        <Card style={styles.emptyCard}>
+          <Feather name="alert-circle" size={48} color={GameColors.textSecondary} />
+          <ThemedText style={styles.emptyText}>{error || "No data"}</ThemedText>
+        </Card>
+      </ScrollView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Card style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <Feather name="calendar" size={16} color={GameColors.gold} />
-          <ThemedText style={styles.weekLabel}>Week: {data.weekKey}</ThemedText>
-        </View>
-        <ThemedText style={styles.headerSubtitle}>
-          Weekly rankings reset every Sunday at midnight (GMT+8)
-        </ThemedText>
-      </Card>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={GameColors.primary}
+        />
+      }
+    >
+      <ThemedText type="h4" style={styles.sectionTitle}>
+        Weekly Leaderboard
+      </ThemedText>
 
       {data.leaderboard.length === 0 ? (
         <Card style={styles.emptyCard}>
-          <Feather name="users" size={48} color={GameColors.textSecondary} />
-          <ThemedText style={styles.emptyText}>No hunters this week yet!</ThemedText>
-          <ThemedText style={styles.emptySubtext}>Be the first to claim a node</ThemedText>
+          <Feather name="award" size={48} color={GameColors.gold} />
+          <ThemedText style={[styles.emptyText, { color: GameColors.gold }]}>
+            No Hunters Yet!
+          </ThemedText>
+          <ThemedText style={styles.emptySubtext}>
+            Collect eggs now. Weekly rankings reset every Sunday at midnight (GMT+8).
+          </ThemedText>
         </Card>
       ) : (
-        <FlatList
-          data={data.leaderboard}
-          renderItem={renderItem}
-          keyExtractor={(item) => `rank-${item.rank}`}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={GameColors.primary}
-            />
-          }
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
+        <Card style={styles.leaderboardCard}>
+          <View style={styles.weekHeader}>
+            <Feather name="calendar" size={14} color={GameColors.gold} />
+            <ThemedText style={styles.weekLabel}>{data.weekKey}</ThemedText>
+          </View>
+          <ThemedText style={styles.weekSubtext}>
+            Resets every Sunday at midnight (GMT+8)
+          </ThemedText>
+
+          <View style={styles.divider} />
+
+          {data.leaderboard.map((item, index) => {
+            const rankStyle = getRankStyle(item.rank);
+            const isTopThree = item.rank <= 3;
+            const displayName = item.displayName || item.walletAddress.slice(0, 8) + "...";
+
+            return (
+              <View
+                key={`rank-${item.rank}`}
+                style={[
+                  styles.entryRow,
+                  index < data.leaderboard.length - 1 && styles.entryRowBorder,
+                ]}
+              >
+                <View style={[styles.rankBadge, { backgroundColor: rankStyle.bg }]}>
+                  {isTopThree ? (
+                    <Feather name="award" size={12} color={rankStyle.text} />
+                  ) : (
+                    <ThemedText style={[styles.rankText, { color: rankStyle.text }]}>
+                      {item.rank}
+                    </ThemedText>
+                  )}
+                </View>
+                <View style={styles.userInfo}>
+                  <ThemedText style={styles.username} numberOfLines={1}>
+                    {displayName}
+                  </ThemedText>
+                  <ThemedText style={styles.perfectsText}>
+                    {item.perfects} perfects
+                  </ThemedText>
+                </View>
+                <View style={styles.valueContainer}>
+                  <ThemedText style={styles.valueText}>
+                    {item.points.toLocaleString()}
+                  </ThemedText>
+                  <ThemedText style={styles.unitText}>pts</ThemedText>
+                </View>
+              </View>
+            );
+          })}
+        </Card>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -152,30 +178,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: Spacing.xl,
+  },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     gap: Spacing.md,
   },
-  headerCard: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
     marginBottom: Spacing.md,
+  },
+  leaderboardCard: {
     padding: Spacing.md,
   },
-  headerRow: {
+  weekHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
+    gap: Spacing.xs,
   },
   weekLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "600",
     color: GameColors.gold,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: GameColors.textSecondary,
+  weekSubtext: {
+    fontSize: 11,
+    color: GameColors.textTertiary,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: GameColors.surfaceGlow,
+    marginVertical: Spacing.md,
   },
   emptyCard: {
     alignItems: "center",
@@ -186,38 +225,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: GameColors.textSecondary,
+    textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
     color: GameColors.textTertiary,
-  },
-  listContent: {
-    paddingBottom: Spacing.xl,
+    textAlign: "center",
   },
   entryRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: GameColors.surface,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.xs,
+    paddingVertical: Spacing.sm,
   },
-  currentUserRow: {
-    backgroundColor: GameColors.gold + "15",
-    borderWidth: 1,
-    borderColor: GameColors.gold + "50",
+  entryRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: GameColors.surfaceGlow + "40",
   },
   rankBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
   },
   rankText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   userInfo: {
@@ -228,34 +261,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GameColors.textPrimary,
   },
-  currentUsername: {
-    color: GameColors.gold,
-  },
   perfectsText: {
     fontSize: 11,
     color: GameColors.textTertiary,
-    marginTop: 2,
+    marginTop: 1,
   },
   valueContainer: {
     alignItems: "flex-end",
   },
   valueText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: GameColors.textPrimary,
-  },
-  currentValueText: {
-    color: GameColors.gold,
   },
   unitText: {
     fontSize: 10,
     color: GameColors.textTertiary,
-  },
-  separator: {
-    height: 1,
-  },
-  errorText: {
-    fontSize: 14,
-    color: GameColors.textSecondary,
   },
 });
