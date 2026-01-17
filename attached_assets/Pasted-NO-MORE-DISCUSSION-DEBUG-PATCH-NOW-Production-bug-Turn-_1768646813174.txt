@@ -1,0 +1,103 @@
+NO MORE DISCUSSION. DEBUG + PATCH NOW. 
+Production bug: Turn shows 0/8, player side empty, submit-turn fails.
+
+RULES:
+- Touch ONLY these files unless absolutely necessary:
+  1) server/battle-routes.ts
+  2) client/games/battles/BattleMatchScreen.tsx
+  3) server/battle-config.ts (only if starter roachies are missing/empty)
+- Make minimal, production-safe fixes. No refactors, no new deps, no UI redesign.
+- Add temporary logs guarded by NODE_ENV !== "production".
+- After patch, run a quick local smoke test and explain exactly what changed.
+
+========================
+STEP 1 — PROVE WHAT SERVER RETURNS
+========================
+In server/battle-routes.ts, in GET /api/battles/match (or whatever endpoint BattleMatchScreen hits):
+- Add a dev log (NODE_ENV !== "production") printing:
+  - match.matchId
+  - match.status
+  - match.currentTurn
+  - match.player1.team.length and match.player2.team.length
+  - match.player1.activeIndex and match.player2.activeIndex
+This is to confirm why turn=0 and why player team is empty.
+
+========================
+STEP 2 — FIX TURN INITIALIZATION (TURN MUST START AT 1)
+========================
+Find where a match object is created (new match / init).
+Patch:
+- Ensure currentTurn is initialized to 1 (NOT 0).
+- Add clamp anytime match is loaded/returned:
+  match.currentTurn = Math.max(1, match.currentTurn || 1);
+
+If there’s any path that sets 0, remove it.
+
+========================
+STEP 3 — FIX EMPTY PLAYER TEAM (SERVER MUST ALWAYS RETURN TEAMS)
+========================
+If match.player1.team or match.player2.team is empty/undefined:
+- Populate BOTH teams with starter roachies from server/battle-config.ts
+- Ensure each team has 3 roachies minimum and activeIndex=0
+- Ensure roachies have hp/maxHp and isKO fields consistent with server sim
+
+Add a safety guard right before responding from /api/battles/match:
+- if (!match.player1?.team?.length || !match.player2?.team?.length) { hydrateFromStarterConfig(match); }
+
+This guarantees client can render left + right side.
+
+========================
+STEP 4 — FIX SUBMIT-TURN BODY MISMATCH (BACKWARD COMPAT)
+========================
+In POST /api/battles/match/submit-turn:
+Currently server expects: { playerId, matchId, action }
+But client sends: { matchId, playerId, actions: RoachyAction[] }
+
+Patch endpoint to accept BOTH:
+const { matchId, playerId, walletAddress, action, actions } = req.body;
+const pid = playerId || walletAddress;
+const resolvedAction = action || (Array.isArray(actions) ? actions[0] : null);
+
+Validate:
+if (!pid || !matchId || !resolvedAction) return 400 with clear error string.
+
+Then run existing turn resolution using resolvedAction.
+Return consistently: { success: true, match } (or whatever existing response is).
+
+Add dev log (NODE_ENV !== "production") to print req.body keys when failing validation.
+
+========================
+STEP 5 — FIX CLIENT FETCH/SHAPE (ONLY IF NEEDED TO PREVENT CRASH)
+========================
+In BattleMatchScreen.tsx, confirm how match state is fetched.
+If it does:
+useQuery<MatchState>({ queryKey: ["/api/battles/match", matchId] })
+and the fetcher returns { success, match }, then BattleMatchScreen will read matchState.phase etc and crash.
+
+Patch minimal:
+- Change queryFn to explicitly fetch and then return json.match if present:
+  const json = await response.json();
+  return json.match ?? json;
+
+Then map naming differences minimally:
+- Use matchState.status as fallback if phase missing
+- Use currentTurn as fallback if turn missing
+- Use player1/player2 as fallback if player/opponent missing
+
+Do NOT rewrite the whole UI. Just ensure no undefined access and render works.
+
+========================
+STEP 6 — VERIFY (MUST DO)
+========================
+Run a test flow:
+1) Create a new match
+2) Battle screen shows Turn 1/8
+3) Left side has YOUR TEAM (3 roachies)
+4) Select roachy -> choose action -> select target -> Lock In
+5) No error; turn increments
+
+Output to me:
+- Exact code diffs (or summary with file + line ranges)
+- Confirmation of the 5 checks above
+
+START IMPLEMENTING NOW.

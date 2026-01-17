@@ -147,25 +147,28 @@ export function BattleMatchmakingScreen() {
         if (data.matchFound && data.matchId) {
           setSearching(false);
 
-          // Submit team to match
+          // Submit team to match - MUST succeed before navigating
           try {
-            await apiRequest("POST", "/api/battles/match/submit-team", {
+            const submitRes = await apiRequest("POST", "/api/battles/match/submit-team", {
               matchId: data.matchId,
               team,
               playerId,
+            });
+            console.log("[BattleMatchmaking] Team submitted successfully:", submitRes);
+            
+            // Navigate to battle only after successful team submission
+            navigation.replace("BattleMatch", {
+              matchId: data.matchId,
+              team,
             });
           } catch (submitError) {
             console.error(
               "[BattleMatchmaking] Error submitting team:",
               submitError
             );
+            // Don't navigate if team submission fails - stay in matchmaking and retry
+            setSearching(true);
           }
-
-          // Navigate to battle
-          navigation.replace("BattleMatch", {
-            matchId: data.matchId,
-            team,
-          });
         } else if (data.notInQueue) {
           setSearching(false);
           navigation.goBack();

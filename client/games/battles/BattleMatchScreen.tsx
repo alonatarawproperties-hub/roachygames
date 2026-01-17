@@ -163,10 +163,12 @@ function normalizePlayer(raw: RawPlayerState, isBot: boolean = false): PlayerSta
 
 function normalizeMatch(raw: RawMatch, playerId: string): MatchState {
   const isPlayer1 = raw.player1?.playerId === playerId;
+  // SAFETY: Ensure turn is never 0
+  const turn = Math.max(1, raw.currentTurn ?? 1);
   return {
     matchId: raw.matchId,
     phase: normalizePhase(raw.status),
-    turn: raw.currentTurn ?? 1,
+    turn,
     maxTurns: raw.maxTurns ?? 8,
     turnTimeLeft: raw.turnTimeLeft ?? 10,
     player: normalizePlayer(isPlayer1 ? raw.player1 : raw.player2, false),
@@ -767,6 +769,16 @@ export function BattleMatchScreen() {
         <Pressable style={styles.retryButton} onPress={() => navigation.goBack()}>
           <Text style={styles.retryButtonText}>Go Back</Text>
         </Pressable>
+      </ThemedView>
+    );
+  }
+
+  // Wait for teams to be populated before rendering battle
+  if (!matchState.player.team?.length || !matchState.opponent.team?.length) {
+    return (
+      <ThemedView style={styles.loadingContainer}>
+        <Feather name="loader" size={48} color={GameColors.primary} />
+        <ThemedText type="h4" style={styles.loadingText}>Waiting for teams...</ThemedText>
       </ThemedView>
     );
   }

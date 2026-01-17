@@ -498,7 +498,7 @@ export function registerBattleRoutes(app: Express) {
               momentum: BATTLE_CONFIG.STARTING_MOMENTUM,
               kos: 0,
             },
-            currentTurn: 0,
+            currentTurn: 1,
             status: 'team_select',
             winner: null,
             winReason: null,
@@ -583,7 +583,7 @@ export function registerBattleRoutes(app: Express) {
             kos: 0,
           },
           player2: botPlayer,
-          currentTurn: 0,
+          currentTurn: 1,
           status: 'team_select',
           winner: null,
           winReason: null,
@@ -800,6 +800,26 @@ export function registerBattleRoutes(app: Express) {
       const match = matchStore.get(matchId);
       if (!match) {
         return res.status(404).json({ success: false, error: "Match not found" });
+      }
+      
+      // SAFETY: Ensure turn is never 0
+      match.currentTurn = Math.max(1, match.currentTurn || 1);
+      
+      // SAFETY: If teams are empty but match is active, hydrate with starter roachies
+      if (match.status === 'active') {
+        if (!match.player1.team || match.player1.team.length === 0) {
+          console.warn(`[Battles] Hydrating empty player1 team for match ${matchId}`);
+          match.player1.team = createMockRoster(match.player1.playerId).slice(0, BATTLE_CONFIG.TEAM_SIZE);
+        }
+        if (!match.player2.team || match.player2.team.length === 0) {
+          console.warn(`[Battles] Hydrating empty player2 team for match ${matchId}`);
+          match.player2.team = createMockRoster(match.player2.playerId).slice(0, BATTLE_CONFIG.TEAM_SIZE);
+        }
+      }
+      
+      // Dev logging
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Battles] GET match ${matchId}: turn=${match.currentTurn}, status=${match.status}, p1.team.length=${match.player1.team.length}, p2.team.length=${match.player2.team.length}`);
       }
       
       res.json({
