@@ -15,7 +15,8 @@ type RouteParams = {
   };
 };
 
-const BOT_WARNING_THRESHOLD = 20; // Show bot warning after 20 seconds
+const BOT_WARNING_THRESHOLD = 30; // Show bot warning after 30 seconds
+const BOT_MATCH_TIMEOUT = 40; // Server creates bot match after 40 seconds
 
 interface QueueCheckResponse {
   inQueue: boolean;
@@ -121,9 +122,11 @@ export function BattleMatchmakingScreen() {
     }
 
     if (showBotWarning) {
-      const botCountdown = 30 - waitTime;
+      const botCountdown = BOT_MATCH_TIMEOUT - waitTime;
       if (botCountdown > 0) {
         setSecondsUntilBot(botCountdown);
+      } else {
+        setSecondsUntilBot(0);
       }
     }
   }, [waitTime, searching, showBotWarning, warningFadeAnim]);

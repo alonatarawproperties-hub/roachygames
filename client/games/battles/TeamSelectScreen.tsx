@@ -270,7 +270,7 @@ export function TeamSelectScreen() {
       if (data.success) {
         navigation.navigate("BattleMatchmaking", {
           teamId: data.teamId,
-          selectedRoachyIds: selectedIds,
+          team: selectedIds,
         });
       } else {
         const msg = data.message || "Failed to confirm team";
