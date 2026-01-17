@@ -563,16 +563,18 @@ export function registerBattleRoutes(app: Express) {
     }
   });
 
-  app.get("/api/battles/roster", async (req: Request, res: Response) => {
+  app.get("/api/battles/roster/:playerId", async (req: Request, res: Response) => {
     try {
-      const { playerId } = req.query;
+      const { playerId } = req.params;
+      console.log("[Battles] Roster request for playerId:", playerId);
       
-      if (!playerId || typeof playerId !== 'string') {
+      if (!playerId) {
         return res.status(400).json({ success: false, error: "Missing playerId" });
       }
       
       const roster = createMockRoster(playerId);
-      res.json({ success: true, roster });
+      console.log("[Battles] Returning roster with", roster.length, "roachies for", playerId);
+      res.json({ success: true, roachies: roster });
     } catch (error) {
       console.error("Error fetching battle roster:", error);
       res.status(500).json({ success: false, error: "Failed to fetch roster" });
