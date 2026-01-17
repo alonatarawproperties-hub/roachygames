@@ -807,12 +807,15 @@ export function registerBattleRoutes(app: Express) {
   app.get("/api/battles/stats/:playerId", async (req: Request, res: Response) => {
     try {
       const { playerId } = req.params;
+      console.log("[Battles] Stats request for playerId:", playerId);
       
       if (!playerId) {
+        console.log("[Battles] Missing playerId in stats request");
         return res.status(400).json({ success: false, error: "Missing playerId" });
       }
       
       const stats = getOrCreatePlayerStats(playerId);
+      console.log("[Battles] Returning stats for", playerId, ":", JSON.stringify(stats));
       const rank = getRankFromMmr(stats.mmr);
       
       res.json({

@@ -57,6 +57,7 @@ export function BattlesHomeScreen() {
   }
   // Use Google user ID (user.id) as the primary identifier for battles
   const playerId = user?.id || user?.googleId || guestIdRef.current;
+  console.log("[Battles] Using playerId:", playerId, "user.id:", user?.id, "user.googleId:", user?.googleId);
 
   const pulseValue = useSharedValue(0);
 
