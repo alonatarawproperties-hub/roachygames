@@ -1,0 +1,126 @@
+REPLIT AGENT PROMPT (COPY ALL)
+
+Goal: Make BattleMatchScreen LOOK like a real battle arena (Axie-like) with placeholder assets.
+IMPORTANT: UI/UX ONLY. Do NOT change backend, matchmaking, battle logic, submit-turn payloads, or state machine logic.
+Keep existing action selection + lock-in flow. Just re-skin and reorganize visuals.
+
+Must deliver:
+- Arena background (parallax-ish layers + vignette + particles light)
+- Big “ACTIVE ROACHY” fighters in the center (left & right) with:
+  - portrait/sprite placeholder
+  - HP bar above
+  - small status chips (Alive/KO, class)
+  - idle bob animation
+  - hit feedback animation (shake + red flash overlay) when hp decreases
+- Replace action buttons with “Skill Cards” row that looks like Axie cards:
+  - 3 cards (Basic, Skill A, Skill B) + 2 smaller utilities (Guard, Focus)
+  - Each card shows: name, type badge, cooldown number, small icon placeholder
+  - Disabled state when on cooldown or roachy dead
+  - Selected state glow
+- Add Turn UI polish:
+  - Turn timer ring/pulse
+  - “Lock In” becomes a gold CTA with progress state “Waiting…”
+- Landscape only for BattleMatchScreen (lock orientation on mount, unlock on unmount)
+
+FILES:
+1) Create: client/components/battle/ArenaBackground.tsx
+2) Create: client/components/battle/RoachyFighter.tsx
+3) Create: client/components/battle/SkillCard.tsx
+4) Modify: client/screens/BattleMatchScreen.tsx (layout + animations + orientation lock)
+Keep changes isolated so other screens aren’t affected.
+
+-----------------------------------------
+1) ArenaBackground.tsx
+-----------------------------------------
+Create a layered arena background with depth:
+- Base: dark gradient + vignette
+- Mid: subtle blurred shapes (SVG circles/ellipses)
+- Fore: light particles (tiny dots) with slow Animated opacity drift
+Use react-native-linear-gradient if already installed; if not, use View backgrounds with rgba + overlays.
+Export <ArenaBackground/>.
+
+-----------------------------------------
+2) RoachyFighter.tsx
+-----------------------------------------
+Create component:
+<RoochyFighter side="left|right" roachy={BattleRoachy} isActive hpDeltaTriggerKey />
+
+Features:
+- Portrait placeholder: large rounded rectangle with class color border + big monogram (first letter of name)
+- Idle bob: Animated translateY (loop)
+- When hp decreases: trigger shake + red flash overlay (store prev hp in ref; compare)
+- HP bar above portrait with smooth Animated width
+- Under portrait: ATK/DEF/SPD line
+- Status chips: "ALIVE" or "KO" + class label
+
+Do not require actual images; placeholders are fine.
+
+-----------------------------------------
+3) SkillCard.tsx
+-----------------------------------------
+Create card UI like Axie:
+Props: title, typeLabel, cooldown, disabled, selected, onPress
+Layout:
+- Top row: icon placeholder circle + title
+- Middle: type badge (PIERCE/FOCUS/GUARD/etc)
+- Bottom: cooldown pill (e.g. "CD 2") or "READY"
+Style:
+- Glass card background (rgba 0.08)
+- Border glow when selected
+- Greyed when disabled
+Add micro press animation (scale down/up).
+
+-----------------------------------------
+4) BattleMatchScreen.tsx layout upgrade
+-----------------------------------------
+KEEP your existing logic for:
+- selecting roachy
+- selecting actions
+- lock in submit
+- finisherReady, isLocked, etc.
+
+But replace visuals:
+- Whole screen background: <ArenaBackground />
+- Top bar remains, but add nicer pill containers.
+
+Main battle row (landscape):
+LEFT COLUMN (team list):
+- Keep your team list cards but tighten spacing and add small portrait monogram to each.
+
+CENTER COLUMN (battle stage):
+- Show two big fighters facing each other:
+  - <RoachyFighter side="left" roachy={playerActive} />
+  - Center “VS” target icon with pulsing ring
+  - <RoachyFighter side="right" roachy={opponentActive} />
+- Under fighters: “Target selected: {enemy.name}” + hint
+
+RIGHT COLUMN (enemy list):
+- Keep enemy list but also show small “tap to target” label.
+
+BOTTOM BAR:
+- Replace old action buttons area with cards.
+When selectedRoachy is alive:
+  Row 1 (main): Basic, Skill A, Skill B (SkillCard big)
+  Row 2 (utility small): Guard, Focus (+ Finisher if ready)
+Lock In button stays on the far right as big gold CTA.
+
+Orientation lock:
+- Use expo-screen-orientation (already in expo ecosystem).
+In BattleMatchScreen:
+  on mount -> lock to LANDSCAPE
+  on unmount -> unlock / restore to DEFAULT
+
+If expo-screen-orientation is not installed, add it and update app.json if needed.
+But keep code minimal and contained in BattleMatchScreen.
+
+-----------------------------------------
+QUALITY BAR (must hit):
+- The center must feel like “two fighters in an arena”, not two info boxes.
+- Must include idle animation and hit feedback.
+- Skill selection must feel like card game selection.
+- No logic changes; only UI and animations.
+
+Deliver with working build; no TS errors; no missing imports.
+If any dependency is missing, explicitly add install command notes in your output.
+
+END PROMPT
