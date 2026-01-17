@@ -10,7 +10,6 @@ import {
   Linking,
   AppState,
   AppStateStatus,
-  Alert,
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -42,6 +41,7 @@ import { FusionAnimationModal } from "@/components/hunt/FusionAnimationModal";
 import { LevelProgressSheet } from "@/components/hunt/LevelProgressSheet";
 import { NodeDetailsBottomSheet } from "@/components/hunt/NodeDetailsBottomSheet";
 import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
+import { useThemedAlert } from "@/components/ThemedAlert";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
@@ -115,6 +115,7 @@ function getSpawnPosition(id: string, index: number): { left: `${number}%`; top:
 export default function HuntScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const { showAlert, AlertComponent } = useThemedAlert();
   const {
     walletAddress,
     playerLocation,
@@ -671,20 +672,20 @@ export default function HuntScreen() {
         console.log("[Phase1] Server error:", result.error);
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+        showAlert("Catch Failed", result.error);
       } else {
         // Unknown response
         console.log("[Phase1] Unknown response:", JSON.stringify(result));
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Catch Failed", "Something went wrong", [{ text: "OK" }]);
+        showAlert("Catch Failed", "Something went wrong");
       }
     } catch (error: any) {
       const errorMsg = error?.message || String(error) || "Network error";
       console.error("[Phase1] Network error:", errorMsg);
       setIsCollecting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
+      showAlert("Connection Error", errorMsg);
     }
   };
 
@@ -1020,7 +1021,7 @@ export default function HuntScreen() {
     
     if (eggCount < required) {
       console.log("[Fusion] Not enough eggs, returning early");
-      Alert.alert("Not Enough Eggs", `You need ${required} ${selectedFuseRarity} eggs but only have ${eggCount}.`);
+      showAlert("Not Enough Eggs", `You need ${required} ${selectedFuseRarity} eggs but only have ${eggCount}.`);
       return;
     }
     
@@ -1049,7 +1050,7 @@ export default function HuntScreen() {
     } catch (error: any) {
       console.error("[Fusion] Error:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Fusion Failed", error?.message || "Something went wrong. Please try again.");
+      showAlert("Fusion Failed", error?.message || "Something went wrong. Please try again.");
     } finally {
       setIsFusing(false);
     }
@@ -1633,6 +1634,8 @@ export default function HuntScreen() {
           onRequestPermission={handleRequestPermission}
         />
       </Animated.View>
+
+      <AlertComponent />
     </View>
   );
 }
