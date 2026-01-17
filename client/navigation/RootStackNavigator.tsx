@@ -2,6 +2,7 @@ import React from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HuntStackNavigator from "@/navigation/HuntStackNavigator";
+import BattlesStackNavigator from "@/navigation/BattlesStackNavigator";
 import CatchScreen from "@/screens/CatchScreen";
 import { ArcadeHomeScreen } from "@/screens/Arcade";
 import { FlappyRoachScreen } from "@/screens/FlappyRoachScreen";
@@ -96,7 +97,7 @@ export default function RootStackNavigator() {
       />
       <Stack.Screen
         name="RoachyBattlesStack"
-        component={RoachyBattlesScreen}
+        component={BattlesStackNavigator}
         options={{
           headerShown: false,
           animation: "slide_from_right",
