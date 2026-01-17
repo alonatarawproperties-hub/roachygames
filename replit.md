@@ -37,7 +37,50 @@ An Express.js server handles API routes and data storage. It includes routes spe
 - **Roachy Hunt (LIVE):** GPS-based creature hunting, catch, collect.
 - **Roachy Mate (LIVE):** Native chess game with a weekly arena tournament.
 - **Flappy Roachy (LIVE):** Endless flyer game with an NFT skin system.
-- **Coming Soon:** Roachy Battles (PvP).
+- **Roachy Battles (LIVE):** 3v3 turn-based PvP combat with ranked matchmaking.
+
+### Roachy Battles System (Jan 2025)
+**Architecture:**
+- **Client screens:** BattlesHomeScreen (portrait), TeamSelectScreen (portrait), BattleMatchmakingScreen (portrait), BattleMatchScreen (LANDSCAPE), BattleResultScreen (portrait)
+- **Server routes:** `/api/battles/*` for stats, roster, queue, and match management
+- **Config files:** `server/battle-config.ts` (8 starter roachies, skills, stats), `server/battle-routes.ts` (matchmaking, battle engine)
+
+**Gameplay:**
+- Select 3 roachies from your roster
+- Join matchmaking queue (40s timeout = bot match)
+- 8 turns max, 10s per turn (auto BASIC_ATTACK on timeout)
+- Win condition: First to 2 KOs OR higher HP% at turn 8
+- Momentum system: +10 per hit, FINISHER at 100 (9% true damage to all enemies)
+- Perfect Read: Counter with GUARD when opponent uses BASIC_ATTACK (+15 momentum)
+
+**Roachies (8 starters):**
+| Name | Class | HP | ATK | DEF | SPD | Skill A | Skill B |
+|------|-------|----|----|-----|-----|---------|---------|
+| Blitzclaw | ASSASSIN | 80 | 130 | 40 | 120 | Shadow Strike (1.4x, PIERCE) | Adrenaline Rush (+30% ATK, 2 turns) |
+| Ironshell | TANK | 150 | 70 | 100 | 60 | Shell Wall (GUARD, +50% DEF) | Earthquake (0.8x, all enemies, BURST) |
+| Mindmoth | MAGE | 70 | 140 | 30 | 110 | Mind Blast (1.5x, BURST) | Hex (heal block 2 turns) |
+| Lifeleech | SUPPORT | 100 | 90 | 60 | 80 | Drain Pulse (0.8x, heal 50%) | Group Heal (20% HP to allies) |
+| Stingerwasp | ASSASSIN | 75 | 140 | 35 | 130 | Poison Sting (1.2x + DoT) | Evasion (+50% dodge, 2 turns) |
+| Boulderback | TANK | 160 | 65 | 110 | 50 | Fortress (+75% DEF, immobile) | Rock Throw (1.0x, stun 1 turn) |
+| Flamebeetle | MAGE | 65 | 150 | 25 | 100 | Inferno (1.6x, BURST, -10% own HP) | Flame Shield (reflect 30%) |
+| Patchwork | SUPPORT | 110 | 80 | 70 | 70 | Stitch Up (heal 30%) | Rally (+20% ATK to allies, 2 turns) |
+
+**Rank Tiers:** Bronze, Silver, Gold, Platinum, Diamond, Legend (MMR-based)
+
+**Key Files:**
+- `client/games/battles/BattlesHomeScreen.tsx` - Main hub
+- `client/games/battles/TeamSelectScreen.tsx` - Team selection
+- `client/games/battles/BattleMatchmakingScreen.tsx` - Queue screen
+- `client/games/battles/BattleMatchScreen.tsx` - Combat (LANDSCAPE)
+- `client/games/battles/BattleResultScreen.tsx` - Victory/defeat
+- `client/navigation/BattlesStackNavigator.tsx` - Navigation stack
+- `server/battle-config.ts` - Roachies, skills, stats
+- `server/battle-routes.ts` - Matchmaking, battle engine
+
+**Important Notes:**
+- iOS landscape orientation requires a new TestFlight build to work (OTA cannot change native orientation locks)
+- Bot fallback triggers after 40s in queue
+- Daily first-3-wins bonus gives extra rewards
 
 ### Web App Integration
 The mobile app integrates with `roachy.games` (webapp) for token trading (redirects only), powerup shop, balance synchronization, and OAuth synchronization. All webapp API calls from the client are proxied through the mobile backend for security.
