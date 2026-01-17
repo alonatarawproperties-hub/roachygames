@@ -1,0 +1,255 @@
+You are implementing Roachy Battles V1 (production-grade, shipping in a few days). This is NOT an MVP. Follow this spec exactly. Do NOT introduce scope creep. Do NOT refactor unrelated modules. Implement PvP Ranked right away WITH bot fallback if queue is empty. ALSO: BattleMatchScreen must be LANDSCAPE-ONLY while the rest of the app stays PORTRAIT.
+
+========================
+A) ORIENTATION REQUIREMENT (BATTLE LANDSCAPE ONLY)
+========================
+GOAL
+- Default app orientation: PORTRAIT
+- Only the live battle match screen (BattleMatchScreen) forces LANDSCAPE while focused
+- When leaving BattleMatchScreen, restore PORTRAIT
+- Works on iOS TestFlight (native config included)
+
+1) Expo orientation support
+- Use expo-screen-orientation.
+- If not installed:
+  expo install expo-screen-orientation
+
+2) iOS native support (Expo config)
+Even if we keep the app portrait, iOS must allow landscape orientations or lockAsync may not work.
+In app.json / app.config.ts:
+- Keep root "orientation": "portrait"
+- Add ios.infoPlist:
+  UISupportedInterfaceOrientations:
+    - UIInterfaceOrientationPortrait
+    - UIInterfaceOrientationLandscapeLeft
+    - UIInterfaceOrientationLandscapeRight
+  UISupportedInterfaceOrientations~ipad:
+    - UIInterfaceOrientationPortrait
+    - UIInterfaceOrientationPortraitUpsideDown
+    - UIInterfaceOrientationLandscapeLeft
+    - UIInterfaceOrientationLandscapeRight
+IMPORTANT: If these keys were missing, a new TestFlight build is required. Document this in your summary.
+
+3) Lock per screen
+In BattleMatchScreen.tsx (the in-match screen only):
+- On screen focus: lock LANDSCAPE
+- On blur/unmount: lock PORTRAIT
+Use useFocusEffect from @react-navigation/native for reliability.
+Wrap in try/catch. Await lockAsync. Do not crash if lock fails.
+Do NOT reset battle state due to rotation. Ensure state is stored outside transient layout.
+
+========================
+B) PRODUCT RULES (HUNT-FIRST ECONOMY)
+========================
+- Players cannot buy roachies directly in V1.
+- Roachies used in battles come ONLY from Roachy Hunt eggs/hatching.
+- Monetization: cosmetics + hunt/hatch acceleration + battle pass (no pay-to-win ranked power).
+
+========================
+C) ROACHY BATTLES V1 GAME DESIGN (LOCKED)
+========================
+Battle format: Axie-inspired but faster + competitive:
+- 3v3 teams
+- SIMULTANEOUS turn lock-in (10 seconds)
+- Cooldown skills, NO card draw RNG
+- Outplay counters using tags: BURST / GUARD / PIERCE
+- Team Momentum -> DAMAGE finisher
+- NO SWAP action in V1
+- Match ends: first to 2 KOs OR turn 8 higher remaining total team HP% wins
+
+ACTIONS PER ROACHY PER TURN (alive only)
+- BASIC_ATTACK (always, multiplier 1.00)
+- SKILL_A (CD 2 turns, multiplier 1.25, tag defined per roachy)
+- SKILL_B (CD 3 turns, multiplier 1.50, tag defined per roachy)
+- GUARD (reduce incoming damage by 25% this turn)
+- FOCUS (no damage, +10 team momentum)
+NO SWAP.
+
+TAGS / COUNTERS (deterministic)
+- PIERCE vs GUARD => Armor Break: +20% final damage on that hit (and Guard reduction is ignored)
+- GUARD vs BURST => Mitigate: -25% final damage
+- BURST vs PIERCE => Tempo: +10 team momentum bonus to attacker team
+
+DAMAGE FORMULA (deterministic)
+Raw = ATK * SkillMultiplier
+Mitigated = Raw * (100 / (100 + DEF*4))
+Apply Guard reduction (-25%) only if defender used GUARD and attacker is NOT PIERCE.
+Apply counter bonus (Armor Break +20%) after mitigation.
+Clamp damage >= 1.
+
+TEAM MOMENTUM (0..100)
+Gains:
+- deal damage: +min(20, round((damage / targetHpMax) * 20))
+- successful counter: +12
+- KO: +25
+- Guard used and takes damage: +8
+- Focus action: +10
+
+TEAM FINISHER (DAMAGE) — CRUSH_WAVE
+Trigger: when teamMomentum >= 100 at lock-in
+Player can choose useFinisher=true for that turn
+Effect: TRUE damage to ALL alive enemy roachies:
+- damage = ceil(0.09 * enemyHpMax) each
+- ignores DEF and Guard
+Fairness guardrail (ENABLE IT): Finisher damage cannot reduce any enemy below 1 HP.
+After use: teamMomentum -= 100.
+Animation: 1–1.5 seconds max.
+
+RESOLUTION ORDER (SERVER AUTHORITATIVE)
+- Both clients submit actions within timer
+- If a client doesn’t submit: auto BASIC_ATTACK targeting lowest HP enemy
+- Resolve each turn:
+  1) Apply Finisher if selected and available
+  2) Resolve roachy actions ordered by:
+     - priority (skills may have priority, default 0; keep all 0 for V1 unless needed)
+     - SPD (higher first)
+     - seeded tie-breaker
+- Update hp, cooldowns, alive status, KO counts, momentum
+- Broadcast compact turnResult event + updated snapshot
+
+========================
+D) STATS / RARITY / CLASSES (V1)
+========================
+Stats: HP, ATK, DEF, SPD
+
+Rarity base stat bands (before class multipliers):
+COMMON:    HP 90–110,  ATK 18–24, DEF 10–14, SPD 12–16
+RARE:      HP 105–125, ATK 22–28, DEF 12–16, SPD 14–18
+EPIC:      HP 120–145, ATK 26–34, DEF 14–18, SPD 16–20
+LEGENDARY: HP 135–165, ATK 30–38, DEF 16–20, SPD 18–22
+
+Class multipliers:
+TANK:     HP x1.15, ATK x0.90, DEF x1.20, SPD x0.90
+ASSASSIN: HP x0.90, ATK x1.15, DEF x0.90, SPD x1.20
+MAGE:     HP x1.00, ATK x1.10, DEF x0.95, SPD x1.05
+SUPPORT:  HP x1.05, ATK x0.95, DEF x1.00, SPD x1.05
+Round to integers.
+
+Traits (1 per roachy, small impact):
+- +3% HP OR +3% ATK OR +3% DEF OR +2 SPD
+
+========================
+E) STARTER ROSTER (8 ROACHIES) — SHIP THESE KITS
+========================
+Each roachy has Skill A (CD2) and Skill B (CD3) with tags.
+
+TANK 1: BULWARK
+- A (GUARD): Fortify — reduces incoming damage by 35% this turn (override base guard to 35%) [CD2]
+- B (PIERCE): Shield Bash — 1.35 dmg, if target used GUARD this turn apply Armor Break rule (+20%) [CD3]
+
+TANK 2: GRIT
+- A (GUARD): Brace — base Guard 25% + gain +8 momentum immediately [CD2]
+- B (BURST): Slam — 1.55 dmg [CD3]
+
+ASSASSIN 1: STING
+- A (BURST): Backstab — 1.55 dmg [CD2]
+- B (PIERCE): Feint Pierce — 1.30 dmg, tag PIERCE [CD3]
+
+ASSASSIN 2: VIPER
+- A (PIERCE): Armor Break — 1.25 dmg, tag PIERCE [CD2]
+- B (BURST): Rapid Cut — 1.50 dmg [CD3]
+
+MAGE 1: ARC
+- A (PIERCE): Arc Bolt — 1.30 dmg, tag PIERCE [CD2]
+- B (BURST): Overcharge — 1.60 dmg, costs -10 team momentum (risk) [CD3]
+
+MAGE 2: HEX
+- A (GUARD): Ward — base Guard 25% + gain +6 momentum [CD2]
+- B (PIERCE): Rune Spear — 1.45 dmg, tag PIERCE [CD3]
+
+SUPPORT 1: PULSE
+- A (GUARD): Heal Guard — heal chosen ally 10% max HP AND sets Guard this turn (25%) [CD2]
+- B (PIERCE): Clean Hit — 1.35 dmg, tag PIERCE [CD3]
+
+SUPPORT 2: TEMPO
+- A (FOCUS): Haste Focus — +15 team momentum (instead of 10) [CD2]
+- B (BURST): Punish — 1.50 dmg, if enemy used BURST this turn, add +10 momentum [CD3]
+
+(Implement these exactly. Keep effects simple and deterministic.)
+
+========================
+F) RANKED PVP + BOT FALLBACK
+========================
+Matchmaking:
+- ELO/MMR for ranked
+- Also band by powerScore:
+  powerScore = (hpMax*0.35 + atk*0.35 + def*0.2 + spd*0.1) + traitWeight
+If queue > 20s widen bands.
+If still no match at 40s, match vs BOT fallback:
+- BOT uses a simple heuristic:
+  - if finisher available, use it
+  - if enemy guarded last turn, use PIERCE if off cooldown
+  - if low HP (<35%), use GUARD or Focus
+  - else use highest multiplier available
+
+Rank impact for BOT fallback (safer):
+- Half rank points gain/loss vs bot matches
+Rewards:
+- Win ranked: XP + Warmth + rank points
+- Lose: smaller XP, no Warmth
+Daily first-3 wins: bonus chest (cosmetics chance or hunt boost ticket)
+
+========================
+G) WEBSOCKET EVENTS (MATCH EXISTING PATTERNS)
+========================
+Client -> Server
+- battle_queue_join {wallet, mode:"RANKED"}
+- battle_queue_leave {wallet}
+- battle_submit_team {matchId, wallet, team:[roachyId,roachyId,roachyId]}
+- battle_submit_turn {matchId, wallet, turnIndex, actions:[{roachyId, actionType, targetRoachyId}], useFinisher:boolean}
+- battle_forfeit {matchId, wallet}
+
+Server -> Client
+- battle_queue_status {inQueue, estimatedWait, fallbackBotInSeconds}
+- battle_match_found {matchId, opponentSummary, timerEndsAt, turnIndex, initialState}
+- battle_turn_start {matchId, turnIndex, timerEndsAt, stateSnapshot}
+- battle_turn_result {matchId, turnIndex, resultLog, updatedState}
+- battle_match_end {matchId, winnerWallet, reason, rewards, rankDelta}
+
+SECURITY
+- validate ownership of roachyId by wallet
+- validate cooldowns + action legality
+- reject late submissions after timer
+- allow replace submission before timer (keep latest) OR lock first; choose safest and document
+- rate limit
+
+========================
+H) CLIENT UI (PRODUCTION FEEL, PORTRAIT EXCEPT MATCH SCREEN)
+========================
+Screens:
+1) BattlesHomeScreen (portrait)
+- Play Ranked button
+- shows current rank tier, MMR, streak
+2) TeamSelectScreen (portrait)
+- select 3 roachies from owned roster
+- show stats + class icons + powerScore
+3) BattleMatchScreen (LANDSCAPE ONLY)
+- 10s timer
+- left: my 3 roachies + action buttons
+- center: arena + PERFECT READ popups + finisher animation
+- right: enemy 3 roachies + selectable targets
+- show momentum bars at top
+- handle reconnect with resync
+4) ResultScreen (portrait)
+- rank delta
+- XP/Warmth rewards
+- Play again
+
+UI must clearly show:
+- cooldown counters
+- tags (BURST/GUARD/PIERCE)
+- momentum meter + finisher readiness
+- “Perfect Read” feedback
+
+========================
+I) IMPLEMENTATION / DELIVERABLES
+========================
+1) Implement server-authoritative battle engine + WS flow end-to-end.
+2) Add bot fallback after timeout.
+3) Implement BattleMatchScreen orientation locking:
+- On focus: lock landscape
+- On blur: lock portrait
+4) Add iOS supported orientations in app config (even if root orientation remains portrait).
+5) Provide a short “How to test” checklist and list all files changed.
+
+Proceed now. Do NOT ask me questions. If any file names differ, locate the correct ones in the repo and implement accordingly. Keep changes minimal and safe.
