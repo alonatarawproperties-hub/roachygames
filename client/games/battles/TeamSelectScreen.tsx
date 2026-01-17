@@ -31,6 +31,7 @@ type RoachyRarity = "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
 
 interface RoachyStats {
   hp: number;
+  maxHp: number;
   atk: number;
   def: number;
   spd: number;
@@ -38,12 +39,14 @@ interface RoachyStats {
 
 interface Roachy {
   id: string;
+  instanceId: string;
   name: string;
-  class: RoachyClass;
+  roachyClass: RoachyClass;
   rarity: RoachyRarity;
   stats: RoachyStats;
-  level: number;
-  imageUrl?: string;
+  skillA: any;
+  skillB: any;
+  isKO: boolean;
 }
 
 interface RosterResponse {
@@ -89,7 +92,7 @@ function calculatePowerScore(roachies: Roachy[]): number {
       EPIC: 1.5,
       LEGENDARY: 2,
     };
-    return total + baseScore * rarityMultiplier[roachy.rarity] * (roachy.level / 10);
+    return total + baseScore * rarityMultiplier[roachy.rarity];
   }, 0);
 }
 
@@ -111,7 +114,7 @@ function RoachyCard({
   onPress: () => void;
 }) {
   const scale = useSharedValue(1);
-  const classColor = CLASS_COLORS[roachy.class];
+  const classColor = CLASS_COLORS[roachy.roachyClass];
   const rarityColor = RARITY_COLORS[roachy.rarity];
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -153,7 +156,7 @@ function RoachyCard({
         {/* Class Icon and Name */}
         <View style={styles.cardHeader}>
           <View style={[styles.classIconBg, { backgroundColor: classColor }]}>
-            <Feather name={CLASS_ICONS[roachy.class] as any} size={20} color="#FFFFFF" />
+            <Feather name={CLASS_ICONS[roachy.roachyClass] as any} size={20} color="#FFFFFF" />
           </View>
           <View style={styles.nameSection}>
             <ThemedText type="h4" style={styles.roachyName}>
@@ -162,17 +165,12 @@ function RoachyCard({
             <View style={styles.classRarityRow}>
               <View style={[styles.badge, { backgroundColor: classColor + "20" }]}>
                 <ThemedText type="small" style={{ color: classColor }}>
-                  {getClassLabel(roachy.class)}
+                  {getClassLabel(roachy.roachyClass)}
                 </ThemedText>
               </View>
               <View style={[styles.badge, { backgroundColor: rarityColor + "20" }]}>
                 <ThemedText type="small" style={{ color: rarityColor }}>
                   {getRarityLabel(roachy.rarity)}
-                </ThemedText>
-              </View>
-              <View style={styles.levelBadge}>
-                <ThemedText type="small" style={styles.levelText}>
-                  Lv.{roachy.level}
                 </ThemedText>
               </View>
             </View>
