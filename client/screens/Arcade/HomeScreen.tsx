@@ -26,7 +26,7 @@ import {
 import { DailyBonusCard } from "@/components/arcade/DailyBonusCard";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { AnimatedFilterChip } from "@/components/arcade/AnimatedFilterChip";
-import { GAMES_CATALOG, isGameLockedForPlatform } from "@/constants/gamesCatalog";
+import { GAMES_CATALOG, isGameLockedForPlatform, isGameVisibleForUser } from "@/constants/gamesCatalog";
 import { GameColors, Spacing, BorderRadius, getResponsiveSize, ResponsiveLayout } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useArcadeInventory } from "@/context/ArcadeInventoryContext";
@@ -1314,7 +1314,7 @@ export function ArcadeHomeScreen() {
   };
 
   const featuredGame = GAMES_CATALOG[0];
-  const gamesList = GAMES_CATALOG;
+  const gamesList = GAMES_CATALOG.filter(game => isGameVisibleForUser(game, user?.email));
 
   const handleLogout = async () => {
     console.log("[HomeScreen] handleLogout called, Platform:", Platform.OS);

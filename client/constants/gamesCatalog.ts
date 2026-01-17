@@ -18,10 +18,16 @@ export interface GameEntry {
   isLockedOnAndroid?: boolean;
   isBetaOnly?: boolean;
   betaTesters?: string[];
+  isAdminOnly?: boolean;
   category: "strategy" | "battle" | "arcade" | "adventure";
   playerCount: string;
   rewards: string[];
 }
+
+export const ADMIN_ACCOUNTS = [
+  'zajkcomshop@gmail.com',
+  'engagedglobal@gmail.com',
+];
 
 export const GAMES_CATALOG: GameEntry[] = [
   {
@@ -77,11 +83,12 @@ export const GAMES_CATALOG: GameEntry[] = [
     coverImage: RoachyBattlesLogo,
     iconName: "zap",
     routeName: "RoachyBattlesStack",
-    isLocked: true,
-    isComingSoon: true,
+    isLocked: false,
+    isComingSoon: false,
+    isAdminOnly: true,
     category: "battle",
-    playerCount: "1v1 & Teams",
-    rewards: ["Battle Tokens", "Rare Skins", "Leaderboard Prizes"],
+    playerCount: "3v3",
+    rewards: ["Battle Tokens", "Rank Rewards", "Warmth"],
   },
 ];
 
@@ -116,8 +123,24 @@ export function hasGameBetaAccess(game: GameEntry, userEmail: string | null | un
   return game.betaTesters.includes(userEmail.toLowerCase());
 }
 
+export function isAdminUser(userEmail: string | null | undefined): boolean {
+  if (!userEmail) return false;
+  return ADMIN_ACCOUNTS.includes(userEmail.toLowerCase());
+}
+
+export function hasGameAdminAccess(game: GameEntry, userEmail: string | null | undefined): boolean {
+  if (!game.isAdminOnly) return true;
+  return isAdminUser(userEmail);
+}
+
 export function isGameLockedForUser(game: GameEntry, userEmail: string | null | undefined): boolean {
   if (isGameLockedForPlatform(game)) return true;
   if (game.isBetaOnly && !hasGameBetaAccess(game, userEmail)) return true;
+  if (game.isAdminOnly && !hasGameAdminAccess(game, userEmail)) return true;
   return false;
+}
+
+export function isGameVisibleForUser(game: GameEntry, userEmail: string | null | undefined): boolean {
+  if (game.isAdminOnly && !hasGameAdminAccess(game, userEmail)) return false;
+  return true;
 }
