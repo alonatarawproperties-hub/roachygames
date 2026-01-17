@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { View, StyleSheet, Pressable, Text, Animated } from "react-native";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
-import { GameColors, Spacing } from "@/constants/theme";
+import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
+import { lockPortrait } from "@/utils/orientation";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RouteParams = {
@@ -31,6 +32,12 @@ export function BattleMatchmakingScreen() {
   const route = useRoute<RouteProp<RouteParams, "BattleMatchmaking">>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+
+  useFocusEffect(
+    useCallback(() => {
+      lockPortrait();
+    }, [])
+  );
 
   const { team } = route.params;
   const playerId = user?.id || user?.googleId || "";
@@ -406,15 +413,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: Spacing.lg,
-    borderRadius: 16,
-    backgroundColor: GameColors.surface,
-    borderWidth: 2,
-    borderColor: GameColors.error,
-    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.4)",
+    gap: Spacing.sm,
   },
   cancelButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     color: GameColors.error,
   },

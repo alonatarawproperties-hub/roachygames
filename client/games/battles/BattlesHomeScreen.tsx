@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { View, StyleSheet, Pressable, Text, ScrollView, ActivityIndicator } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Eas
 import { GameColors, Spacing } from "@/constants/theme";
 import { getApiUrl } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
+import { lockPortrait } from "@/utils/orientation";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RankTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "legend";
@@ -58,6 +59,12 @@ export function BattlesHomeScreen() {
   // Use Google user ID (user.id) as the primary identifier for battles
   const playerId = user?.id || user?.googleId || guestIdRef.current;
   console.log("[Battles] Using playerId:", playerId, "user.id:", user?.id, "user.googleId:", user?.googleId);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      lockPortrait();
+    }, [])
+  );
 
   const pulseValue = useSharedValue(0);
 

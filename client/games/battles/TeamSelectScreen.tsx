@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -24,6 +24,7 @@ import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { lockPortrait } from "@/utils/orientation";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RoachyClass = "TANK" | "ASSASSIN" | "MAGE" | "SUPPORT";
@@ -231,6 +232,12 @@ export function TeamSelectScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+
+  useFocusEffect(
+    useCallback(() => {
+      lockPortrait();
+    }, [])
+  );
 
   const playerId = user?.id || user?.googleId || `guest_${Date.now()}`;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

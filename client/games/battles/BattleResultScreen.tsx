@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   Dimensions,
   Platform,
 } from "react-native";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
@@ -25,6 +25,7 @@ import Animated, {
 import { GameColors, Spacing, BorderRadius, GlowStyles } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { lockPortrait } from "@/utils/orientation";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -55,6 +56,12 @@ export function BattleResultScreen() {
   const navigation = useNavigation<BattleResultNavigationProp>();
   const route = useRoute<RouteProp<BattlesStackParamList, "BattleResult">>();
   const insets = useSafeAreaInsets();
+
+  useFocusEffect(
+    useCallback(() => {
+      lockPortrait();
+    }, [])
+  );
 
   const {
     result,
