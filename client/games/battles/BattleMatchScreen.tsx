@@ -90,6 +90,85 @@ type RouteParams = {
   };
 };
 
+type RawMatchResponse = { success: boolean; match: RawMatch };
+
+type RawMatch = {
+  matchId: string;
+  status: "team_select" | "active" | "completed";
+  currentTurn: number;
+  player1: RawPlayerState;
+  player2: RawPlayerState;
+  maxTurns?: number;
+  turnTimeLeft?: number;
+  winner?: string;
+  winReason?: string;
+  isAgainstBot?: boolean;
+};
+
+type RawPlayerState = {
+  playerId: string;
+  momentum: number;
+  kos: number;
+  team: any[];
+  activeIndex: number;
+  teamSubmitted?: boolean;
+};
+
+function normalizePhase(status: RawMatch["status"]): MatchState["phase"] {
+  if (status === "team_select") return "SELECTION";
+  if (status === "active") return "SELECTION";
+  return "FINISHED";
+}
+
+function normalizeRoachy(raw: any): BattleRoachy {
+  const stats = raw?.stats ?? raw ?? {};
+  const maxHp = stats.maxHp ?? stats.hpMax ?? stats.max_hp ?? stats.hp ?? 100;
+  const hp = raw?.hp ?? stats.hp ?? stats.currentHp ?? maxHp;
+
+  const isKO = raw?.isKO ?? raw?.ko ?? raw?.is_ko ?? false;
+  const isAlive = raw?.isAlive ?? !isKO;
+
+  return {
+    id: raw?.id ?? raw?.roachyId ?? raw?.tokenId ?? "",
+    name: raw?.name ?? "Roachy",
+    class: raw?.class ?? raw?.roachyClass ?? "TANK",
+    hp,
+    maxHp,
+    atk: raw?.atk ?? stats.atk ?? stats.attack ?? 10,
+    def: raw?.def ?? stats.def ?? stats.defense ?? 5,
+    spd: raw?.spd ?? stats.spd ?? stats.speed ?? 10,
+    isAlive,
+    skillA: raw?.skillA ?? { id: "skillA", name: "Skill A", type: "BURST", multiplier: 1.2, cooldown: 2 },
+    skillB: raw?.skillB ?? { id: "skillB", name: "Skill B", type: "GUARD", multiplier: 1.0, cooldown: 3 },
+    cooldowns: raw?.cooldowns ?? { skillA: 0, skillB: 0 },
+  };
+}
+
+function normalizePlayer(raw: RawPlayerState, isBot: boolean = false): PlayerState {
+  return {
+    playerId: raw?.playerId ?? "",
+    momentum: raw?.momentum ?? 0,
+    knockouts: raw?.kos ?? 0,
+    isBot,
+    team: (raw?.team ?? []).map(normalizeRoachy),
+  };
+}
+
+function normalizeMatch(raw: RawMatch, playerId: string): MatchState {
+  const isPlayer1 = raw.player1?.playerId === playerId;
+  return {
+    matchId: raw.matchId,
+    phase: normalizePhase(raw.status),
+    turn: raw.currentTurn ?? 1,
+    maxTurns: raw.maxTurns ?? 8,
+    turnTimeLeft: raw.turnTimeLeft ?? 10,
+    player: normalizePlayer(isPlayer1 ? raw.player1 : raw.player2, false),
+    opponent: normalizePlayer(isPlayer1 ? raw.player2 : raw.player1, raw.isAgainstBot ?? false),
+    winner: raw.winner,
+    winReason: raw.winReason,
+  };
+}
+
 const TURN_TIME_SECONDS = 10;
 const MAX_MOMENTUM = 100;
 const SKILL_A_COOLDOWN = 2;
@@ -164,9 +243,19 @@ export function BattleMatchScreen() {
 
   const { data: matchState, refetch: refetchMatch, isLoading, error } = useQuery<MatchState>({
     queryKey: ["/api/battles/match", matchId],
-    enabled: !!matchId,
+    enabled: !!matchId && !!playerId,
     refetchInterval: false,
     staleTime: 0,
+    queryFn: async () => {
+      const url = new URL(`/api/battles/match/${matchId}`, getApiUrl());
+      url.searchParams.set("playerId", playerId);
+      const res = await fetch(url.toString());
+      const json = (await res.json()) as RawMatchResponse;
+      if (!json?.success || !json?.match) {
+        throw new Error("Invalid match response");
+      }
+      return normalizeMatch(json.match, playerId);
+    },
   });
 
   useEffect(() => {

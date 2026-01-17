@@ -1,0 +1,167 @@
+FIX NOW: BattleMatchScreen crashes after matchmaking due to server/client match-state mismatch.
+
+STRICT RULES:
+- DO NOT refactor unrelated code.
+- DO NOT change gameplay logic.
+- ONLY fix the data plumbing + add guards so the screen never crashes.
+- Implement the SAFEST fix for shipping in a few days: client-side adapter (Option A).
+
+FILES:
+- client/screens/BattleMatchScreen.tsx
+- (optional, safe) server/battle-routes.ts only to add maxTurns/turnTimeLeft defaults (do NOT change wrapper shape)
+
+PROBLEM SUMMARY:
+Client expects MatchState directly, but server returns { success: true, match: {...} }.
+Also fields differ:
+- status -> phase
+- currentTurn -> turn
+- player1/player2 -> player/opponent
+Roachy differs:
+- roachyClass -> class
+- isKO -> isAlive
+- stats may be nested
+
+IMPLEMENTATION (BattleMatchScreen.tsx):
+
+1) Add these raw types near the top (below imports), matching server response:
+
+type RawMatchResponse = { success: boolean; match: RawMatch };
+
+type RawMatch = {
+  matchId: string;
+  status: "team_select" | "active" | "completed";
+  currentTurn: number;
+  player1: RawPlayerState;
+  player2: RawPlayerState;
+  maxTurns?: number;
+  turnTimeLeft?: number;
+  winner?: string;
+  winReason?: string;
+};
+
+type RawPlayerState = {
+  playerId: string;
+  momentum: number;
+  kos: number;
+  team: any[];
+  activeIndex: number;
+};
+
+2) Add normalization helpers to convert RawMatch -> MatchState that BattleMatchScreen expects:
+
+function normalizePhase(status: RawMatch["status"]): MatchState["phase"] {
+  if (status === "team_select") return "SELECTION";
+  if (status === "active") return "RESOLUTION";
+  return "FINISHED";
+}
+
+function normalizeRoachy(raw: any): BattleRoachy {
+  const stats = raw?.stats ?? raw ?? {};
+  const maxHp = stats.maxHp ?? stats.hpMax ?? stats.max_hp ?? stats.hp ?? 0;
+  const hp = stats.hp ?? stats.currentHp ?? maxHp;
+
+  const isKO = raw?.isKO ?? raw?.ko ?? raw?.is_ko ?? false;
+  const isAlive = raw?.isAlive ?? !isKO;
+
+  return {
+    id: raw?.id ?? raw?.roachyId ?? raw?.tokenId ?? "",
+    name: raw?.name ?? "Roachy",
+    class: raw?.class ?? raw?.roachyClass ?? "BALANCED",
+    hp,
+    maxHp,
+    atk: stats.atk ?? stats.attack ?? 0,
+    def: stats.def ?? stats.defense ?? 0,
+    spd: stats.spd ?? stats.speed ?? 0,
+    isAlive,
+    skillA: raw?.skillA ?? raw?.skills?.[0] ?? { id: "skillA", name: "Skill A", desc: "", cost: 0 },
+    skillB: raw?.skillB ?? raw?.skills?.[1] ?? { id: "skillB", name: "Skill B", desc: "", cost: 0 },
+    cooldowns: raw?.cooldowns ?? { skillA: 0, skillB: 0 },
+  };
+}
+
+function normalizePlayer(raw: RawPlayerState): PlayerState {
+  return {
+    playerId: raw?.playerId ?? "",
+    momentum: raw?.momentum ?? 0,
+    kos: raw?.kos ?? 0,
+    activeIndex: raw?.activeIndex ?? 0,
+    team: (raw?.team ?? []).map(normalizeRoachy),
+  } as PlayerState;
+}
+
+function normalizeMatch(raw: RawMatch): MatchState {
+  return {
+    matchId: raw.matchId,
+    phase: normalizePhase(raw.status),
+    turn: raw.currentTurn ?? 1,
+    maxTurns: raw.maxTurns ?? 50,
+    turnTimeLeft: raw.turnTimeLeft ?? 30,
+    player: normalizePlayer(raw.player1),
+    opponent: normalizePlayer(raw.player2),
+    winner: raw.winner,
+    winReason: raw.winReason,
+  };
+}
+
+3) Fix the query so it UNWRAPS {success, match} and returns MatchState.
+
+RIGHT NOW your code does:
+useQuery<MatchState>({ queryKey: ["/api/battles/match", matchId] })
+This returns {success, match} and causes matchState.phase undefined, crash.
+
+REPLACE IT with this:
+
+const { data: matchState, isLoading, error, refetch } = useQuery<MatchState>({
+  queryKey: ["/api/battles/match", matchId],
+  enabled: !!matchId,
+  queryFn: async () => {
+    // IMPORTANT: use the correct endpoint format your server actually exposes.
+    // Try the existing pattern used elsewhere in the repo:
+    // - if your route is /api/battles/match/:matchId, use that
+    // - if your route is /api/battles/match?matchId=..., use that
+    const res = await fetch(`/api/battles/match/${matchId}`);
+    const json = (await res.json()) as RawMatchResponse;
+    if (!json?.success || !json?.match) throw new Error("Invalid match response");
+    return normalizeMatch(json.match);
+  },
+});
+
+If `/api/battles/match/${matchId}` is NOT the correct route, SEARCH the codebase for "/api/battles/match" usage and match that exact URL format.
+
+4) Add crash-proof guards at the top of your component render:
+
+if (isLoading || !matchState) {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <Text>Loading match...</Text>
+    </View>
+  );
+}
+
+if (error) {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <Text style={{ fontWeight: "600", marginBottom: 8 }}>Failed to load match</Text>
+      <Text style={{ opacity: 0.7, marginBottom: 12 }}>{String((error as any)?.message ?? error)}</Text>
+      <Pressable onPress={() => refetch()} style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#333" }}>
+        <Text style={{ color: "#fff" }}>Retry</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+Then the rest of the screen can safely use matchState.phase, matchState.player, etc.
+
+5) OPTIONAL SAFE SERVER IMPROVEMENT (only if trivial):
+In server/battle-routes.ts match endpoint response, add:
+- maxTurns (e.g. 8 or 50)
+- turnTimeLeft (current remaining seconds)
+BUT DO NOT change response wrapper. Keep { success, match }.
+
+VERIFY:
+- Navigate matchmaking -> BattleMatchScreen: no crash
+- matchState.phase and matchState.player/team are defined
+- Works even if roachy shape varies (fallbacks prevent undefined)
+
+DELIVERABLE:
+- Commit changes (BattleMatchScreen.tsx) with message: "Fix BattleMatchScreen match state normalization"
