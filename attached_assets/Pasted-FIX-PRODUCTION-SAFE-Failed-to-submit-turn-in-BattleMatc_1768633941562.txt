@@ -1,0 +1,57 @@
+FIX (PRODUCTION SAFE): "Failed to submit turn" in BattleMatchScreen
+
+ROOT CAUSE
+- Client POST body sends `actions: RoachyAction[]`
+- Server endpoint destructures `action` (singular), so `action` is undefined
+- Server returns 400 "Missing required fields" -> client shows "Failed to submit turn"
+
+GOAL
+Make server endpoint accept BOTH formats for backward compatibility:
+- action (single object)
+- actions (array)
+Do NOT change gameplay logic. Do NOT refactor other endpoints.
+
+FILE
+- server/battle-routes.ts
+  endpoint: POST /api/battles/match/submit-turn  (around line ~707)
+
+REQUIRED CHANGE (SERVER ADAPTS)
+1) Update destructuring to read both:
+   const { playerId, matchId, action, actions, turnIndex } = req.body;
+
+2) Normalize to a single action object:
+   const normalizedAction =
+     action ??
+     (Array.isArray(actions) ? actions[0] : undefined);
+
+3) Validate required fields using normalizedAction:
+   if (!playerId || !matchId || !normalizedAction) {
+     return res.status(400).json({ success: false, error: "Missing required fields" });
+   }
+
+4) Pass normalizedAction into existing battle engine / submit-turn logic
+   Replace any usage of `action` in this handler with `normalizedAction`.
+
+5) Add a tiny debug-safe error message for malformed actions:
+   - If actions is provided but empty array, return 400 with:
+     { success:false, error:"No actions provided" }
+
+6) OPTIONAL (nice, but safe): support multiple actions later without breaking now
+   - If Array.isArray(actions) and actions.length > 1:
+     keep current behavior using only the FIRST action for now
+     (document in comment: "V1 uses single-action per turn; extra ignored")
+
+DO NOT CHANGE CLIENT YET
+- Keep client sending `actions` for now.
+- This patch fixes current clients and also supports any older client that might send `action`.
+
+VERIFY
+- Start a match
+- Submit turn from client
+- Endpoint returns 200 success
+- No more "Failed to submit turn"
+- No regressions to matchmaking or match loading
+
+DELIVERABLE
+- Commit only battle-routes.ts changes
+- Brief summary of what changed and why (server now accepts both `action` and `actions`)

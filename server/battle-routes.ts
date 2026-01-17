@@ -706,9 +706,17 @@ export function registerBattleRoutes(app: Express) {
 
   app.post("/api/battles/match/submit-turn", async (req: Request, res: Response) => {
     try {
-      const { playerId, matchId, action } = req.body;
+      const { playerId, matchId, action, actions } = req.body;
       
-      if (!playerId || !matchId || !action) {
+      // V1: Support both 'action' (single) and 'actions' (array) for backward compatibility
+      // If actions array provided, use first action only (V1 uses single-action per turn)
+      if (Array.isArray(actions) && actions.length === 0) {
+        return res.status(400).json({ success: false, error: "No actions provided" });
+      }
+      
+      const normalizedAction = action ?? (Array.isArray(actions) ? actions[0] : undefined);
+      
+      if (!playerId || !matchId || !normalizedAction) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
       }
       
@@ -729,9 +737,9 @@ export function registerBattleRoutes(app: Express) {
       }
       
       if (isPlayer1) {
-        match.pendingActions.player1 = action;
+        match.pendingActions.player1 = normalizedAction;
       } else {
-        match.pendingActions.player2 = action;
+        match.pendingActions.player2 = normalizedAction;
       }
       
       if (match.isAgainstBot && isPlayer1 && !match.pendingActions.player2) {
