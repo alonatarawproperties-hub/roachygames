@@ -1380,6 +1380,24 @@ export default function HuntScreen() {
           </ThemedText>
         </Pressable>
         <Pressable
+          style={[styles.tab, activeTab === "eggs" && styles.activeTab]}
+          onPress={() => setActiveTab("eggs")}
+        >
+          <Feather
+            name="package"
+            size={20}
+            color={activeTab === "eggs" ? GameColors.primary : GameColors.textSecondary}
+          />
+          <ThemedText
+            style={[
+              styles.tabText,
+              activeTab === "eggs" && styles.activeTabText,
+            ]}
+          >
+            Eggs
+          </ThemedText>
+        </Pressable>
+        <Pressable
           style={[styles.tab, activeTab === "collection" && styles.activeTab]}
           onPress={() => setActiveTab("collection")}
         >
@@ -1397,24 +1415,6 @@ export default function HuntScreen() {
             ]}
           >
             Collection
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === "eggs" && styles.activeTab]}
-          onPress={() => setActiveTab("eggs")}
-        >
-          <Feather
-            name="package"
-            size={20}
-            color={activeTab === "eggs" ? GameColors.primary : GameColors.textSecondary}
-          />
-          <ThemedText
-            style={[
-              styles.tabText,
-              activeTab === "eggs" && styles.activeTabText,
-            ]}
-          >
-            Eggs
           </ThemedText>
         </Pressable>
         <Pressable
