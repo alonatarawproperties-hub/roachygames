@@ -1,12 +1,12 @@
-import React, { useRef, useState, useEffect } from "react";
-import { View, StyleSheet, Pressable, Text, ScrollView, Alert, Platform, ActivityIndicator } from "react-native";
+import React, { useRef, useEffect } from "react";
+import { View, StyleSheet, Pressable, Text, ScrollView, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from "react-native-reanimated";
 import { GameColors, Spacing } from "@/constants/theme";
-import { getApiUrl, apiRequest } from "@/lib/query-client";
+import { getApiUrl } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -98,38 +98,9 @@ export function BattlesHomeScreen() {
   const currentRank = getRankTier(stats.mmr);
   const rankInfo = RANK_TIERS[currentRank];
 
-  const playRankedMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/battles/queue", {
-        playerId,
-        gameMode: "ranked",
-      });
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      if (data.success) {
-        navigation.navigate("BattleTeamSelect");
-      } else {
-        const msg = data.message || "Failed to join ranked queue";
-        if (Platform.OS === "web") {
-          alert(msg);
-        } else {
-          Alert.alert("Error", msg);
-        }
-      }
-    },
-    onError: (error: any) => {
-      const msg = error?.message || "Failed to join ranked queue";
-      if (Platform.OS === "web") {
-        alert(msg);
-      } else {
-        Alert.alert("Error", msg);
-      }
-    },
-  });
-
   const handlePlayRanked = () => {
-    playRankedMutation.mutate();
+    // Navigate to team selection - queue join happens after team is picked
+    navigation.navigate("BattleTeamSelect");
   };
 
   if (statsError) {
@@ -277,12 +248,9 @@ export function BattlesHomeScreen() {
             <Pressable
               style={[styles.playButton, styles.playButtonPrimary]}
               onPress={handlePlayRanked}
-              disabled={playRankedMutation.isPending}
             >
               <Feather name="zap" size={24} color={GameColors.background} />
-              <Text style={styles.playButtonText}>
-                {playRankedMutation.isPending ? "Joining..." : "Play Ranked"}
-              </Text>
+              <Text style={styles.playButtonText}>Play Ranked</Text>
             </Pressable>
 
             {/* Match History Section */}
