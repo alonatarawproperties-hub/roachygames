@@ -8,6 +8,7 @@ import {
   Animated,
   Platform,
   Dimensions,
+  Vibration,
 } from "react-native";
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +23,9 @@ import { ThemedView } from "@/components/ThemedView";
 import { ArenaBackground } from "@/components/battle/ArenaBackground";
 import { RoachyFighter } from "@/components/battle/RoachyFighter";
 import { SkillCard } from "@/components/battle/SkillCard";
+import { usePrevious } from "@/hooks/usePrevious";
+import FloatingCombatText, { CombatFloatEvent } from "@/components/battle/FloatingCombatText";
+import TurnReplayStrip, { ReplayItem } from "@/components/battle/TurnReplayStrip";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RoachyClass = "TANK" | "ASSASSIN" | "MAGE" | "SUPPORT";
@@ -219,6 +223,42 @@ export function BattleMatchScreen() {
   const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [combatFloats, setCombatFloats] = useState<CombatFloatEvent[]>([]);
+  const [replayItems, setReplayItems] = useState<ReplayItem[]>([]);
+  const arenaShake = useRef(new Animated.Value(0)).current;
+
+  const playSfx = useCallback((key: "tap" | "lock" | "hit" | "heal" | "ko") => {
+  }, []);
+
+  const pushFloat = useCallback((e: Omit<CombatFloatEvent, "id" | "ts">) => {
+    const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const ev: CombatFloatEvent = { id, ts: Date.now(), ...e };
+    setCombatFloats((cur) => [...cur, ev]);
+  }, []);
+
+  const removeFloat = useCallback((id: string) => {
+    setCombatFloats((cur) => cur.filter((x) => x.id !== id));
+  }, []);
+
+  const shakeOnce = useCallback(() => {
+    arenaShake.setValue(0);
+    Animated.sequence([
+      Animated.timing(arenaShake, { toValue: -6, duration: 50, useNativeDriver: true }),
+      Animated.timing(arenaShake, { toValue: 6, duration: 60, useNativeDriver: true }),
+      Animated.timing(arenaShake, { toValue: -4, duration: 50, useNativeDriver: true }),
+      Animated.timing(arenaShake, { toValue: 4, duration: 50, useNativeDriver: true }),
+      Animated.timing(arenaShake, { toValue: 0, duration: 60, useNativeDriver: true }),
+    ]).start();
+  }, [arenaShake]);
+
+  const indexTeam = (team: BattleRoachy[] | undefined) => {
+    const m = new Map<string, BattleRoachy>();
+    (team || []).forEach((r) => {
+      if (r?.id) m.set(r.id, r);
+    });
+    return m;
+  };
+
   useFocusEffect(
     useCallback(() => {
       const lockLandscape = async () => {
@@ -260,6 +300,95 @@ export function BattleMatchScreen() {
       return normalizeMatch(json.match, playerId);
     },
   });
+
+  const prevMatchState = usePrevious(matchState);
+
+  useEffect(() => {
+    if (!prevMatchState || !matchState) return;
+
+    const turnChanged = prevMatchState.turn !== matchState.turn;
+    const phaseChanged = prevMatchState.phase !== matchState.phase;
+
+    if (turnChanged || phaseChanged) {
+      setReplayItems([]);
+    }
+  }, [matchState, prevMatchState]);
+
+  useEffect(() => {
+    if (!prevMatchState || !matchState) return;
+
+    const prevPlayer = indexTeam(prevMatchState.player?.team);
+    const nextPlayer = indexTeam(matchState.player?.team);
+    const prevOpp = indexTeam(prevMatchState.opponent?.team);
+    const nextOpp = indexTeam(matchState.opponent?.team);
+
+    const events: ReplayItem[] = [];
+
+    const scan = (prevMap: Map<string, BattleRoachy>, nextMap: Map<string, BattleRoachy>, side: "left" | "right") => {
+      for (const [id, nextR] of nextMap.entries()) {
+        const prevR = prevMap.get(id);
+        if (!prevR || !nextR) continue;
+
+        const prevHp = Number(prevR.hp ?? prevR.maxHp ?? 0);
+        const nextHp = Number(nextR.hp ?? nextR.maxHp ?? 0);
+        const name = String(nextR.name ?? "Roachy");
+
+        if (Number.isFinite(prevHp) && Number.isFinite(nextHp) && prevHp !== nextHp) {
+          const delta = nextHp - prevHp;
+
+          if (delta < 0) {
+            const dmg = Math.abs(delta);
+            pushFloat({ text: `-${dmg}`, kind: "DMG", side });
+            playSfx("hit");
+            shakeOnce();
+            Vibration.vibrate(12);
+
+            events.push({
+              key: `${Date.now()}_${id}_dmg`,
+              label: `${name} took ${dmg}`,
+              side,
+              tone: "event",
+            });
+          } else if (delta > 0) {
+            pushFloat({ text: `+${delta}`, kind: "HEAL", side });
+            playSfx("heal");
+            events.push({
+              key: `${Date.now()}_${id}_heal`,
+              label: `${name} healed ${delta}`,
+              side,
+              tone: "event",
+            });
+          }
+        }
+
+        const prevAlive = Boolean(prevR.isAlive ?? (Number(prevR.hp ?? 1) > 0));
+        const nextAlive = Boolean(nextR.isAlive ?? (Number(nextR.hp ?? 1) > 0));
+
+        if (prevAlive && !nextAlive) {
+          pushFloat({ text: "KO!", kind: "KO", side });
+          playSfx("ko");
+          Vibration.vibrate([0, 25, 60, 25]);
+
+          events.push({
+            key: `${Date.now()}_${id}_ko`,
+            label: `${name} KO!`,
+            side,
+            tone: "event",
+          });
+        }
+      }
+    };
+
+    scan(prevPlayer, nextPlayer, "left");
+    scan(prevOpp, nextOpp, "right");
+
+    if (events.length) {
+      setReplayItems((cur) => {
+        const merged = [...cur, ...events];
+        return merged.slice(-12);
+      });
+    }
+  }, [matchState, prevMatchState, playSfx, pushFloat, shakeOnce]);
 
   useEffect(() => {
     if (!matchId) return;
@@ -715,7 +844,7 @@ export function BattleMatchScreen() {
           </View>
         </View>
 
-        <View style={styles.arenaStage}>
+        <Animated.View style={[styles.arenaStage, { transform: [{ translateX: arenaShake }] }]}>
           <RoachyFighter
             side="left"
             roachy={playerActive}
@@ -746,7 +875,15 @@ export function BattleMatchScreen() {
             isActive
             hpDeltaTriggerKey={matchState.turn}
           />
-        </View>
+
+          {combatFloats.map((floatEvent) => (
+            <FloatingCombatText
+              key={floatEvent.id}
+              event={floatEvent}
+              onDone={removeFloat}
+            />
+          ))}
+        </Animated.View>
 
         <View style={styles.enemySide}>
           <Text style={styles.sideLabel}>
@@ -768,6 +905,8 @@ export function BattleMatchScreen() {
           <Text style={styles.targetHint}>Target: {aliveEnemyRoachies[selectedTargetIndex]?.name || "Select"}</Text>
         </View>
       </View>
+
+      <TurnReplayStrip items={replayItems} />
 
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
         {selectedRoachy && selectedRoachy.isAlive ? (

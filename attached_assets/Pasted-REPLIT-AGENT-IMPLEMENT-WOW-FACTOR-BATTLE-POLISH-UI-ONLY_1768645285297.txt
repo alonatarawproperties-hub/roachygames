@@ -1,0 +1,494 @@
+REPLIT AGENT — IMPLEMENT “WOW FACTOR” BATTLE POLISH (UI ONLY, NO SERVER CHANGES)
+
+NON-NEGOTIABLE RULES
+- DO NOT touch server routes, DB, matchmaking, payload formats, or submit-turn semantics.
+- This is strictly UI/feedback polish on the client based on existing matchState changes.
+- Keep everything type-safe, no new dependencies.
+
+========================================================
+1) ADD FILE: client/hooks/usePrevious.ts
+========================================================
+Create this file:
+
+--- client/hooks/usePrevious.ts ---
+import { useEffect, useRef } from "react";
+
+export function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T | undefined>(undefined);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref.current;
+}
+
+========================================================
+2) ADD FILE: client/components/battle/FloatingCombatText.tsx
+========================================================
+Create folders if missing: client/components/battle/
+
+--- client/components/battle/FloatingCombatText.tsx ---
+import React, { useEffect, useMemo, useRef } from "react";
+import { Animated, StyleSheet, Text } from "react-native";
+
+export type CombatFloatKind = "DMG" | "HEAL" | "BUFF" | "DEBUFF" | "KO";
+export type CombatFloatSide = "left" | "right";
+
+export type CombatFloatEvent = {
+  id: string;
+  text: string;
+  kind: CombatFloatKind;
+  side: CombatFloatSide;
+  ts: number;
+};
+
+type Props = {
+  event: CombatFloatEvent;
+  onDone?: (id: string) => void;
+  /**
+   * Optional positioning override.
+   * If omitted, component uses a nice default near the middle of each side.
+   */
+  anchor?: { topPct?: number; leftPct?: number; rightPct?: number };
+};
+
+function colorFor(kind: CombatFloatKind) {
+  switch (kind) {
+    case "DMG":
+      return "#FF6A2E";
+    case "HEAL":
+      return "#32D583";
+    case "BUFF":
+      return "#F9D66D";
+    case "DEBUFF":
+      return "#B58CFF";
+    case "KO":
+      return "#FFFFFF";
+    default:
+      return "#FFFFFF";
+  }
+}
+
+function fontSizeFor(kind: CombatFloatKind) {
+  if (kind === "KO") return 26;
+  return 18;
+}
+
+export default function FloatingCombatText({ event, onDone, anchor }: Props) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.9)).current;
+
+  const sideOffset = useMemo(() => {
+    // Slight sideways drift: left floats drift left, right floats drift right
+    return event.side === "left" ? -18 : 18;
+  }, [event.side]);
+
+  useEffect(() => {
+    translateY.setValue(0);
+    translateX.setValue(0);
+    opacity.setValue(0);
+    scale.setValue(0.9);
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 90, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 650, useNativeDriver: true }),
+      ]),
+      Animated.timing(translateY, { toValue: -34, duration: 820, useNativeDriver: true }),
+      Animated.timing(translateX, { toValue: sideOffset, duration: 820, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.08, duration: 120, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.0, duration: 700, useNativeDriver: true }),
+      ]),
+    ]).start(({ finished }) => {
+      if (finished) onDone?.(event.id);
+    });
+  }, [event.id, event.kind, event.side, event.text, onDone, opacity, scale, translateX, translateY, sideOffset]);
+
+  const color = colorFor(event.kind);
+
+  // Default anchors place text near mid-height of each side panel.
+  const topPct = anchor?.topPct ?? 46;
+  const leftPct = anchor?.leftPct;
+  const rightPct = anchor?.rightPct;
+
+  const absStyle = [
+    styles.abs,
+    { top: `${topPct}%` as any },
+    event.side === "left"
+      ? { left: `${leftPct ?? 16}%` as any }
+      : { right: `${rightPct ?? 16}%` as any },
+  ];
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        absStyle,
+        {
+          opacity,
+          transform: [{ translateX }, { translateY }, { scale }],
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.text,
+          {
+            color,
+            fontSize: fontSizeFor(event.kind),
+          },
+          event.kind === "KO" ? styles.koText : null,
+        ]}
+      >
+        {event.text}
+      </Text>
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  abs: {
+    position: "absolute",
+    zIndex: 9999,
+  },
+  text: {
+    fontWeight: "900",
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+    letterSpacing: 0.2,
+  },
+  koText: {
+    textTransform: "uppercase",
+  },
+});
+
+========================================================
+3) ADD FILE: client/components/battle/TurnReplayStrip.tsx
+========================================================
+Create this file:
+
+--- client/components/battle/TurnReplayStrip.tsx ---
+import React from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+
+export type ReplayItem = {
+  key: string;
+  label: string;
+  side: "left" | "right";
+  tone?: "planned" | "event";
+};
+
+type Props = {
+  items: ReplayItem[];
+};
+
+export default function TurnReplayStrip({ items }: Props) {
+  if (!items?.length) return null;
+
+  const last = items.slice(-8); // keep it clean
+  return (
+    <View style={styles.wrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+        {last.map((it, idx) => {
+          const isOld = idx < Math.max(0, last.length - 5);
+          const isPlanned = it.tone === "planned";
+          return (
+            <View
+              key={it.key}
+              style={[
+                styles.chip,
+                it.side === "left" ? styles.leftChip : styles.rightChip,
+                isOld ? styles.old : null,
+                isPlanned ? styles.planned : null,
+              ]}
+            >
+              <Text style={[styles.text, isPlanned ? styles.plannedText : null]} numberOfLines={1}>
+                {it.label}
+              </Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  row: {
+    gap: 8,
+    paddingHorizontal: 10,
+  },
+  chip: {
+    maxWidth: 260,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+  },
+  leftChip: {
+    borderColor: "rgba(185,140,255,0.35)",
+  },
+  rightChip: {
+    borderColor: "rgba(64,196,255,0.35)",
+  },
+  text: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  old: {
+    opacity: 0.65,
+  },
+  planned: {
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderStyle: "dashed",
+  },
+  plannedText: {
+    opacity: 0.9,
+  },
+});
+
+========================================================
+4) MODIFY: client/screens/BattleMatchScreen.tsx
+========================================================
+Implement:
+- floating damage/heal/KO popups
+- center micro screen-shake on impact
+- replay strip “what happened this turn”
+- SFX hooks (no actual audio files)
+NO server edits.
+
+A) IMPORTS
+At top, add these imports (merge with existing imports):
+- Animated, Vibration (from react-native)
+- usePrevious
+- FloatingCombatText + CombatFloatEvent
+- TurnReplayStrip + ReplayItem
+
+Example:
+
+import { Animated, Vibration } from "react-native";
+import { usePrevious } from "../hooks/usePrevious"; // adjust path if needed
+import FloatingCombatText, { CombatFloatEvent } from "../components/battle/FloatingCombatText";
+import TurnReplayStrip, { ReplayItem } from "../components/battle/TurnReplayStrip";
+
+(Adjust relative paths depending on your current file structure.)
+
+B) STATE + HELPERS (place near other state hooks)
+Add:
+
+const prevMatchState = usePrevious(matchState);
+
+const [combatFloats, setCombatFloats] = React.useState<CombatFloatEvent[]>([]);
+const [replayItems, setReplayItems] = React.useState<ReplayItem[]>([]);
+
+// Micro shake (arena center / whole battle area)
+const arenaShake = React.useRef(new Animated.Value(0)).current;
+
+// Planned actions tracking (optional but adds “pro” feel)
+const plannedKeysRef = React.useRef<Set<string>>(new Set());
+
+const playSfx = React.useCallback((key: "tap" | "lock" | "hit" | "heal" | "ko") => {
+  // no-op hook (wire real audio later)
+  // console.log("SFX", key);
+}, []);
+
+const pushFloat = React.useCallback((e: Omit<CombatFloatEvent, "id" | "ts">) => {
+  const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const ev: CombatFloatEvent = { id, ts: Date.now(), ...e };
+  setCombatFloats((cur) => [...cur, ev]);
+}, []);
+
+const removeFloat = React.useCallback((id: string) => {
+  setCombatFloats((cur) => cur.filter((x) => x.id !== id));
+}, []);
+
+const shakeOnce = React.useCallback(() => {
+  arenaShake.setValue(0);
+  Animated.sequence([
+    Animated.timing(arenaShake, { toValue: -6, duration: 50, useNativeDriver: true }),
+    Animated.timing(arenaShake, { toValue: 6, duration: 60, useNativeDriver: true }),
+    Animated.timing(arenaShake, { toValue: -4, duration: 50, useNativeDriver: true }),
+    Animated.timing(arenaShake, { toValue: 4, duration: 50, useNativeDriver: true }),
+    Animated.timing(arenaShake, { toValue: 0, duration: 60, useNativeDriver: true }),
+  ]).start();
+}, [arenaShake]);
+
+// helper to index roachies by id
+const indexTeam = (team: any[] | undefined) => {
+  const m = new Map<string, any>();
+  (team || []).forEach((r) => {
+    if (r?.id) m.set(r.id, r);
+  });
+  return m;
+};
+
+C) TURN RESET LOGIC
+Add a useEffect that clears replay on new turn / phase:
+
+React.useEffect(() => {
+  if (!prevMatchState || !matchState) return;
+
+  const turnChanged = prevMatchState.turn !== matchState.turn;
+  const phaseChanged = prevMatchState.phase !== matchState.phase;
+
+  if (turnChanged || phaseChanged) {
+    setReplayItems([]);
+    plannedKeysRef.current.clear();
+  }
+}, [matchState, prevMatchState]);
+
+D) COMBAT EVENT DIFF DETECTION (THE MAIN WOW)
+Add another useEffect:
+
+React.useEffect(() => {
+  if (!prevMatchState || !matchState) return;
+
+  // Index old/new teams
+  const prevPlayer = indexTeam(prevMatchState.player?.team);
+  const nextPlayer = indexTeam(matchState.player?.team);
+  const prevOpp = indexTeam(prevMatchState.opponent?.team);
+  const nextOpp = indexTeam(matchState.opponent?.team);
+
+  const events: ReplayItem[] = [];
+
+  const scan = (prevMap: Map<string, any>, nextMap: Map<string, any>, side: "left" | "right") => {
+    for (const [id, nextR] of nextMap.entries()) {
+      const prevR = prevMap.get(id);
+      if (!prevR || !nextR) continue;
+
+      const prevHp = Number(prevR.hp ?? prevR.maxHp ?? 0);
+      const nextHp = Number(nextR.hp ?? nextR.maxHp ?? 0);
+      const name = String(nextR.name ?? "Roachy");
+
+      if (Number.isFinite(prevHp) && Number.isFinite(nextHp) && prevHp !== nextHp) {
+        const delta = nextHp - prevHp;
+
+        if (delta < 0) {
+          const dmg = Math.abs(delta);
+          pushFloat({ text: `-${dmg}`, kind: "DMG", side });
+          playSfx("hit");
+          shakeOnce();
+          Vibration.vibrate(12);
+
+          events.push({
+            key: `${Date.now()}_${id}_dmg`,
+            label: `${name} took ${dmg}`,
+            side,
+            tone: "event",
+          });
+        } else if (delta > 0) {
+          pushFloat({ text: `+${delta}`, kind: "HEAL", side });
+          playSfx("heal");
+          events.push({
+            key: `${Date.now()}_${id}_heal`,
+            label: `${name} healed ${delta}`,
+            side,
+            tone: "event",
+          });
+        }
+      }
+
+      // KO detection: isAlive true -> false (or fallback: hp <= 0)
+      const prevAlive = Boolean(prevR.isAlive ?? (Number(prevR.hp ?? 1) > 0));
+      const nextAlive = Boolean(nextR.isAlive ?? (Number(nextR.hp ?? 1) > 0));
+
+      if (prevAlive && !nextAlive) {
+        pushFloat({ text: "KO!", kind: "KO", side });
+        playSfx("ko");
+        Vibration.vibrate([0, 25, 60, 25]);
+
+        events.push({
+          key: `${Date.now()}_${id}_ko`,
+          label: `${name} KO!`,
+          side,
+          tone: "event",
+        });
+      }
+    }
+  };
+
+  scan(prevPlayer, nextPlayer, "left");
+  scan(prevOpp, nextOpp, "right");
+
+  if (events.length) {
+    setReplayItems((cur) => {
+      const merged = [...cur, ...events];
+      return merged.slice(-12);
+    });
+  }
+}, [matchState, prevMatchState, playSfx, pushFloat, shakeOnce]);
+
+E) OPTIONAL: PLANNED ACTION CHIPS (when user selects action)
+Wherever you handle “select action” (your renderActionButton onPress), add:
+- playSfx("tap")
+- add planned chip “Planned: {roachy} -> {move}” once per roachy per turn
+
+Example inside your action button handler (pseudo, adapt to your real handler):
+const planKey = `${matchState.turn}_${selectedRoachy.id}`;
+if (!plannedKeysRef.current.has(planKey)) {
+  plannedKeysRef.current.add(planKey);
+}
+setReplayItems((cur) => [
+  ...cur,
+  {
+    key: `${Date.now()}_${planKey}_${actionType}`,
+    label: `Planned: ${selectedRoachy.name} → ${label}`,
+    side: "left",
+    tone: "planned",
+  },
+].slice(-12));
+
+F) CLEAR “PLANNED” ON LOCK IN
+Inside handleLockIn before mutation:
+playSfx("lock")
+setReplayItems((cur) => cur.filter((x) => x.tone !== "planned"));
+
+G) RENDERING (IMPORTANT)
+1) Wrap your battle area (or entire container) with Animated translateX using arenaShake.
+You can apply to the “battleArea” container so it feels punchy but not nauseating:
+
+Replace:
+<View style={styles.battleArea}>
+With:
+<Animated.View style={[styles.battleArea, { transform: [{ translateX: arenaShake }] }]}>
+And close tag accordingly.
+
+2) Add floating texts to the screen (absolute) near each side:
+Put this near the end of your main <View style={styles.container}> but BEFORE closing container tag:
+
+{combatFloats.map((ev) => (
+  <FloatingCombatText
+    key={ev.id}
+    event={ev}
+    onDone={removeFloat}
+    anchor={
+      ev.side === "left"
+        ? { topPct: 46, leftPct: 18 }
+        : { topPct: 46, rightPct: 18 }
+    }
+  />
+))}
+
+3) Add replay strip just above bottom bar OR between momentum row and battleArea.
+Best placement: after momentumRow and before battleArea:
+
+<TurnReplayStrip items={replayItems} />
+
+========================================================
+DONE — Acceptance check
+========================================================
+- When matchState HP changes: floating “-X” / “+X” appears on the correct side + shake.
+- When KO occurs: “KO!” appears + replay chip.
+- Replay strip shows readable events for the current turn.
+- No server edits, no payload edits, no matchmaking edits.
+
+END.
