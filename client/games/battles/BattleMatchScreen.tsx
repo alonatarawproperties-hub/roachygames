@@ -689,7 +689,7 @@ export function BattleMatchScreen() {
         )}
         <View style={styles.roachyCardHeader}>
           <View style={[styles.classIcon, { backgroundColor: classColor }]}>
-            <Feather name={CLASS_ICONS[roachy.class]} size={14} color="#FFFFFF" />
+            <Feather name={CLASS_ICONS[roachy.class]} size={10} color="#FFFFFF" />
           </View>
           <Text style={styles.roachyName} numberOfLines={1}>{roachy.name}</Text>
           {hasAction && isPlayer && (
@@ -1165,16 +1165,18 @@ const styles = StyleSheet.create({
   roachyCard: {
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    borderWidth: 2,
+    padding: Spacing.xs,
+    borderWidth: 1,
     borderColor: GameColors.surfaceElevated,
-    minWidth: 120,
+    minWidth: 100,
+    maxWidth: 130,
   },
   roachyCardSelected: {
     borderColor: GameColors.gold,
+    borderWidth: 2,
     shadowColor: GameColors.gold,
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
@@ -1201,16 +1203,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   classIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
   },
   roachyName: {
     flex: 1,
     color: GameColors.textPrimary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   hpBarContainer: {
@@ -1452,18 +1454,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     backgroundColor: GameColors.primary,
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing["2xl"],
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+    shadowColor: GameColors.primary,
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+    minWidth: 130,
+    justifyContent: "center",
   },
   lockInButtonDisabled: {
     backgroundColor: GameColors.surfaceElevated,
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   lockInText: {
     color: GameColors.background,
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   perfectReadPopup: {
     position: "absolute",
