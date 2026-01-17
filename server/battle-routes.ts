@@ -636,17 +636,33 @@ export function registerBattleRoutes(app: Express) {
         return res.status(403).json({ success: false, error: "Not a player in this match" });
       }
       
-      const battleTeam: BattleRoachy[] = team.map((r: any) => ({
-        id: r.id,
-        instanceId: r.instanceId || generateInstanceId(),
-        name: r.name,
-        roachyClass: r.roachyClass,
-        rarity: r.rarity,
-        stats: r.stats,
-        skillA: r.skillA,
-        skillB: r.skillB,
-        isKO: false,
-      }));
+      // Handle team as array of IDs (strings) or full roachies
+      let battleTeam: BattleRoachy[];
+      if (typeof team[0] === 'string') {
+        // Team is array of roachyIds - look up full roachies from roster
+        const roster = createMockRoster(playerId);
+        const roachyMap = new Map(roster.map(r => [r.id, r]));
+        battleTeam = team.map((id: string) => {
+          const roachy = roachyMap.get(id);
+          if (!roachy) {
+            throw new Error(`Roachy not found: ${id}`);
+          }
+          return { ...roachy, isKO: false };
+        });
+      } else {
+        // Team is array of full roachies
+        battleTeam = team.map((r: any) => ({
+          id: r.id,
+          instanceId: r.instanceId || generateInstanceId(),
+          name: r.name,
+          roachyClass: r.roachyClass,
+          rarity: r.rarity,
+          stats: r.stats,
+          skillA: r.skillA,
+          skillB: r.skillB,
+          isKO: false,
+        }));
+      }
       
       if (isPlayer1) {
         match.player1.team = battleTeam;
