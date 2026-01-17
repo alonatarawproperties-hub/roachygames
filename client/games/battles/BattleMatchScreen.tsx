@@ -19,7 +19,9 @@ import { getApiUrl, apiRequest, queryClient } from "@/lib/query-client";
 import { useAuth } from "@/context/AuthContext";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { BattleArenaStage } from "@/components/BattleArenaStage";
+import { ArenaBackground } from "@/components/battle/ArenaBackground";
+import { RoachyFighter } from "@/components/battle/RoachyFighter";
+import { SkillCard } from "@/components/battle/SkillCard";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 type RoachyClass = "TANK" | "ASSASSIN" | "MAGE" | "SUPPORT";
@@ -659,6 +661,8 @@ export function BattleMatchScreen() {
 
   return (
     <View style={[styles.container, { paddingLeft: insets.left, paddingRight: insets.right }]}>
+      <ArenaBackground />
+      
       {showPerfectRead && (
         <Animated.View style={[styles.perfectReadPopup, { opacity: perfectReadAnim }]}>
           <Text style={styles.perfectReadText}>PERFECT READ!</Text>
@@ -709,38 +713,40 @@ export function BattleMatchScreen() {
               )
             )}
           </View>
-
-          {selectedRoachy && selectedRoachy.isAlive && (
-            <View style={styles.actionsPanel}>
-              <Text style={styles.actionLabel}>Actions for {selectedRoachy.name}</Text>
-              <View style={styles.actionButtons}>
-                {renderActionButton("Basic Attack", "BASIC_ATTACK", "PIERCE")}
-                {renderActionButton(
-                  selectedRoachy.skillA.name,
-                  "SKILL_A",
-                  selectedRoachy.skillA.type,
-                  selectedRoachy.cooldowns.skillA
-                )}
-                {renderActionButton(
-                  selectedRoachy.skillB.name,
-                  "SKILL_B",
-                  selectedRoachy.skillB.type,
-                  selectedRoachy.cooldowns.skillB
-                )}
-                {renderActionButton("Guard", "GUARD", "GUARD")}
-                {renderActionButton("Focus", "FOCUS", "FOCUS")}
-                {finisherReady && renderActionButton("FINISHER", "FINISHER", "BURST")}
-              </View>
-            </View>
-          )}
         </View>
 
-        <BattleArenaStage
-          playerActive={playerActive}
-          opponentActive={opponentActive}
-          finisherReady={finisherReady}
-          isLocked={isLocked}
-        />
+        <View style={styles.arenaStage}>
+          <RoachyFighter
+            side="left"
+            roachy={playerActive}
+            isActive
+            hpDeltaTriggerKey={matchState.turn}
+          />
+
+          <View style={styles.vsContainer}>
+            <Animated.View style={[styles.vsIcon, { transform: [{ scale: pulseAnim }] }]}>
+              <Feather name="target" size={32} color={GameColors.gold} />
+            </Animated.View>
+            {finisherReady && (
+              <View style={styles.finisherBadgeNew}>
+                <Text style={styles.finisherBadgeNewText}>FINISHER!</Text>
+              </View>
+            )}
+            {isLocked && (
+              <View style={styles.waitingBadge}>
+                <Feather name="loader" size={14} color={GameColors.textSecondary} />
+                <Text style={styles.waitingText}>Resolving...</Text>
+              </View>
+            )}
+          </View>
+
+          <RoachyFighter
+            side="right"
+            roachy={opponentActive}
+            isActive
+            hpDeltaTriggerKey={matchState.turn}
+          />
+        </View>
 
         <View style={styles.enemySide}>
           <Text style={styles.sideLabel}>
@@ -759,16 +765,77 @@ export function BattleMatchScreen() {
               )
             )}
           </View>
-          <Text style={styles.targetHint}>Tap to select target</Text>
+          <Text style={styles.targetHint}>Target: {aliveEnemyRoachies[selectedTargetIndex]?.name || "Select"}</Text>
         </View>
       </View>
 
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
-        <View style={styles.actionsSummary}>
-          <Text style={styles.summaryText}>
-            {actions.size}/{alivePlayerRoachies.length} Actions Selected
-          </Text>
-        </View>
+        {selectedRoachy && selectedRoachy.isAlive ? (
+          <View style={styles.skillCardsContainer}>
+            <View style={styles.mainSkillCards}>
+              <SkillCard
+                title="Basic"
+                typeLabel="PIERCE"
+                cooldown={0}
+                disabled={isLocked}
+                selected={actions.get(selectedRoachy.id)?.actionType === "BASIC_ATTACK"}
+                onPress={() => handleActionSelect("BASIC_ATTACK")}
+              />
+              <SkillCard
+                title={selectedRoachy.skillA.name}
+                typeLabel={selectedRoachy.skillA.type}
+                cooldown={selectedRoachy.cooldowns.skillA}
+                disabled={isLocked}
+                selected={actions.get(selectedRoachy.id)?.actionType === "SKILL_A"}
+                onPress={() => handleActionSelect("SKILL_A")}
+              />
+              <SkillCard
+                title={selectedRoachy.skillB.name}
+                typeLabel={selectedRoachy.skillB.type}
+                cooldown={selectedRoachy.cooldowns.skillB}
+                disabled={isLocked}
+                selected={actions.get(selectedRoachy.id)?.actionType === "SKILL_B"}
+                onPress={() => handleActionSelect("SKILL_B")}
+              />
+            </View>
+            <View style={styles.utilitySkillCards}>
+              <SkillCard
+                title="Guard"
+                typeLabel="GUARD"
+                cooldown={0}
+                disabled={isLocked}
+                selected={actions.get(selectedRoachy.id)?.actionType === "GUARD"}
+                onPress={() => handleActionSelect("GUARD")}
+                size="small"
+              />
+              <SkillCard
+                title="Focus"
+                typeLabel="FOCUS"
+                cooldown={0}
+                disabled={isLocked}
+                selected={actions.get(selectedRoachy.id)?.actionType === "FOCUS"}
+                onPress={() => handleActionSelect("FOCUS")}
+                size="small"
+              />
+              {finisherReady && (
+                <SkillCard
+                  title="FINISHER"
+                  typeLabel="BURST"
+                  cooldown={0}
+                  disabled={isLocked}
+                  selected={actions.get(selectedRoachy.id)?.actionType === "FINISHER"}
+                  onPress={() => handleActionSelect("FINISHER")}
+                  size="small"
+                />
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.noActionHint}>
+            <Text style={styles.noActionText}>Select a roachy to assign actions</Text>
+          </View>
+        )}
+
         <Pressable
           style={[
             styles.lockInButton,
@@ -777,13 +844,13 @@ export function BattleMatchScreen() {
           onPress={handleLockIn}
           disabled={!allActionsSelected || isLocked || submitTurnMutation.isPending}
         >
-          {submitTurnMutation.isPending ? (
+          {submitTurnMutation.isPending || isLocked ? (
             <Feather name="loader" size={20} color={GameColors.background} />
           ) : (
             <Feather name="check" size={20} color={GameColors.background} />
           )}
           <Text style={styles.lockInText}>
-            {isLocked ? "Locked" : "Lock In"}
+            {isLocked ? "Waiting..." : "Lock In"}
           </Text>
         </Pressable>
       </View>
@@ -1140,6 +1207,77 @@ const styles = StyleSheet.create({
     color: GameColors.textTertiary,
     fontSize: 10,
     marginTop: Spacing.xs,
+  },
+  arenaStage: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+    minWidth: 280,
+  },
+  vsContainer: {
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  vsIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 2,
+    borderColor: "rgba(245,192,77,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  finisherBadgeNew: {
+    backgroundColor: "rgba(245,192,77,0.2)",
+    borderWidth: 1,
+    borderColor: GameColors.gold,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  finisherBadgeNewText: {
+    color: GameColors.gold,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  waitingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  waitingText: {
+    color: GameColors.textSecondary,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  skillCardsContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  mainSkillCards: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  utilitySkillCards: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  noActionHint: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  noActionText: {
+    color: GameColors.textTertiary,
+    fontSize: 12,
   },
   bottomBar: {
     flexDirection: "row",
