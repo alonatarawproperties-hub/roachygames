@@ -8,16 +8,16 @@ import { getApiUrl } from "@/lib/query-client";
 
 interface LeaderboardEntry {
   rank: number;
-  username: string;
+  walletAddress: string;
+  displayName: string | null;
   points: number;
   perfects: number;
-  isCurrentUser: boolean;
+  eggsTotal: number;
 }
 
 interface LeaderboardData {
   weekKey: string;
-  rankings: LeaderboardEntry[];
-  currentUserRank: number | null;
+  leaderboard: LeaderboardEntry[];
 }
 
 const getRankStyle = (rank: number) => {
@@ -62,9 +62,10 @@ export function HuntLeaderboard() {
   const renderItem = ({ item }: { item: LeaderboardEntry }) => {
     const rankStyle = getRankStyle(item.rank);
     const isTopThree = item.rank <= 3;
+    const displayName = item.displayName || item.walletAddress.slice(0, 8) + "...";
 
     return (
-      <View style={[styles.entryRow, item.isCurrentUser && styles.currentUserRow]}>
+      <View style={styles.entryRow}>
         <View style={[styles.rankBadge, { backgroundColor: rankStyle.bg }]}>
           {isTopThree ? (
             <Feather name="award" size={12} color={rankStyle.text} />
@@ -75,15 +76,15 @@ export function HuntLeaderboard() {
           )}
         </View>
         <View style={styles.userInfo}>
-          <ThemedText style={[styles.username, item.isCurrentUser && styles.currentUsername]}>
-            {item.username}
+          <ThemedText style={styles.username}>
+            {displayName}
           </ThemedText>
           <ThemedText style={styles.perfectsText}>
             {item.perfects} perfects
           </ThemedText>
         </View>
         <View style={styles.valueContainer}>
-          <ThemedText style={[styles.valueText, item.isCurrentUser && styles.currentValueText]}>
+          <ThemedText style={styles.valueText}>
             {item.points.toLocaleString()}
           </ThemedText>
           <ThemedText style={styles.unitText}>pts</ThemedText>
@@ -121,7 +122,7 @@ export function HuntLeaderboard() {
         </ThemedText>
       </Card>
 
-      {data.rankings.length === 0 ? (
+      {data.leaderboard.length === 0 ? (
         <Card style={styles.emptyCard}>
           <Feather name="users" size={48} color={GameColors.textSecondary} />
           <ThemedText style={styles.emptyText}>No hunters this week yet!</ThemedText>
@@ -129,7 +130,7 @@ export function HuntLeaderboard() {
         </Card>
       ) : (
         <FlatList
-          data={data.rankings}
+          data={data.leaderboard}
           renderItem={renderItem}
           keyExtractor={(item) => `rank-${item.rank}`}
           contentContainerStyle={styles.listContent}
