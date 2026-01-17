@@ -1,0 +1,246 @@
+REPLIT ARCHITECT PROMPT — ROACHY BATTLES (PRODUCTION v1)  
+GOAL: Ship a polished, Axie-level-feeling “version 1” in a few days. Fix the PRODUCTION battle flow bugs + overhaul UI/UX (esp. Landscape battle) WITHOUT breaking existing logic.
+
+========================================================
+A) CRITICAL BUG FIXES (PRODUCTION)
+========================================================
+
+1) FIX: “Failed to submit turn. Please try again.” on Turn 0/8
+Symptoms (from iOS screenshots):
+- Turn shows 0/8 (should start at 1)
+- Player arena/left side sometimes empty
+- Lock In visible but submit fails
+
+TASK A1 — Make submit-turn endpoint accept BOTH formats (backward compatible)
+File: server/battle-routes.ts  (submit-turn endpoint around line ~707)
+Problem: client may send `actions: RoachyAction[]` but server expects `action`.
+Fix: Accept `action` OR `actions` and normalize to a single action or list, then proceed.
+
+Implementation requirement:
+- Parse body: `{ playerId, matchId, action, actions }`
+- If `action` exists -> use it
+- Else if `actions` is array -> use the array OR first action depending on server logic
+- Update validations: don’t fail when `action` is missing if `actions` exists
+- Return clear JSON on errors: `{ success:false, error:"..." }`
+
+TASK A2 — Ensure match initialization starts at turn=1 and includes player team properly
+File: server/battle-routes.ts (match creation / initialization)
+- Ensure newly created match has:
+  - `currentTurn` starts at 1 (not 0)
+  - player1/team arrays always populated (3 roachies)
+  - activeIndex valid (0)
+- Add guardrails:
+  - If team missing/empty -> rebuild from battle-config starter roachies
+  - If activeIndex out of bounds -> set to 0
+
+TASK A3 — Fix client query response shape mismatch (prevent crashes / undefined fields)
+File: client/games/battles/BattleMatchScreen.tsx
+Problem: server returns `{ success, match }` but client expects `MatchState` directly.
+Fix: in `useQuery`, add `select:` to extract and transform:
+
+- Extract: `data.match`
+- Transform fields:
+  - status -> phase mapping:
+    - 'team_select' => 'SELECTION'
+    - 'active' => 'RESOLUTION'
+    - 'completed' => 'FINISHED'
+  - currentTurn -> turn
+  - player1 -> player
+  - player2 -> opponent
+  - provide defaults: maxTurns (8), turnTimeLeft (server may not send)
+- Transform roachy fields (server -> client):
+  - roachyClass -> class
+  - isKO -> isAlive (invert)
+  - stats nested -> hp/maxHp/atk/def/spd flat
+  - ensure skillA/skillB present with cooldowns
+
+Acceptance:
+- BattleMatchScreen never reads undefined: matchState.phase, matchState.player.team, etc.
+- Turn shows 1/8 at start
+- Submitting a turn succeeds (200) and advances turn
+
+========================================================
+B) UX/UI OVERHAUL (v1 “POLISHED”, AXIE-INSPIRED FEEL)
+========================================================
+
+DESIGN POLICY:
+- Only BattleMatchScreen is LANDSCAPE.
+- Every other battles screen MUST be PORTRAIT (matchmaking, team select, results, victory, battles home).
+- Layout must be compact, readable, “premium”, not oversized.
+- Borders: max 1px. Subtle shadows. Use gradients/glass lightly.
+
+--------------------------------------------------------
+B1) ORIENTATION FIX (STUCK IN LANDSCAPE)
+--------------------------------------------------------
+Problem: Result/Victory screens remain landscape after battle ends.
+
+Implement orientation via navigation focus lifecycle (not just mount):
+Use `useFocusEffect` from `@react-navigation/native` and `expo-screen-orientation`.
+
+Create a helper:
+File: client/utils/orientation.ts (new)
+- `lockLandscape()`
+- `lockPortrait()`
+- `unlockOrientation()`
+- Each function safe-guards try/catch and awaits `ScreenOrientation.lockAsync(...)`
+
+Apply:
+- BattleMatchScreen.tsx: on focus -> lockLandscape; on blur/cleanup -> lockPortrait
+- BattleResultScreen.tsx: on focus -> lockPortrait
+- Any Victory/Results/MatchSummary screen: on focus -> lockPortrait
+- BattlesHomeScreen.tsx: on focus -> lockPortrait
+- TeamSelectScreen.tsx: on focus -> lockPortrait
+- BattleMatchmakingScreen.tsx: on focus -> lockPortrait
+
+Acceptance:
+- After battle ends, you ALWAYS return to portrait automatically.
+- No screen gets stuck landscape.
+
+--------------------------------------------------------
+B2) BATTLE MATCH (LANDSCAPE) — COMPLETE REDESIGN
+--------------------------------------------------------
+Reference: Axie mobile battle: compact side lists + clear center arena + readable skill cards.
+
+File: client/games/battles/BattleMatchScreen.tsx
+
+Layout target (landscape):
+TOP BAR (compact)
+- Forfeit (left)
+- Turn + timer (center)
+- KO score (right)
+- Reduce top padding and height by ~30%
+
+MOMENTUM ROW
+- Keep but slimmer (height reduced), labels smaller
+
+CENTER ARENA (main wow factor)
+- Middle should show 2 “Active Roachy” cards (player active vs enemy active)
+- Each active card:
+  - Large HP bar (full width)
+  - Name + Class badge
+  - ATK/DEF/SPD row
+  - Optional small “status chips” (ALIVE, TANK, etc.)
+
+SIDE LISTS (left & right)
+- Reduce card size by ~40%:
+  - Smaller height
+  - Name + tiny hp bar + atk/def only
+  - Clear selected highlight
+- Must still be tappable easily
+
+SKILL/ACTION PANEL (bottom)
+Problem: skill names truncated + too many buttons in one row.
+Fix:
+- Use 2-row grid or 3-column grid, NOT a long row.
+- Each skill card must show full name:
+  - allow 2 lines
+  - numberOfLines={2}, minimumFontScale
+- Make Lock In button prominent and always visible:
+  - Fixed area bottom-right
+  - Large hitbox
+  - Not hidden by action panel
+- Add “0/3 actions selected” left-bottom but compact
+
+Also:
+- Ensure player team is selectable (if player side empty, show a clear fallback UI + debug info)
+- Don’t break existing action logic; just re-layout.
+
+--------------------------------------------------------
+B3) SKILL CARD COMPONENT FIX (NO TRUNCATION)
+--------------------------------------------------------
+File: client/components/battle/SkillCard.tsx (or wherever skill cards are)
+- Title: allow wrap to 2 lines
+- Avoid hard width that forces “Hast…”
+- Reduce padding and font slightly in landscape
+- Add icon + type tag (PIERCE/BURST/GUARD/FOCUS) but compact
+
+Acceptance:
+- Skill names show fully (or 2 lines) without ugly truncation.
+
+--------------------------------------------------------
+B4) GLOBAL SIZING PASS (EVERYTHING 30–40% TOO BIG)
+--------------------------------------------------------
+Apply consistent scaling:
+- Use `Dimensions.get("window")` and compute a simple scale:
+  - `const s = Math.min(width, height) / 375`
+  - Use `ms(x) = Math.round(x * s)` for paddings/fonts in battles screens
+
+Targets:
+- Reduce padding/margins by ~30%
+- Reduce borderWidth to 1 (max)
+- Reduce corner radius slightly
+- Use subtle shadows (low opacity), avoid thick outlines
+
+--------------------------------------------------------
+B5) BATTLES HOME — FIX “/ wins” BUG + VISUAL POLISH
+--------------------------------------------------------
+File: client/games/battles/BattlesHomeScreen.tsx
+- Fix daily bonus text to show: `0/3 wins` (or `currentWins/3 wins`)
+- Ensure progress bar uses correct fraction
+- Borders thinner, cards less tall
+
+--------------------------------------------------------
+B6) TEAM SELECT — SHOW 4+ CARDS PER SCREEN
+--------------------------------------------------------
+File: client/games/battles/TeamSelectScreen.tsx
+Problem: cards too huge, only ~2.5 visible.
+Fix:
+- Compact card layout:
+  - Smaller header
+  - Stats in a single row (HP/ATK/DEF/SPD compact)
+  - Total stats smaller
+- Use FlatList with tighter item spacing
+- Confirm button stays visible but not oversized
+
+--------------------------------------------------------
+B7) MATCHMAKING SCREEN — BETTER “CANCEL SEARCH”
+--------------------------------------------------------
+File: client/games/battles/BattleMatchmakingScreen.tsx
+- Remove thick pink border
+- Make it premium:
+  - Either solid button with subtle glow
+  - Or thin outline (1px) + stronger label
+- Keep touch area large but not visually huge
+
+========================================================
+C) DO NOT BREAK REQUIREMENTS
+========================================================
+- Do NOT change core battle mechanics (damage, statuses) in this task.
+- Do NOT break server routes used by mobile app.
+- Keep API backward compatible (accept action + actions).
+- Keep existing navigation routes.
+- If any data missing from server, add safe defaults client-side (no crashes).
+
+========================================================
+D) QUICK QA CHECKLIST (MUST PASS)
+========================================================
+1) Start ranked -> team select -> matchmaking -> enter battle
+2) Battle screen is LANDSCAPE only
+3) Skill names readable (no “Hast…”, “Gua…”)
+4) Lock In always visible + submit works
+5) Turn starts at 1/8
+6) After battle -> results/victory returns to PORTRAIT automatically
+7) Battles home daily bonus shows “0/3 wins”
+8) Team select shows 4+ entries without heavy scrolling
+
+========================================================
+FILES TO TOUCH (EXPECTED)
+========================================================
+Server:
+- server/battle-routes.ts
+- server/battle-config.ts (only if starter team fallback needed)
+
+Client:
+- client/games/battles/BattleMatchScreen.tsx
+- client/games/battles/BattleResultScreen.tsx (and victory/results screens)
+- client/games/battles/BattlesHomeScreen.tsx
+- client/games/battles/TeamSelectScreen.tsx
+- client/games/battles/BattleMatchmakingScreen.tsx
+- client/components/battle/SkillCard.tsx
+- client/utils/orientation.ts (new)
+
+DELIVERABLE:
+- Commit with fixes + redesigned layouts
+- Brief notes in commit message: “submit-turn normalization + match init turn=1 + battle landscape UI overhaul + portrait restore”
+
+END.
