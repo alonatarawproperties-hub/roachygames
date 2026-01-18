@@ -1,0 +1,203 @@
+YOU ARE THE REPLIT AGENT. IMPLEMENT “HYBRID PHASE 1 SPAWN LOOP” FOR ROACHY HUNT (PRODUCTION-GRADE).
+
+GOAL (HYBRID LOOP):
+A) HOME SPAWNS: Maintain 3–5 Mystery Eggs within 500m, but only top-up every 10–15 minutes (no infinite respawn).
+B) HOT DROP: Ensure there is always 1 Hot Drop Egg within ~1–3km (timer 8–15 minutes). Shows as a “signal” (distance + direction) so players chase.
+C) UI: When player clears nearby spawns, show “Area Cleared ✅ Next Home Drop in: mm:ss” + “Hot Drop: LIVE (NE, 1.2km, 08:10 left)”.
+
+IMPORTANT CONSTRAINTS:
+- Refresh button must NEVER create new spawns directly.
+- Do NOT remove caughtByWallet filtering behavior.
+- Do NOT change /api/hunt/catch semantics.
+- Keep existing DB table wildCreatureSpawns; avoid migrations if possible.
+- Use templateId to tag spawn types:
+  - "wild_egg_home" for Home spawns
+  - "wild_egg_hotdrop" for Hot Drop spawns
+- Keep existing rarity logic but bias Hot Drops to Rare/Epic.
+
+FILES TO MODIFY:
+1) server/hunt-routes.ts (or wherever /api/hunt/spawns and /api/hunt/spawn live)
+2) client/context/HuntContext.tsx (spawn fetch + refresh + banner meta)
+3) client/screens/HuntScreen.tsx (show Area Cleared + timers + Hot Drop signal)
+4) client/components/MapViewWrapper.tsx (optional: marker glow based on spawn templateId/rarity)
+
+--------------------------------------------------------------------
+STEP 1 — SERVER: Make GET /api/hunt/spawns perform HYBRID “top-up” + “hotdrop ensure”
+--------------------------------------------------------------------
+
+In the GET /api/hunt/spawns handler, change response shape to:
+{ spawns: Spawn[], meta: { home: { target, current, nextTopUpInSec }, hotdrop: { active, distanceM, bearingDeg, expiresInSec } } }
+
+Add constants near the top of hunt-routes.ts:
+- HOME_RADIUS_M = 500
+- HOME_TARGET_MIN = 3
+- HOME_TARGET_MAX = 5 (we’ll top-up to 3, not exceed 5 if you want)
+- HOME_TTL_MIN = 20 (fixed for predictable cooldown checks)
+- HOME_TOPUP_COOLDOWN_MIN = 12 (top-up allowed every 12 minutes)
+- HOTDROP_MIN_DIST_M = 900
+- HOTDROP_MAX_DIST_M = 3000
+- HOTDROP_TTL_MIN = 12
+- HOTDROP_COOLDOWN_MIN = 8 (if none exists and last one was recent, wait a bit)
+
+Implement helper functions (pure TS, no extra deps):
+1) metersToLatDelta(m): m/1000 / 111.32
+2) metersToLngDelta(m, lat): m/1000 / (111.32 * cos(lat))
+3) getCellBounds(lat,lng, cellMeters):
+   - convert cellMeters to latDelta/lngDelta and return minLat,maxLat,minLng,maxLng
+4) bearingDegrees(fromLat,fromLng,toLat,toLng):
+   - standard bearing formula, output 0..360
+5) haversineMeters(aLat,aLng,bLat,bLng): for meta distance only
+6) randomOffsetMeters(radiusM):
+   - return lat/lng offset using random angle + random distance; convert meters to degrees at given lat
+
+Spawn tagging:
+- When inserting Home spawns: templateId = "wild_egg_home"
+- When inserting Hot Drop spawns: templateId = "wild_egg_hotdrop", name = "Hot Drop Egg"
+
+Cooldown check WITHOUT new DB tables:
+- For “last batch”, query the latest expiresAt in the area for that templateId (home/hotdrop),
+  and infer createdAt = expiresAt - TTL_MINUTES.
+  Since we will set TTL fixed (HOME_TTL_MIN / HOTDROP_TTL_MIN), this is reliable.
+
+SERVER LOGIC DETAIL (inside GET /api/hunt/spawns):
+A) Parse lat/lng and set now.
+B) Expire old spawns as you already do.
+C) Fetch active uncaught spawns in radius HOME_RADIUS_M, limit 20 (keep your existing filter).
+D) HYBRID HOME TOP-UP:
+   - Count “home spawns” currently visible: spawns.filter(s => s.templateId === "wild_egg_home")
+   - If total visible spawns < HOME_TARGET_MIN:
+       - Determine “cell bounds” for cooldown checks using cellMeters = 800 (approx neighborhood).
+       - Query lastHomeExpiresAt:
+           SELECT max(expiresAt) from wildCreatureSpawns
+           WHERE templateId="wild_egg_home"
+             AND latitude between bounds
+             AND longitude between bounds
+       - lastHomeCreatedAt = lastHomeExpiresAt - HOME_TTL_MIN minutes
+       - If no lastHome OR now > lastHomeCreatedAt + HOME_TOPUP_COOLDOWN_MIN minutes:
+           - Create needed = HOME_TARGET_MIN - visibleCount (cap at 5 just in case)
+           - Insert needed rows around player within 50–200m offsets
+           - TTL fixed: expiresAt = now + HOME_TTL_MIN minutes
+E) HOT DROP ENSURE:
+   - Determine “region bounds” using cellMeters = 3500.
+   - Check if there is an active hotdrop in region:
+       SELECT ... WHERE templateId="wild_egg_hotdrop" AND isActive=true AND caughtByWallet is null AND expiresAt > now AND within region bounds LIMIT 1
+   - If none:
+       - Query lastHotExpiresAt in region for templateId="wild_egg_hotdrop"
+       - lastHotCreatedAt = lastHotExpiresAt - HOTDROP_TTL_MIN minutes
+       - If no lastHot OR now > lastHotCreatedAt + HOTDROP_COOLDOWN_MIN minutes:
+           - Create 1 hotdrop at random offset between HOTDROP_MIN_DIST_M..HOTDROP_MAX_DIST_M
+           - TTL fixed: expiresAt = now + HOTDROP_TTL_MIN minutes
+           - Rarity bias: 70% Rare, 25% Epic, 5% Legendary (Phase 1 can still spawn legendary eggs)
+           - creatureClass remains "egg"
+F) Re-fetch spawns (same radius 500m) after potential inserts.
+G) Build meta:
+   - home.current = visible spawns count
+   - home.target = HOME_TARGET_MIN
+   - home.nextTopUpInSec: if cooldown active, compute remaining
+   - hotdrop.active:
+       - if you have an active hotdrop in region, compute distance+ bearing relative to player (use haversine + bearing)
+       - hotdrop.expiresInSec = (expiresAt - now)/1000
+       - IMPORTANT: do NOT reveal exact coordinates in UI; just meta signal is enough.
+
+Implement now.
+
+--------------------------------------------------------------------
+STEP 1A — CODE PATCH (Server)
+--------------------------------------------------------------------
+
+Apply these changes in the existing server file (keep your existing DB calls / drizzle style; below is reference logic you must adapt to your exact drizzle schema names):
+
+- Ensure inserts set templateId to wild_egg_home or wild_egg_hotdrop (not always 'wild_egg').
+
+- Ensure the handler returns:
+res.json({ spawns, meta });
+
+- Make sure your client can still read spawns array.
+
+Also ensure you DO NOT break:
+POST /api/hunt/catch (must still set caughtByWallet and isActive=false)
+POST /api/hunt/spawn (you can keep it but stop calling it from refresh; optionally restrict it for admin/dev only)
+
+--------------------------------------------------------------------
+STEP 2 — CLIENT: Update spawns query to read { spawns, meta }
+--------------------------------------------------------------------
+
+In HuntContext.tsx spawns query, change:
+const data = await response.json();
+const mappedSpawns = (data.spawns || []).map(...)
+
+and store meta too:
+- Add state: const [huntMeta, setHuntMeta] = useState(null)
+- After fetch, setHuntMeta(data.meta || null)
+
+Return huntMeta from useHunt() so HuntScreen can display it.
+
+Also IMPORTANT:
+Remove spawnCreatures() from Refresh button.
+Refresh must ONLY refetch:
+- refreshSpawns()
+- refetchMapNodes()
+
+So:
+onRefresh={() => {
+  refreshSpawns();
+  refetchMapNodes();
+  Haptics.impactAsync(...)
+}}
+
+--------------------------------------------------------------------
+STEP 3 — CLIENT UI: “Area Cleared” + “Next Drop” + “Hot Drop Signal”
+--------------------------------------------------------------------
+
+In HuntScreen.tsx (above MapViewWrapper), render a small banner card when:
+- spawns.length === 0 OR spawns.length < 2
+
+Banner content:
+- Title: "Area Cleared ✅"
+- If huntMeta?.home?.nextTopUpInSec exists:
+   show countdown mm:ss ticking every second (local state timer).
+- Show: "Next Home Drop in: 09:32"
+- If huntMeta?.hotdrop?.active:
+   show: "Hot Drop: LIVE • NE • 1.2km • 08:10 left"
+- Add button “Ping Radar” (cooldown 60s) that just re-centers map and calls refreshSpawns() (NO spawn creation).
+  This is psychological “wow factor” even if it just fetches.
+
+Direction:
+- Convert bearingDeg to N/NE/E/SE/S/SW/W/NW by 8-way mapping.
+
+--------------------------------------------------------------------
+STEP 4 — OPTIONAL: Marker polish for Hot Drop
+--------------------------------------------------------------------
+In MapViewWrapper.tsx for spawns markers:
+- If spawn.templateId === "wild_egg_hotdrop":
+   render a stronger glow / pulse or a different icon (you can reuse your gold-ish egg marker)
+- If spawn.rarity is epic/legendary:
+   add aura ring (simple View with borderColor)
+
+Keep it lightweight.
+
+--------------------------------------------------------------------
+STEP 5 — PRODUCTION SAFETY CHECKS / ACCEPTANCE TESTS
+--------------------------------------------------------------------
+
+1) Spam refresh 20 times:
+- must NOT create new eggs
+- must only refetch
+2) Clear all eggs in 500m:
+- banner shows “Next Home Drop in …”
+- no eggs appear until cooldown passes
+3) Wait 12 minutes:
+- 3 eggs top-up appears near player
+4) Hot Drop:
+- should be discoverable by signal even if outside 500m
+- must expire in ~12 minutes
+5) DB growth:
+- Home spawns limited by cooldown; Hot Drop limited by cooldown; no uncontrolled spam.
+
+Add server logs for:
+- "HOME_TOPUP: inserted X"
+- "HOTDROP: inserted 1"
+- "HOME_COOLDOWN remaining: Ys"
+- "HOTDROP_COOLDOWN remaining: Ys"
+
+DONE. IMPLEMENT NOW, RUN, TEST LOCALLY AND ON PRODUCTION.

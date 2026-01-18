@@ -123,6 +123,73 @@ function getRandomOffset(radiusMeters: number): { lat: number; lng: number } {
   return { lat: latOffset, lng: lngOffset };
 }
 
+// ===== HYBRID SPAWN SYSTEM CONSTANTS =====
+const HOME_RADIUS_M = 500;
+const HOME_TARGET_MIN = 3;
+const HOME_TARGET_MAX = 5;
+const HOME_TTL_MIN = 20; // Fixed TTL for predictable cooldown
+const HOME_TOPUP_COOLDOWN_MIN = 12; // Top-up every 12 minutes
+const HOTDROP_MIN_DIST_M = 900;
+const HOTDROP_MAX_DIST_M = 3000;
+const HOTDROP_TTL_MIN = 12;
+const HOTDROP_COOLDOWN_MIN = 8;
+
+// ===== HYBRID SPAWN HELPER FUNCTIONS =====
+function metersToLatDelta(m: number): number {
+  return (m / 1000) / 111.32;
+}
+
+function metersToLngDelta(m: number, lat: number): number {
+  return (m / 1000) / (111.32 * Math.cos(lat * Math.PI / 180));
+}
+
+function getCellBounds(lat: number, lng: number, cellMeters: number) {
+  const latDelta = metersToLatDelta(cellMeters);
+  const lngDelta = metersToLngDelta(cellMeters, lat);
+  return {
+    minLat: lat - latDelta,
+    maxLat: lat + latDelta,
+    minLng: lng - lngDelta,
+    maxLng: lng + lngDelta,
+  };
+}
+
+function bearingDegrees(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
+  const lat1 = fromLat * Math.PI / 180;
+  const lat2 = toLat * Math.PI / 180;
+  const dLng = (toLng - fromLng) * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  let bearing = Math.atan2(y, x) * 180 / Math.PI;
+  return (bearing + 360) % 360;
+}
+
+function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000; // Earth radius in meters
+  const lat1 = aLat * Math.PI / 180;
+  const lat2 = bLat * Math.PI / 180;
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLng = (bLng - aLng) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function randomOffsetInRing(minM: number, maxM: number, centerLat: number): { lat: number; lng: number } {
+  const angle = Math.random() * 2 * Math.PI;
+  const distance = minM + Math.random() * (maxM - minM);
+  const latOffset = metersToLatDelta(distance) * Math.cos(angle);
+  const lngOffset = metersToLngDelta(distance, centerLat) * Math.sin(angle);
+  return { lat: latOffset, lng: lngOffset };
+}
+
+function selectHotDropRarity(): string {
+  const roll = Math.random();
+  if (roll < 0.05) return 'legendary';
+  if (roll < 0.30) return 'epic';
+  return 'rare';
+}
+
 export function registerHuntRoutes(app: Express) {
   app.post("/api/hunt/location", async (req: Request, res: Response) => {
     try {
@@ -209,11 +276,9 @@ export function registerHuntRoutes(app: Express) {
 
       const lat = parseFloat(latitude as string);
       const lng = parseFloat(longitude as string);
-      const radiusKm = parseFloat(radius as string) / 1000;
-      const latDelta = radiusKm / 111.32;
-      const lngDelta = radiusKm / (111.32 * Math.cos(lat * Math.PI / 180));
       const now = new Date();
 
+      // 1) Expire old spawns
       await db.update(wildCreatureSpawns)
         .set({ isActive: false })
         .where(and(
@@ -221,19 +286,203 @@ export function registerHuntRoutes(app: Express) {
           lte(wildCreatureSpawns.expiresAt, now)
         ));
 
-      const spawns = await db.select().from(wildCreatureSpawns)
+      // 2) Get home bounds (500m) for nearby spawns
+      const homeBounds = getCellBounds(lat, lng, HOME_RADIUS_M);
+      
+      // 3) Fetch active uncaught spawns in home radius
+      let homeSpawns = await db.select().from(wildCreatureSpawns)
         .where(and(
           eq(wildCreatureSpawns.isActive, true),
           isNull(wildCreatureSpawns.caughtByWallet),
-          gte(wildCreatureSpawns.latitude, (lat - latDelta).toString()),
-          lte(wildCreatureSpawns.latitude, (lat + latDelta).toString()),
-          gte(wildCreatureSpawns.longitude, (lng - lngDelta).toString()),
-          lte(wildCreatureSpawns.longitude, (lng + lngDelta).toString()),
+          gte(wildCreatureSpawns.latitude, homeBounds.minLat.toString()),
+          lte(wildCreatureSpawns.latitude, homeBounds.maxLat.toString()),
+          gte(wildCreatureSpawns.longitude, homeBounds.minLng.toString()),
+          lte(wildCreatureSpawns.longitude, homeBounds.maxLng.toString()),
           gte(wildCreatureSpawns.expiresAt, now),
         ))
         .limit(20);
 
-      res.json({ spawns });
+      // Count home spawns vs hotdrops
+      const homeEggCount = homeSpawns.filter(s => s.templateId === 'wild_egg_home' || s.templateId === 'wild_egg').length;
+      
+      // 4) HYBRID HOME TOP-UP
+      let homeNextTopUpInSec: number | null = null;
+      let homeCreated = 0;
+      
+      if (homeEggCount < HOME_TARGET_MIN) {
+        // Check cooldown using last spawn's expiresAt
+        const cooldownBounds = getCellBounds(lat, lng, 800);
+        const [lastHomeSpawn] = await db.select().from(wildCreatureSpawns)
+          .where(and(
+            sql`${wildCreatureSpawns.templateId} IN ('wild_egg_home', 'wild_egg')`,
+            gte(wildCreatureSpawns.latitude, cooldownBounds.minLat.toString()),
+            lte(wildCreatureSpawns.latitude, cooldownBounds.maxLat.toString()),
+            gte(wildCreatureSpawns.longitude, cooldownBounds.minLng.toString()),
+            lte(wildCreatureSpawns.longitude, cooldownBounds.maxLng.toString()),
+          ))
+          .orderBy(desc(wildCreatureSpawns.expiresAt))
+          .limit(1);
+
+        let canTopUp = true;
+        if (lastHomeSpawn && lastHomeSpawn.expiresAt) {
+          const lastCreatedAt = new Date(lastHomeSpawn.expiresAt.getTime() - HOME_TTL_MIN * 60 * 1000);
+          const cooldownEndAt = new Date(lastCreatedAt.getTime() + HOME_TOPUP_COOLDOWN_MIN * 60 * 1000);
+          if (now < cooldownEndAt) {
+            canTopUp = false;
+            homeNextTopUpInSec = Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000);
+            console.log(`[HOME_COOLDOWN] remaining: ${homeNextTopUpInSec}s`);
+          }
+        }
+
+        if (canTopUp) {
+          const needed = Math.min(HOME_TARGET_MIN - homeEggCount, HOME_TARGET_MAX);
+          for (let i = 0; i < needed; i++) {
+            const radius = i === 0 ? 50 : 200;
+            const offset = getRandomOffset(radius);
+            const expiresAt = new Date(now.getTime() + HOME_TTL_MIN * 60 * 1000);
+            const eggTemplate = selectEggByRarity();
+            
+            await db.insert(wildCreatureSpawns).values({
+              latitude: (lat + offset.lat).toString(),
+              longitude: (lng + offset.lng).toString(),
+              templateId: 'wild_egg_home',
+              name: 'Mystery Egg',
+              creatureClass: 'egg',
+              rarity: eggTemplate.rarity,
+              baseHp: 0,
+              baseAtk: 0,
+              baseDef: 0,
+              baseSpd: 0,
+              containedTemplateId: null,
+              expiresAt,
+            });
+            homeCreated++;
+          }
+          console.log(`[HOME_TOPUP] inserted ${homeCreated}`);
+        }
+      }
+
+      // 5) HOT DROP ENSURE
+      const hotdropBounds = getCellBounds(lat, lng, 3500);
+      let hotdropMeta: { active: boolean; distanceM?: number; bearingDeg?: number; expiresInSec?: number; direction?: string } = { active: false };
+      
+      // Check for active hotdrop in region
+      const [activeHotdrop] = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.templateId, 'wild_egg_hotdrop'),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.expiresAt, now),
+          gte(wildCreatureSpawns.latitude, hotdropBounds.minLat.toString()),
+          lte(wildCreatureSpawns.latitude, hotdropBounds.maxLat.toString()),
+          gte(wildCreatureSpawns.longitude, hotdropBounds.minLng.toString()),
+          lte(wildCreatureSpawns.longitude, hotdropBounds.maxLng.toString()),
+        ))
+        .limit(1);
+
+      if (activeHotdrop) {
+        const hdLat = parseFloat(activeHotdrop.latitude);
+        const hdLng = parseFloat(activeHotdrop.longitude);
+        const distM = haversineMeters(lat, lng, hdLat, hdLng);
+        const bearing = bearingDegrees(lat, lng, hdLat, hdLng);
+        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const dirIndex = Math.round(bearing / 45) % 8;
+        
+        hotdropMeta = {
+          active: true,
+          distanceM: Math.round(distM),
+          bearingDeg: Math.round(bearing),
+          direction: directions[dirIndex],
+          expiresInSec: Math.ceil((activeHotdrop.expiresAt!.getTime() - now.getTime()) / 1000),
+        };
+      } else {
+        // Check cooldown for hotdrop
+        const [lastHotdrop] = await db.select().from(wildCreatureSpawns)
+          .where(and(
+            eq(wildCreatureSpawns.templateId, 'wild_egg_hotdrop'),
+            gte(wildCreatureSpawns.latitude, hotdropBounds.minLat.toString()),
+            lte(wildCreatureSpawns.latitude, hotdropBounds.maxLat.toString()),
+            gte(wildCreatureSpawns.longitude, hotdropBounds.minLng.toString()),
+            lte(wildCreatureSpawns.longitude, hotdropBounds.maxLng.toString()),
+          ))
+          .orderBy(desc(wildCreatureSpawns.expiresAt))
+          .limit(1);
+
+        let canSpawnHotdrop = true;
+        if (lastHotdrop && lastHotdrop.expiresAt) {
+          const lastCreatedAt = new Date(lastHotdrop.expiresAt.getTime() - HOTDROP_TTL_MIN * 60 * 1000);
+          const cooldownEndAt = new Date(lastCreatedAt.getTime() + HOTDROP_COOLDOWN_MIN * 60 * 1000);
+          if (now < cooldownEndAt) {
+            canSpawnHotdrop = false;
+            console.log(`[HOTDROP_COOLDOWN] remaining: ${Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000)}s`);
+          }
+        }
+
+        if (canSpawnHotdrop) {
+          const offset = randomOffsetInRing(HOTDROP_MIN_DIST_M, HOTDROP_MAX_DIST_M, lat);
+          const expiresAt = new Date(now.getTime() + HOTDROP_TTL_MIN * 60 * 1000);
+          const rarity = selectHotDropRarity();
+          
+          const [newHotdrop] = await db.insert(wildCreatureSpawns).values({
+            latitude: (lat + offset.lat).toString(),
+            longitude: (lng + offset.lng).toString(),
+            templateId: 'wild_egg_hotdrop',
+            name: 'Hot Drop Egg',
+            creatureClass: 'egg',
+            rarity,
+            baseHp: 0,
+            baseAtk: 0,
+            baseDef: 0,
+            baseSpd: 0,
+            containedTemplateId: null,
+            expiresAt,
+          }).returning();
+          
+          console.log(`[HOTDROP] inserted 1 (${rarity})`);
+          
+          const hdLat = parseFloat(newHotdrop.latitude);
+          const hdLng = parseFloat(newHotdrop.longitude);
+          const distM = haversineMeters(lat, lng, hdLat, hdLng);
+          const bearing = bearingDegrees(lat, lng, hdLat, hdLng);
+          const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+          const dirIndex = Math.round(bearing / 45) % 8;
+          
+          hotdropMeta = {
+            active: true,
+            distanceM: Math.round(distM),
+            bearingDeg: Math.round(bearing),
+            direction: directions[dirIndex],
+            expiresInSec: HOTDROP_TTL_MIN * 60,
+          };
+        }
+      }
+
+      // 6) Re-fetch home spawns after potential inserts
+      if (homeCreated > 0) {
+        homeSpawns = await db.select().from(wildCreatureSpawns)
+          .where(and(
+            eq(wildCreatureSpawns.isActive, true),
+            isNull(wildCreatureSpawns.caughtByWallet),
+            gte(wildCreatureSpawns.latitude, homeBounds.minLat.toString()),
+            lte(wildCreatureSpawns.latitude, homeBounds.maxLat.toString()),
+            gte(wildCreatureSpawns.longitude, homeBounds.minLng.toString()),
+            lte(wildCreatureSpawns.longitude, homeBounds.maxLng.toString()),
+            gte(wildCreatureSpawns.expiresAt, now),
+          ))
+          .limit(20);
+      }
+
+      // 7) Build response with meta
+      const meta = {
+        home: {
+          target: HOME_TARGET_MIN,
+          current: homeSpawns.length,
+          nextTopUpInSec: homeNextTopUpInSec,
+        },
+        hotdrop: hotdropMeta,
+      };
+
+      res.json({ spawns: homeSpawns, meta });
     } catch (error) {
       console.error("Spawns fetch error:", error);
       res.status(500).json({ error: "Failed to fetch spawns" });
