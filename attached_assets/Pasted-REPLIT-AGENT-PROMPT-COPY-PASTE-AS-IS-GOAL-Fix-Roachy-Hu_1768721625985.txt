@@ -1,0 +1,112 @@
+REPLIT AGENT PROMPT (COPY/PASTE AS-IS)
+
+GOAL
+Fix Roachy Hunt “pity counter” bug where Epic pity shows NEGATIVE (e.g. -7) and guarantee isn’t respected on spawn-based catches. Also change Legendary pity threshold to 500.
+
+WHAT’S HAPPENING (ROOT CAUSE)
+In spawn-based catch, code does:
+  rawRarity = spawn.rarity || selectEggRarity(...)
+So if spawn.rarity is preset (usually “common”), we SKIP selectEggRarity(), meaning pity guarantees are never applied. Player can pass the epic threshold and still keep getting common spawns → server returns epicIn negative.
+
+FIX SUMMARY
+1) Apply pity “guarantee override” even when spawn.rarity is preset.
+2) Clamp pity response values so rareIn/epicIn/legendaryIn never go below 0.
+3) Change HUNT_CONFIG.PITY_LEGENDARY from 150 → 500.
+
+FILES TO EDIT
+- server/hunt-config.ts
+- server/hunt-routes.ts (or wherever /api/hunt/catch is implemented)
+
+========================================================
+1) server/hunt-config.ts — CHANGE LEGENDARY PITY TO 500
+========================================================
+
+Find HUNT_CONFIG and update:
+
+PITY_LEGENDARY: 500,
+
+(Leave PITY_RARE and PITY_EPIC as-is unless you want to tune them too.)
+
+========================================================
+2) server/hunt-routes.ts — FIX SPAWN-BASED CATCH TO RESPECT PITY GUARANTEES
+========================================================
+
+In /api/hunt/catch, inside the SPAWN-BASED catch section (you said ~line 1680+),
+replace the rarity selection block with the following approach:
+
+A) Add this small helper near the top of the file (or just above the endpoint):
+
+type EggRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+function getGuaranteedRarityFromPity(pityCounters: {
+  sinceRare: number;
+  sinceEpic: number;
+  sinceLegendary: number;
+}): EggRarity | null {
+  if (pityCounters.sinceLegendary >= HUNT_CONFIG.PITY_LEGENDARY) return 'legendary';
+  if (pityCounters.sinceEpic >= HUNT_CONFIG.PITY_EPIC) return 'epic';
+  if (pityCounters.sinceRare >= HUNT_CONFIG.PITY_RARE) return 'rare';
+  return null;
+}
+
+B) Now update the SPAWN-BASED rarity logic (IMPORTANT):
+Replace this:
+
+  let rawRarity = spawn.rarity || selectEggRarity(pityCounters, heatModeActive);
+  const eggRarity = rawRarity === 'uncommon' ? 'common' : rawRarity;
+
+With this:
+
+  const guaranteed = getGuaranteedRarityFromPity(pityCounters);
+
+  // Use spawn preset rarity if present, otherwise roll normally.
+  let rawRarity: EggRarity = (spawn.rarity as EggRarity) || selectEggRarity(pityCounters, heatModeActive);
+
+  // Normalize any legacy value
+  rawRarity = (rawRarity === ('uncommon' as any) ? 'common' : rawRarity);
+
+  // ✅ If pity threshold is reached, override to the guaranteed tier
+  const eggRarity: EggRarity = guaranteed ?? rawRarity;
+
+This ensures: even if spawn.rarity was “common”, once you hit epic pity, you WILL get epic on the next catch (guarantee actually works).
+
+========================================================
+3) CLAMP PITY RESPONSE SO IT NEVER GOES NEGATIVE
+========================================================
+
+Wherever you build the response payload:
+
+pity: {
+  rareIn: HUNT_CONFIG.PITY_RARE - newSinceRare,
+  epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
+  legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
+}
+
+Change to:
+
+pity: {
+  rareIn: Math.max(0, HUNT_CONFIG.PITY_RARE - newSinceRare),
+  epicIn: Math.max(0, HUNT_CONFIG.PITY_EPIC - newSinceEpic),
+  legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary),
+}
+
+This makes the UI safe even if something weird happens again (no more -7).
+
+========================================================
+4) QUICK SANITY TESTS (DO THESE AFTER PATCH)
+========================================================
+
+A) Force your economy counters near threshold (manually in DB for your test wallet):
+- catchesSinceEpic = 59 (if PITY_EPIC=60)
+Catch any spawn with spawn.rarity='common'
+Expected: next catch returns eggRarity='epic', and response pity epicIn becomes 60 (after reset) or 0 depending on your display logic—but NEVER negative.
+
+B) Verify Legendary pity threshold:
+- catchesSinceLegendary = 499
+Next catch should be legendary (guaranteed), then counters reset properly.
+
+========================================================
+DONE CRITERIA
+- Epic pity NEVER shows negative
+- Epic pity truly guarantees an epic even on preset common spawns
+- Legendary pity is now 500

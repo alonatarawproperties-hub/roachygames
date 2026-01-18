@@ -1688,27 +1688,22 @@ export function registerHuntRoutes(app: Express) {
         sinceLegendary: (economy.catchesSinceLegendary ?? 0) + 1,
       };
 
-      // Determine if THIS catch triggers a guaranteed pity rarity
-      const pityGuaranteed: 'rare' | 'epic' | 'legendary' | null =
+      // Check if pity threshold is reached (guaranteed rarity)
+      type EggRarity = 'common' | 'rare' | 'epic' | 'legendary';
+      const guaranteed: EggRarity | null =
         pityCounters.sinceLegendary >= HUNT_CONFIG.PITY_LEGENDARY ? 'legendary'
         : pityCounters.sinceEpic >= HUNT_CONFIG.PITY_EPIC ? 'epic'
         : pityCounters.sinceRare >= HUNT_CONFIG.PITY_RARE ? 'rare'
         : null;
 
-      // Normal roll (used if no pity guarantee)
-      const rolled = selectEggRarity(pityCounters, heatModeActive);
+      // Use spawn preset rarity if present, otherwise roll normally
+      let rawRarity: EggRarity = (spawn.rarity as EggRarity) || selectEggRarity(pityCounters, heatModeActive);
 
-      // Final rarity: pity guarantee wins, then spawn.rarity, then rolled
-      let rawRarity: string = pityGuaranteed ?? spawn.rarity ?? rolled;
+      // Normalize any legacy uncommon value
+      rawRarity = (rawRarity === ('uncommon' as any) ? 'common' : rawRarity) as EggRarity;
 
-      // If both preset and pity exist, pick the higher rarity
-      if (spawn.rarity && pityGuaranteed) {
-        const rank: Record<string, number> = { common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3 };
-        rawRarity = rank[spawn.rarity] > rank[pityGuaranteed] ? spawn.rarity : pityGuaranteed;
-      }
-
-      // Normalize uncommon -> common
-      const eggRarity = rawRarity === 'uncommon' ? 'common' : rawRarity;
+      // ✅ If pity threshold is reached, override to the guaranteed tier
+      const eggRarity: EggRarity = guaranteed ?? rawRarity;
       
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
       const isPerfect = quality === 'perfect';
