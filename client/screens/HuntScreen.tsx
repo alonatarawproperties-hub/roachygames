@@ -119,6 +119,7 @@ export default function HuntScreen() {
     walletAddress,
     playerLocation,
     spawns,
+    huntMeta,
     economy,
     phaseIStats,
     economyReady,
@@ -187,6 +188,41 @@ export default function HuntScreen() {
   const [spawnReservations, setSpawnReservations] = useState<Record<string, Date>>({}); 
   const [isReservingSpawn, setIsReservingSpawn] = useState(false);
   
+  // Area Cleared countdown timer state
+  const [homeCountdown, setHomeCountdown] = useState<number | null>(null);
+  const [hotdropCountdown, setHotdropCountdown] = useState<number | null>(null);
+  const [radarCooldown, setRadarCooldown] = useState(0);
+  
+  // Update countdown timers from huntMeta
+  useEffect(() => {
+    if (huntMeta?.home?.nextTopUpInSec) {
+      setHomeCountdown(huntMeta.home.nextTopUpInSec);
+    } else {
+      setHomeCountdown(null);
+    }
+    if (huntMeta?.hotdrop?.expiresInSec) {
+      setHotdropCountdown(huntMeta.hotdrop.expiresInSec);
+    } else {
+      setHotdropCountdown(null);
+    }
+  }, [huntMeta]);
+  
+  // Tick countdown timers every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHomeCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
+      setHotdropCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
+      setRadarCooldown(prev => prev > 0 ? prev - 1 : 0);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  const formatCountdown = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const [debug, setDebug] = useState({
     build: "v1.0.0-node-b14",
     tapCount: 0,
@@ -925,30 +961,88 @@ export default function HuntScreen() {
     });
   }, [allMapNodes]);
 
+  const renderAreaClearedBanner = () => {
+    // Show banner when area is cleared (less than 2 spawns) and we have countdown data
+    const showBanner = spawns.length < 2 && (homeCountdown !== null || huntMeta?.hotdrop?.active);
+    
+    if (!showBanner) return null;
+    
+    const handleRadarPing = () => {
+      if (radarCooldown > 0) return;
+      setRadarCooldown(60);
+      refreshSpawns();
+      refetchMapNodes();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Re-center map if method available
+    };
+    
+    return (
+      <View style={styles.areaClearedBanner}>
+        <View style={styles.areaClearedHeader}>
+          <Feather name="check-circle" size={20} color={GameColors.primary} />
+          <ThemedText style={styles.areaClearedTitle}>Area Cleared</ThemedText>
+        </View>
+        
+        {homeCountdown !== null && homeCountdown > 0 && (
+          <View style={styles.countdownRow}>
+            <Feather name="clock" size={14} color={GameColors.textSecondary} />
+            <ThemedText style={styles.countdownText}>
+              Next Home Drop in: {formatCountdown(homeCountdown)}
+            </ThemedText>
+          </View>
+        )}
+        
+        {huntMeta?.hotdrop?.active && (
+          <View style={styles.hotdropRow}>
+            <Feather name="zap" size={14} color={GameColors.gold} />
+            <ThemedText style={styles.hotdropText}>
+              Hot Drop: LIVE • {huntMeta.hotdrop.direction} • {((huntMeta.hotdrop.distanceM || 0) / 1000).toFixed(1)}km
+              {hotdropCountdown !== null && hotdropCountdown > 0 && ` • ${formatCountdown(hotdropCountdown)} left`}
+            </ThemedText>
+          </View>
+        )}
+        
+        <Pressable 
+          style={[styles.radarButton, radarCooldown > 0 && styles.radarButtonDisabled]}
+          onPress={handleRadarPing}
+          disabled={radarCooldown > 0}
+        >
+          <Feather name="radio" size={16} color="#fff" />
+          <ThemedText style={styles.radarButtonText}>
+            {radarCooldown > 0 ? `Ping Radar (${radarCooldown}s)` : 'Ping Radar'}
+          </ThemedText>
+        </Pressable>
+      </View>
+    );
+  };
+
   const renderMapView = () => {
     return (
-      <MapViewWrapper
-        ref={mapRef}
-        playerLocation={playerLocation}
-        spawns={spawns}
-        raids={raids}
-        mapNodes={allMapNodes}
-        nearbyPlayers={nearbyPlayers}
-        gpsAccuracy={gpsAccuracy}
-        isVisible={isVisible}
-        reservedByMe={reservedByMe}
-        onToggleVisibility={() => setVisibility(!isVisible)}
-        onSpawnTap={handleSpawnTap}
-        onRaidTap={(raid) => setSelectedRaid(raid)}
-        onNodeTap={handleNodeTap}
-        onMapPress={handleMapPress}
-        onRefresh={() => {
-          refreshSpawns();
-          refetchMapNodes();
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }}
-        onMapReady={() => setMapReady(true)}
-      />
+      <View style={{ flex: 1 }}>
+        {renderAreaClearedBanner()}
+        <MapViewWrapper
+          ref={mapRef}
+          playerLocation={playerLocation}
+          spawns={spawns}
+          raids={raids}
+          mapNodes={allMapNodes}
+          nearbyPlayers={nearbyPlayers}
+          gpsAccuracy={gpsAccuracy}
+          isVisible={isVisible}
+          reservedByMe={reservedByMe}
+          onToggleVisibility={() => setVisibility(!isVisible)}
+          onSpawnTap={handleSpawnTap}
+          onRaidTap={(raid) => setSelectedRaid(raid)}
+          onNodeTap={handleNodeTap}
+          onMapPress={handleMapPress}
+          onRefresh={() => {
+            refreshSpawns();
+            refetchMapNodes();
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+          onMapReady={() => setMapReady(true)}
+        />
+      </View>
     );
   };
 
@@ -2818,5 +2912,70 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#fff",
     fontWeight: "bold" as const,
+  },
+  areaClearedBanner: {
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: GameColors.primary + "40",
+  },
+  areaClearedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  areaClearedTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: GameColors.primary,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  countdownText: {
+    fontSize: 13,
+    color: GameColors.textSecondary,
+  },
+  hotdropRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+    backgroundColor: GameColors.gold + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  hotdropText: {
+    fontSize: 13,
+    color: GameColors.gold,
+    fontWeight: "600",
+  },
+  radarButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+  },
+  radarButtonDisabled: {
+    backgroundColor: GameColors.surfaceLight,
+    opacity: 0.7,
+  },
+  radarButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
