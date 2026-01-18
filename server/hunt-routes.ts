@@ -240,16 +240,80 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
+  // In-memory cooldown map for spawn ensure (60s per wallet)
+  const spawnCooldownMap = (globalThis as any).__huntSpawnCooldown ??= new Map<string, number>();
+  const SPAWN_TARGET = 12;
+  const SPAWN_COOLDOWN_MS = 60_000;
+
   app.post("/api/hunt/spawn", async (req: Request, res: Response) => {
     try {
-      const { latitude, longitude, count = 5 } = req.body;
+      const { latitude, longitude, walletAddress: bodyWallet } = req.body;
+      const walletAddress = (req.headers["x-wallet-address"] as string) || bodyWallet;
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
       }
 
-      const spawns = [];
-      for (let i = 0; i < count; i++) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      const radiusKm = 500 / 1000;
+      const latDelta = radiusKm / 111.32;
+      const lngDelta = radiusKm / (111.32 * Math.cos(lat * Math.PI / 180));
+      const now = new Date();
+
+      // Expire old spawns first
+      await db.update(wildCreatureSpawns)
+        .set({ isActive: false })
+        .where(and(
+          eq(wildCreatureSpawns.isActive, true),
+          lte(wildCreatureSpawns.expiresAt, now)
+        ));
+
+      // Count active uncaught spawns in radius
+      const activeSpawns = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.latitude, (lat - latDelta).toString()),
+          lte(wildCreatureSpawns.latitude, (lat + latDelta).toString()),
+          gte(wildCreatureSpawns.longitude, (lng - lngDelta).toString()),
+          lte(wildCreatureSpawns.longitude, (lng + lngDelta).toString()),
+          gte(wildCreatureSpawns.expiresAt, now),
+        ));
+
+      const activeCount = activeSpawns.length;
+      const missing = Math.max(0, SPAWN_TARGET - activeCount);
+
+      // If already at target, return early
+      if (missing === 0) {
+        return res.json({ 
+          success: true, 
+          created: 0, 
+          activeCount, 
+          reason: "at_target",
+          spawns: [] 
+        });
+      }
+
+      // Check cooldown per wallet
+      if (walletAddress) {
+        const lastSpawn = spawnCooldownMap.get(walletAddress) || 0;
+        if (Date.now() - lastSpawn < SPAWN_COOLDOWN_MS) {
+          return res.json({ 
+            success: true, 
+            created: 0, 
+            activeCount, 
+            reason: "cooldown",
+            cooldownRemaining: Math.ceil((SPAWN_COOLDOWN_MS - (Date.now() - lastSpawn)) / 1000),
+            spawns: [] 
+          });
+        }
+        spawnCooldownMap.set(walletAddress, Date.now());
+      }
+
+      // Create only the missing spawns
+      const createdSpawns = [];
+      for (let i = 0; i < missing; i++) {
         const radius = i === 0 ? 50 : 200;
         const offset = getRandomOffset(radius);
         const expiresAt = new Date(Date.now() + (15 + Math.random() * 15) * 60 * 1000);
@@ -304,8 +368,8 @@ export function registerHuntRoutes(app: Express) {
         }
 
         const [spawn] = await db.insert(wildCreatureSpawns).values({
-          latitude: (latitude + offset.lat).toString(),
-          longitude: (longitude + offset.lng).toString(),
+          latitude: (lat + offset.lat).toString(),
+          longitude: (lng + offset.lng).toString(),
           templateId: spawnData.templateId,
           name: spawnData.name,
           creatureClass: spawnData.creatureClass,
@@ -318,10 +382,16 @@ export function registerHuntRoutes(app: Express) {
           expiresAt,
         }).returning();
 
-        spawns.push(spawn);
+        createdSpawns.push(spawn);
       }
 
-      res.json({ success: true, spawns });
+      console.log(`[EnsureSpawns] wallet=${walletAddress || 'anon'} activeCount=${activeCount} created=${createdSpawns.length}`);
+      res.json({ 
+        success: true, 
+        created: createdSpawns.length, 
+        activeCount: activeCount + createdSpawns.length,
+        spawns: createdSpawns 
+      });
     } catch (error) {
       console.error("Spawn error:", error);
       res.status(500).json({ error: "Failed to spawn creatures" });

@@ -410,23 +410,25 @@ export function HuntProvider({ children }: HuntProviderProps) {
 
   const spawnCreatures = useCallback(async () => {
     if (!playerLocation) {
-      console.log("spawnCreatures: No player location, aborting");
+      console.log("ensureSpawns: No player location, aborting");
       return;
     }
     try {
-      console.log("spawnCreatures: Calling spawn API at", playerLocation);
+      console.log("ensureSpawns: Calling spawn API at", playerLocation);
       const response = await apiRequest("POST", "/api/hunt/spawn", {
         latitude: playerLocation.latitude,
         longitude: playerLocation.longitude,
-        count: 15,
+        walletAddress,
       });
       const data = await response.json();
-      console.log("spawnCreatures: Response", data);
-      refreshSpawns();
+      console.log("ensureSpawns: Response", data);
+      if (data.created > 0) {
+        refreshSpawns();
+      }
     } catch (error) {
-      console.error("Failed to spawn creatures:", error);
+      console.error("Failed to ensure spawns:", error);
     }
-  }, [playerLocation, refreshSpawns]);
+  }, [playerLocation, walletAddress, refreshSpawns]);
 
   const catchCreature = useCallback(async (spawnId: string, catchQuality: string): Promise<CaughtCreature | null> => {
     if (!playerLocation) return null;

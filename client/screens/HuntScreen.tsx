@@ -148,6 +148,15 @@ export default function HuntScreen() {
     }
   }, [playerLocation?.latitude, playerLocation?.longitude, setPresenceLocation]);
 
+  // Ensure spawns exist when entering Hunt with valid location (runs once)
+  const hasEnsuredSpawnsRef = useRef(false);
+  useEffect(() => {
+    if (playerLocation && !hasEnsuredSpawnsRef.current) {
+      hasEnsuredSpawnsRef.current = true;
+      spawnCreatures();
+    }
+  }, [playerLocation, spawnCreatures]);
+
   const [locationError, setLocationError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [selectedSpawn, setSelectedSpawn] = useState<Spawn | null>(null);
@@ -934,7 +943,7 @@ export default function HuntScreen() {
         onNodeTap={handleNodeTap}
         onMapPress={handleMapPress}
         onRefresh={() => {
-          spawnCreatures();
+          refreshSpawns();
           refetchMapNodes();
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }}
