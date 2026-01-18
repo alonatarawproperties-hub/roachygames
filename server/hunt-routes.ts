@@ -1452,9 +1452,9 @@ export function registerHuntRoutes(app: Express) {
 
       const heatModeActive = isHeatModeActive(economy.heatModeUntil);
       const pityCounters = {
-        sinceRare: economy.catchesSinceRare + 1,
-        sinceEpic: economy.catchesSinceEpic + 1,
-        sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
+        sinceRare: (economy.catchesSinceRare ?? 0) + 1,
+        sinceEpic: (economy.catchesSinceEpic ?? 0) + 1,
+        sinceLegendary: (economy.catchesSinceLegendary ?? 0) + 1,
       };
 
       const eggRarity = selectEggRarity(pityCounters, heatModeActive);
@@ -1489,6 +1489,11 @@ export function registerHuntRoutes(app: Express) {
       } else if (eggRarity === 'rare') {
         newSinceRare = 0;
       }
+
+      // Safety clamp: prevent counters from exceeding thresholds
+      newSinceRare = Math.min(newSinceRare, HUNT_CONFIG.PITY_RARE);
+      newSinceEpic = Math.min(newSinceEpic, HUNT_CONFIG.PITY_EPIC);
+      newSinceLegendary = Math.min(newSinceLegendary, HUNT_CONFIG.PITY_LEGENDARY);
 
       let newStreak = economy.currentStreak;
       if (isNewDay) {
@@ -1597,9 +1602,9 @@ export function registerHuntRoutes(app: Express) {
           legendary: eggRarity === 'legendary' ? currentEggCount + 1 : (economy.eggLegendary || 0),
         },
         pity: {
-          rareIn: HUNT_CONFIG.PITY_RARE - newSinceRare,
-          epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
-          legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
+          rareIn: Math.max(0, HUNT_CONFIG.PITY_RARE - newSinceRare),
+          epicIn: Math.max(0, HUNT_CONFIG.PITY_EPIC - newSinceEpic),
+          legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary),
         },
         warmth: (economy.warmth || 0) + totalWarmthGain,
         hunterLevel: finalLevelInfo.level,
@@ -1678,12 +1683,31 @@ export function registerHuntRoutes(app: Express) {
 
       const heatModeActive = isHeatModeActive(economy.heatModeUntil);
       const pityCounters = {
-        sinceRare: economy.catchesSinceRare + 1,
-        sinceEpic: economy.catchesSinceEpic + 1,
-        sinceLegendary: (economy.catchesSinceLegendary || 0) + 1,
+        sinceRare: (economy.catchesSinceRare ?? 0) + 1,
+        sinceEpic: (economy.catchesSinceEpic ?? 0) + 1,
+        sinceLegendary: (economy.catchesSinceLegendary ?? 0) + 1,
       };
 
-      let rawRarity = spawn.rarity || selectEggRarity(pityCounters, heatModeActive);
+      // Determine if THIS catch triggers a guaranteed pity rarity
+      const pityGuaranteed: 'rare' | 'epic' | 'legendary' | null =
+        pityCounters.sinceLegendary >= HUNT_CONFIG.PITY_LEGENDARY ? 'legendary'
+        : pityCounters.sinceEpic >= HUNT_CONFIG.PITY_EPIC ? 'epic'
+        : pityCounters.sinceRare >= HUNT_CONFIG.PITY_RARE ? 'rare'
+        : null;
+
+      // Normal roll (used if no pity guarantee)
+      const rolled = selectEggRarity(pityCounters, heatModeActive);
+
+      // Final rarity: pity guarantee wins, then spawn.rarity, then rolled
+      let rawRarity: string = pityGuaranteed ?? spawn.rarity ?? rolled;
+
+      // If both preset and pity exist, pick the higher rarity
+      if (spawn.rarity && pityGuaranteed) {
+        const rank: Record<string, number> = { common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3 };
+        rawRarity = rank[spawn.rarity] > rank[pityGuaranteed] ? spawn.rarity : pityGuaranteed;
+      }
+
+      // Normalize uncommon -> common
       const eggRarity = rawRarity === 'uncommon' ? 'common' : rawRarity;
       
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
@@ -1711,6 +1735,11 @@ export function registerHuntRoutes(app: Express) {
       } else if (eggRarity === 'rare') {
         newSinceRare = 0;
       }
+
+      // Safety clamp: prevent counters from exceeding thresholds
+      newSinceRare = Math.min(newSinceRare, HUNT_CONFIG.PITY_RARE);
+      newSinceEpic = Math.min(newSinceEpic, HUNT_CONFIG.PITY_EPIC);
+      newSinceLegendary = Math.min(newSinceLegendary, HUNT_CONFIG.PITY_LEGENDARY);
 
       const streakXpMult = getStreakXpMult(newStreak);
       const xpBase = HUNT_CONFIG.XP_REWARDS[quality] || 30;
@@ -1804,9 +1833,9 @@ export function registerHuntRoutes(app: Express) {
           legendary: eggRarity === 'legendary' ? currentEggCount + 1 : (economy.eggLegendary || 0),
         },
         pity: {
-          rareIn: HUNT_CONFIG.PITY_RARE - newSinceRare,
-          epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
-          legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
+          rareIn: Math.max(0, HUNT_CONFIG.PITY_RARE - newSinceRare),
+          epicIn: Math.max(0, HUNT_CONFIG.PITY_EPIC - newSinceEpic),
+          legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary),
         },
         warmth: (economy.warmth || 0) + totalWarmthGain,
         hunterLevel: finalLevelInfo.level,

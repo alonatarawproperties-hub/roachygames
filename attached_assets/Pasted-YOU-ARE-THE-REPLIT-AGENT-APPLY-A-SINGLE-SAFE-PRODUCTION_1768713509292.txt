@@ -1,0 +1,153 @@
+YOU ARE THE REPLIT AGENT. APPLY A SINGLE, SAFE, PRODUCTION-GRADE FIX FOR PITY COUNTERS + PRESET SPAWN RARITY OVERRIDE, AND CHANGE LEGENDARY PITY TO 500.
+
+GOALS:
+1) Fix negative pity display (e.g., Epic in -3) permanently.
+2) Ensure pity guarantees ALWAYS trigger even when spawn.rarity is preset (spawn-based catch currently skips pity roll).
+3) Make node-based + spawn-based catch use identical, null-safe counter math and reset rules.
+4) Clamp pity remaining values so they NEVER go negative.
+5) Update legendary pity threshold from 150 to 500.
+
+IMPORTANT CONSTRAINTS:
+- Do NOT break existing hunt flow, catch flow, energy/catches limits, or DB schema.
+- Keep POST /api/hunt/catch behavior (still sets caughtByWallet, etc.).
+- Only change pity logic + legendary threshold and keep the rest intact.
+
+FILES TO EDIT:
+- server/hunt-config.ts (PITY_LEGENDARY value)
+- server/hunt-routes.ts (or wherever POST /api/hunt/catch lives) in BOTH node-based catch section (~1454+) and spawn-based catch section (~1680+)
+- Anywhere pity response is constructed (rareIn/epicIn/legendaryIn)
+
+============================================================
+STEP 1 — CHANGE LEGENDARY PITY THRESHOLD TO 500
+============================================================
+In your HUNT_CONFIG, update:
+PITY_LEGENDARY: 150
+to:
+PITY_LEGENDARY: 500
+
+Make sure any references use HUNT_CONFIG.PITY_LEGENDARY (not hardcoded 150).
+
+============================================================
+STEP 2 — STANDARDIZE COUNTER INCREMENT + RESET (NULL-SAFE) IN BOTH PATHS
+============================================================
+
+In BOTH node-based and spawn-based catch flows, do NOT rely on economy.catchesSinceX + 1 without null safety.
+
+Before computing pity/rarity, define these once:
+
+const heatModeActive = isHeatModeActive(economy.heatModeUntil);
+
+const pityCounters = {
+  sinceRare: (economy.catchesSinceRare ?? 0) + 1,
+  sinceEpic: (economy.catchesSinceEpic ?? 0) + 1,
+  sinceLegendary: (economy.catchesSinceLegendary ?? 0) + 1,
+};
+
+============================================================
+STEP 3 — FIX SPAWN-BASED RARITY: PITY MUST OVERRIDE PRESET spawn.rarity
+============================================================
+
+CURRENT (buggy):
+let rawRarity = spawn.rarity || selectEggRarity(pityCounters, heatModeActive);
+
+REPLACE with:
+
+// 1) Determine if THIS catch triggers a guaranteed pity rarity
+const pityGuaranteed: 'rare' | 'epic' | 'legendary' | null =
+  pityCounters.sinceLegendary >= HUNT_CONFIG.PITY_LEGENDARY ? 'legendary'
+  : pityCounters.sinceEpic >= HUNT_CONFIG.PITY_EPIC ? 'epic'
+  : pityCounters.sinceRare >= HUNT_CONFIG.PITY_RARE ? 'rare'
+  : null;
+
+// 2) Normal roll (used if no pity guarantee)
+const rolled = selectEggRarity(pityCounters, heatModeActive);
+
+// 3) Final rarity selection rules:
+//    - If pityGuaranteed exists, it MUST win even if spawn.rarity is preset.
+//    - Otherwise, allow spawn.rarity if present, else use rolled.
+let rawRarity = (pityGuaranteed ?? (spawn.rarity || rolled)) as any;
+
+// Optional: if you want preset rarity to still matter but never be LOWER than pity,
+// choose the higher rarity between preset and pity when both exist.
+if (spawn.rarity && pityGuaranteed) {
+  const rank: Record<string, number> = { common: 0, uncommon: 0, rare: 1, epic: 2, legendary: 3 };
+  const preset = spawn.rarity;
+  rawRarity = rank[preset] > rank[pityGuaranteed] ? preset : pityGuaranteed;
+}
+
+// normalize uncommon -> common
+const eggRarity = rawRarity === 'uncommon' ? 'common' : rawRarity;
+
+NODE-BASED FLOW:
+Keep:
+const eggRarity = selectEggRarity(pityCounters, heatModeActive);
+(But ensure pityCounters is null-safe as above.)
+
+============================================================
+STEP 4 — APPLY IDENTICAL RESET RULES + CLAMP COUNTERS (BOTH PATHS)
+============================================================
+
+In BOTH node-based and spawn-based catch after eggRarity is known, replace the reset block with:
+
+let newSinceRare = pityCounters.sinceRare;
+let newSinceEpic = pityCounters.sinceEpic;
+let newSinceLegendary = pityCounters.sinceLegendary;
+
+if (eggRarity === 'legendary') {
+  newSinceLegendary = 0;
+  newSinceEpic = 0;
+  newSinceRare = 0;
+} else if (eggRarity === 'epic') {
+  newSinceEpic = 0;
+  newSinceRare = 0;
+} else if (eggRarity === 'rare') {
+  newSinceRare = 0;
+}
+
+// Safety clamp keeps DB sane (prevents “since > threshold” causing negatives later)
+newSinceRare = Math.min(newSinceRare, HUNT_CONFIG.PITY_RARE);
+newSinceEpic = Math.min(newSinceEpic, HUNT_CONFIG.PITY_EPIC);
+newSinceLegendary = Math.min(newSinceLegendary, HUNT_CONFIG.PITY_LEGENDARY);
+
+============================================================
+STEP 5 — CLAMP PITY RESPONSE VALUES (NEVER NEGATIVE)
+============================================================
+
+Wherever you return pity in /api/hunt/catch, replace:
+
+pity: {
+  rareIn: HUNT_CONFIG.PITY_RARE - newSinceRare,
+  epicIn: HUNT_CONFIG.PITY_EPIC - newSinceEpic,
+  legendaryIn: HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary,
+}
+
+with:
+
+pity: {
+  rareIn: Math.max(0, HUNT_CONFIG.PITY_RARE - newSinceRare),
+  epicIn: Math.max(0, HUNT_CONFIG.PITY_EPIC - newSinceEpic),
+  legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary),
+}
+
+============================================================
+STEP 6 — VERIFY WITH QUICK TESTS
+============================================================
+A) Force economy counters:
+- catchesSinceEpic=59, catchesSinceRare=19, catchesSinceLegendary=499
+Catch once (spawn-based and node-based):
+- Must yield legendary due to pityGuaranteed (>=500) if applicable, else epic at 60, rare at 20.
+- Counters reset correctly.
+- pity values never negative.
+
+B) Verify the prior bug:
+- Set catchesSinceEpic=63 and catch once:
+- Response must show epicIn >= 0 (clamped) and DB should clamp sinceEpic <= PITY_EPIC.
+
+C) Ensure preset spawn.rarity no longer blocks pity:
+- Create a spawn with spawn.rarity="common"
+- Set catchesSinceEpic=59, catch it
+- Must return epic and reset counters.
+
+DELIVERABLE:
+- Commit code changes.
+- Confirm by running a catch and printing the server [PITY] debug logs once (optional), then remove logs.
