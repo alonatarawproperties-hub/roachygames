@@ -112,6 +112,21 @@ export interface Egg {
   isIncubating: boolean;
 }
 
+export interface HuntMeta {
+  home: {
+    target: number;
+    current: number;
+    nextTopUpInSec: number | null;
+  };
+  hotdrop: {
+    active: boolean;
+    distanceM?: number;
+    bearingDeg?: number;
+    direction?: string;
+    expiresInSec?: number;
+  };
+}
+
 export interface Raid {
   id: string;
   latitude: string;
@@ -148,6 +163,7 @@ interface HuntContextType {
   walletAddress: string;
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
   spawns: Spawn[];
+  huntMeta: HuntMeta | null;
   economy: EconomyStats | null;
   phaseIStats: PhaseIStats | null;
   collection: CaughtCreature[];
@@ -278,11 +294,14 @@ export function HuntProvider({ children }: HuntProviderProps) {
     retryDelay: 1000,
   });
 
+  const [huntMeta, setHuntMeta] = useState<HuntMeta | null>(null);
+
   const { data: spawnsData, refetch: refreshSpawns, isLoading: spawnsLoading } = useQuery({
     queryKey: ["/api/hunt/spawns", playerLocation?.latitude, playerLocation?.longitude],
     queryFn: async () => {
       if (!playerLocation) {
         console.log("No player location, returning empty spawns");
+        setHuntMeta(null);
         return [];
       }
       const url = new URL("/api/hunt/spawns", getApiUrl());
@@ -293,10 +312,17 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const response = await fetch(url.toString());
       if (!response.ok) {
         console.log("Spawns fetch failed:", response.status);
+        setHuntMeta(null);
         return [];
       }
       const data = await response.json();
-      console.log("Spawns response:", data?.spawns?.length || 0, "spawns");
+      console.log("Spawns response:", data?.spawns?.length || 0, "spawns, meta:", data?.meta);
+      
+      // Store meta for UI display
+      if (data.meta) {
+        setHuntMeta(data.meta);
+      }
+      
       const mappedSpawns = (data.spawns || []).map((spawn: Spawn) => ({
         ...spawn,
         distance: calculateDistance(
@@ -634,6 +660,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         walletAddress,
         playerLocation,
         spawns: spawnsData || [],
+        huntMeta,
         economy: economyData || null,
         phaseIStats: phaseIData || null,
         collection: collectionData || [],
