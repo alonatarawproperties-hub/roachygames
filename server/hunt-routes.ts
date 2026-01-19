@@ -517,14 +517,15 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  // In-memory cooldown map for spawn ensure (60s per wallet)
+  // In-memory cooldown map for spawn ensure (5 min per grid key to prevent spam)
   const spawnCooldownMap = (globalThis as any).__huntSpawnCooldown ??= new Map<string, number>();
   const SPAWN_TARGET = 12;
-  const SPAWN_COOLDOWN_MS = 60_000;
+  const SPAWN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes per grid cell
+  const HOME_RESPAWN_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes after catching all spawns
 
   app.post("/api/hunt/spawn", async (req: Request, res: Response) => {
     try {
-      const { latitude, longitude, walletAddress: bodyWallet } = req.body;
+      const { latitude, longitude, walletAddress: bodyWallet, reason } = req.body;
       const walletAddress = (req.headers["x-wallet-address"] as string) || bodyWallet;
       
       if (!latitude || !longitude) {
@@ -537,6 +538,11 @@ export function registerHuntRoutes(app: Express) {
       const latDelta = radiusKm / 111.32;
       const lngDelta = radiusKm / (111.32 * Math.cos(lat * Math.PI / 180));
       const now = new Date();
+      
+      // Grid key for cooldown (110m precision)
+      const gridKey = `${walletAddress || 'anon'}:${lat.toFixed(3)}:${lng.toFixed(3)}`;
+      
+      console.log(`[SPAWN_API] START wallet=${walletAddress || 'anon'} reason=${reason || 'unknown'} gridKey=${gridKey}`);
 
       // Expire old spawns first
       await db.update(wildCreatureSpawns)
@@ -559,10 +565,76 @@ export function registerHuntRoutes(app: Express) {
         ));
 
       const activeCount = activeSpawns.length;
+      
+      // GUARD 1: If 5+ active spawns exist, don't create more (prevents spam)
+      if (activeCount >= 5) {
+        console.log(`[SPAWN_API] SKIP: active_spawns_exist (${activeCount})`);
+        return res.json({ 
+          success: true, 
+          created: 0, 
+          activeCount, 
+          reason: "active_spawns_exist",
+          skipped: true,
+          spawns: [] 
+        });
+      }
+
+      // GUARD 2: Check for RECENTLY CAUGHT spawns in this area (HOME respawn cooldown)
+      // This prevents immediate respawn after catching all spawns
+      const recentCatchCutoff = new Date(Date.now() - HOME_RESPAWN_COOLDOWN_MS);
+      const recentlyCaught = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.caughtByWallet, walletAddress || ''),
+          gte(wildCreatureSpawns.latitude, (lat - latDelta).toString()),
+          lte(wildCreatureSpawns.latitude, (lat + latDelta).toString()),
+          gte(wildCreatureSpawns.longitude, (lng - lngDelta).toString()),
+          lte(wildCreatureSpawns.longitude, (lng + lngDelta).toString()),
+          gte(wildCreatureSpawns.caughtAt, recentCatchCutoff),
+        ))
+        .limit(1);
+      
+      if (recentlyCaught.length > 0 && activeCount === 0) {
+        // User caught spawns recently in this area, and no active spawns remain
+        // Must wait for HOME respawn cooldown from most recent catch
+        const lastCatchTime = recentlyCaught[0].caughtAt;
+        if (lastCatchTime) {
+          const cooldownRemaining = Math.max(0, HOME_RESPAWN_COOLDOWN_MS - (Date.now() - lastCatchTime.getTime()));
+          if (cooldownRemaining > 0) {
+            console.log(`[SPAWN_API] SKIP: home_respawn_cooldown (${Math.ceil(cooldownRemaining / 1000)}s remaining)`);
+            return res.json({ 
+              success: true, 
+              created: 0, 
+              activeCount: 0,
+              reason: "home_respawn_cooldown",
+              cooldownRemaining: Math.ceil(cooldownRemaining / 1000),
+              skipped: true,
+              spawns: [] 
+            });
+          }
+        }
+      }
+
+      // GUARD 3: Grid-based cooldown (prevents rapid taps)
+      const lastSpawn = spawnCooldownMap.get(gridKey) || 0;
+      if (Date.now() - lastSpawn < SPAWN_COOLDOWN_MS) {
+        const cooldownRemaining = Math.ceil((SPAWN_COOLDOWN_MS - (Date.now() - lastSpawn)) / 1000);
+        console.log(`[SPAWN_API] SKIP: grid_cooldown (${cooldownRemaining}s remaining)`);
+        return res.json({ 
+          success: true, 
+          created: 0, 
+          activeCount, 
+          reason: "grid_cooldown",
+          cooldownRemaining,
+          skipped: true,
+          spawns: [] 
+        });
+      }
+
       const missing = Math.max(0, SPAWN_TARGET - activeCount);
 
       // If already at target, return early
       if (missing === 0) {
+        console.log(`[SPAWN_API] SKIP: at_target (${activeCount})`);
         return res.json({ 
           success: true, 
           created: 0, 
@@ -571,22 +643,9 @@ export function registerHuntRoutes(app: Express) {
           spawns: [] 
         });
       }
-
-      // Check cooldown per wallet
-      if (walletAddress) {
-        const lastSpawn = spawnCooldownMap.get(walletAddress) || 0;
-        if (Date.now() - lastSpawn < SPAWN_COOLDOWN_MS) {
-          return res.json({ 
-            success: true, 
-            created: 0, 
-            activeCount, 
-            reason: "cooldown",
-            cooldownRemaining: Math.ceil((SPAWN_COOLDOWN_MS - (Date.now() - lastSpawn)) / 1000),
-            spawns: [] 
-          });
-        }
-        spawnCooldownMap.set(walletAddress, Date.now());
-      }
+      
+      // All guards passed, set cooldown and create spawns
+      spawnCooldownMap.set(gridKey, Date.now());
 
       // Create only the missing spawns
       const createdSpawns = [];

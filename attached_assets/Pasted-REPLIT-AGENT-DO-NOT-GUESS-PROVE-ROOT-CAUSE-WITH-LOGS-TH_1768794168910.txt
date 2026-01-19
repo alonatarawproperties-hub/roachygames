@@ -1,0 +1,139 @@
+REPLIT AGENT — DO NOT GUESS. PROVE ROOT CAUSE WITH LOGS, THEN PATCH WITH SERVER GUARD.
+
+BUG
+After I catch all spawns within my radius, if I exit to lobby and open Roachy Hunt again, new spawns appear immediately (spam spawn) without waiting for system spawn.
+
+KNOWN FACTS
+- POST /api/hunt/spawn ALWAYS creates new spawns unconditionally.
+- Therefore spam spawns means something is calling POST /api/hunt/spawn during Hunt screen reopen (mount/focus/resume) OR some lobby flow calls it.
+
+GOAL
+1) Identify the exact caller + lifecycle trigger (with logs, not assumptions).
+2) Add a server-side cooldown + “existing spawns nearby” guard so spam cannot happen even if client calls POST repeatedly.
+
+========================================================
+STEP 1 — FIND ALL CALLERS (MANDATORY)
+Run ripgrep and paste results in console output:
+
+rg -n "spawnCreatures\\(" client
+rg -n "/api/hunt/spawn" client
+rg -n "onRefresh|useEffect\\(|useFocusEffect|navigation\\.addListener\\('focus'\\)|AppState" client
+
+List every file+line that can trigger spawning.
+DO NOT SKIP THIS.
+
+========================================================
+STEP 2 — INSTRUMENT CLIENT (PROVE WHEN IT FIRES)
+In client/HuntContext.tsx:
+- Modify spawnCreatures to REQUIRE a reason string.
+- Log reason + stack context.
+
+Change function to:
+
+const spawnCreatures = useCallback(async (reason: string) => {
+  if (!playerLocation) {
+    console.log("[HUNT][SPAWN] ABORT no location. reason=", reason);
+    return;
+  }
+  console.log("[HUNT][SPAWN] CALLED ✅ reason=", reason, "loc=", playerLocation);
+
+  try {
+    const response = await apiRequest("POST", "/api/hunt/spawn", {
+      latitude: playerLocation.latitude,
+      longitude: playerLocation.longitude,
+      count: 15,
+      reason,
+      walletAddress: user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : "anon"),
+    });
+    const data = await response.json();
+    console.log("[HUNT][SPAWN] RESPONSE", data);
+    refreshSpawns();
+  } catch (e) {
+    console.error("[HUNT][SPAWN] ERROR", e);
+  }
+}, [playerLocation, refreshSpawns, user, isGuest]);
+
+Now update ALL call sites to pass a reason, e.g.
+- spawnCreatures("refresh_button")
+- spawnCreatures("hunt_mount")
+- spawnCreatures("hunt_focus")
+- spawnCreatures("app_resume")
+etc.
+
+This is not optional: we need proof from logs.
+
+========================================================
+STEP 3 — REPRO + READ LOGS
+Reproduce:
+1) Open Hunt
+2) Catch all spawns
+3) Exit to lobby
+4) Reopen Hunt
+
+Observe console logs:
+- If you see "[HUNT][SPAWN] CALLED ✅ reason=..." during reopen, that is the root cause.
+Print the exact reason + file call site (from step 1 searches).
+
+========================================================
+STEP 4 — SERVER GUARD (STOP SPAM 100% EVEN IF CLIENT MISFIRES)
+In server hunt-routes.ts POST /api/hunt/spawn:
+
+Add guards BEFORE creating spawns:
+
+A) Calculate radius deltas same as GET (use 500m guard).
+B) Query existing active uncaught spawns in radius.
+C) If existing >= MIN_EXISTING (recommend 5), DO NOT CREATE. Return existing with skipped=true.
+D) Add a cooldown by wallet+grid key (lat/lng rounded) stored in DB or simplest server memory.
+If no DB table exists for cooldown, implement BOTH:
+- existing spawns check (strong)
+- plus in-memory Map cooldown (best effort) to stop rapid taps
+
+Implement:
+
+const COOLDOWN_MS = 5 * 60 * 1000;
+const spawnRateLimit = globalThis.__spawnRateLimit || (globalThis.__spawnRateLimit = new Map<string, number>());
+
+const walletAddress = req.body.walletAddress || req.header("x-wallet-address") || "anon";
+const lat = Number(latitude);
+const lng = Number(longitude);
+const gridKey = `${walletAddress}:${lat.toFixed(3)}:${lng.toFixed(3)}`; // ~110m grid
+
+const last = spawnRateLimit.get(gridKey) || 0;
+const nowMs = Date.now();
+
+if (nowMs - last < COOLDOWN_MS) {
+  // also return existing if any
+  // compute existing like below and return
+}
+
+Compute existing (same as GET /api/hunt/spawns filters):
+- isActive true
+- caughtByWallet is null
+- in radius box
+- expiresAt >= now
+limit 20
+
+If existing.length >= 5:
+  return res.json({ success:true, spawns: existing, skipped:true, reason:"active_spawns_exist" });
+
+If cooldown active:
+  return res.json({ success:true, spawns: existing, skipped:true, reason:"cooldown_active", cooldownRemainingMs: COOLDOWN_MS-(nowMs-last) });
+
+Only if NOT existing>=5 and cooldown expired:
+  spawnRateLimit.set(gridKey, nowMs);
+  proceed to insert new spawns
+
+Also add logs:
+console.log("[HUNT][SPAWN_API] wallet=", walletAddress, "gridKey=", gridKey, "existing=", existing.length, "cooldownMs=", nowMs-last);
+
+========================================================
+STEP 5 — VERIFY
+Repeat same repro steps.
+Expected:
+- Even if client calls POST on reopen, server responds skipped:true and returns existing (or empty) — no new spam spawns.
+- Logs show exactly what triggered spawnCreatures (client) + what server decided.
+
+DELIVERABLES
+- Paste the ripgrep results (step 1)
+- Paste the console logs from repro (step 3)
+- Provide final diff summary file-by-file

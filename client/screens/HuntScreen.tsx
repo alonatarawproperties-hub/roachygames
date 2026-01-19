@@ -154,7 +154,7 @@ export default function HuntScreen() {
   useEffect(() => {
     if (playerLocation && !hasEnsuredSpawnsRef.current) {
       hasEnsuredSpawnsRef.current = true;
-      spawnCreatures();
+      spawnCreatures("hunt_mount_first_location");
     }
   }, [playerLocation, spawnCreatures]);
 
@@ -432,17 +432,18 @@ export default function HuntScreen() {
   }, [permissionDenied, startLocationTracking]);
 
   useEffect(() => {
-    console.log("Auto-spawn check:", { 
+    console.log("[HUNT] Auto-spawn check:", { 
       hasLocation: !!playerLocation, 
       spawnsLength: spawns.length, 
       isLoading,
       hasAutoSpawned: hasAutoSpawned.current
     });
     // Auto-spawn eggs when player location is first detected and no spawns nearby
+    // Server-side guards will prevent spam if user catches all and re-opens Hunt
     if (playerLocation && spawns.length === 0 && !isLoading && !hasAutoSpawned.current) {
-      console.log("Triggering auto-spawn for new player!");
+      console.log("[HUNT] Triggering auto-spawn - server will guard against spam");
       hasAutoSpawned.current = true;
-      spawnCreatures();
+      spawnCreatures("auto_spawn_no_spawns");
     }
   }, [playerLocation, spawns.length, isLoading, spawnCreatures]);
 
@@ -1555,7 +1556,7 @@ export default function HuntScreen() {
         <Pressable 
           style={styles.devSpawnButton}
           onPress={() => {
-            spawnCreatures();
+            spawnCreatures("dev_button");
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
           }}
         >

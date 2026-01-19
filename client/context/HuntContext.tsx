@@ -173,7 +173,7 @@ interface HuntContextType {
   economyReady: boolean;
   collectedEggs: number;
   updateLocation: (latitude: number, longitude: number, heading?: number) => Promise<void>;
-  spawnCreatures: () => Promise<void>;
+  spawnCreatures: (reason?: string) => Promise<void>;
   catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
   collectEgg: (spawnId: string) => Promise<CatchResult | null>;
   hatchEggs: () => Promise<HatchResult>;
@@ -434,25 +434,28 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [walletAddress]);
 
-  const spawnCreatures = useCallback(async () => {
+  const spawnCreatures = useCallback(async (reason: string = "unknown") => {
     if (!playerLocation) {
-      console.log("ensureSpawns: No player location, aborting");
+      console.log("[HUNT][SPAWN] ABORT no location. reason=", reason);
       return;
     }
     try {
-      console.log("ensureSpawns: Calling spawn API at", playerLocation);
+      console.log("[HUNT][SPAWN] CALLED reason=", reason, "loc=", playerLocation);
       const response = await apiRequest("POST", "/api/hunt/spawn", {
         latitude: playerLocation.latitude,
         longitude: playerLocation.longitude,
         walletAddress,
+        reason,
       });
       const data = await response.json();
-      console.log("ensureSpawns: Response", data);
+      console.log("[HUNT][SPAWN] RESPONSE", data);
       if (data.created > 0) {
         refreshSpawns();
+      } else if (data.skipped) {
+        console.log("[HUNT][SPAWN] SKIPPED reason=", data.reason, "cooldown=", data.cooldownRemaining);
       }
     } catch (error) {
-      console.error("Failed to ensure spawns:", error);
+      console.error("[HUNT][SPAWN] ERROR", error);
     }
   }, [playerLocation, walletAddress, refreshSpawns]);
 
