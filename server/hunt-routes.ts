@@ -123,16 +123,43 @@ function getRandomOffset(radiusMeters: number): { lat: number; lng: number } {
   return { lat: latOffset, lng: lngOffset };
 }
 
-// ===== HYBRID SPAWN SYSTEM CONSTANTS =====
-const HOME_RADIUS_M = 500;
-const HOME_TARGET_MIN = 3;
-const HOME_TARGET_MAX = 5;
-const HOME_TTL_MIN = 20; // Fixed TTL for predictable cooldown
-const HOME_TOPUP_COOLDOWN_MIN = 12; // Top-up every 12 minutes
-const HOTDROP_MIN_DIST_M = 900;
-const HOTDROP_MAX_DIST_M = 3000;
-const HOTDROP_TTL_MIN = 12;
-const HOTDROP_COOLDOWN_MIN = 8;
+// ===== DRIP + EXPLORE SESSION STORE =====
+interface HuntSession {
+  homeCenter: { lat: number; lng: number };
+  lastDripAt: number;
+  lastExploreGrantAt: number;
+  exploreLastGrantLocation: { lat: number; lng: number } | null;
+  createdAt: number;
+}
+
+const sessionStore = (globalThis as any).__huntSessionStore ??= new Map<string, HuntSession>();
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function getOrCreateSession(walletAddress: string, lat: number, lng: number): HuntSession {
+  const existing = sessionStore.get(walletAddress);
+  const now = Date.now();
+  
+  if (existing && now - existing.createdAt < SESSION_TTL_MS) {
+    return existing;
+  }
+  
+  const session: HuntSession = {
+    homeCenter: { lat, lng },
+    lastDripAt: 0,
+    lastExploreGrantAt: 0,
+    exploreLastGrantLocation: null,
+    createdAt: now,
+  };
+  sessionStore.set(walletAddress, session);
+  return session;
+}
+
+function updateSession(walletAddress: string, updates: Partial<HuntSession>) {
+  const existing = sessionStore.get(walletAddress);
+  if (existing) {
+    Object.assign(existing, updates);
+  }
+}
 
 // ===== HYBRID SPAWN HELPER FUNCTIONS =====
 function metersToLatDelta(m: number): number {
@@ -268,7 +295,8 @@ export function registerHuntRoutes(app: Express) {
 
   app.get("/api/hunt/spawns", async (req: Request, res: Response) => {
     try {
-      const { latitude, longitude, radius = 500 } = req.query;
+      const { latitude, longitude } = req.query;
+      const walletAddress = req.headers["x-wallet-address"] as string || req.query.walletAddress as string;
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
@@ -277,6 +305,7 @@ export function registerHuntRoutes(app: Express) {
       const lat = parseFloat(latitude as string);
       const lng = parseFloat(longitude as string);
       const now = new Date();
+      const nowMs = now.getTime();
 
       // 1) Expire old spawns
       await db.update(wildCreatureSpawns)
@@ -286,10 +315,14 @@ export function registerHuntRoutes(app: Express) {
           lte(wildCreatureSpawns.expiresAt, now)
         ));
 
-      // 2) Get home bounds (500m) for nearby spawns
-      const homeBounds = getCellBounds(lat, lng, HOME_RADIUS_M);
+      // 2) Get or create session for this wallet
+      const session = walletAddress ? getOrCreateSession(walletAddress, lat, lng) : null;
+      const homeCenter = session?.homeCenter || { lat, lng };
+
+      // 3) Get home bounds for nearby spawns
+      const homeBounds = getCellBounds(homeCenter.lat, homeCenter.lng, HUNT_CONFIG.HOME_RADIUS_M);
       
-      // 3) Fetch active uncaught spawns in home radius
+      // 4) Fetch active uncaught spawns in home radius
       let homeSpawns = await db.select().from(wildCreatureSpawns)
         .where(and(
           eq(wildCreatureSpawns.isActive, true),
@@ -302,78 +335,82 @@ export function registerHuntRoutes(app: Express) {
         ))
         .limit(20);
 
-      // Count home spawns vs hotdrops
-      const homeEggCount = homeSpawns.filter(s => s.templateId === 'wild_egg_home' || s.templateId === 'wild_egg').length;
+      const activeHomeCount = homeSpawns.filter(s => 
+        s.templateId === 'wild_egg_home' || s.templateId === 'wild_egg' || s.templateId === 'wild_egg_explore'
+      ).length;
       
-      // 4) HYBRID HOME TOP-UP
-      let homeNextTopUpInSec: number | null = null;
-      let homeCreated = 0;
+      // ===== DRIP LOGIC =====
+      let nextDripInSec: number | null = null;
+      let dripCreated = 0;
       
-      if (homeEggCount < HOME_TARGET_MIN) {
-        // Check cooldown using CAUGHT spawns (not creation time)
-        // This ensures cooldown starts from when user caught spawns, not when they appeared
-        const cooldownBounds = getCellBounds(lat, lng, 800);
+      if (session && walletAddress && activeHomeCount < HUNT_CONFIG.MAX_ACTIVE_HOME_SPAWNS) {
+        const timeSinceLastDrip = nowMs - session.lastDripAt;
+        const dripIntervalMs = HUNT_CONFIG.DRIP_INTERVAL_SEC * 1000;
         
-        // First, check for recently CAUGHT spawns in this area
-        const [lastCaughtSpawn] = await db.select().from(wildCreatureSpawns)
-          .where(and(
-            sql`${wildCreatureSpawns.templateId} IN ('wild_egg_home', 'wild_egg')`,
-            sql`${wildCreatureSpawns.caughtAt} IS NOT NULL`,
-            gte(wildCreatureSpawns.latitude, cooldownBounds.minLat.toString()),
-            lte(wildCreatureSpawns.latitude, cooldownBounds.maxLat.toString()),
-            gte(wildCreatureSpawns.longitude, cooldownBounds.minLng.toString()),
-            lte(wildCreatureSpawns.longitude, cooldownBounds.maxLng.toString()),
-          ))
-          .orderBy(desc(wildCreatureSpawns.caughtAt))
-          .limit(1);
-
-        let canTopUp = true;
-        
-        // Use caughtAt as cooldown basis if available, otherwise fall back to creation time
-        if (lastCaughtSpawn && lastCaughtSpawn.caughtAt) {
-          // Cooldown from when the spawn was CAUGHT
-          const cooldownEndAt = new Date(lastCaughtSpawn.caughtAt.getTime() + HOME_TOPUP_COOLDOWN_MIN * 60 * 1000);
-          if (now < cooldownEndAt) {
-            canTopUp = false;
-            homeNextTopUpInSec = Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000);
-            console.log(`[HOME_COOLDOWN] catch-based, remaining: ${homeNextTopUpInSec}s, lastCaughtAt: ${lastCaughtSpawn.caughtAt.toISOString()}`);
-          }
+        if (timeSinceLastDrip >= dripIntervalMs) {
+          // Create 1 drip spawn
+          const offset = getRandomOffset(HUNT_CONFIG.DRIP_SPAWN_RADIUS_M);
+          const expiresAt = new Date(nowMs + HUNT_CONFIG.HOME_TTL_MIN * 60 * 1000);
+          const eggTemplate = selectEggByRarity();
+          
+          await db.insert(wildCreatureSpawns).values({
+            latitude: (lat + offset.lat).toString(),
+            longitude: (lng + offset.lng).toString(),
+            templateId: 'wild_egg_home',
+            name: 'Mystery Egg',
+            creatureClass: 'egg',
+            rarity: eggTemplate.rarity,
+            baseHp: 0,
+            baseAtk: 0,
+            baseDef: 0,
+            baseSpd: 0,
+            containedTemplateId: null,
+            expiresAt,
+          });
+          dripCreated = 1;
+          
+          updateSession(walletAddress, { lastDripAt: nowMs });
+          console.log(`[DRIP] Created 1 spawn for ${walletAddress}`);
         } else {
-          // Fallback: check for uncaught spawns (original logic for first-time spawn areas)
-          const [lastHomeSpawn] = await db.select().from(wildCreatureSpawns)
-            .where(and(
-              sql`${wildCreatureSpawns.templateId} IN ('wild_egg_home', 'wild_egg')`,
-              gte(wildCreatureSpawns.latitude, cooldownBounds.minLat.toString()),
-              lte(wildCreatureSpawns.latitude, cooldownBounds.maxLat.toString()),
-              gte(wildCreatureSpawns.longitude, cooldownBounds.minLng.toString()),
-              lte(wildCreatureSpawns.longitude, cooldownBounds.maxLng.toString()),
-            ))
-            .orderBy(desc(wildCreatureSpawns.expiresAt))
-            .limit(1);
-            
-          if (lastHomeSpawn && lastHomeSpawn.expiresAt) {
-            const lastCreatedAt = new Date(lastHomeSpawn.expiresAt.getTime() - HOME_TTL_MIN * 60 * 1000);
-            const cooldownEndAt = new Date(lastCreatedAt.getTime() + HOME_TOPUP_COOLDOWN_MIN * 60 * 1000);
-            if (now < cooldownEndAt) {
-              canTopUp = false;
-              homeNextTopUpInSec = Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000);
-              console.log(`[HOME_COOLDOWN] creation-based fallback, remaining: ${homeNextTopUpInSec}s`);
-            }
-          }
+          nextDripInSec = Math.ceil((dripIntervalMs - timeSinceLastDrip) / 1000);
         }
-
-        if (canTopUp) {
-          const needed = Math.min(HOME_TARGET_MIN - homeEggCount, HOME_TARGET_MAX);
-          for (let i = 0; i < needed; i++) {
-            const radius = i === 0 ? 50 : 200;
-            const offset = getRandomOffset(radius);
-            const expiresAt = new Date(now.getTime() + HOME_TTL_MIN * 60 * 1000);
+      } else if (session && activeHomeCount >= HUNT_CONFIG.MAX_ACTIVE_HOME_SPAWNS) {
+        nextDripInSec = null; // Cap reached, no countdown
+      }
+      
+      // ===== EXPLORE LOGIC =====
+      let exploreCreated = 0;
+      
+      if (session && walletAddress && activeHomeCount + dripCreated < HUNT_CONFIG.MAX_ACTIVE_HOME_SPAWNS) {
+        const distFromHome = haversineMeters(lat, lng, homeCenter.lat, homeCenter.lng);
+        const distFromLastGrant = session.exploreLastGrantLocation 
+          ? haversineMeters(lat, lng, session.exploreLastGrantLocation.lat, session.exploreLastGrantLocation.lng)
+          : Infinity;
+        
+        const timeSinceLastExplore = nowMs - session.lastExploreGrantAt;
+        const exploreCooldownMs = HUNT_CONFIG.EXPLORE_COOLDOWN_SEC * 1000;
+        
+        // Trigger explore bonus if: moved 200m+ from last grant location AND 10 min cooldown passed
+        const canTriggerExplore = (
+          distFromLastGrant >= HUNT_CONFIG.EXPLORE_DISTANCE_M &&
+          timeSinceLastExplore >= exploreCooldownMs
+        );
+        
+        if (canTriggerExplore) {
+          const spawnCount = Math.min(
+            HUNT_CONFIG.BONUS_SPAWNS_ON_EXPLORE,
+            HUNT_CONFIG.MAX_ACTIVE_HOME_SPAWNS - activeHomeCount - dripCreated
+          );
+          
+          for (let i = 0; i < spawnCount; i++) {
+            const offset = getRandomOffset(HUNT_CONFIG.EXPLORE_SPAWN_RADIUS_M);
+            const expiresAt = new Date(nowMs + HUNT_CONFIG.HOME_TTL_MIN * 60 * 1000);
             const eggTemplate = selectEggByRarity();
             
             await db.insert(wildCreatureSpawns).values({
               latitude: (lat + offset.lat).toString(),
               longitude: (lng + offset.lng).toString(),
-              templateId: 'wild_egg_home',
+              templateId: 'wild_egg_explore',
               name: 'Mystery Egg',
               creatureClass: 'egg',
               rarity: eggTemplate.rarity,
@@ -384,17 +421,21 @@ export function registerHuntRoutes(app: Express) {
               containedTemplateId: null,
               expiresAt,
             });
-            homeCreated++;
+            exploreCreated++;
           }
-          console.log(`[HOME_TOPUP] inserted ${homeCreated}`);
+          
+          updateSession(walletAddress, {
+            lastExploreGrantAt: nowMs,
+            exploreLastGrantLocation: { lat, lng },
+          });
+          console.log(`[EXPLORE] Created ${exploreCreated} spawns for ${walletAddress} (dist from last: ${Math.round(distFromLastGrant)}m)`);
         }
       }
 
-      // 5) HOT DROP ENSURE
+      // ===== HOT DROP LOGIC =====
       const hotdropBounds = getCellBounds(lat, lng, 3500);
       let hotdropMeta: { active: boolean; distanceM?: number; bearingDeg?: number; expiresInSec?: number; direction?: string } = { active: false };
       
-      // Check for active hotdrop in region
       const [activeHotdrop] = await db.select().from(wildCreatureSpawns)
         .where(and(
           eq(wildCreatureSpawns.templateId, 'wild_egg_hotdrop'),
@@ -421,7 +462,7 @@ export function registerHuntRoutes(app: Express) {
           distanceM: Math.round(distM),
           bearingDeg: Math.round(bearing),
           direction: directions[dirIndex],
-          expiresInSec: Math.ceil((activeHotdrop.expiresAt!.getTime() - now.getTime()) / 1000),
+          expiresInSec: Math.ceil((activeHotdrop.expiresAt!.getTime() - nowMs) / 1000),
         };
       } else {
         // Check cooldown for hotdrop
@@ -438,17 +479,16 @@ export function registerHuntRoutes(app: Express) {
 
         let canSpawnHotdrop = true;
         if (lastHotdrop && lastHotdrop.expiresAt) {
-          const lastCreatedAt = new Date(lastHotdrop.expiresAt.getTime() - HOTDROP_TTL_MIN * 60 * 1000);
-          const cooldownEndAt = new Date(lastCreatedAt.getTime() + HOTDROP_COOLDOWN_MIN * 60 * 1000);
+          const lastCreatedAt = new Date(lastHotdrop.expiresAt.getTime() - HUNT_CONFIG.HOTDROP_TTL_MIN * 60 * 1000);
+          const cooldownEndAt = new Date(lastCreatedAt.getTime() + HUNT_CONFIG.HOTDROP_COOLDOWN_MIN * 60 * 1000);
           if (now < cooldownEndAt) {
             canSpawnHotdrop = false;
-            console.log(`[HOTDROP_COOLDOWN] remaining: ${Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000)}s`);
           }
         }
 
         if (canSpawnHotdrop) {
-          const offset = randomOffsetInRing(HOTDROP_MIN_DIST_M, HOTDROP_MAX_DIST_M, lat);
-          const expiresAt = new Date(now.getTime() + HOTDROP_TTL_MIN * 60 * 1000);
+          const offset = randomOffsetInRing(HUNT_CONFIG.HOTDROP_MIN_DIST_M, HUNT_CONFIG.HOTDROP_MAX_DIST_M, lat);
+          const expiresAt = new Date(nowMs + HUNT_CONFIG.HOTDROP_TTL_MIN * 60 * 1000);
           const rarity = selectHotDropRarity();
           
           const [newHotdrop] = await db.insert(wildCreatureSpawns).values({
@@ -480,13 +520,13 @@ export function registerHuntRoutes(app: Express) {
             distanceM: Math.round(distM),
             bearingDeg: Math.round(bearing),
             direction: directions[dirIndex],
-            expiresInSec: HOTDROP_TTL_MIN * 60,
+            expiresInSec: HUNT_CONFIG.HOTDROP_TTL_MIN * 60,
           };
         }
       }
 
-      // 6) Re-fetch home spawns after potential inserts
-      if (homeCreated > 0) {
+      // Re-fetch spawns after potential inserts
+      if (dripCreated > 0 || exploreCreated > 0) {
         homeSpawns = await db.select().from(wildCreatureSpawns)
           .where(and(
             eq(wildCreatureSpawns.isActive, true),
@@ -500,12 +540,12 @@ export function registerHuntRoutes(app: Express) {
           .limit(20);
       }
 
-      // 7) Build response with meta
+      // Build response with meta
       const meta = {
         home: {
-          target: HOME_TARGET_MIN,
+          target: HUNT_CONFIG.MAX_ACTIVE_HOME_SPAWNS,
           current: homeSpawns.length,
-          nextTopUpInSec: homeNextTopUpInSec,
+          nextTopUpInSec: nextDripInSec,
         },
         hotdrop: hotdropMeta,
       };
