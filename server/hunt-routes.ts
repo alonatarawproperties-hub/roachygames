@@ -1806,7 +1806,12 @@ export function registerHuntRoutes(app: Express) {
           },
         });
 
-      console.log(`[Phase1] ${walletAddress} claimed spawn ${spawnId}: ${eggRarity} egg, +${xpFinal}XP, +${pointsAwarded}pts`);
+      // Calculate pity values with Math.max to never go negative
+      const pityRareIn = Math.max(0, HUNT_CONFIG.PITY_RARE - newSinceRare);
+      const pityEpicIn = Math.max(0, HUNT_CONFIG.PITY_EPIC - newSinceEpic);
+      const pityLegendaryIn = Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary);
+
+      console.log(`[Phase1-v16] ${walletAddress} claimed spawn ${spawnId}: ${eggRarity} egg (guaranteed=${guaranteed}, rawRarity=${rawRarity}), pity counters: rare=${newSinceRare}/${HUNT_CONFIG.PITY_RARE}, epic=${newSinceEpic}/${HUNT_CONFIG.PITY_EPIC}, legendary=${newSinceLegendary}/${HUNT_CONFIG.PITY_LEGENDARY}, response pity: rareIn=${pityRareIn}, epicIn=${pityEpicIn}, legendaryIn=${pityLegendaryIn}`);
 
       res.json({
         success: true,
@@ -1828,9 +1833,9 @@ export function registerHuntRoutes(app: Express) {
           legendary: eggRarity === 'legendary' ? currentEggCount + 1 : (economy.eggLegendary || 0),
         },
         pity: {
-          rareIn: Math.max(0, HUNT_CONFIG.PITY_RARE - newSinceRare),
-          epicIn: Math.max(0, HUNT_CONFIG.PITY_EPIC - newSinceEpic),
-          legendaryIn: Math.max(0, HUNT_CONFIG.PITY_LEGENDARY - newSinceLegendary),
+          rareIn: pityRareIn,
+          epicIn: pityEpicIn,
+          legendaryIn: pityLegendaryIn,
         },
         warmth: (economy.warmth || 0) + totalWarmthGain,
         hunterLevel: finalLevelInfo.level,
