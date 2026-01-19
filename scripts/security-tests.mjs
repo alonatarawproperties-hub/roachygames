@@ -98,7 +98,10 @@ async function testCatchAtomic() {
   const success = results.filter(r => r.res.status === 200).length;
   const conflicts = results.filter(r =>
     r.res.status === 409 &&
-    (r.json?.error === "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" || r.text.includes("SPAWN_ALREADY_CLAIMED_OR_EXPIRED"))
+    (r.json?.error === "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" || 
+     r.json?.error === "DUPLICATE_CATCH_REQUEST" ||
+     r.text.includes("SPAWN_ALREADY_CLAIMED_OR_EXPIRED") ||
+     r.text.includes("DUPLICATE_CATCH_REQUEST"))
   ).length;
 
   assert(success === 1, `Expected exactly 1 success, got ${success}. Results=${results.map(r=>({s:r.res.status,b:r.json||r.text})).slice(0,5)}`);

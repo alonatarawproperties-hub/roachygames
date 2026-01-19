@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
+import { rateLimit, markKey, normalizeIp } from "./utils/rateLimit";
 import {
   huntPlayerLocations,
   wildCreatureSpawns,
@@ -310,6 +311,23 @@ export function registerHuntRoutes(app: Express) {
       
       if (!walletAddress || latitude === undefined || longitude === undefined) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Rate limiting: 30 req/60s per wallet or IP
+      const ip = normalizeIp(req);
+      const key = walletAddress || ip;
+      const rl = rateLimit({ route: "location", key, limit: 30, windowMs: 60_000 });
+      if (!rl.allowed) {
+        console.log("[Hunt] rate limited location", { key, retryInSec: rl.retryInSec });
+        return res.status(429).json({ error: "RATE_LIMITED", retryInSec: rl.retryInSec });
+      }
+
+      // Duplicate location spam suppression: same coords within 1s = ignore
+      const lat6 = Number(latitude).toFixed(6);
+      const lng6 = Number(longitude).toFixed(6);
+      const spamKey = `loc:${key}:${lat6}:${lng6}`;
+      if (markKey(spamKey, 1000)) {
+        return res.status(200).json({ success: true, ignored: true });
       }
 
       const existing = await db.select().from(huntPlayerLocations)
@@ -1394,6 +1412,21 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
+      // Rate limiting: 20 req/60s per wallet or IP
+      const ip = normalizeIp(req);
+      const key = walletAddress || ip;
+      const rl = rateLimit({ route: "catch", key, limit: 20, windowMs: 60_000 });
+      if (!rl.allowed) {
+        console.log("[Hunt] rate limited catch", { key, retryInSec: rl.retryInSec });
+        return res.status(429).json({ error: "RATE_LIMITED", retryInSec: rl.retryInSec });
+      }
+
+      // Duplicate catch prevention: same wallet+spawnId within 3s = reject
+      const spamKey = `catch:${key}:${spawnId}`;
+      if (markKey(spamKey, 3000)) {
+        return res.status(409).json({ error: "DUPLICATE_CATCH_REQUEST" });
+      }
+
       // Fetch spawn data for later use (don't check isActive/caughtByWallet - atomic UPDATE is authoritative)
       const [spawn] = await db.select().from(wildCreatureSpawns)
         .where(eq(wildCreatureSpawns.id, spawnId))
@@ -2469,6 +2502,15 @@ export function registerHuntRoutes(app: Express) {
       if (!walletAddress || !spawnId || lat === undefined || lon === undefined || !quality) {
         console.log(`[Phase1 Claim] Missing fields: wallet=${!!walletAddress}, spawn=${!!spawnId}, lat=${lat !== undefined}, lon=${lon !== undefined}, quality=${!!quality}`);
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Rate limiting: 15 req/60s per wallet or IP
+      const ip = normalizeIp(req);
+      const key = walletAddress || ip;
+      const rl = rateLimit({ route: "phase1-claim", key, limit: 15, windowMs: 60_000 });
+      if (!rl.allowed) {
+        console.log("[Hunt] rate limited phase1-claim", { key, retryInSec: rl.retryInSec });
+        return res.status(429).json({ error: "RATE_LIMITED", retryInSec: rl.retryInSec });
       }
 
       if (!['perfect', 'great', 'good'].includes(quality)) {

@@ -1,0 +1,70 @@
+REPLIT AGENT — ADD SERVER-SIDE RATE LIMITING + ANTI-SPAM (PRODUCTION SAFE)
+Goal: Prevent bot spam / request flooding exploits on Roachy Hunt, without changing gameplay logic.
+
+Rules:
+- Do NOT change response shapes for success cases.
+- Do NOT refactor route structure.
+- Add a small reusable rate limiter utility + apply it to:
+  1) POST /api/hunt/location
+  2) POST /api/hunt/catch
+  3) POST /api/hunt/phase1/claim-spawn (if exists)
+- Keep it simple: in-memory limiter (good enough for now). Must not crash if headers missing.
+
+Design:
+A) Identify caller key:
+   - Prefer walletAddress from body when available
+   - Else fallback to IP (x-forwarded-for or req.ip)
+   - Key format: `${route}:${walletOrIp}`
+
+B) Limits:
+1) /api/hunt/location
+   - max 30 requests per 60 seconds per wallet (or IP)
+   - If exceeded: return 429 { error: "RATE_LIMITED", retryInSec: <seconds> }
+   - Also block duplicate location spam: if same lat/lng rounded to 6 decimals repeats within 1 second, ignore update and return 200 { success: true, ignored: true } (do not write DB). (Do NOT treat as error.)
+2) /api/hunt/catch
+   - max 20 requests per 60 seconds per wallet (or IP)
+   - If exceeded: 429 RATE_LIMITED
+   - Additionally, prevent rapid double-submit: if same wallet tries same spawnId within 3 seconds, return 409 { error: "DUPLICATE_CATCH_REQUEST" } (no DB touch)
+3) /api/hunt/phase1/claim-spawn
+   - max 15 requests per 60 seconds per wallet (or IP)
+   - If exceeded: 429 RATE_LIMITED
+
+Implementation steps:
+1) Create new file: server/utils/rateLimit.ts
+   Export:
+   - rateLimit({ route, key, limit, windowMs }): { allowed: boolean, retryInSec: number }
+   - markKey(routeKey: string, ttlMs: number): boolean  // for duplicate prevention, returns true if already exists
+   - normalizeIp(req): string
+   Use an in-memory Map with buckets storing count + resetAt, and a Map for dedupe TTL.
+   Include a simple cleanup (remove expired entries occasionally).
+
+2) Wire into hunt-routes.ts:
+   - Import functions.
+   - At the TOP of each endpoint handler, compute walletOrIp:
+     const wallet = req.body?.walletAddress;
+     const ip = normalizeIp(req);
+     const key = wallet || ip;
+
+   - Apply limiter with correct parameters.
+   - For /api/hunt/location: apply duplicate coordinate suppression (rounded coords) using markKey:
+       const lat6 = Number(latitude).toFixed(6);
+       const lng6 = Number(longitude).toFixed(6);
+       const spamKey = `loc:${wallet || ip}:${lat6}:${lng6}`;
+       if (markKey(spamKey, 1000)) return res.status(200).json({ success: true, ignored: true });
+
+   - For /api/hunt/catch: duplicate submit guard:
+       const spamKey = `catch:${wallet || ip}:${spawnId}`;
+       if (markKey(spamKey, 3000)) return res.status(409).json({ error: "DUPLICATE_CATCH_REQUEST" });
+
+3) Add minimal console logs on 429 only (not on every request).
+
+4) After changes:
+   - Run existing security tests (should still PASS).
+   - Add a quick manual “spam test” script in scripts/spam-test.mjs (optional) OR just show curl examples in the response.
+
+Deliverables:
+- Paste the content of server/utils/rateLimit.ts
+- Paste the exact code snippets added to each of the 3 endpoints
+- Confirm tests still PASS.
+
+IMPORTANT: Do not break mobile client parsing. Only add new error codes for 429/409 where specified.
