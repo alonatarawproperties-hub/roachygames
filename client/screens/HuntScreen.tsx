@@ -970,11 +970,16 @@ export default function HuntScreen() {
     const handleRadarPing = () => {
       if (radarCooldown > 0) return;
       setRadarCooldown(60);
-      refreshSpawns();
-      refetchMapNodes();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Trigger radar ping animation on map
+      
+      // Trigger radar ping animation FIRST before any state changes
       mapRef.current?.triggerRadarPing();
+      
+      // Delay data refresh to prevent re-renders from interrupting animation
+      setTimeout(() => {
+        refreshSpawns();
+        refetchMapNodes();
+      }, 500);
     };
     
     return (

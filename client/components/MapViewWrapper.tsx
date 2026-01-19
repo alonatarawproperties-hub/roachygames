@@ -285,17 +285,16 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     }));
     
     const triggerRadarAnimation = () => {
-      // Reset to starting position
-      radarScale.value = 0.1;
-      radarOpacity.value = 0;
-      
-      // Small delay to ensure reset is applied, then animate
-      setTimeout(() => {
-        radarOpacity.value = 0.9;
-        // Expand outward over 10 seconds - slow radar sweep
-        radarScale.value = withTiming(4, { duration: 10000, easing: Easing.out(Easing.ease) });
-        radarOpacity.value = withTiming(0, { duration: 10000, easing: Easing.linear });
-      }, 50);
+      // Use withSequence for proper animation chaining
+      // First fade in quickly, then fade out slowly while expanding
+      radarScale.value = withSequence(
+        withTiming(0.5, { duration: 100 }), // Start at half size
+        withTiming(4, { duration: 10000, easing: Easing.out(Easing.ease) }) // Expand over 10 seconds
+      );
+      radarOpacity.value = withSequence(
+        withTiming(0.8, { duration: 100 }), // Fade in quickly
+        withTiming(0, { duration: 10000, easing: Easing.linear }) // Fade out over 10 seconds
+      );
     };
 
     useImperativeHandle(ref, () => ({
