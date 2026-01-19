@@ -1283,6 +1283,89 @@ export function registerHuntRoutes(app: Express) {
         })
         .where(eq(wildCreatureSpawns.id, spawnId));
 
+      // ===== QUEST COMPLETION CHECK =====
+      let questCompleted = false;
+      let questType: string | null = null;
+      let questBonusEgg: { rarity: string } | null = null;
+      
+      if (spawn.sourceType && spawn.sourceKey) {
+        questType = spawn.sourceType;
+        const dayKey = getManilaDate();
+        const now = new Date();
+        const nowMs = now.getTime();
+        
+        // Count remaining uncaught quest eggs
+        const remainingResult = await db.select({ count: sql<number>`count(*)` })
+          .from(wildCreatureSpawns)
+          .where(and(
+            eq(wildCreatureSpawns.sourceKey, spawn.sourceKey),
+            eq(wildCreatureSpawns.isActive, true),
+            isNull(wildCreatureSpawns.caughtByWallet)
+          ));
+        
+        const remaining = Number(remainingResult[0]?.count || 0);
+        
+        if (remaining === 0) {
+          questCompleted = true;
+          
+          // Get player hotspot state
+          const [playerState] = await db.select().from(huntHotspotPlayerState)
+            .where(and(
+              eq(huntHotspotPlayerState.walletAddress, walletAddress),
+              eq(huntHotspotPlayerState.dayKey, dayKey)
+            ))
+            .limit(1);
+          
+          if (playerState) {
+            // Set cooldowns based on quest type
+            const updates: any = {
+              activeQuestType: null,
+              activeQuestKey: null,
+              activeQuestExpiresAt: null,
+              updatedAt: now,
+            };
+            
+            if (spawn.sourceType === 'MICRO_HOTSPOT') {
+              updates.microCooldownUntil = new Date(nowMs + HUNT_CONFIG.MICRO_COOLDOWN_MIN * 60 * 1000);
+            } else if (spawn.sourceType === 'HOT_DROP') {
+              updates.hotdropCooldownUntil = new Date(nowMs + HUNT_CONFIG.HOTDROP_COOLDOWN_MIN * 60 * 1000);
+            }
+            
+            await db.update(huntHotspotPlayerState)
+              .set(updates)
+              .where(eq(huntHotspotPlayerState.id, playerState.id));
+            
+            // Bonus roll for MICRO_HOTSPOT and HOT_DROP completion (not BEACON - handled separately)
+            if (spawn.sourceType !== 'LEGENDARY_BEACON') {
+              const bonusRates = spawn.sourceType === 'MICRO_HOTSPOT' ? HUNT_CONFIG.MICRO_RATES : HUNT_CONFIG.HOTDROP_RATES;
+              const roll = Math.random();
+              let bonusRarity = 'rare';
+              let cumulative = 0;
+              for (const [r, rate] of Object.entries(bonusRates)) {
+                cumulative += rate;
+                if (roll <= cumulative) {
+                  bonusRarity = r;
+                  break;
+                }
+              }
+              
+              questBonusEgg = { rarity: bonusRarity };
+              
+              // Update economy with bonus egg
+              const eggField = `egg${bonusRarity.charAt(0).toUpperCase() + bonusRarity.slice(1)}` as 'eggCommon' | 'eggRare' | 'eggEpic' | 'eggLegendary';
+              await db.update(huntEconomyStats)
+                .set({
+                  [eggField]: sql`${huntEconomyStats[eggField]} + 1`,
+                  collectedEggs: sql`${huntEconomyStats.collectedEggs} + 1`,
+                })
+                .where(eq(huntEconomyStats.walletAddress, walletAddress));
+              
+              console.log(`[QUEST] ${spawn.sourceType} completed by ${walletAddress} - bonus ${bonusRarity} egg awarded`);
+            }
+          }
+        }
+      }
+
       const isMysteryEgg = spawn.creatureClass === 'egg';
       const isRoachyEgg = spawn.containedTemplateId !== null && spawn.creatureClass !== 'egg';
 
@@ -1313,13 +1396,18 @@ export function registerHuntRoutes(app: Express) {
           isMysteryEgg: true,
           isRoachyEgg: false,
           eggRarity: spawn.rarity,
-          collectedEggs: newEggCount,
+          collectedEggs: questBonusEgg ? newEggCount + 1 : newEggCount,
           eggsRequired: EGGS_REQUIRED_FOR_HATCH,
           canHatch,
           economy: {
             energy: economy.energy - 1,
-            collectedEggs: newEggCount,
+            collectedEggs: questBonusEgg ? newEggCount + 1 : newEggCount,
           },
+          quest: questCompleted ? {
+            completed: true,
+            type: questType,
+            bonusEgg: questBonusEgg,
+          } : undefined,
         });
       }
 
