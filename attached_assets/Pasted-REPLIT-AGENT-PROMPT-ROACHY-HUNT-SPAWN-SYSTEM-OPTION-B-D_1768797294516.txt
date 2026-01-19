@@ -1,0 +1,147 @@
+REPLIT AGENT PROMPT — ROACHY HUNT SPAWN SYSTEM (OPTION B: DRIP + EXPLORE) — SAFE, MINIMAL, NO SIDE EFFECTS
+
+GOAL
+Implement a predictable “home drip” spawn loop + exploration incentives WITHOUT breaking any existing Hunt/Battles logic.
+NO GUESS FIXES. DO NOT TOUCH unrelated files. Keep changes scoped to Hunt spawn endpoints + HuntScreen refresh behavior.
+
+BEHAVIOR SPEC (MUST MATCH)
+A) HOME DRIP (always available, non-spam)
+- Player has a “home center” = the first location when they open HuntScreen for the session (lat/lng).
+- Within HOME_RADIUS_M = 500m from home center:
+  - System auto-spawns 1 egg every DRIP_INTERVAL_SEC = 240 seconds (4 minutes)
+  - HARD CAP: MAX_ACTIVE_HOME_SPAWNS = 6 active, uncaught spawns within home radius at any time
+  - If cap reached, no new spawns are created (only fetch existing).
+- If the player clears all spawns, UI shows “Next drip in mm:ss”, and they wait until the drip timer creates the next one.
+
+B) EXPLORE BOOST (movement reward)
+- If player moves >= EXPLORE_DISTANCE_M = 200m from home center (or from last “explore trigger” point),
+  grant BONUS_SPAWNS_ON_EXPLORE = 2 additional spawns (still respecting a global cap).
+- This should not be spammable: once bonus triggers, store exploreLastGrantAt and exploreLastGrantLatLng. Require another >=200m from that last grant point and at least 10 minutes since last grant.
+
+C) HOTDROP (server-driven, already exists)
+- Radar should reveal direction/distance to hotdrop if active.
+- Radar must NOT create spawns.
+
+D) RADAR (strategy tool, not spam)
+- Radar “Ping” button should:
+  1) trigger client animation immediately
+  2) call GET /api/hunt/radar?lat&lng (NEW endpoint) that returns:
+     - mode: "hotdrop" | "nearest_spawn" | "none"
+     - direction: N/NE/E/SE/S/SW/W/NW
+     - distanceM: number
+  3) Then it can refetch spawns/mapNodes after 500ms (keep existing delay)
+- Radar cooldown remains 60s client-side.
+- Radar banner MUST NOT BLINK/DISAPPEAR within 1 second: keep UI stable even when spawns query refetches.
+  Use TanStack Query v5 `placeholderData: (prev) => prev ?? []` and DO NOT setHuntMeta(null) on transient failures.
+
+IMPORTANT: NO MORE “refresh = spawnCreatures()” behavior.
+- The refresh button must ONLY refetch data (refreshSpawns + refetchMapNodes).
+- The only place spawns are CREATED is the server drip/explore logic.
+
+FILES TO CHANGE (ONLY THESE)
+1) server/hunt-routes.ts (or wherever /api/hunt/spawns and /api/hunt/spawn live)
+2) server/hunt-config.ts (add constants; change PITY_LEGENDARY to 500)
+3) client/games/hunt/HuntContext.tsx (remove spawnCreatures() from refresh usage; keep function but don’t call it from refresh)
+4) client/games/hunt/HuntScreen.tsx (update refresh handler; stabilize banner; add radar request call)
+5) (Optional) shared types file if you have it, for RadarResponse type.
+
+DO NOT MODIFY DB SCHEMA if avoidable. If needed, add a small table; but prefer reusing huntEconomyStats as JSON fields or additional columns ONLY if already using Drizzle migrations safely. If schema changes are risky, implement “home center / last grant” server-side in memory keyed by walletAddress with TTL=24h (acceptable for now) — BUT prefer DB if you already have a safe migrations pipeline.
+
+IMPLEMENTATION DETAILS (SERVER)
+
+1) Replace POST /api/hunt/spawn usage
+- Keep endpoint for admin/testing only, but PROTECT IT:
+  - require header `x-admin-key` equals process.env.ADMIN_KEY
+  - if missing, return 403
+This prevents clients from accidentally creating spawns.
+
+2) Upgrade GET /api/hunt/spawns to be “authoritative”
+Current GET just returns existing spawns. We need it to ALSO:
+- Read walletAddress from header `x-wallet-address` OR `walletAddress` query param (pick one standard; prefer header).
+- If walletAddress missing, still return existing spawns but DO NOT auto-create.
+
+Auto-create logic inside GET:
+- Determine homeCenter for wallet:
+  - If none stored for today/session, set homeCenter = (latitude, longitude) from request
+- Compute active uncaught spawns within HOME_RADIUS_M from homeCenter.
+- Ensure DRIP:
+  - Maintain lastHomeDripAt timestamp per wallet
+  - If now - lastHomeDripAt >= DRIP_INTERVAL_SEC and activeHomeCount < MAX_ACTIVE_HOME_SPAWNS:
+      create exactly 1 new spawn near current player location (or around homeCenter) using existing insert logic
+      update lastHomeDripAt = now
+- Ensure EXPLORE bonus:
+  - If distance(current player location, lastExploreGrantLocation) >= EXPLORE_DISTANCE_M
+    AND now - lastExploreGrantAt >= 10 minutes
+    AND active total within radius cap not exceeded:
+      create BONUS_SPAWNS_ON_EXPLORE spawns
+      set lastExploreGrantAt = now and lastExploreGrantLocation = current location
+- Return JSON:
+  { spawns: [...], meta: { home: { nextDripInSec }, hotdrop: {active, direction, distanceM, endsInSec} } }
+
+NOTE: If you already have `meta` returned, extend it; do not break existing consumers.
+
+Distance calc on server:
+- Use a simple haversine function in meters.
+
+Spawn placement:
+- Reuse getRandomOffset(radius) logic.
+- For drip spawn: small radius (50–150m).
+- For explore bonus: 100–250m.
+
+3) Add GET /api/hunt/radar
+Input: lat, lng, walletAddress header.
+Output:
+- If hotdrop active: return mode=hotdrop + direction/distance from player to hotdrop
+- Else find nearest active uncaught spawn (not caughtByWallet, isActive true, expiresAt>now) within 2km:
+    return mode=nearest_spawn + direction/distance
+- Else mode=none
+
+Direction:
+- Convert bearing degrees to 8-way compass labels.
+
+CLIENT CHANGES (NO BREAKAGE)
+
+1) HuntScreen refresh button
+Current:
+onRefresh={() => { spawnCreatures(); refetchMapNodes(); ... }}
+Change to:
+onRefresh={() => { refreshSpawns(); refetchMapNodes(); ... }}
+DO NOT call spawnCreatures on refresh.
+
+2) Stabilize “Area Cleared / Ping Radar” banner
+- In the spawns useQuery:
+  - Add `placeholderData: (prev) => prev ?? []`
+  - Add `staleTime: 10000` (keep)
+  - On fetch failure: DO NOT setHuntMeta(null) immediately; keep previous meta to avoid blink.
+- Also: do not compute `showBanner` purely from spawns.length < 2 if spawns temporarily goes [] during loading.
+  Use `const effectiveSpawns = isLoading ? previousSpawnsRef.current : spawns;`
+  Maintain a `useRef<Spawn[]>([])` that updates when spawnsData successful.
+
+3) Radar click
+- On handleRadarPing:
+  - Keep animation first
+  - Call new endpoint /api/hunt/radar with lat/lng and x-wallet-address
+  - Store response in state (radarResult) and show in banner for at least 3 seconds (don’t blink)
+  - Then refetch after 500ms as you already do
+
+4) PITY LEGENDARY CHANGE
+- In hunt-config.ts set:
+  PITY_LEGENDARY: 500
+and ensure all “legendaryIn” displays use that value.
+
+TEST CHECKLIST (MUST DO)
+- Start Hunt: spawns appear; clearing them shows “Area Cleared” and a countdown “Next Home Drop in 03:xx”
+- Wait 4 minutes: exactly 1 new spawn appears (without leaving screen)
+- Spam refresh: does NOT create new spawns
+- Exit to lobby, re-enter Hunt: does NOT instantly create 15 new spawns; only shows existing + respects drip timing
+- Move 200m away: get +2 bonus spawns once; cannot spam without 10 min + another 200m
+- Radar button is tappable and never disappears instantly; banner stable
+- Battles and other screens unaffected
+- POST /api/hunt/spawn now returns 403 without admin key
+
+DELIVERABLE
+- Provide the exact code diffs/patches for the files listed.
+- Keep code style consistent with existing project.
+- Do not refactor unrelated functions.
+
+START NOW.

@@ -12,6 +12,23 @@ export const HUNT_CONFIG = {
   PITY_EPIC: 60,
   PITY_LEGENDARY: 500,
   
+  // ===== DRIP + EXPLORE SYSTEM (Option B) =====
+  HOME_RADIUS_M: 500,              // Home zone radius
+  DRIP_INTERVAL_SEC: 240,          // 4 minutes between drip spawns
+  MAX_ACTIVE_HOME_SPAWNS: 6,       // Hard cap on active home spawns
+  DRIP_SPAWN_RADIUS_M: 100,        // Spawn within 100m for drip
+  
+  EXPLORE_DISTANCE_M: 200,         // Must move 200m to trigger explore bonus
+  EXPLORE_COOLDOWN_SEC: 600,       // 10 minute cooldown between explore bonuses
+  BONUS_SPAWNS_ON_EXPLORE: 2,      // Grant 2 spawns on explore
+  EXPLORE_SPAWN_RADIUS_M: 200,     // Spawn within 200m for explore
+  
+  HOME_TTL_MIN: 20,                // Spawn TTL in minutes
+  HOTDROP_MIN_DIST_M: 900,
+  HOTDROP_MAX_DIST_M: 3000,
+  HOTDROP_TTL_MIN: 12,
+  HOTDROP_COOLDOWN_MIN: 8,
+  
   BASE_RATES: {
     common: 0.85,
     rare: 0.12,
