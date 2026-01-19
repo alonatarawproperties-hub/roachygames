@@ -288,16 +288,16 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const triggerRadarAnimation = () => {
       setShowRadarPing(true);
       radarScale.value = 0;
-      radarOpacity.value = 0.8;
+      radarOpacity.value = 0.9;
       
-      // Expand outward over 2 seconds
-      radarScale.value = withTiming(3, { duration: 2000, easing: Easing.out(Easing.ease) });
-      radarOpacity.value = withTiming(0, { duration: 2000, easing: Easing.in(Easing.ease) }, () => {
+      // Expand outward over 10 seconds - slow radar sweep
+      radarScale.value = withTiming(4, { duration: 10000, easing: Easing.out(Easing.ease) });
+      radarOpacity.value = withTiming(0, { duration: 10000, easing: Easing.linear }, () => {
         // Hide after animation completes
       });
       
       // Hide component after animation
-      setTimeout(() => setShowRadarPing(false), 2100);
+      setTimeout(() => setShowRadarPing(false), 10100);
     };
 
     useImperativeHandle(ref, () => ({
