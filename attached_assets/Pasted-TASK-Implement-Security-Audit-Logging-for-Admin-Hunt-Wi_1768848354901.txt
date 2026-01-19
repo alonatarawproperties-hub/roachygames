@@ -1,0 +1,138 @@
+TASK: Implement Security Audit Logging for Admin Hunt Wipe using existing `security_audit_log` table.
+IMPORTANT: Do NOT change any hunt gameplay logic. Only modify admin wipe + adminAuth behavior. Keep current wipe behavior exactly the same (confirm strings, dryRun, production safety, truncate transaction). Add DB logging behind the scenes only.
+
+TABLE (already exists in @shared/schema):
+securityAuditLog columns:
+- userId (nullable)
+- eventType (required)
+- severity (default 'info')
+- details (text)
+- clientIp (text)
+- userAgent (text)
+- createdAt (auto)
+
+TARGET FILE:
+server/admin-routes.ts (where adminAuth and /api/admin/hunt/wipe live)
+
+GOAL:
+Write rows into security_audit_log for these cases:
+1) wipe denied (bad admin key / missing confirms / production blocked)
+2) wipe dryRun executed (counts)
+3) wipe success (counts)
+4) wipe failed (error)
+
+EVENT TYPES (use exactly):
+- "admin_hunt_wipe_denied"
+- "admin_hunt_wipe_dry_run"
+- "admin_hunt_wipe_success"
+- "admin_hunt_wipe_failed"
+
+SEVERITY:
+- denied => "warning"
+- dry_run => "info"
+- success => "warning"
+- failed => "critical"
+
+DETAILS:
+Store as JSON string: JSON.stringify(detailsObj)
+detailsObj must include:
+- route: "/api/admin/hunt/wipe"
+- dryRun: boolean
+- reason: string (for denied/failed)
+- confirmOk: boolean (only boolean, do NOT store confirm strings)
+- confirm2Ok: boolean (only boolean)
+- blockedByProduction: boolean (if applicable)
+- nodeEnv: process.env.NODE_ENV
+- adminWipeEnabled: process.env.ADMIN_WIPE_ENABLED === "true"
+- results (the per-table before/after/deleted object you already compute) OR at least totals + key tables
+- totalDeleted / totalWouldDelete
+- timestamp: new Date().toISOString()
+
+IDENTITY:
+- admin endpoints have no user context; set userId: null
+
+IP + UA:
+- clientIp:
+  - Prefer x-forwarded-for (split by comma, take first trim)
+  - Else req.ip
+- userAgent: req.headers["user-agent"] as string | undefined
+
+NON-BREAKING RULE:
+Audit insert must NEVER break the endpoint.
+Wrap audit insert in try/catch, console.error on failure, then continue.
+
+CRITICAL: Don’t spam logs for other admin routes
+adminAuth is used by multiple routes, so only log unauthorized/denied if the request path targets the wipe route:
+- if req.originalUrl startsWith "/api/admin/hunt/wipe" (or exact match)
+
+IMPLEMENTATION STEPS:
+
+1) In server/admin-routes.ts ensure securityAuditLog is imported in the existing big schema import list (it already is). If not, add it.
+
+2) Add helper functions near top of file (below imports), no new files needed:
+
+- getClientIp(req):
+  const xf = req.headers["x-forwarded-for"];
+  if (typeof xf === "string" && xf.length) return xf.split(",")[0].trim();
+  return (req.ip || "").toString();
+
+- safeAudit(req, eventType, severity, detailsObj):
+  try {
+    await db.insert(securityAuditLog).values({
+      userId: null,
+      eventType,
+      severity,
+      details: JSON.stringify(detailsObj),
+      clientIp: getClientIp(req),
+      userAgent: (req.headers["user-agent"] as string) || null,
+    });
+  } catch (e) {
+    console.error("[Audit] Failed to write security audit log:", e);
+  }
+
+3) Update adminAuth(req,res,next):
+- Keep the same auth logic.
+- If ADMIN_API_KEY missing: before returning 503, if req.originalUrl startsWith "/api/admin/hunt/wipe", call safeAudit with:
+  eventType="admin_hunt_wipe_denied"
+  severity="critical"
+  detailsObj: { route, dryRun:false, reason:"ADMIN_API_KEY_MISSING", confirmOk:false, confirm2Ok:false, blockedByProduction:false, nodeEnv, adminWipeEnabled, timestamp }
+- If apiKey missing/invalid: before returning 401, only if this is the wipe route, call safeAudit:
+  reason:"INVALID_ADMIN_KEY"
+
+4) Update /api/admin/hunt/wipe handler:
+- Determine dryRun from query: const dryRun = req.query.dryRun === "1" || req.query.dryRun === "true";
+- Confirm checks:
+  const confirmOk = req.body?.confirm === "wipe";
+  const confirm2Ok = req.body?.confirm2 === "I_UNDERSTAND_THIS_DELETES_HUNT_DATA";
+  If either fails:
+    await safeAudit(req,"admin_hunt_wipe_denied","warning",{ route, dryRun, reason:"CONFIRMATION_FAILED", confirmOk, confirm2Ok, blockedByProduction:false, nodeEnv, adminWipeEnabled, timestamp })
+    return the same 400 response as before (do not change message format)
+- Production safety:
+  If process.env.NODE_ENV === "production" && process.env.ADMIN_WIPE_ENABLED !== "true":
+    await safeAudit(req,"admin_hunt_wipe_denied","warning",{ route, dryRun, reason:"PRODUCTION_BLOCKED", confirmOk, confirm2Ok, blockedByProduction:true, nodeEnv, adminWipeEnabled, timestamp })
+    return the same response you already return (do not change)
+- DRY RUN:
+  Run the same counting logic you already have (no deletes).
+  Before returning response, call:
+    await safeAudit(req,"admin_hunt_wipe_dry_run","info",{ route, dryRun:true, reason:"DRY_RUN", confirmOk, confirm2Ok, blockedByProduction:false, nodeEnv, adminWipeEnabled, results, totalWouldDelete, totalDeleted:0, timestamp })
+  Return response unchanged.
+- ACTUAL WIPE SUCCESS:
+  After transaction completes and results computed:
+    await safeAudit(req,"admin_hunt_wipe_success","warning",{ route, dryRun:false, reason:"SUCCESS", confirmOk, confirm2Ok, blockedByProduction:false, nodeEnv, adminWipeEnabled, results, totalDeleted, timestamp })
+  Return response unchanged.
+- FAILURE:
+  In catch(error):
+    await safeAudit(req,"admin_hunt_wipe_failed","critical",{ route, dryRun, reason:"ERROR", errorMessage: String(error?.message || error), confirmOk, confirm2Ok, blockedByProduction:false, nodeEnv, adminWipeEnabled, timestamp })
+  Then return the same 500 response as before.
+
+5) Verify quickly:
+- Trigger invalid key request to /api/admin/hunt/wipe -> should log denied row.
+- Trigger dryRun -> should log dry_run row.
+- Trigger actual wipe -> should log success row.
+- Confirm rows appear in `security_audit_log` and details is JSON string.
+- Ensure no other admin routes started logging.
+
+OUTPUT REQUIRED FROM YOU (agent):
+- List exactly what changed in server/admin-routes.ts
+- Confirm no hunt gameplay routes were modified
+- Confirm endpoint responses remained unchanged

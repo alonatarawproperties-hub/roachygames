@@ -35,17 +35,75 @@ import { desc, eq, sql, and, gte, lte, count } from "drizzle-orm";
 import { getSecurityLogs, getSecurityStats } from "./security";
 import { reconcileBalance, getTransactionHistory } from "./secure-economy";
 
+function getClientIp(req: Request): string {
+  const xf = req.headers["x-forwarded-for"];
+  if (typeof xf === "string" && xf.length) return xf.split(",")[0].trim();
+  return (req.ip || "").toString();
+}
+
+async function safeAudit(
+  req: Request,
+  eventType: string,
+  severity: string,
+  detailsObj: Record<string, unknown>
+): Promise<void> {
+  try {
+    await db.insert(securityAuditLog).values({
+      userId: null,
+      eventType,
+      severity,
+      details: JSON.stringify(detailsObj),
+      clientIp: getClientIp(req),
+      userAgent: (req.headers["user-agent"] as string) || null,
+    });
+  } catch (e) {
+    console.error("[Audit] Failed to write security audit log:", e);
+  }
+}
+
+function isHuntWipeRoute(req: Request): boolean {
+  return req.originalUrl.startsWith("/api/admin/hunt/wipe");
+}
+
 function adminAuth(req: Request, res: Response, next: NextFunction) {
   const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+  const nodeEnv = process.env.NODE_ENV;
+  const adminWipeEnabled = process.env.ADMIN_WIPE_ENABLED === "true";
   
   if (!ADMIN_API_KEY) {
     console.error("[Admin] ADMIN_API_KEY environment variable is not set");
+    if (isHuntWipeRoute(req)) {
+      safeAudit(req, "admin_hunt_wipe_denied", "critical", {
+        route: "/api/admin/hunt/wipe",
+        dryRun: false,
+        reason: "ADMIN_API_KEY_MISSING",
+        confirmOk: false,
+        confirm2Ok: false,
+        blockedByProduction: false,
+        nodeEnv,
+        adminWipeEnabled,
+        timestamp: new Date().toISOString(),
+      });
+    }
     return res.status(503).json({ error: "Admin API not configured" });
   }
   
   const apiKey = req.headers["x-admin-api-key"];
   
   if (!apiKey || apiKey !== ADMIN_API_KEY) {
+    if (isHuntWipeRoute(req)) {
+      safeAudit(req, "admin_hunt_wipe_denied", "warning", {
+        route: "/api/admin/hunt/wipe",
+        dryRun: false,
+        reason: "INVALID_ADMIN_KEY",
+        confirmOk: false,
+        confirm2Ok: false,
+        blockedByProduction: false,
+        nodeEnv,
+        adminWipeEnabled,
+        timestamp: new Date().toISOString(),
+      });
+    }
     return res.status(401).json({ error: "Unauthorized - Invalid admin API key" });
   }
   
@@ -789,26 +847,49 @@ export function registerAdminRoutes(app: Express) {
   });
 
   app.post("/api/admin/hunt/wipe", adminAuth, async (req, res) => {
-    try {
-      const nodeEnv = process.env.NODE_ENV;
-      const wipeEnabled = process.env.ADMIN_WIPE_ENABLED === "true";
+    const nodeEnv = process.env.NODE_ENV;
+    const adminWipeEnabled = process.env.ADMIN_WIPE_ENABLED === "true";
+    const dryRun = req.query.dryRun === "1" || req.query.dryRun === "true";
+    const route = "/api/admin/hunt/wipe";
+    const confirmOk = req.body?.confirm === "wipe";
+    const confirm2Ok = req.body?.confirm2 === "I_UNDERSTAND_THIS_DELETES_HUNT_DATA";
 
-      if (nodeEnv === "production" && !wipeEnabled) {
+    try {
+      if (nodeEnv === "production" && !adminWipeEnabled) {
         console.warn("[Admin] Hunt wipe BLOCKED in production (ADMIN_WIPE_ENABLED not set)");
+        await safeAudit(req, "admin_hunt_wipe_denied", "warning", {
+          route,
+          dryRun,
+          reason: "PRODUCTION_BLOCKED",
+          confirmOk,
+          confirm2Ok,
+          blockedByProduction: true,
+          nodeEnv,
+          adminWipeEnabled,
+          timestamp: new Date().toISOString(),
+        });
         return res.status(403).json({ error: "WIPE_DISABLED_IN_PRODUCTION" });
       }
 
-      const { confirm, confirm2 } = req.body;
-      const dryRun = req.query.dryRun === "1";
-
-      if (confirm !== "wipe" || confirm2 !== "I_UNDERSTAND_THIS_DELETES_HUNT_DATA") {
+      if (!confirmOk || !confirm2Ok) {
+        await safeAudit(req, "admin_hunt_wipe_denied", "warning", {
+          route,
+          dryRun,
+          reason: "CONFIRMATION_FAILED",
+          confirmOk,
+          confirm2Ok,
+          blockedByProduction: false,
+          nodeEnv,
+          adminWipeEnabled,
+          timestamp: new Date().toISOString(),
+        });
         return res.status(400).json({
           error: "CONFIRMATION_REQUIRED",
           required: ["confirm=wipe", "confirm2=I_UNDERSTAND_THIS_DELETES_HUNT_DATA"],
         });
       }
 
-      console.log("[Admin] Hunt wipe initiated", { dryRun, nodeEnv, wipeEnabled });
+      console.log("[Admin] Hunt wipe initiated", { dryRun, nodeEnv, adminWipeEnabled });
 
       const tables = [
         { name: "huntRaidParticipants", table: huntRaidParticipants },
@@ -883,6 +964,37 @@ export function registerAdminRoutes(app: Express) {
 
       console.log("[Admin] Hunt wipe completed", { dryRun, totalDeleted, totalWouldDelete });
 
+      if (dryRun) {
+        await safeAudit(req, "admin_hunt_wipe_dry_run", "info", {
+          route,
+          dryRun: true,
+          reason: "DRY_RUN",
+          confirmOk,
+          confirm2Ok,
+          blockedByProduction: false,
+          nodeEnv,
+          adminWipeEnabled,
+          results,
+          totalWouldDelete,
+          totalDeleted: 0,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        await safeAudit(req, "admin_hunt_wipe_success", "warning", {
+          route,
+          dryRun: false,
+          reason: "SUCCESS",
+          confirmOk,
+          confirm2Ok,
+          blockedByProduction: false,
+          nodeEnv,
+          adminWipeEnabled,
+          results,
+          totalDeleted,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.json({
         success: true,
         dryRun,
@@ -894,8 +1006,21 @@ export function registerAdminRoutes(app: Express) {
         totalWouldDelete,
         timestamp: new Date().toISOString(),
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       console.error("[Admin] Hunt wipe error:", error);
+      await safeAudit(req, "admin_hunt_wipe_failed", "critical", {
+        route,
+        dryRun,
+        reason: "ERROR",
+        errorMessage: errMsg,
+        confirmOk,
+        confirm2Ok,
+        blockedByProduction: false,
+        nodeEnv,
+        adminWipeEnabled,
+        timestamp: new Date().toISOString(),
+      });
       res.status(500).json({ error: "Failed to wipe Hunt data" });
     }
   });
