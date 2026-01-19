@@ -1,0 +1,151 @@
+REPLIT AGENT TASK (PRODUCTION HARDENING) — server/hunt-routes.ts ONLY:
+Implement (A) server-side anti-teleport/speed/accuracy gating for POST /api/hunt/location and (B) atomic spawn claiming for POST /api/hunt/catch to prevent double-catches/race conditions. Do NOT change any UI, TanStack query logic, spawn generation, quest reward math, or other routes. Only edit server/hunt-routes.ts. No schema migrations.
+
+========================================================
+A) PATCH: POST /api/hunt/location (lines ~303-338)
+========================================================
+
+1) Update destructuring to include optional fields:
+Change:
+  const { walletAddress, latitude, longitude, displayName } = req.body;
+To:
+  const { walletAddress, latitude, longitude, displayName, accuracy, timestamp } = req.body;
+
+2) Add these helper functions near the top of server/hunt-routes.ts (above the routes, once):
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371000;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+3) Add server-side validation BEFORE update/insert:
+- Keep existing “select existing location row” code (you already have it).
+- Insert this validation block after you parse lat/lng and after fetching `existing`:
+
+Add immediately after fetching existing (before the if (existing.length > 0) { ... } else { ... }):
+
+  const newLat = Number(latitude);
+  const newLng = Number(longitude);
+
+  if (!Number.isFinite(newLat) || !Number.isFinite(newLng)) {
+    return res.status(400).json({ error: "Invalid coordinates" });
+  }
+
+  // Optional client-provided signals (do not require them)
+  const acc = accuracy === undefined || accuracy === null ? null : Number(accuracy);
+  const MAX_BAD_ACCURACY_M = 80;
+
+  if (acc !== null && Number.isFinite(acc) && acc > MAX_BAD_ACCURACY_M) {
+    console.log("[Hunt] location rejected - accuracy", { walletAddress, accuracy: acc });
+    return res.status(422).json({ error: "LOCATION_ACCURACY_TOO_LOW", accuracy: acc });
+  }
+
+  if (existing.length > 0) {
+    const prev = existing[0];
+    const prevLat = Number(prev.latitude);
+    const prevLng = Number(prev.longitude);
+
+    // Use client timestamp if provided, else server now. Use lastSeen as prev time if present.
+    const nowDate = timestamp ? new Date(timestamp) : new Date();
+    const prevDate = prev.lastSeen ? new Date(prev.lastSeen as any) : new Date(nowDate.getTime() - 2000);
+
+    const dtSecRaw = (nowDate.getTime() - prevDate.getTime()) / 1000;
+    const dtSec = clamp(Number.isFinite(dtSecRaw) ? dtSecRaw : 1, 1, 3600);
+
+    const distM = (Number.isFinite(prevLat) && Number.isFinite(prevLng))
+      ? haversineMeters(prevLat, prevLng, newLat, newLng)
+      : 0;
+
+    // By-foot movement constraints
+    const MAX_SPEED_MPS = 8;       // blocks teleports (8 m/s ~ 28.8 kph)
+    const MAX_JUMP_MIN_M = 40;     // always allow small drift / GPS noise
+    const allowedJump = Math.max(MAX_JUMP_MIN_M, MAX_SPEED_MPS * dtSec);
+
+    if (distM > allowedJump) {
+      console.log("[Hunt] location rejected - jump", { walletAddress, distM, allowedJump, dtSec, accuracy: acc });
+      return res.status(422).json({ error: "LOCATION_JUMP_REJECTED", distM, allowedJump, dtSec });
+    }
+  }
+
+4) IMPORTANT: Do not add DB columns. Do not store accuracy unless it already exists. This patch only validates.
+
+5) Update your update/insert code to use newLat/newLng strings (optional but clean):
+Replace latitude: latitude.toString() with newLat.toString(), same for longitude.
+
+========================================================
+B) PATCH: POST /api/hunt/catch (the "caughtByWallet is set" update block at lines ~1335-1341)
+========================================================
+
+Replace ONLY this current update:
+
+await db.update(wildCreatureSpawns)
+  .set({
+    isActive: false,
+    caughtByWallet: walletAddress,
+    caughtAt: new Date(),
+  })
+  .where(eq(wildCreatureSpawns.id, spawnId));
+
+WITH an atomic conditional claim that returns 409 if already claimed/expired:
+
+  const now = new Date();
+
+  const claimed = await db
+    .update(wildCreatureSpawns)
+    .set({
+      isActive: false,
+      caughtByWallet: walletAddress,
+      caughtAt: now,
+    })
+    .where(and(
+      eq(wildCreatureSpawns.id, spawnId),
+      eq(wildCreatureSpawns.isActive, true),
+      isNull(wildCreatureSpawns.caughtByWallet),
+      gte(wildCreatureSpawns.expiresAt, now),
+    ))
+    .returning({ id: wildCreatureSpawns.id });
+
+  if (!claimed || claimed.length === 0) {
+    console.log("[Hunt] catch rejected - already claimed/expired", { walletAddress, spawnId });
+    return res.status(409).json({ error: "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" });
+  }
+
+CRITICAL:
+- Do NOT move or rewrite quest completion logic.
+- Ensure the quest completion logic and any reward/pity logic only runs AFTER this claim succeeds.
+- If claim fails, return immediately (do not continue).
+
+========================================================
+C) SAFETY CHECKS (DO NOT SKIP)
+========================================================
+1) Ensure server/hunt-routes.ts already imports the drizzle helpers used above:
+- and, eq, gte, isNull
+If any are missing, add them to the existing import list from "drizzle-orm" WITHOUT changing other imports.
+
+2) Ensure TypeScript builds (no implicit any issues). Keep console logs simple.
+
+========================================================
+REQUIRED TESTS (MANUAL)
+========================================================
+1) Location anti-teleport:
+- Send two /api/hunt/location posts for same wallet within 2s but far coordinates -> must return 422 LOCATION_JUMP_REJECTED.
+- Normal small changes should succeed.
+
+2) Atomic catch:
+- Trigger 5 rapid requests to /api/hunt/catch with the same spawnId:
+  - Exactly ONE succeeds
+  - Others return 409 SPAWN_ALREADY_CLAIMED_OR_EXPIRED
+- Confirm quest completion still triggers after catching the last quest egg.
+
+DELIVERABLE:
+- Only edits in server/hunt-routes.ts. No other files. No migrations.

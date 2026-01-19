@@ -70,6 +70,10 @@ function selectEggByRarity(): typeof EGG_TEMPLATES[0] {
 
 const EGGS_REQUIRED_FOR_HATCH = 10;
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 const ROACHY_TEMPLATES = [
   { id: 'ironshell', name: 'Ironshell', roachyClass: 'tank', rarity: 'common', baseHp: 120, baseAtk: 40, baseDef: 80, baseSpd: 30 },
   { id: 'scuttler', name: 'Scuttler', roachyClass: 'assassin', rarity: 'common', baseHp: 60, baseAtk: 75, baseDef: 35, baseSpd: 90 },
@@ -302,7 +306,7 @@ async function getOrCreatePlayerHotspotState(walletAddress: string, dayKey: stri
 export function registerHuntRoutes(app: Express) {
   app.post("/api/hunt/location", async (req: Request, res: Response) => {
     try {
-      const { walletAddress, latitude, longitude, displayName } = req.body;
+      const { walletAddress, latitude, longitude, displayName, accuracy, timestamp } = req.body;
       
       if (!walletAddress || latitude === undefined || longitude === undefined) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -312,11 +316,49 @@ export function registerHuntRoutes(app: Express) {
         .where(eq(huntPlayerLocations.walletAddress, walletAddress))
         .limit(1);
 
+      const newLat = Number(latitude);
+      const newLng = Number(longitude);
+
+      if (!Number.isFinite(newLat) || !Number.isFinite(newLng)) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      const acc = accuracy === undefined || accuracy === null ? null : Number(accuracy);
+      const MAX_BAD_ACCURACY_M = 80;
+
+      if (acc !== null && Number.isFinite(acc) && acc > MAX_BAD_ACCURACY_M) {
+        console.log("[Hunt] location rejected - accuracy", { walletAddress, accuracy: acc });
+        return res.status(422).json({ error: "LOCATION_ACCURACY_TOO_LOW", accuracy: acc });
+      }
+
       if (existing.length > 0) {
+        const prev = existing[0];
+        const prevLat = Number(prev.latitude);
+        const prevLng = Number(prev.longitude);
+
+        const nowDate = timestamp ? new Date(timestamp) : new Date();
+        const prevDate = prev.lastSeen ? new Date(prev.lastSeen as any) : new Date(nowDate.getTime() - 2000);
+
+        const dtSecRaw = (nowDate.getTime() - prevDate.getTime()) / 1000;
+        const dtSec = clamp(Number.isFinite(dtSecRaw) ? dtSecRaw : 1, 1, 3600);
+
+        const distM = (Number.isFinite(prevLat) && Number.isFinite(prevLng))
+          ? haversineMeters(prevLat, prevLng, newLat, newLng)
+          : 0;
+
+        const MAX_SPEED_MPS = 8;
+        const MAX_JUMP_MIN_M = 40;
+        const allowedJump = Math.max(MAX_JUMP_MIN_M, MAX_SPEED_MPS * dtSec);
+
+        if (distM > allowedJump) {
+          console.log("[Hunt] location rejected - jump", { walletAddress, distM, allowedJump, dtSec, accuracy: acc });
+          return res.status(422).json({ error: "LOCATION_JUMP_REJECTED", distM, allowedJump, dtSec });
+        }
+
         await db.update(huntPlayerLocations)
           .set({
-            latitude: latitude.toString(),
-            longitude: longitude.toString(),
+            latitude: newLat.toString(),
+            longitude: newLng.toString(),
             lastSeen: new Date(),
             updatedAt: new Date(),
             displayName: displayName || existing[0].displayName,
@@ -326,8 +368,8 @@ export function registerHuntRoutes(app: Express) {
       } else {
         await db.insert(huntPlayerLocations).values({
           walletAddress,
-          latitude: latitude.toString(),
-          longitude: longitude.toString(),
+          latitude: newLat.toString(),
+          longitude: newLng.toString(),
           displayName,
           isOnline: true,
         });
@@ -1332,13 +1374,27 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ error: "Daily catch limit reached" });
       }
 
-      await db.update(wildCreatureSpawns)
+      const now = new Date();
+
+      const claimed = await db
+        .update(wildCreatureSpawns)
         .set({
           isActive: false,
           caughtByWallet: walletAddress,
-          caughtAt: new Date(),
+          caughtAt: now,
         })
-        .where(eq(wildCreatureSpawns.id, spawnId));
+        .where(and(
+          eq(wildCreatureSpawns.id, spawnId),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.expiresAt, now),
+        ))
+        .returning({ id: wildCreatureSpawns.id });
+
+      if (!claimed || claimed.length === 0) {
+        console.log("[Hunt] catch rejected - already claimed/expired", { walletAddress, spawnId });
+        return res.status(409).json({ error: "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" });
+      }
 
       // ===== QUEST COMPLETION CHECK =====
       let questCompleted = false;
