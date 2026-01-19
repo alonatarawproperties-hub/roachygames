@@ -6,7 +6,8 @@ import { useWallet } from "./WalletContext";
 import { useAuth } from "./AuthContext";
 
 // Storage key prefix - will be combined with user ID for per-user storage
-const WALLET_STORAGE_PREFIX = "roachy_hunt_wallet_";
+// V2: Fresh prefix to force new unique wallets per user (fixes duplicate wallet bug)
+const WALLET_STORAGE_PREFIX = "roachy_hunt_v2_";
 // Legacy key for migration
 const LEGACY_WALLET_KEY = "roachy_hunt_wallet_address";
 
@@ -254,17 +255,21 @@ export function HuntProvider({ children }: HuntProviderProps) {
         } else if (!storedWallet) {
           // No wallet for this user yet - check for legacy migration
           const legacyWallet = await AsyncStorage.getItem(LEGACY_WALLET_KEY);
+          const legacyMigratedKey = `${LEGACY_WALLET_KEY}_migrated`;
+          const alreadyMigrated = await AsyncStorage.getItem(legacyMigratedKey);
           
-          if (legacyWallet && user?.id) {
-            // Migrate legacy wallet to user-specific storage (one-time migration)
-            console.log(`[Hunt] Migrating legacy wallet to user: ${user.id}`, legacyWallet);
+          if (legacyWallet && user?.id && !alreadyMigrated) {
+            // Migrate legacy wallet to FIRST user only (one-time migration)
+            console.log(`[Hunt] Migrating legacy wallet to first user: ${user.id}`, legacyWallet);
             await AsyncStorage.setItem(userStorageKey, legacyWallet);
+            await AsyncStorage.setItem(legacyMigratedKey, user.id); // Mark as migrated
             setGuestWalletAddress(legacyWallet);
-            // Don't delete legacy key - other accounts might need it
           } else {
-            // Generate new wallet for this user
-            console.log(`[Hunt] Creating new wallet for user: ${user?.id || 'guest'}`, guestWalletAddress);
-            await AsyncStorage.setItem(userStorageKey, guestWalletAddress);
+            // Generate new unique wallet for this user
+            const newWalletId = `player_${user?.id || 'guest'}_${Date.now()}`;
+            console.log(`[Hunt] Creating new wallet for user: ${user?.id || 'guest'}`, newWalletId);
+            await AsyncStorage.setItem(userStorageKey, newWalletId);
+            setGuestWalletAddress(newWalletId);
           }
         }
       } catch (error) {
