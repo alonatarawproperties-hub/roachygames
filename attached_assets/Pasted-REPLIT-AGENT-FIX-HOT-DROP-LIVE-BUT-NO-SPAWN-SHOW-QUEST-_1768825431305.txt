@@ -1,0 +1,140 @@
+REPLIT AGENT — FIX: HOT DROP “LIVE BUT NO SPAWN” (SHOW QUEST CLUSTER EGGS ON MAP)
+
+FACTS
+- Server meta.quest already includes: active/type/key/expiresInSec/distance/bearing/direction/lat/lng
+- Map currently renders ONLY home spawns: spawns.map(...)
+- Map shows questMarker pin but NOT the quest cluster eggs
+- We need the actual quest eggs (wildCreatureSpawns with sourceType+sourceKey) returned + rendered.
+
+GOAL
+1) /api/hunt/spawns must return quest egg list as `questSpawns` when questMeta.active === true
+2) Client must store questSpawns and render them as markers (same as HOME markers) even if outside radius.
+3) Keep HOME spawns unchanged. Do not change pity/rarity/etc. Only add quest spawns display.
+
+---------------------------------------
+PART A — SERVER: return questSpawns in /api/hunt/spawns
+File: server/hunt-routes.ts (the handler for GET /api/hunt/spawns)
+
+1) After you compute questMeta and before final response, fetch quest eggs ONLY if questMeta.active && questMeta.key && questMeta.type:
+
+const questSpawns = [];
+if (questMeta.active && questMeta.key && questMeta.type) {
+  const rawQuestSpawns = await db.select().from(wildCreatureSpawns)
+    .where(and(
+      eq(wildCreatureSpawns.isActive, true),
+      isNull(wildCreatureSpawns.caughtByWallet),
+      gte(wildCreatureSpawns.expiresAt, now),
+      eq(wildCreatureSpawns.sourceKey, questMeta.key),
+      eq(wildCreatureSpawns.sourceType, questMeta.type)
+    ))
+    .limit(50);
+
+  questSpawns.push(...rawQuestSpawns);
+}
+
+2) Include it in the JSON response with a stable name:
+return res.json({
+  spawns: mappedHomeSpawns,      // keep existing field name EXACTLY
+  questSpawns,                  // NEW
+  meta
+});
+
+Do NOT rename existing keys. Only add questSpawns.
+
+---------------------------------------
+PART B — CLIENT: carry questSpawns through useQuery + HuntContext
+File: client/screens/HuntScreen.tsx (your spawns useQuery)
+
+1) Add state for questSpawns:
+const [questSpawns, setQuestSpawns] = useState<Spawn[]>([]);
+
+2) In queryFn after response.json():
+const data = await response.json();
+
+- Keep existing meta handling.
+- Map data.questSpawns similarly (distance optional):
+const mappedQuestSpawns = (data.questSpawns || []).map((spawn: Spawn) => ({
+  ...spawn,
+  distance: calculateDistance(
+    playerLocation.latitude,
+    playerLocation.longitude,
+    parseFloat(spawn.latitude),
+    parseFloat(spawn.longitude)
+  ),
+}));
+
+setQuestSpawns(mappedQuestSpawns);
+
+Return mappedHomeSpawns as before (do not change what the query returns).
+
+---------------------------------------
+PART C — CLIENT: expose questSpawns in useHunt()
+File: client/context/HuntContext.tsx (where value={{...}} is returned)
+
+Add:
+questSpawns,
+
+So HuntScreen + Map can access it.
+
+---------------------------------------
+PART D — MAP: render questSpawns markers (cluster eggs)
+File: client/components/MapViewWrapper.tsx
+
+1) Add new prop:
+questSpawns?: Spawn[]
+
+2) Render them similarly to HOME markers, but use a different icon so players know it’s a hotspot/hotdrop egg.
+- Reuse the existing spawn marker image for now (safe), OR if you already have a hotspot image use it.
+- IMPORTANT: Keep markers tappable and call onSpawnTap(spawn) so the catch flow works.
+
+Add below HOME spawn markers:
+
+{questSpawns && questSpawns.length > 0 && MarkerComponent ? questSpawns.map((spawn) => {
+  const spawnLat = parseFloat(String(spawn.latitude));
+  const spawnLng = parseFloat(String(spawn.longitude));
+  if (isNaN(spawnLat) || isNaN(spawnLng)) return null;
+
+  return (
+    <MarkerComponent
+      key={`questspawn-${spawn.id}`}
+      identifier={`questspawn-${spawn.id}`}
+      coordinate={{ latitude: spawnLat, longitude: spawnLng }}
+      onPress={() => onSpawnTap(spawn)}
+      onSelect={() => onSpawnTap(spawn)}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+      tappable={true}
+    >
+      <Image
+        source={spawnMarkerImage}
+        style={[styles.spawnMarkerImage, { opacity: 0.95 }]}
+        resizeMode="contain"
+      />
+    </MarkerComponent>
+  );
+}) : null}
+
+Do NOT remove questMarker pin yet. This change only adds the actual eggs.
+
+---------------------------------------
+PART E — WIRE IT UP: pass questSpawns into MapViewWrapper
+File: client/screens/HuntScreen.tsx where MapViewWrapper is rendered
+
+Pass:
+<MapViewWrapper
+  ...
+  spawns={spawns}
+  questSpawns={questSpawns}
+  ...
+/>
+
+---------------------------------------
+VERIFY (MUST DO)
+1) Trigger HOT_DROP, open /api/hunt/spawns logs:
+   - meta.quest.active true
+   - meta.quest.key exists
+   - questSpawns array length > 0
+2) Client map should show a cluster of markers far away (even outside your radius) at the quest center.
+3) Tapping a quest egg should open the same spawn tap/catch flow.
+
+DO NOT change any other logic.
