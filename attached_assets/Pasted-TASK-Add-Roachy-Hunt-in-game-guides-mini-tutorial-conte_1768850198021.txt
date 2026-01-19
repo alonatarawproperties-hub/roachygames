@@ -1,0 +1,147 @@
+TASK: Add Roachy Hunt in-game guides (mini tutorial + contextual tips + FAQ + “What next?” helper) WITHOUT breaking existing hunt logic.
+
+CONSTRAINTS:
+- Do NOT change any server routes, DB schema, spawn logic, catch logic, or map marker logic.
+- Client-only changes only.
+- Keep UI lightweight: bottom sheets / tooltips / small banner messages.
+- Avoid spam: each tip should show max 2-3 times then stop.
+- All “seen” + counters must persist on device using AsyncStorage (not SecureStore).
+- Must work on iOS TestFlight build (Expo RN). No new native modules.
+
+FILES YOU WILL EDIT / ADD ONLY:
+- client/screens/HuntScreen.tsx (wire UI + triggers)
+- client/context/HuntContext.tsx (expose meta needed if missing)
+- client/components/hunt/HuntCoachmarks.tsx (NEW)
+- client/components/hunt/HuntHelpSheet.tsx (NEW)
+- client/components/hunt/HuntFaqModal.tsx (NEW)
+- client/lib/huntGuides.ts (NEW: persistence + tip rules)
+- client/styles (optional new styles file) OR inline styles in components
+- If a BottomSheet component already exists in project, reuse it. If not, implement simple Modal with Pressable overlay.
+
+FEATURES TO IMPLEMENT:
+
+1) FIRST-TIME ONBOARDING (Coachmarks)
+- Show only on first entry to HuntScreen after login.
+- Steps (simple overlays with “Next”, “Skip”, “Don’t show again”):
+  S1: “Welcome to Roachy Hunt” (what you do)
+  S2: Highlight radius/circle area: “Eggs inside your radius can be caught”
+  S3: Highlight an egg marker (if any spawns exist): “Tap an egg to catch”
+  S4: Highlight inventory/egg counter: “Eggs stack here”
+  S5: Highlight pity section/button: “Pity = guaranteed rarities after enough catches”
+  S6: Highlight Area Cleared banner (if spawns low) OR show fallback text: “When cleared: wait for Home Drop timer or Explore by walking”
+- If there are no spawns when onboarding runs, skip S3 and show text-only.
+- Persist state key: hunt_onboarding_completed = true.
+
+2) “WHAT NEXT?” Helper (Bottom Sheet)
+- Add a small button near top-right or under banner: “What next?”
+- Opens a bottom sheet/modal with dynamic guidance derived from existing state:
+  - If spawns.length >= 2: “Catch eggs in your radius.”
+  - Else (area cleared): show “Next Home Drop in: {home.nextTopUpInSec formatted}”
+  - If meta.quest.active: show “Quest live: {type} • {distanceM}m {direction} • {expiresInSec} left”
+  - Show 1 best recommendation line:
+     - If area cleared and home timer > 0: “Wait for Home Drop or walk 200–500m to find Explore spawns.”
+     - If quest active: “Head toward the quest marker on the map.”
+- Must not block gameplay, just info.
+
+3) CONTEXTUAL TIPS (Non-spam)
+Implement a tiny tip engine that shows a toast/snackbar/banner message based on triggers:
+- Tip A: Area cleared (spawns.length < 2) -> show “Area Cleared ✅ Next Home Drop in {time}. Walk to Explore for more.”
+- Tip B: Pity close -> when pity.epicIn <= 5 show “Epic pity soon 👀 {epicIn} catches to guaranteed Epic.”
+- Tip C: Quest active -> show once per quest key: “Quest live on map. Follow the marker.”
+Rules:
+- Each tip has a per-user counter stored locally: max 3 displays, then stop.
+- Use AsyncStorage keys like:
+  hunt_tip_counts = JSON
+  hunt_last_tip_ts = number
+  hunt_seen_quest_keys = JSON set
+- Add a 20s global cooldown between tips so they don’t chain.
+
+4) FAQ / HELP MODAL
+- Add a “?” icon in HuntScreen header area.
+- Opens modal with sections:
+  - Basics: What are Mystery Eggs?
+  - Spawns: Home vs Explore vs Quest (Hot Drop / Hotspot / Beacon)
+  - Pity Counter: Guaranteed rare/epic/legendary after thresholds (display current configured thresholds if available; else static text)
+  - Warmth/Streak: what it does (short)
+  - GPS: why location jumps / accuracy matters
+- Keep answers 2–4 lines each.
+
+5) QUEST MARKER DISCOVERY FIX (UI only)
+- If meta.quest.active is true, ensure the UI explains: “Quest marker is on the map — zoom out if you don’t see it.”
+- Add inside the Area Cleared banner (existing renderAreaClearedBanner) a line when quest active:
+  “Quest marker placed • Zoom out if needed.”
+
+IMPLEMENTATION DETAILS:
+
+A) Create helper library client/lib/huntGuides.ts
+Export:
+- getBool(key), setBool(key, val)
+- incrementTipCount(tipId): returns newCount
+- canShowTip(tipId, cooldownMs): returns boolean
+- markTipShown(tipId)
+- hasSeenQuestKey(key), markQuestKeySeen(key)
+Use AsyncStorage:
+import AsyncStorage from '@react-native-async-storage/async-storage';
+If not installed, add it via package.json and npm install. (But first check if it already exists.)
+
+B) Coachmarks Component (client/components/hunt/HuntCoachmarks.tsx)
+Props:
+- visible: boolean
+- steps: Array<{ id, title, body, anchor?: {x,y,width,height} | null }>
+- onClose(): void
+- onComplete(): void
+Implementation:
+- Use Modal with semi-transparent overlay.
+- If anchor provided: draw a highlight box (border) + tooltip card near it.
+- If no anchor: center tooltip.
+Anchors:
+- For simplicity (safe), use React refs + measure() on key UI elements in HuntScreen:
+  - radius container / map container
+  - inventory button
+  - pity button/panel
+  - banner container
+If measuring is hard due to MapView, provide text-only step for map/radius.
+
+C) HuntHelpSheet Component (client/components/hunt/HuntHelpSheet.tsx)
+Props: open, onClose, derivedData { spawnsCount, homeNextTopUpInSec, questActive, questType, distanceM, direction, expiresInSec }
+Simple modal bottom sheet UI with 3 blocks: “Status”, “Best next step”, “Tips”.
+
+D) HuntFaqModal (client/components/hunt/HuntFaqModal.tsx)
+Simple scrollable modal.
+
+E) Wire into HuntScreen.tsx
+- Add state:
+  const [showCoachmarks, setShowCoachmarks] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showFaq, setShowFaq] = useState(false);
+- On mount:
+  - check AsyncStorage hunt_onboarding_completed; if false -> setShowCoachmarks(true)
+- Add buttons:
+  - “What next?” and “?” near header.
+- Add contextual tip triggers using useEffect watching:
+  - spawns.length
+  - huntMeta?.home?.nextTopUpInSec
+  - huntMeta?.quest?.active, huntMeta?.quest?.key
+  - pity object from last catch response if already in state; if pity not globally stored, skip pity tip for now OR store last pity in HuntContext when catch returns.
+Tip display:
+- If you already have a Toast component, reuse it.
+- If not, implement a minimal in-screen banner that animates in/out (use Animated, 2.5s duration).
+
+ACCEPTANCE CRITERIA:
+1) Opening Hunt first time shows coachmarks; subsequent opens do not.
+2) Tips show only when relevant and not more than 3 times per tip.
+3) “What next?” sheet always opens and shows correct status text.
+4) FAQ modal opens and is readable.
+5) No changes to spawn/catch/server logic; app still hunts normally.
+
+TEST PLAN (manual):
+- Fresh install -> open Hunt -> coachmarks appear -> complete -> close -> reopen -> no coachmarks.
+- Clear spawns -> see Area Cleared banner -> tip A shows (max 3 times).
+- Trigger quest active -> banner shows “zoom out” line + tip C once per quest.
+- Tap “What next?” -> correct dynamic recommendations.
+- Tap “?” -> FAQ opens.
+
+NOW IMPLEMENT. After code changes:
+- Provide exact file diffs / snippets for each new file.
+- Run TypeScript checks / lint if available.
+- Ensure imports and paths use existing alias convention (@/).
