@@ -310,27 +310,55 @@ export function registerHuntRoutes(app: Express) {
       let homeCreated = 0;
       
       if (homeEggCount < HOME_TARGET_MIN) {
-        // Check cooldown using last spawn's expiresAt
+        // Check cooldown using CAUGHT spawns (not creation time)
+        // This ensures cooldown starts from when user caught spawns, not when they appeared
         const cooldownBounds = getCellBounds(lat, lng, 800);
-        const [lastHomeSpawn] = await db.select().from(wildCreatureSpawns)
+        
+        // First, check for recently CAUGHT spawns in this area
+        const [lastCaughtSpawn] = await db.select().from(wildCreatureSpawns)
           .where(and(
             sql`${wildCreatureSpawns.templateId} IN ('wild_egg_home', 'wild_egg')`,
+            sql`${wildCreatureSpawns.caughtAt} IS NOT NULL`,
             gte(wildCreatureSpawns.latitude, cooldownBounds.minLat.toString()),
             lte(wildCreatureSpawns.latitude, cooldownBounds.maxLat.toString()),
             gte(wildCreatureSpawns.longitude, cooldownBounds.minLng.toString()),
             lte(wildCreatureSpawns.longitude, cooldownBounds.maxLng.toString()),
           ))
-          .orderBy(desc(wildCreatureSpawns.expiresAt))
+          .orderBy(desc(wildCreatureSpawns.caughtAt))
           .limit(1);
 
         let canTopUp = true;
-        if (lastHomeSpawn && lastHomeSpawn.expiresAt) {
-          const lastCreatedAt = new Date(lastHomeSpawn.expiresAt.getTime() - HOME_TTL_MIN * 60 * 1000);
-          const cooldownEndAt = new Date(lastCreatedAt.getTime() + HOME_TOPUP_COOLDOWN_MIN * 60 * 1000);
+        
+        // Use caughtAt as cooldown basis if available, otherwise fall back to creation time
+        if (lastCaughtSpawn && lastCaughtSpawn.caughtAt) {
+          // Cooldown from when the spawn was CAUGHT
+          const cooldownEndAt = new Date(lastCaughtSpawn.caughtAt.getTime() + HOME_TOPUP_COOLDOWN_MIN * 60 * 1000);
           if (now < cooldownEndAt) {
             canTopUp = false;
             homeNextTopUpInSec = Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000);
-            console.log(`[HOME_COOLDOWN] remaining: ${homeNextTopUpInSec}s`);
+            console.log(`[HOME_COOLDOWN] catch-based, remaining: ${homeNextTopUpInSec}s, lastCaughtAt: ${lastCaughtSpawn.caughtAt.toISOString()}`);
+          }
+        } else {
+          // Fallback: check for uncaught spawns (original logic for first-time spawn areas)
+          const [lastHomeSpawn] = await db.select().from(wildCreatureSpawns)
+            .where(and(
+              sql`${wildCreatureSpawns.templateId} IN ('wild_egg_home', 'wild_egg')`,
+              gte(wildCreatureSpawns.latitude, cooldownBounds.minLat.toString()),
+              lte(wildCreatureSpawns.latitude, cooldownBounds.maxLat.toString()),
+              gte(wildCreatureSpawns.longitude, cooldownBounds.minLng.toString()),
+              lte(wildCreatureSpawns.longitude, cooldownBounds.maxLng.toString()),
+            ))
+            .orderBy(desc(wildCreatureSpawns.expiresAt))
+            .limit(1);
+            
+          if (lastHomeSpawn && lastHomeSpawn.expiresAt) {
+            const lastCreatedAt = new Date(lastHomeSpawn.expiresAt.getTime() - HOME_TTL_MIN * 60 * 1000);
+            const cooldownEndAt = new Date(lastCreatedAt.getTime() + HOME_TOPUP_COOLDOWN_MIN * 60 * 1000);
+            if (now < cooldownEndAt) {
+              canTopUp = false;
+              homeNextTopUpInSec = Math.ceil((cooldownEndAt.getTime() - now.getTime()) / 1000);
+              console.log(`[HOME_COOLDOWN] creation-based fallback, remaining: ${homeNextTopUpInSec}s`);
+            }
           }
         }
 
