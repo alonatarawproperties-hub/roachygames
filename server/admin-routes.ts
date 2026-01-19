@@ -790,15 +790,25 @@ export function registerAdminRoutes(app: Express) {
 
   app.post("/api/admin/hunt/wipe", adminAuth, async (req, res) => {
     try {
-      const { confirm } = req.body;
+      const nodeEnv = process.env.NODE_ENV;
+      const wipeEnabled = process.env.ADMIN_WIPE_ENABLED === "true";
 
-      if (confirm !== "wipe") {
+      if (nodeEnv === "production" && !wipeEnabled) {
+        console.warn("[Admin] Hunt wipe BLOCKED in production (ADMIN_WIPE_ENABLED not set)");
+        return res.status(403).json({ error: "WIPE_DISABLED_IN_PRODUCTION" });
+      }
+
+      const { confirm, confirm2 } = req.body;
+      const dryRun = req.query.dryRun === "1";
+
+      if (confirm !== "wipe" || confirm2 !== "I_UNDERSTAND_THIS_DELETES_HUNT_DATA") {
         return res.status(400).json({
-          error: "Confirmation required. Send { confirm: 'wipe' } to proceed.",
+          error: "CONFIRMATION_REQUIRED",
+          required: ["confirm=wipe", "confirm2=I_UNDERSTAND_THIS_DELETES_HUNT_DATA"],
         });
       }
 
-      console.log("[Admin] Starting Hunt data wipe (TRUNCATE CASCADE)...");
+      console.log("[Admin] Hunt wipe initiated", { dryRun, nodeEnv, wipeEnabled });
 
       const tables = [
         { name: "huntRaidParticipants", table: huntRaidParticipants },
@@ -829,47 +839,59 @@ export function registerAdminRoutes(app: Express) {
           results[name] = { before: Number(row?.count ?? 0), after: 0, deleted: 0 };
         }
 
-        await tx.execute(sql`
-          TRUNCATE TABLE
-            "hunt_raid_participants",
-            "hunt_raids",
-            "hunt_caught_creatures",
-            "hunt_activity_log",
-            "hunt_claims",
-            "hunt_eggs",
-            "hunt_incubators",
-            "hunt_leaderboard",
-            "hunt_weekly_leaderboard",
-            "hunt_economy_stats",
-            "hunt_hotspot_player_state",
-            "hunt_node_player_state",
-            "hunt_nodes",
-            "hunt_location_samples",
-            "hunt_event_windows",
-            "wild_creature_spawns",
-            "hunt_player_locations",
-            "rate_limit_tracking"
-          RESTART IDENTITY CASCADE
-        `);
+        if (!dryRun) {
+          await tx.execute(sql`
+            TRUNCATE TABLE
+              "hunt_raid_participants",
+              "hunt_raids",
+              "hunt_caught_creatures",
+              "hunt_activity_log",
+              "hunt_claims",
+              "hunt_eggs",
+              "hunt_incubators",
+              "hunt_leaderboard",
+              "hunt_weekly_leaderboard",
+              "hunt_economy_stats",
+              "hunt_hotspot_player_state",
+              "hunt_node_player_state",
+              "hunt_nodes",
+              "hunt_location_samples",
+              "hunt_event_windows",
+              "wild_creature_spawns",
+              "hunt_player_locations",
+              "rate_limit_tracking"
+            RESTART IDENTITY CASCADE
+          `);
 
-        for (const { name, table } of tables) {
-          const [row] = await tx.select({ count: count() }).from(table);
-          const after = Number(row?.count ?? 0);
-          const before = results[name].before;
-          results[name].after = after;
-          results[name].deleted = before - after;
+          for (const { name, table } of tables) {
+            const [row] = await tx.select({ count: count() }).from(table);
+            const after = Number(row?.count ?? 0);
+            const before = results[name].before;
+            results[name].after = after;
+            results[name].deleted = before - after;
+          }
+        } else {
+          for (const name of Object.keys(results)) {
+            results[name].after = results[name].before;
+            results[name].deleted = 0;
+          }
         }
       });
 
       const totalDeleted = Object.values(results).reduce((sum, r) => sum + r.deleted, 0);
+      const totalWouldDelete = Object.values(results).reduce((sum, r) => sum + r.before, 0);
 
-      console.log("[Admin] Hunt data wipe completed successfully", { totalDeleted });
+      console.log("[Admin] Hunt wipe completed", { dryRun, totalDeleted, totalWouldDelete });
 
       res.json({
         success: true,
-        message: "Hunt data cleared (TRUNCATE CASCADE)",
+        dryRun,
+        message: dryRun
+          ? `DRY RUN: Would delete ${totalWouldDelete} rows (no changes made)`
+          : "Hunt data cleared (TRUNCATE CASCADE)",
         wiped: results,
-        totalDeleted,
+        totalDeleted: dryRun ? 0 : totalDeleted,
+        totalWouldDelete,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
