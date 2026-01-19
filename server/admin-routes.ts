@@ -791,14 +791,14 @@ export function registerAdminRoutes(app: Express) {
   app.post("/api/admin/hunt/wipe", adminAuth, async (req, res) => {
     try {
       const { confirm } = req.body;
-      
+
       if (confirm !== "wipe") {
-        return res.status(400).json({ 
-          error: "Confirmation required. Send { confirm: 'wipe' } to proceed." 
+        return res.status(400).json({
+          error: "Confirmation required. Send { confirm: 'wipe' } to proceed.",
         });
       }
 
-      console.log("[Admin] Starting Hunt data wipe...");
+      console.log("[Admin] Starting Hunt data wipe (TRUNCATE CASCADE)...");
 
       const tables = [
         { name: "huntRaidParticipants", table: huntRaidParticipants },
@@ -818,32 +818,58 @@ export function registerAdminRoutes(app: Express) {
         { name: "huntEventWindows", table: huntEventWindows },
         { name: "wildCreatureSpawns", table: wildCreatureSpawns },
         { name: "huntPlayerLocations", table: huntPlayerLocations },
-      ];
+        { name: "rateLimitTracking", table: rateLimitTracking },
+      ] as const;
 
       const results: Record<string, { before: number; after: number; deleted: number }> = {};
 
       await db.transaction(async (tx) => {
         for (const { name, table } of tables) {
-          const [beforeCount] = await tx.select({ count: count() }).from(table);
-          await tx.delete(table);
-          const [afterCount] = await tx.select({ count: count() }).from(table);
-          
-          results[name] = {
-            before: beforeCount?.count || 0,
-            after: afterCount?.count || 0,
-            deleted: (beforeCount?.count || 0) - (afterCount?.count || 0),
-          };
-          
-          console.log(`[Admin] Wiped ${name}: ${results[name].deleted} rows`);
+          const [row] = await tx.select({ count: count() }).from(table);
+          results[name] = { before: Number(row?.count ?? 0), after: 0, deleted: 0 };
+        }
+
+        await tx.execute(sql`
+          TRUNCATE TABLE
+            "hunt_raid_participants",
+            "hunt_raids",
+            "hunt_caught_creatures",
+            "hunt_activity_log",
+            "hunt_claims",
+            "hunt_eggs",
+            "hunt_incubators",
+            "hunt_leaderboard",
+            "hunt_weekly_leaderboard",
+            "hunt_economy_stats",
+            "hunt_hotspot_player_state",
+            "hunt_node_player_state",
+            "hunt_nodes",
+            "hunt_location_samples",
+            "hunt_event_windows",
+            "wild_creature_spawns",
+            "hunt_player_locations",
+            "rate_limit_tracking"
+          RESTART IDENTITY CASCADE
+        `);
+
+        for (const { name, table } of tables) {
+          const [row] = await tx.select({ count: count() }).from(table);
+          const after = Number(row?.count ?? 0);
+          const before = results[name].before;
+          results[name].after = after;
+          results[name].deleted = before - after;
         }
       });
 
-      console.log("[Admin] Hunt data wipe completed successfully");
+      const totalDeleted = Object.values(results).reduce((sum, r) => sum + r.deleted, 0);
+
+      console.log("[Admin] Hunt data wipe completed successfully", { totalDeleted });
 
       res.json({
         success: true,
-        message: "Hunt data cleared",
+        message: "Hunt data cleared (TRUNCATE CASCADE)",
         wiped: results,
+        totalDeleted,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {

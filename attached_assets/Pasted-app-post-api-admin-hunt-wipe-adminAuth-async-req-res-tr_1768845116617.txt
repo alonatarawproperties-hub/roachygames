@@ -1,0 +1,93 @@
+app.post("/api/admin/hunt/wipe", adminAuth, async (req, res) => {
+  try {
+    const { confirm } = req.body;
+
+    if (confirm !== "wipe") {
+      return res.status(400).json({
+        error: "Confirmation required. Send { confirm: 'wipe' } to proceed.",
+      });
+    }
+
+    console.log("[Admin] Starting Hunt data wipe (TRUNCATE CASCADE)...");
+
+    const tables = [
+      { name: "huntRaidParticipants", table: huntRaidParticipants },
+      { name: "huntRaids", table: huntRaids },
+      { name: "huntCaughtCreatures", table: huntCaughtCreatures },
+      { name: "huntActivityLog", table: huntActivityLog },
+      { name: "huntClaims", table: huntClaims },
+      { name: "huntEggs", table: huntEggs },
+      { name: "huntIncubators", table: huntIncubators },
+      { name: "huntLeaderboard", table: huntLeaderboard },
+      { name: "huntWeeklyLeaderboard", table: huntWeeklyLeaderboard },
+      { name: "huntEconomyStats", table: huntEconomyStats },
+      { name: "huntHotspotPlayerState", table: huntHotspotPlayerState },
+      { name: "huntNodePlayerState", table: huntNodePlayerState },
+      { name: "huntNodes", table: huntNodes },
+      { name: "huntLocationSamples", table: huntLocationSamples },
+      { name: "huntEventWindows", table: huntEventWindows },
+      { name: "wildCreatureSpawns", table: wildCreatureSpawns },
+      { name: "huntPlayerLocations", table: huntPlayerLocations },
+      { name: "rateLimitTracking", table: rateLimitTracking },
+    ] as const;
+
+    const results: Record<string, { before: number; after: number; deleted: number }> = {};
+
+    await db.transaction(async (tx) => {
+      // BEFORE counts
+      for (const { name, table } of tables) {
+        const [row] = await tx.select({ count: count() }).from(table);
+        results[name] = { before: Number(row?.count ?? 0), after: 0, deleted: 0 };
+      }
+
+      // Wipe all Hunt tables + rate limits in one shot
+      // Use TRUNCATE for speed + FK safety, restart IDs for clean testing, cascade for FK graph
+      await tx.execute(sql`
+        TRUNCATE TABLE
+          "huntRaidParticipants",
+          "huntRaids",
+          "huntCaughtCreatures",
+          "huntActivityLog",
+          "huntClaims",
+          "huntEggs",
+          "huntIncubators",
+          "huntLeaderboard",
+          "huntWeeklyLeaderboard",
+          "huntEconomyStats",
+          "huntHotspotPlayerState",
+          "huntNodePlayerState",
+          "huntNodes",
+          "huntLocationSamples",
+          "huntEventWindows",
+          "wildCreatureSpawns",
+          "huntPlayerLocations",
+          "rateLimitTracking"
+        RESTART IDENTITY CASCADE
+      `);
+
+      // AFTER counts
+      for (const { name, table } of tables) {
+        const [row] = await tx.select({ count: count() }).from(table);
+        const after = Number(row?.count ?? 0);
+        const before = results[name].before;
+        results[name].after = after;
+        results[name].deleted = before - after;
+      }
+    });
+
+    const totalDeleted = Object.values(results).reduce((sum, r) => sum + r.deleted, 0);
+
+    console.log("[Admin] Hunt data wipe completed successfully", { totalDeleted });
+
+    res.json({
+      success: true,
+      message: "Hunt data cleared (TRUNCATE CASCADE)",
+      wiped: results,
+      totalDeleted,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[Admin] Hunt wipe error:", error);
+    res.status(500).json({ error: "Failed to wipe Hunt data" });
+  }
+});
