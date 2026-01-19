@@ -8,7 +8,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function post(path, body, useAdminKey = false) {
   const headers = { "content-type": "application/json" };
   if (useAdminKey && ADMIN_KEY) {
-    headers["x-admin-key"] = ADMIN_KEY;
+    headers["x-admin-secret"] = ADMIN_KEY;
+    headers["x-admin-key"] = ADMIN_KEY; // backward compat for /api/hunt/spawn
   }
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "POST",

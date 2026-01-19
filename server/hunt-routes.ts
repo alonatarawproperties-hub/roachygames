@@ -1339,39 +1339,50 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  // Test-only endpoint: force-create a single spawn for security testing
+  // Test-only endpoint: force-create a single spawn for security testing (DEV ONLY)
   app.post("/api/hunt/test-spawn", async (req: Request, res: Response) => {
     try {
-      const adminKey = req.headers["x-admin-key"] as string;
-      if (adminKey !== process.env.ADMIN_API_KEY) {
-        return res.status(403).json({ error: "Forbidden - admin key required" });
+      // Hard kill-switch for production
+      if (process.env.NODE_ENV === "production") {
+        return res.status(404).json({ error: "Not found" });
       }
 
-      const { latitude, longitude } = req.body;
-      const lat = parseFloat(latitude) || 14.5995;
-      const lng = parseFloat(longitude) || 120.9842;
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+      const headerSecret = (req.headers["x-admin-secret"] as string) || "";
+      const expectedSecret = process.env.ADMIN_TEST_SECRET || process.env.ADMIN_API_KEY || "";
+      if (!expectedSecret || headerSecret !== expectedSecret) {
+        return res.status(403).json({ error: "Forbidden - admin secret required" });
+      }
+
+      const { latitude, longitude, ttlMin } = req.body ?? {};
+      const lat = Number(latitude ?? 14.5995);
+      const lng = Number(longitude ?? 120.9842);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      const ttl = Math.max(1, Math.min(5, Number(ttlMin ?? 3)));
+      const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
 
       const [spawn] = await db.insert(wildCreatureSpawns).values({
         latitude: lat.toString(),
         longitude: lng.toString(),
         templateId: "wild_egg_test",
         name: "Test Egg",
-        creatureClass: "tank",
+        creatureClass: "egg",
         rarity: "common",
-        baseHp: 100,
-        baseAtk: 20,
-        baseDef: 15,
-        baseSpd: 10,
+        baseHp: 0,
+        baseAtk: 0,
+        baseDef: 0,
+        baseSpd: 0,
         isActive: true,
         expiresAt,
       }).returning();
 
-      console.log("[TEST-SPAWN] Created spawn for security testing:", spawn.id);
-      res.json({ success: true, spawn });
+      return res.json({ success: true, spawn });
     } catch (error) {
       console.error("Test spawn error:", error);
-      res.status(500).json({ error: "Failed to create test spawn" });
+      return res.status(500).json({ error: "Failed to create test spawn" });
     }
   });
 

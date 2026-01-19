@@ -1,0 +1,68 @@
+REPLIT AGENT: HARDEN /api/hunt/test-spawn (PROD-SAFE)
+
+Rules:
+- Only edit the existing /api/hunt/test-spawn handler in server/hunt-routes.ts
+- Do not touch other routes or logic.
+
+Changes to apply:
+1) Add a hard production kill-switch at the top:
+   if (process.env.NODE_ENV === "production") return res.status(404).json({ error: "Not found" });
+
+2) Keep header auth, but switch to dedicated secret if present:
+   - Read header: x-admin-secret
+   - If process.env.ADMIN_TEST_SECRET exists, validate against that
+   - Else fallback to process.env.ADMIN_API_KEY for backward compatibility
+
+3) Clamp TTL to 1–5 minutes and enforce 1 spawn only.
+
+Replace the handler with:
+
+app.post("/api/hunt/test-spawn", async (req: Request, res: Response) => {
+  try {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const headerSecret = (req.headers["x-admin-secret"] as string) || "";
+    const expectedSecret = process.env.ADMIN_TEST_SECRET || process.env.ADMIN_API_KEY || "";
+    if (!expectedSecret || headerSecret !== expectedSecret) {
+      return res.status(403).json({ error: "Forbidden - admin secret required" });
+    }
+
+    const { latitude, longitude, ttlMin } = req.body ?? {};
+    const lat = Number(latitude ?? 14.5995);
+    const lng = Number(longitude ?? 120.9842);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: "Invalid coordinates" });
+    }
+
+    const ttl = Math.max(1, Math.min(5, Number(ttlMin ?? 3)));
+    const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
+
+    const [spawn] = await db.insert(wildCreatureSpawns).values({
+      latitude: lat.toString(),
+      longitude: lng.toString(),
+      templateId: "wild_egg_test",
+      name: "Test Egg",
+      creatureClass: "egg",
+      rarity: "common",
+      baseHp: 0,
+      baseAtk: 0,
+      baseDef: 0,
+      baseSpd: 0,
+      isActive: true,
+      expiresAt,
+    }).returning();
+
+    return res.json({ success: true, spawn });
+  } catch (error) {
+    console.error("Test spawn error:", error);
+    return res.status(500).json({ error: "Failed to create test spawn" });
+  }
+});
+
+After updating:
+- Confirm dev call works:
+  curl -X POST "$BASE_URL/api/hunt/test-spawn" -H "x-admin-secret: <your secret>" -H "content-type: application/json" -d '{"latitude":14.5995,"longitude":120.9842}'
+- Confirm production returns 404 even with correct secret.
