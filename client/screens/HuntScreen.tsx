@@ -189,9 +189,7 @@ export default function HuntScreen() {
   // Area Cleared countdown timer state
   const [homeCountdown, setHomeCountdown] = useState<number | null>(null);
   const [hotdropCountdown, setHotdropCountdown] = useState<number | null>(null);
-  const [radarCooldown, setRadarCooldown] = useState(0);
-  const [radarResult, setRadarResult] = useState<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null>(null);
-  const [radarResultVisibleUntil, setRadarResultVisibleUntil] = useState(0);
+  // Removed: radarCooldown, radarResult, radarResultVisibleUntil (Ping Radar removed)
   const [activatingQuest, setActivatingQuest] = useState<string | null>(null);
   const [questCountdown, setQuestCountdown] = useState<number | null>(null);
   
@@ -236,7 +234,6 @@ export default function HuntScreen() {
       setHomeCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
       setHotdropCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
       setQuestCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
-      setRadarCooldown(prev => prev > 0 ? prev - 1 : 0);
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -977,28 +974,6 @@ export default function HuntScreen() {
     // showBanner is computed at parent level to prevent flicker
     if (!showBanner) return null;
     
-    const handleRadarPing = async () => {
-      if (radarCooldown > 0) return;
-      setRadarCooldown(60);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
-      // Trigger radar ping animation FIRST
-      mapRef.current?.triggerRadarPing();
-      
-      // Call the radar endpoint
-      const result = await pingRadar();
-      if (result) {
-        setRadarResult(result);
-        setRadarResultVisibleUntil(Date.now() + 5000); // Show for 5 seconds
-      }
-      
-      // Delay data refresh to prevent re-renders from interrupting animation
-      setTimeout(() => {
-        refreshSpawns();
-        refetchMapNodes();
-      }, 500);
-    };
-    
     return (
       <View style={styles.areaClearedBanner}>
         <View style={styles.areaClearedHeader}>
@@ -1045,7 +1020,7 @@ export default function HuntScreen() {
             {huntMeta.quest.type === 'LEGENDARY_BEACON' && 
              huntMeta.quest.progress?.collected === huntMeta.quest.progress?.total && (
               <Pressable 
-                style={[styles.claimBeaconButton, activatingQuest && styles.radarButtonDisabled]}
+                style={[styles.claimBeaconButton, activatingQuest && styles.claimBeaconButtonDisabled]}
                 onPress={async () => {
                   setActivatingQuest('claiming');
                   const result = await claimBeacon();
@@ -1150,33 +1125,6 @@ export default function HuntScreen() {
             )}
           </View>
         )}
-        
-        {radarResult && Date.now() < radarResultVisibleUntil && (
-          <View style={styles.radarResultRow}>
-            <Feather 
-              name={radarResult.mode === 'hotdrop' ? 'zap' : radarResult.mode === 'nearest_spawn' ? 'target' : 'x'} 
-              size={14} 
-              color={radarResult.mode === 'hotdrop' ? GameColors.gold : GameColors.primary} 
-            />
-            <ThemedText style={styles.radarResultText}>
-              {radarResult.mode === 'hotdrop' && `Hot Drop detected! ${radarResult.direction} • ${((radarResult.distanceM || 0) / 1000).toFixed(1)}km`}
-              {radarResult.mode === 'nearest_spawn' && `Egg nearby! ${radarResult.direction} • ${radarResult.distanceM}m • ${radarResult.rarity}`}
-              {radarResult.mode === 'none' && 'No spawns detected in range'}
-            </ThemedText>
-          </View>
-        )}
-        
-        <Pressable 
-          hitSlop={12}
-          style={[styles.radarButton, radarCooldown > 0 && styles.radarButtonDisabled]}
-          onPress={handleRadarPing}
-          disabled={radarCooldown > 0}
-        >
-          <Feather name="radio" size={16} color="#fff" />
-          <ThemedText style={styles.radarButtonText}>
-            {radarCooldown > 0 ? `Ping Radar (${radarCooldown}s)` : 'Ping Radar'}
-          </ThemedText>
-        </Pressable>
       </View>
     );
   };
@@ -1738,7 +1686,7 @@ export default function HuntScreen() {
             creature={{
               id: selectedSpawn.id,
               name: selectedSpawn.name,
-              rarity: selectedSpawn.rarity,
+              rarity: selectedSpawn.rarity || 'common',
               templateId: selectedSpawn.templateId,
               creatureClass: selectedSpawn.creatureClass,
               containedTemplateId: selectedSpawn.containedTemplateId,
@@ -3176,6 +3124,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
+  },
+  claimBeaconButtonDisabled: {
+    opacity: 0.7,
+    backgroundColor: GameColors.surfaceLight,
   },
   claimBeaconText: {
     fontSize: 12,

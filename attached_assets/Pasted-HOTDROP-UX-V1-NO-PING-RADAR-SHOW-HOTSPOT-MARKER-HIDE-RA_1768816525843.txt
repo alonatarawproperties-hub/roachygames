@@ -1,0 +1,155 @@
+HOTDROP UX V1 (NO PING RADAR, SHOW HOTSPOT MARKER, HIDE RARITY UNTIL CATCH)
+
+Context:
+- Hotspot quests are created by POST /api/hunt/hotspot/activate.
+- Cluster eggs are inserted into wildCreatureSpawns with sourceType + sourceKey.
+- Player state huntHotspotPlayerState stores:
+  activeQuestType, activeQuestKey, activeQuestExpiresAt,
+  activeQuestCenterLat, activeQuestCenterLng.
+- /api/hunt/spawns currently returns meta.quest and meta.hotdrop (back-compat).
+
+GOALS:
+A) Remove “Ping Radar” button. No cooldown, no triggerRadarPing, no blinking.
+B) Always show the active HOT_DROP/MICRO_HOTSPOT/LEGENDARY_BEACON as a SINGLE marker at quest center (even outside home radius).
+C) Never show rarity on tap for ANY egg. Rarity reveals only after /api/hunt/catch response.
+D) Do not change DB schema. Do not change catch logic. Do not change pity logic.
+
+---------------------------------------------------------
+PART 1 — SERVER: Add lat/lng/sourceKey to hotdrop meta (backward compat)
+FILE: server/hunt-routes.ts (the /api/hunt/spawns handler around lines ~560-659)
+
+You already build:
+- questMeta (active, type, key, expiresInSec, distanceM, bearingDeg, direction, progress)
+- hotdropMeta mirrors quest when quest type is HOT_DROP
+
+CHANGE:
+1) When building questMeta, also compute quest center lat/lng from playerState:
+- playerState.activeQuestCenterLat / activeQuestCenterLng exist per your activate endpoint.
+- Parse them to numbers.
+
+Add after questMeta is built (only when active):
+let questCenterLat: number | undefined;
+let questCenterLng: number | undefined;
+
+if (questMeta.active && playerState.activeQuestCenterLat && playerState.activeQuestCenterLng) {
+  const latNum = parseFloat(playerState.activeQuestCenterLat);
+  const lngNum = parseFloat(playerState.activeQuestCenterLng);
+  if (!Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+    questCenterLat = latNum;
+    questCenterLng = lngNum;
+  }
+}
+
+2) Update hotdropMeta (lines ~609-616) to include:
+- sourceKey: questMeta.key
+- lat: questCenterLat
+- lng: questCenterLng
+
+Replace hotdropMeta block with:
+
+const hotdropMeta =
+  questMeta.active && questMeta.type === "HOT_DROP"
+    ? {
+        active: true,
+        distanceM: questMeta.distanceM,
+        bearingDeg: questMeta.bearingDeg,
+        direction: questMeta.direction,
+        expiresInSec: questMeta.expiresInSec,
+        sourceKey: questMeta.key,
+        lat: questCenterLat,
+        lng: questCenterLng,
+      }
+    : { active: false };
+
+(Keep meta.quest intact. Do not remove fields.)
+
+OPTIONAL (nice):
+Also attach center coords to meta.quest for future:
+if (questMeta.active) { (questMeta as any).lat = questCenterLat; (questMeta as any).lng = questCenterLng; }
+
+---------------------------------------------------------
+PART 2 — SERVER: Ensure /api/hunt/spawns does NOT leak rarity for quest eggs (Option A)
+FILE: server/hunt-routes.ts GET /api/hunt/spawns response mapping
+
+Rule:
+- For spawns where sourceType != "HOME" (i.e., EXPLORE/MICRO_HOTSPOT/HOT_DROP/LEGENDARY_BEACON),
+  the response must set rarity = null and name = "Mystery Egg".
+- DB rows remain unchanged.
+
+Implement:
+const SECRET_SOURCE_TYPES = new Set(["EXPLORE","MICRO_HOTSPOT","HOT_DROP","LEGENDARY_BEACON"]);
+function toClientSpawn(spawn: any) {
+  if (spawn.sourceType && SECRET_SOURCE_TYPES.has(spawn.sourceType)) {
+    return { ...spawn, rarity: null, name: "Mystery Egg" };
+  }
+  return spawn;
+}
+res.json({ spawns: (spawns||[]).map(toClientSpawn), meta });
+
+---------------------------------------------------------
+PART 3 — CLIENT: Remove Ping Radar UI + logic
+FILE: client/screens/HuntScreen.tsx
+
+In renderAreaClearedBanner():
+- Delete radarCooldown state usage
+- Delete handleRadarPing()
+- Remove the Pressable button that says “Ping Radar”
+- Keep banner info only:
+  - Area Cleared
+  - Next Home Drop in (homeCountdown)
+  - If huntMeta.hotdrop.active:
+    “Hot Drop: LIVE • {direction} • {distanceKm}km • {timeLeft} left”
+
+No animation calls, no refreshSpawns/refetchMapNodes triggered by ping.
+
+---------------------------------------------------------
+PART 4 — CLIENT: Show hotspot marker from meta.hotdrop at quest center
+FILES:
+- client/screens/HuntScreen.tsx
+- client/components/MapViewWrapper.tsx
+
+A) In HuntScreen.tsx:
+Create:
+const hotdropMarker =
+  huntMeta?.hotdrop?.active && huntMeta?.hotdrop?.lat && huntMeta?.hotdrop?.lng && huntMeta?.hotdrop?.sourceKey
+    ? { id: huntMeta.hotdrop.sourceKey, lat: huntMeta.hotdrop.lat, lng: huntMeta.hotdrop.lng, type: "HOT_DROP" }
+    : null;
+
+Pass into MapViewWrapper as new prop: hotdropMarker={hotdropMarker}
+
+B) In MapViewWrapper.tsx:
+Add prop:
+hotdropMarker?: { id: string; lat: number; lng: number; type: "HOT_DROP" };
+
+Render ONE MarkerComponent for hotdropMarker (separate from eggs/spawns):
+- coordinate uses hotdropMarker.lat/lng
+- use a distinct “beacon” icon (use existing marker asset; if none, reuse spawnMarkerImage but add outer glow style)
+- onPress should open a bottom sheet/modal explaining:
+  Title: “Hot Drop”
+  Subtitle: “Mystery Egg cluster nearby”
+  Text: “Walk to this hotspot area before it expires to reveal/catch eggs.”
+  DO NOT show rarity.
+
+IMPORTANT:
+This hotspot marker is NOT an egg. It’s just the quest waypoint.
+
+---------------------------------------------------------
+PART 5 — CLIENT: Hide rarity on tap for ALL eggs (HOME + QUEST)
+Wherever your spawn detail UI shows rarity, enforce:
+- Never render rarity label/badge in that UI.
+- Rarity will only be shown on the catch result screen after /api/hunt/catch response.
+
+(You already show rarity on catch result—keep that.)
+
+---------------------------------------------------------
+ACCEPTANCE TESTS:
+1) Activate HOT_DROP: meta.hotdrop returns active=true + lat/lng + sourceKey.
+2) On map: hotspot marker is visible even when far away.
+3) Tap hotspot marker: no rarity shown.
+4) Walk near hotspot: eggs appear via normal /api/hunt/spawns radius query.
+5) Tap egg: no rarity shown.
+6) Catch egg: result reveals real rarity from /api/hunt/catch.
+7) No Ping Radar button exists anywhere.
+
+DO NOT change unrelated files/systems.
+Provide a short changelog + how to test.

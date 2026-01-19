@@ -525,6 +525,8 @@ export function registerHuntRoutes(app: Express) {
         bearingDeg?: number;
         direction?: string;
         progress?: { collected: number; total: number };
+        lat?: number;
+        lng?: number;
       } = { active: false };
       
       let offers: {
@@ -566,6 +568,8 @@ export function registerHuntRoutes(app: Express) {
               bearingDeg: Math.round(bearing),
               direction: directionFromBearing(bearing),
               progress: { collected: Number(collectedEggs[0]?.count || 0), total: totalEggs },
+              lat: centerLat,
+              lng: centerLng,
             };
           } else {
             // Clear expired quest
@@ -613,6 +617,9 @@ export function registerHuntRoutes(app: Express) {
         bearingDeg: questMeta.bearingDeg,
         direction: questMeta.direction,
         expiresInSec: questMeta.expiresInSec,
+        sourceKey: questMeta.key,
+        lat: (questMeta as any).lat,
+        lng: (questMeta as any).lng,
       } : { active: false };
 
       // Re-fetch spawns after potential inserts
