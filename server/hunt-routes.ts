@@ -663,7 +663,39 @@ export function registerHuntRoutes(app: Express) {
         return spawn;
       });
 
-      res.json({ spawns: clientSpawns, meta });
+      // Query quest spawns (eggs from active quest, regardless of radius)
+      let questSpawns: any[] = [];
+      if (walletAddress && questMeta.active && questMeta.key && questMeta.type) {
+        try {
+          const rawQuestSpawns = await db.select().from(wildCreatureSpawns)
+            .where(and(
+              eq(wildCreatureSpawns.isActive, true),
+              isNull(wildCreatureSpawns.caughtByWallet),
+              gte(wildCreatureSpawns.expiresAt, now),
+              eq(wildCreatureSpawns.sourceKey, questMeta.key),
+              eq(wildCreatureSpawns.sourceType, questMeta.type)
+            ))
+            .limit(20);
+          
+          // Apply rarity secrecy to quest spawns
+          questSpawns = rawQuestSpawns.map((spawn) => {
+            if (spawn.sourceType && SECRET_SOURCE_TYPES.has(spawn.sourceType)) {
+              return {
+                ...spawn,
+                rarity: null as any,
+                name: "Mystery Egg",
+                containedTemplateId: null,
+              };
+            }
+            return spawn;
+          });
+          console.log("[Hunt] /spawns questSpawns:", questSpawns.length, "quest:", questMeta.type, questMeta.key);
+        } catch (err) {
+          console.error("[Hunt] Quest spawns query error:", err);
+        }
+      }
+
+      res.json({ spawns: clientSpawns, questSpawns, meta });
     } catch (error) {
       console.error("Spawns fetch error:", error);
       res.status(500).json({ error: "Failed to fetch spawns" });

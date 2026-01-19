@@ -187,6 +187,7 @@ interface HuntContextType {
   walletAddress: string;
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
   spawns: Spawn[];
+  questSpawns: Spawn[];
   spawnsFetching: boolean;
   spawnsLoaded: boolean;
   huntMeta: HuntMeta | null;
@@ -368,6 +369,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
   });
 
   const [huntMeta, setHuntMeta] = useState<HuntMeta | null>(null);
+  const [questSpawns, setQuestSpawns] = useState<Spawn[]>([]);
 
   const {
     data: spawnsData,
@@ -382,6 +384,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       if (!playerLocation) {
         console.log("No player location, returning empty spawns");
         setHuntMeta(null);
+        setQuestSpawns([]);
         return [];
       }
       const url = new URL("/api/hunt/spawns", getApiUrl());
@@ -395,6 +398,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       if (!response.ok) {
         console.log("Spawns fetch failed:", response.status);
         setHuntMeta(null);
+        setQuestSpawns([]);
         return [];
       }
       const data = await response.json();
@@ -404,6 +408,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
       if (data.meta) {
         setHuntMeta(data.meta);
       }
+      
+      // Store quest spawns
+      setQuestSpawns(Array.isArray(data.questSpawns) ? data.questSpawns : []);
       
       const mappedSpawns = (data.spawns || []).map((spawn: Spawn) => ({
         ...spawn,
@@ -813,6 +820,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         walletAddress,
         playerLocation,
         spawns: spawnsData || [],
+        questSpawns,
         spawnsFetching,
         spawnsLoaded,
         huntMeta,

@@ -1,0 +1,185 @@
+REPLIT AGENT — DO NOT REFACTOR, DO NOT TOUCH UNRELATED FILES.
+Goal: Hot Drop / Hotspot eggs MUST show on the map even if far away. Remove reliance on “Ping Radar” for discoverability. We will render quest spawns (HOT_DROP / MICRO_HOTSPOT / LEGENDARY_BEACON) using the SAME exact marker UI as HOME spawns (spawnMarkerImage + styles.spawnMarkerImage). We will NOT change the existing HOME spawns behavior.
+
+IMPORTANT RULES:
+- Only edit the specific files/sections listed below.
+- Keep existing code style and imports. No formatting rewrites.
+- Do not rename types/props unless instructed.
+- Do not change any other map markers (mapNodes, reserved markers, etc.).
+- Add logs only where requested.
+
+------------------------------------------------------------
+PART A — SERVER: include quest spawns in /api/hunt/spawns response
+------------------------------------------------------------
+File: server/hunt-routes.ts (or wherever GET /api/hunt/spawns is implemented)
+
+1) Find GET "/api/hunt/spawns" handler.
+2) It currently returns: res.json({ spawns }) and meta: { home, hotdrop, quest, ... } is already being built (you showed lines ~560-659).
+3) Add a new array in the response called `questSpawns` that returns ALL ACTIVE, UNCAUGHT spawns for the player’s ACTIVE quest (by sourceKey + sourceType), regardless of radius.
+
+SERVER LOGIC SPEC:
+- If player has an active quest:
+  - questKey = playerState.activeQuestKey
+  - questType = playerState.activeQuestType  (HOT_DROP / MICRO_HOTSPOT / LEGENDARY_BEACON)
+  - Query wildCreatureSpawns for:
+    - isActive = true
+    - caughtByWallet IS NULL
+    - expiresAt >= now
+    - sourceKey == questKey
+    - sourceType == questType
+  - DO NOT apply radius filters to quest spawns.
+  - Limit can be reasonable (e.g., 20) but should include the entire cluster for that quest (clusterCount is small).
+- If no active quest: questSpawns = [].
+
+Add this to response:
+res.json({ spawns: homeSpawnsOrRadiusSpawns, questSpawns, meta });
+
+NOTE:
+- Do NOT remove existing meta.hotdrop backward compat.
+- Do NOT change existing ‘spawns’ behavior (radius/home spawns).
+- Ensure questSpawns is always an array.
+
+Add a debug log once:
+console.log("[Hunt] /spawns questSpawns:", questSpawns.length, "quest:", questMeta?.type, questMeta?.key);
+
+------------------------------------------------------------
+PART B — CLIENT CONTEXT: store questSpawns from API in HuntContext
+------------------------------------------------------------
+File: client/context/HuntContext.tsx
+
+1) Add new state:
+const [questSpawns, setQuestSpawns] = useState<Spawn[]>([]);
+
+2) In the existing spawns useQuery queryFn (the one fetching /api/hunt/spawns):
+- After const data = await response.json();
+- Keep the existing setHuntMeta(data.meta) logic.
+- Add:
+  - setQuestSpawns(Array.isArray(data.questSpawns) ? data.questSpawns : []);
+
+3) When playerLocation is missing OR response not ok:
+- setQuestSpawns([]) alongside setHuntMeta(null).
+
+4) Expose questSpawns from useHunt() value:
+value={{
+  ...
+  spawns: spawnsData || [],
+  questSpawns,
+  huntMeta,
+  ...
+}}
+
+DO NOT rename “spawns”. DO NOT alter queryKey.
+
+------------------------------------------------------------
+PART C — CLIENT SCREEN: pass questSpawns to MapViewWrapper
+------------------------------------------------------------
+File: client/screens/HuntScreen.tsx
+
+1) Destructure questSpawns from useHunt():
+const { spawns, questSpawns, huntMeta, ... } = useHunt();
+
+2) Pass it into MapViewWrapper:
+<MapViewWrapper
+  ...
+  spawns={spawns}
+  questSpawns={questSpawns}
+  ...
+/>
+
+DO NOT change other props.
+
+------------------------------------------------------------
+PART D — MAP VIEW: render questSpawns markers using SAME egg marker
+------------------------------------------------------------
+File: client/components/MapViewWrapper.tsx (or where MapViewWrapper is)
+
+1) Update props type/interface to accept:
+questSpawns?: Spawn[];
+
+2) DIRECTLY BELOW the existing HOME spawn markers block you pasted, add a new block that renders questSpawns using the SAME MarkerComponent + Image:
+- Use spawnMarkerImage
+- Use styles.spawnMarkerImage
+- Use anchor={{ x: 0.5, y: 0.5 }}
+- tracksViewChanges={false}
+- tappable={true}
+- onPress and onSelect call onSpawnTap(spawn) EXACTLY like HOME spawns.
+- Validate coords with parseFloat and isNaN like HOME spawns.
+
+Use this code exactly (paste right after HOME spawns marker JSX):
+
+{/* Quest Spawn markers (HOT_DROP / MICRO_HOTSPOT / LEGENDARY_BEACON) - use same egg marker */}
+{questSpawns && questSpawns.length > 0 && MarkerComponent ? (() => {
+  console.log(`[MapViewWrapper] Rendering ${questSpawns.length} quest spawn markers`);
+  return questSpawns.map((spawn) => {
+    const spawnLat = parseFloat(String(spawn.latitude));
+    const spawnLng = parseFloat(String(spawn.longitude));
+    if (isNaN(spawnLat) || isNaN(spawnLng)) {
+      console.log(`[MapViewWrapper] Invalid quest spawn coordinates: ${spawn.latitude}, ${spawn.longitude}`);
+      return null;
+    }
+
+    return (
+      <MarkerComponent
+        key={`quest-${spawn.id}`}
+        identifier={`quest-${spawn.id}`}
+        coordinate={{
+          latitude: spawnLat,
+          longitude: spawnLng,
+        }}
+        onPress={() => {
+          console.log(`[MapViewWrapper] Quest spawn onPress: ${spawn.id}`);
+          onSpawnTap(spawn);
+        }}
+        onSelect={() => {
+          console.log(`[MapViewWrapper] Quest spawn onSelect (iOS): ${spawn.id}`);
+          onSpawnTap(spawn);
+        }}
+        anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={false}
+        tappable={true}
+      >
+        <Image
+          source={spawnMarkerImage}
+          style={styles.spawnMarkerImage}
+          resizeMode="contain"
+        />
+      </MarkerComponent>
+    );
+  });
+})() : null}
+
+3) DO NOT remove existing Quest Marker (questMarker pin) yet. Leave it as-is for now.
+(We just ensure eggs are visible far away, solving “Hot Drop LIVE but no spawn shown”.)
+
+------------------------------------------------------------
+PART E — UI: remove “Ping Radar” dependency (optional visual only, not breaking)
+------------------------------------------------------------
+File: client/screens/HuntScreen.tsx
+
+In renderAreaClearedBanner:
+- Keep the banner and “Hot Drop: LIVE …” line.
+- Remove the Ping Radar Pressable OR keep it disabled-only; but the important part is: the quest spawn eggs will now be visible on the map, so player can scroll/zoom and find them.
+
+If you remove it:
+- Delete radarCooldown state and handleRadarPing function and the Pressable block.
+- DO NOT touch other banner items.
+
+If you keep it:
+- Leave it, but it’s no longer required for gameplay.
+
+Pick ONE:
+A) Remove Ping Radar completely (recommended for clarity now).
+B) Keep it but it’s optional.
+
+------------------------------------------------------------
+PART F — TEST CHECKLIST (must run)
+------------------------------------------------------------
+1) Start app, clear home spawns until Area Cleared triggers.
+2) Ensure server returns meta.hotdrop.active = true AND questSpawns length > 0 in logs.
+3) On the map, zoom out — you MUST see egg markers far away (quest spawns) even outside radius.
+4) Tap far-away egg marker: should open the same spawn bottom sheet (onSpawnTap path).
+5) Confirm normal home spawns still render the same.
+
+Deliverable:
+- Code compiles
+- Hot Drop LIVE always has visible egg marker(s) on map (questSpawns), no longer “invisible hotdrop”.
