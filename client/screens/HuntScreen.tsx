@@ -324,11 +324,23 @@ export default function HuntScreen() {
   }, []);
 
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [gpsStale, setGpsStale] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
   const bestAccuracyRef = useRef<number>(Infinity);
+  const lastLocationUpdateRef = useRef<number>(Date.now());
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef(true);
+
+  // Detect stale GPS (no updates for 15 seconds)
+  useEffect(() => {
+    const staleCheckInterval = setInterval(() => {
+      const timeSinceUpdate = Date.now() - lastLocationUpdateRef.current;
+      const isStale = timeSinceUpdate > 15000;
+      setGpsStale(isStale);
+    }, 5000);
+    return () => clearInterval(staleCheckInterval);
+  }, []);
 
   const startLocationTracking = useCallback(async () => {
     let hasInitialLocation = false;
@@ -372,7 +384,9 @@ export default function HuntScreen() {
           
           hasInitialLocation = true;
           bestAccuracyRef.current = accuracy;
+          lastLocationUpdateRef.current = Date.now();
           setGpsAccuracy(accuracy);
+          setGpsStale(false);
           updateLocation(
             quickLocation.coords.latitude, 
             quickLocation.coords.longitude,
@@ -399,7 +413,9 @@ export default function HuntScreen() {
           if (!isMountedRef.current) return;
           const accuracy = newLocation.coords.accuracy ?? 100;
           
+          lastLocationUpdateRef.current = Date.now();
           setGpsAccuracy(accuracy);
+          setGpsStale(false);
           
           const shouldUpdate = !hasInitialLocation || 
             accuracy <= bestAccuracyRef.current || 
@@ -1162,6 +1178,7 @@ export default function HuntScreen() {
           nearbyPlayers={nearbyPlayers}
           questMarker={questMarker}
           gpsAccuracy={gpsAccuracy}
+          hasLocationError={!!locationError || permissionDenied || gpsStale}
           isVisible={isVisible}
           reservedByMe={reservedByMe}
           onToggleVisibility={() => setVisibility(!isVisible)}

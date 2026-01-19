@@ -61,6 +61,7 @@ interface MapViewWrapperProps {
   nearbyPlayers?: NearbyPlayer[];
   questMarker?: QuestMarker | null;
   gpsAccuracy?: number | null;
+  hasLocationError?: boolean;
   isVisible?: boolean;
   reservedByMe?: Record<string, true>;
   onToggleVisibility?: () => void;
@@ -112,7 +113,8 @@ function getSpawnPosition(id: string, index: number): { left: `${number}%`; top:
   return { left: `${left}%` as `${number}%`, top: `${top}%` as `${number}%` };
 }
 
-function getGpsStatusInfo(accuracy: number | null | undefined): { label: string; color: string } {
+function getGpsStatusInfo(accuracy: number | null | undefined, hasLocationError?: boolean): { label: string; color: string } {
+  if (hasLocationError) return { label: "No Signal", color: "#6B7280" };
   if (!accuracy || accuracy > 100) return { label: "Poor", color: "#EF4444" };
   if (accuracy > 50) return { label: "Fair", color: "#F59E0B" };
   if (accuracy > 20) return { label: "Good", color: "#22C55E" };
@@ -278,7 +280,7 @@ const isActiveReserved = (n: MapNode) => {
 };
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, hasLocationError, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -326,7 +328,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     }));
 
     const hasLocation = playerLocation && playerLocation.latitude && playerLocation.longitude;
-    const gpsStatus = getGpsStatusInfo(gpsAccuracy);
+    const gpsStatus = getGpsStatusInfo(gpsAccuracy, hasLocationError);
     
     // Web: use simple fallback (grid)
     if (Platform.OS === "web") {
