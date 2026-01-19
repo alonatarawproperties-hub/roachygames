@@ -12,9 +12,13 @@ import { registerPresenceRoutes } from "./presence-routes";
 import { registerNodeRoutes } from "./node-routes";
 import { registerBattleRoutes } from "./battle-routes";
 import authRoutes from "./auth-routes";
+import { requireAuth } from "./security";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/auth", authRoutes);
+  
+  // Secure all /api/hunt/* endpoints with JWT auth
+  app.use("/api/hunt", requireAuth);
   registerHuntRoutes(app);
   registerChessRoutes(app);
   registerTournamentRoutes(app);

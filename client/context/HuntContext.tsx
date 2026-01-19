@@ -387,51 +387,48 @@ export function HuntProvider({ children }: HuntProviderProps) {
         setQuestSpawns([]);
         return [];
       }
-      const url = new URL("/api/hunt/spawns", getApiUrl());
-      url.searchParams.set("latitude", playerLocation.latitude.toString());
-      url.searchParams.set("longitude", playerLocation.longitude.toString());
-      url.searchParams.set("radius", "500");
-      console.log("Fetching spawns from:", url.toString());
-      const response = await fetch(url.toString(), {
-        headers: { "x-wallet-address": walletAddress },
-      });
-      if (!response.ok) {
-        console.log("Spawns fetch failed:", response.status);
+      const route = `/api/hunt/spawns?latitude=${playerLocation.latitude}&longitude=${playerLocation.longitude}&radius=500`;
+      console.log("Fetching spawns from:", route);
+      try {
+        // Use apiRequest to automatically include Authorization Bearer token
+        const response = await apiRequest("GET", route);
+        const data = await response.json();
+        console.log("Spawns response:", data?.spawns?.length || 0, "spawns, meta:", data?.meta);
+        
+        // Store meta for UI display
+        if (data.meta) {
+          setHuntMeta(data.meta);
+        }
+        
+        // Store quest spawns with distance calculated
+        const mappedQuestSpawns = (data.questSpawns || []).map((spawn: Spawn) => ({
+          ...spawn,
+          distance: calculateDistance(
+            playerLocation.latitude,
+            playerLocation.longitude,
+            parseFloat(spawn.latitude),
+            parseFloat(spawn.longitude)
+          ),
+        }));
+        setQuestSpawns(mappedQuestSpawns);
+        
+        const mappedSpawns = (data.spawns || []).map((spawn: Spawn) => ({
+          ...spawn,
+          distance: calculateDistance(
+            playerLocation.latitude,
+            playerLocation.longitude,
+            parseFloat(spawn.latitude),
+            parseFloat(spawn.longitude)
+          ),
+        }));
+        console.log("Mapped spawns:", mappedSpawns.length);
+        return mappedSpawns;
+      } catch (error) {
+        console.log("Spawns fetch failed:", error);
         setHuntMeta(null);
         setQuestSpawns([]);
         return [];
       }
-      const data = await response.json();
-      console.log("Spawns response:", data?.spawns?.length || 0, "spawns, meta:", data?.meta);
-      
-      // Store meta for UI display
-      if (data.meta) {
-        setHuntMeta(data.meta);
-      }
-      
-      // Store quest spawns with distance calculated
-      const mappedQuestSpawns = (data.questSpawns || []).map((spawn: Spawn) => ({
-        ...spawn,
-        distance: calculateDistance(
-          playerLocation.latitude,
-          playerLocation.longitude,
-          parseFloat(spawn.latitude),
-          parseFloat(spawn.longitude)
-        ),
-      }));
-      setQuestSpawns(mappedQuestSpawns);
-      
-      const mappedSpawns = (data.spawns || []).map((spawn: Spawn) => ({
-        ...spawn,
-        distance: calculateDistance(
-          playerLocation.latitude,
-          playerLocation.longitude,
-          parseFloat(spawn.latitude),
-          parseFloat(spawn.longitude)
-        ),
-      }));
-      console.log("Mapped spawns:", mappedSpawns.length);
-      return mappedSpawns;
     },
     enabled: !!playerLocation,
     refetchInterval: 30000,
@@ -440,24 +437,28 @@ export function HuntProvider({ children }: HuntProviderProps) {
   const { data: collectionData } = useQuery({
     queryKey: ["/api/hunt/collection", walletAddress],
     queryFn: async () => {
-      const url = new URL(`/api/hunt/collection/${walletAddress}`, getApiUrl());
-      const response = await fetch(url.toString());
-      if (!response.ok) return [];
-      const data = await response.json();
-      return data.creatures || [];
+      try {
+        // URL param is ignored by server - identity comes from JWT
+        const response = await apiRequest("GET", `/api/hunt/collection/${walletAddress}`);
+        const data = await response.json();
+        return data.creatures || [];
+      } catch {
+        return [];
+      }
     },
-    // walletAddress is always available from initialization
   });
 
   const { data: eggsData } = useQuery({
     queryKey: ["/api/hunt/eggs", walletAddress],
     queryFn: async () => {
-      const url = new URL(`/api/hunt/eggs/${walletAddress}`, getApiUrl());
-      const response = await fetch(url.toString());
-      if (!response.ok) return { eggs: [], incubators: [] };
-      return await response.json();
+      try {
+        // URL param is ignored by server - identity comes from JWT
+        const response = await apiRequest("GET", `/api/hunt/eggs/${walletAddress}`);
+        return await response.json();
+      } catch {
+        return { eggs: [], incubators: [] };
+      }
     },
-    // walletAddress is always available from initialization
   });
 
   const { data: raidsData } = useQuery({

@@ -1,0 +1,115 @@
+REPLIT AGENT — FINAL PATCH (MINIMAL, PRODUCTION SAFE)
+We already have JWT auth working and apiRequest() already sends Authorization: Bearer <token>.
+Problem: /api/hunt/* endpoints don’t enforce requireAuth and still trust walletAddress from request body / x-wallet-address header.
+Fix: Secure /api/hunt/* with requireAuth and derive identity from req.userId; remove x-wallet-address usage in HuntContext spawns fetch.
+
+DO NOT change:
+- client/lib/query-client.ts apiRequest (already correct)
+- /api/auth/google-code
+- DB schema
+- Hunt response shapes
+
+ONLY change:
+A) server mounting for /api/hunt/*
+B) server/hunt-routes.ts (identity source)
+C) client/context/HuntContext.tsx (GET /api/hunt/spawns fetch)
+
+========================================
+A) SERVER: APPLY requireAuth TO ALL /api/hunt/*
+========================================
+Find where hunt routes are registered (server/index.ts or wherever you call registerHuntRoutes).
+Ensure every /api/hunt/* endpoint is behind existing middleware from server/security.ts:
+
+import { requireAuth } from "./security";
+
+If you use router:
+  app.use("/api/hunt", requireAuth, huntRouter);
+
+If hunt routes are registered directly on app in hunt-routes.ts:
+  add ONCE near the top (before defining routes):
+    app.use("/api/hunt", requireAuth);
+
+Do NOT apply requireAuth globally; only for "/api/hunt".
+
+========================================
+B) SERVER: STOP TRUSTING walletAddress FROM CLIENT
+========================================
+In server/hunt-routes.ts:
+For every /api/hunt/* endpoint that currently does:
+  const { walletAddress, ... } = req.body;
+Replace identity with JWT userId:
+
+Use:
+  const walletAddress = `u_${(req as any).userId}`;
+
+Update these minimum endpoints (must):
+1) POST /api/hunt/location
+Before:
+  const { walletAddress, latitude, longitude, displayName } = req.body;
+  if (!walletAddress || latitude === undefined || longitude === undefined) ...
+After:
+  const { latitude, longitude, displayName } = req.body;
+  const walletAddress = `u_${(req as any).userId}`;
+  if (latitude === undefined || longitude === undefined) ...
+Keep all DB logic same; just use derived walletAddress.
+
+2) POST /api/hunt/catch
+Before:
+  const { walletAddress, spawnId, catchQuality, latitude, longitude } = req.body;
+  if (!walletAddress || !spawnId) ...
+After:
+  const { spawnId, catchQuality, latitude, longitude } = req.body;
+  const walletAddress = `u_${(req as any).userId}`;
+  if (!spawnId) ...
+Keep atomic claim logic unchanged.
+
+3) POST /api/hunt/phase1/claim-spawn
+Same change.
+
+Then SEARCH server/hunt-routes.ts for:
+- "req.body.walletAddress"
+- 'x-wallet-address'
+Replace any identity usage with derived walletAddress from req.userId.
+Do NOT remove columns; just store "u_<userId>" in existing walletAddress/caughtByWallet fields.
+
+========================================
+C) CLIENT: FIX /api/hunt/spawns FETCH IN HuntContext
+========================================
+File: client/context/HuntContext.tsx (your useQuery queryFn for spawns)
+Current code uses:
+  fetch(url.toString(), { headers: { "x-wallet-address": walletAddress } })
+
+This is wrong and bypasses apiRequest().
+
+Replace it with apiRequest() so it automatically includes Authorization Bearer token:
+
+Replace:
+  const response = await fetch(url.toString(), {
+    headers: { "x-wallet-address": walletAddress },
+  });
+
+With:
+  const response = await apiRequest("GET", `/api/hunt/spawns?latitude=${playerLocation.latitude}&longitude=${playerLocation.longitude}&radius=500`);
+
+Then replace subsequent:
+  const data = await response.json();
+as-is.
+
+IMPORTANT:
+- Do NOT send walletAddress anywhere in this request.
+- Keep queryKey unchanged.
+- Keep placeholderData and meta handling unchanged.
+- If response is 401, handle same as your existing !ok block: setHuntMeta(null); setQuestSpawns([]); return [].
+
+========================================
+D) QUICK TEST
+========================================
+1) Log in (google), token stored under roachy_auth_token.
+2) Open Hunt:
+   - GET /api/hunt/spawns should be 200 (Authorization header sent by apiRequest).
+3) Confirm server sees req.userId (from requireAuth) and uses walletAddress = "u_<userId>".
+4) Confirm spoofing walletAddress in body no longer works (ignored).
+
+Output required:
+- Show diffs for the server mount, the 3 hunt endpoints, and the HuntContext spawns queryFn change.
+- Confirm TypeScript build passes.
