@@ -1,0 +1,82 @@
+TASK: WIPE ONLY ROACHY HUNT DATA (SAFE RESET) — DO NOT TOUCH USERS/AUTH OR OTHER GAME MODES.
+
+Context:
+- We changed Hunt identity to use JWT userId (u_<userId>).
+- We are pre-launch and want a clean reset of Hunt tables only.
+- DO NOT wipe users, auth tables, or balances outside hunt (users table must remain).
+- DO NOT wipe global app data unrelated to hunt (chess/flappy/tournament/etc).
+
+What to do:
+
+1) Create a new server admin-only route file change (minimal diff):
+- File: server/admin-routes.ts (or if admin routes already exist, add endpoints there)
+- Add a new endpoint:
+
+POST /api/admin/hunt/wipe
+
+Security:
+- Must require x-admin-key header.
+- Compare to process.env.ADMIN_API_KEY
+- If missing/invalid -> 403.
+
+Behavior:
+- In a single DB transaction, delete Hunt-related data in correct order to satisfy FK constraints.
+- Then return a JSON summary of row counts deleted per table.
+
+Tables to wipe (Hunt only):
+A) wildCreatureSpawns
+B) huntPlayerLocations
+C) huntEconomyStats   (ONLY if this table is Hunt-specific; if it stores global balances, DO NOT wipe it. Check schema name/usage.)
+D) huntLeaderboard
+E) huntHotspotPlayerState
+F) Any hunt-specific quest tables (search for tables starting with hunt* in schema, e.g. huntHotspot*, huntQuest*, huntSession*, etc.) — wipe them.
+G) Any hunt-specific “offers” or “cooldowns” tables if present.
+
+Important safety rules:
+- DO NOT delete from users table.
+- DO NOT delete from any wallet/balance tables that are shared across the app unless confirmed Hunt-only.
+- If huntEconomyStats includes CHY/diamond balances that are used globally, then DO NOT wipe it. Instead only reset fields that are strictly Hunt progression (e.g. hunt streak, warmth, catches today, pity counters). If unsure, open the schema and verify before deciding.
+
+2) Add a small helper to compute deleted counts:
+- Before deleting, run SELECT count(*) per table.
+- After deleting, run SELECT count(*) again.
+- Return: { success: true, wiped: { tableName: { before, after, deleted } } }
+
+3) Add a single CLI script so I can run wipe easily without Postman:
+- Create: scripts/wipe-hunt.ts
+- It should call the endpoint with fetch to http://localhost:PORT/api/admin/hunt/wipe
+- Read ADMIN_API_KEY from env.
+- Print the JSON result.
+- Ensure it fails loudly if ADMIN_API_KEY is missing.
+
+4) Make sure the admin routes are mounted:
+- Check server/routes.ts or server/index.ts where registerAdminRoutes is used.
+- If admin routes already mounted, just add endpoint.
+- If not mounted, mount it at /api/admin.
+
+5) Verification (must do):
+- Run TypeScript typecheck/build (or `npm run build` if present).
+- Start server.
+- Run the wipe script once.
+- Confirm in logs + script output that counts go to 0 for the wiped tables.
+- Confirm app still logs in and other modes still work.
+
+Implementation details:
+- Use Drizzle db transaction: await db.transaction(async (tx) => { ... })
+- For deletes: await tx.delete(table)
+- If foreign keys exist, delete child tables first then parent tables.
+- If any delete fails due to FK constraints, adjust order and retry.
+- Keep changes minimal and scoped to admin endpoint + script only.
+
+Deliverables:
+- Code changes committed:
+  - server/admin-routes.ts: new POST /api/admin/hunt/wipe
+  - scripts/wipe-hunt.ts
+- Short output example of wipe JSON result.
+- No unrelated refactors.
+
+DO NOT:
+- Do not rename tables/columns.
+- Do not modify hunt gameplay logic.
+- Do not touch client code.
+- Do not touch auth logic.

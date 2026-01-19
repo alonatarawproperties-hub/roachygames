@@ -11,6 +11,18 @@ import {
   huntLeaderboard,
   huntEconomyStats,
   huntEggs,
+  huntIncubators,
+  huntRaids,
+  huntRaidParticipants,
+  huntClaims,
+  huntWeeklyLeaderboard,
+  huntPlayerLocations,
+  huntHotspotPlayerState,
+  huntNodes,
+  huntNodePlayerState,
+  huntLocationSamples,
+  huntEventWindows,
+  wildCreatureSpawns,
   chyTransactions,
   securityAuditLog,
   gameSessionTokens,
@@ -773,6 +785,70 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("[Admin] Flappy reset error:", error);
       res.status(500).json({ error: "Failed to reset Flappy data" });
+    }
+  });
+
+  app.post("/api/admin/hunt/wipe", adminAuth, async (req, res) => {
+    try {
+      const { confirm } = req.body;
+      
+      if (confirm !== "wipe") {
+        return res.status(400).json({ 
+          error: "Confirmation required. Send { confirm: 'wipe' } to proceed." 
+        });
+      }
+
+      console.log("[Admin] Starting Hunt data wipe...");
+
+      const tables = [
+        { name: "huntRaidParticipants", table: huntRaidParticipants },
+        { name: "huntRaids", table: huntRaids },
+        { name: "huntCaughtCreatures", table: huntCaughtCreatures },
+        { name: "huntActivityLog", table: huntActivityLog },
+        { name: "huntClaims", table: huntClaims },
+        { name: "huntEggs", table: huntEggs },
+        { name: "huntIncubators", table: huntIncubators },
+        { name: "huntLeaderboard", table: huntLeaderboard },
+        { name: "huntWeeklyLeaderboard", table: huntWeeklyLeaderboard },
+        { name: "huntEconomyStats", table: huntEconomyStats },
+        { name: "huntHotspotPlayerState", table: huntHotspotPlayerState },
+        { name: "huntNodePlayerState", table: huntNodePlayerState },
+        { name: "huntNodes", table: huntNodes },
+        { name: "huntLocationSamples", table: huntLocationSamples },
+        { name: "huntEventWindows", table: huntEventWindows },
+        { name: "wildCreatureSpawns", table: wildCreatureSpawns },
+        { name: "huntPlayerLocations", table: huntPlayerLocations },
+      ];
+
+      const results: Record<string, { before: number; after: number; deleted: number }> = {};
+
+      await db.transaction(async (tx) => {
+        for (const { name, table } of tables) {
+          const [beforeCount] = await tx.select({ count: count() }).from(table);
+          await tx.delete(table);
+          const [afterCount] = await tx.select({ count: count() }).from(table);
+          
+          results[name] = {
+            before: beforeCount?.count || 0,
+            after: afterCount?.count || 0,
+            deleted: (beforeCount?.count || 0) - (afterCount?.count || 0),
+          };
+          
+          console.log(`[Admin] Wiped ${name}: ${results[name].deleted} rows`);
+        }
+      });
+
+      console.log("[Admin] Hunt data wipe completed successfully");
+
+      res.json({
+        success: true,
+        message: "Hunt data cleared",
+        wiped: results,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[Admin] Hunt wipe error:", error);
+      res.status(500).json({ error: "Failed to wipe Hunt data" });
     }
   });
 
