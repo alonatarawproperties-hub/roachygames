@@ -1,0 +1,251 @@
+ARCHITECT PROMPT — PHASE I “BY-FOOT HOTSPOT” REVAMP (EGGS ONLY)
+Goal: Implement a complete, coherent hotspot/quest system for Roachy Hunt Phase I (eggs only), designed for BY-FOOT play, with 1 active hotspot quest at a time, and Legendary Beacon TTL = end-of-day.
+
+IMPORTANT RULES
+- DO NOT change unrelated systems (battles, nodes reservation, pity UI, wallet, auth, etc.)
+- Touch ONLY Hunt/Hotspot related server routes + minimal client UI for displaying new meta.
+- Keep existing /api/hunt/spawns response working; extend meta safely.
+- Spawns must NEVER be created by client refresh. Client “refresh” should fetch only.
+- All hotspot spawns are still EGGS (Phase I). No hatching required.
+
+========================
+A) DEFINITIONS
+========================
+We will have 3 hotspot types (all by-foot):
+1) MICRO_HOTSPOT (quick walk)
+2) HOT_DROP (main excitement)
+3) LEGENDARY_BEACON (daily quest)
+
+We also keep HOME spawns as background (normal spawns near player). Home spawns are NOT “quests”.
+
+ONE ACTIVE QUEST RULE:
+- Player can have only ONE active hotspot quest at a time:
+  activeQuestType ∈ { MICRO_HOTSPOT, HOT_DROP, LEGENDARY_BEACON } or null
+  activeQuestKey = server-generated id for current quest instance
+- Player can still catch HOME spawns anytime.
+
+LEGENDARY BEACON:
+- 1 per day per wallet
+- TTL = end of day (local dayKey)
+- Completion: collect 5 beacon eggs in the beacon zone, then 1 Beacon Claim roll:
+  30% Legendary, else Epic/Rare.
+
+RARITY RULE (CRITICAL):
+- Hotspot eggs must have a rarity floor (no common).
+- Pity should only HELP, not hurt:
+  finalRarity = maxTier(hotspotRollRarity, pityRollRarity)
+  Where pityRollRarity comes from selectEggRarity(pityCounters, heatModeActive).
+
+========================
+B) CONFIG VALUES (server/hunt-config.ts)
+========================
+Add/Update config constants:
+- MICRO_MIN_DIST_M = 150
+- MICRO_MAX_DIST_M = 450
+- MICRO_TTL_MIN = 12
+- MICRO_COOLDOWN_MIN = 10
+- MICRO_CLUSTER_COUNT = 2
+
+- HOTDROP_MIN_DIST_M = 450
+- HOTDROP_MAX_DIST_M = 1200
+- HOTDROP_TTL_MIN = 12
+- HOTDROP_TTL_MAX = 22
+- HOTDROP_COOLDOWN_MIN = 25
+- HOTDROP_CLUSTER_COUNT_MIN = 3
+- HOTDROP_CLUSTER_COUNT_MAX = 5
+- HOTDROP_DYNAMIC_TTL = true
+  TTL seconds = clamp( HOTDROP_TTL_MIN*60, HOTDROP_TTL_MAX*60, ceil(distanceM/1.2 + 180) )
+  (assume walking speed 1.2 m/s + 3 min buffer)
+
+- BEACON_MIN_DIST_M = 1200
+- BEACON_MAX_DIST_M = 2000
+- BEACON_CLUSTER_COUNT = 5
+- BEACON_DAILY_LIMIT = 1
+- BEACON_TTL = END_OF_DAY (expiresAt = end of local dayKey)
+- BEACON_CLAIM_TABLE:
+  legendary: 0.30
+  epic: 0.45
+  rare: 0.25
+
+Hotspot roll rates (no common):
+- MICRO: rare 0.75, epic 0.25
+- HOTDROP: rare 0.65, epic 0.34, legendary 0.01 (optional; keep if you want)
+- BEACON eggs themselves: at least Rare (rare/epic mix is fine), BUT final “Beacon Claim” uses the table above.
+
+========================
+C) DATABASE / STATE (server)
+========================
+We need per-wallet quest state + per-day beacon tracking.
+
+Preferred minimal approach (add new table):
+Create pgTable "hunt_hotspot_player_state" with:
+- id (uuid/varchar)
+- walletAddress (text)
+- dayKey (text) // e.g. YYYY-MM-DD in server-local or chosen timezone
+- activeQuestType (text nullable) // MICRO_HOTSPOT | HOT_DROP | LEGENDARY_BEACON
+- activeQuestKey (text nullable) // quest instance id
+- activeQuestExpiresAt (timestamp nullable)
+- microCooldownUntil (timestamp nullable)
+- hotdropCooldownUntil (timestamp nullable)
+- beaconAvailable (bool) default true
+- beaconClaimedAt (timestamp nullable) // if claimed today
+- beaconQuestKey (text nullable) // stable quest key for the day
+- beaconCompleted (bool) default false
+
+If you cannot add a new table quickly, add these columns to huntEconomyStats instead, but prefer a new table.
+
+We also need a way to tag spawned eggs as belonging to a hotspot quest instance.
+Preferred: extend wildCreatureSpawns to include:
+- sourceType (text) // HOME | MICRO_HOTSPOT | HOT_DROP | LEGENDARY_BEACON
+- sourceKey (text) // quest instance key
+- sourceGroup (text nullable) // for clusters
+If schema migration is heavy, store sourceType/sourceKey in existing string fields if any exist, but do it cleanly.
+
+========================
+D) SERVER LOGIC CHANGES
+========================
+
+1) /api/hunt/spawns GET must:
+- NEVER create new spawns.
+- Return active HOME spawns in radius (existing behavior).
+- Also return meta with current hotspot quest status and/or available quest offer.
+
+Add/extend response:
+res.json({
+  spawns: [...],
+  meta: {
+    homeDrop: { nextInSec?: number, activeCount?: number }, // optional
+    quest: {
+      active: boolean,
+      type?: "MICRO_HOTSPOT"|"HOT_DROP"|"LEGENDARY_BEACON",
+      key?: string,
+      expiresInSec?: number,
+      distanceM?: number,
+      bearingDeg?: number,
+      direction?: string,
+      isBeacon?: boolean,
+    },
+    offers?: {
+      micro?: { available: boolean, distanceM, bearingDeg, direction, expiresInSec },
+      hotdrop?: { available: boolean, ... },
+      beacon?: { available: boolean, ... }, // 1/day
+    }
+  }
+})
+
+To keep client simple, you can keep current meta.hotdrop shape but generalize:
+- meta.hotdrop can represent the currently OFFERED hotspot (micro/hotdrop/beacon) with a field "type".
+OR
+- Add meta.quest + meta.offers and leave meta.hotdrop for backward compatibility.
+
+2) HOTSPOT OFFER GENERATION RULE
+Trigger offer when “area cleared”:
+- area cleared definition: HOME spawns in radius <= 0 (or <2 if you want)
+- When cleared, server checks player state:
+  - If activeQuestType != null and not expired: return the active quest meta only (no new offer)
+  - Else generate an OFFER in priority order:
+    a) If beacon not claimed today AND beaconAvailable: offer BEACON (once/day)
+    b) Else if hotdrop cooldown passed: offer HOT_DROP
+    c) Else if micro cooldown passed: offer MICRO_HOTSPOT
+    d) Else: no offer (return nextAvailableInSec for each)
+
+3) ACTIVATE QUEST ENDPOINT
+Add: POST /api/hunt/hotspot/activate
+Body: { walletAddress, questType: "MICRO_HOTSPOT"|"HOT_DROP"|"LEGENDARY_BEACON", questKey }
+Behavior:
+- Enforce ONE ACTIVE QUEST rule:
+  If activeQuestType exists and not expired -> reject 409 with { error: "Quest already active" }.
+- Validate questKey matches the offered questKey from state (prevents spoofing).
+- On activate:
+  - Set activeQuestType, activeQuestKey, expiresAt (TTL rules)
+  - Spawn cluster eggs for that quest at hotspot center coordinates:
+    - MICRO: 2 eggs
+    - HOTDROP: 3–5 eggs
+    - BEACON: 5 eggs
+  - Each spawned egg in DB must be tagged sourceType/sourceKey.
+Return: { success: true, quest: {...meta}, spawnedCount }
+
+4) BEACON CLAIM ENDPOINT
+Add: POST /api/hunt/beacon/claim
+Body: { walletAddress }
+Behavior:
+- Validate player has activeQuestType == LEGENDARY_BEACON and not expired.
+- Validate player collected all 5 beacon eggs for that questKey (server-side count).
+  Use caughtByWallet + sourceKey to count.
+- Ensure beaconClaimedAt is null for today (1/day).
+- Roll claim result:
+  30% legendary, 45% epic, 25% rare
+- Grant egg reward into player inventory/collection as you already do for catches (same storage method).
+- Update pity counters as if this rarity was obtained (legendary resets all; epic resets epic+rare; rare resets rare).
+- Mark beaconClaimedAt now, beaconCompleted true, clear activeQuestType/key.
+
+Return: { success: true, rewardRarity, pity: {...updated} }
+
+5) QUEST COMPLETION / COOLDOWNS
+When a player catches hotspot eggs:
+- If sourceType == MICRO_HOTSPOT or HOT_DROP:
+  - When all eggs in that questKey are caughtByWallet, mark quest complete:
+    - clear activeQuestType/key
+    - set corresponding cooldownUntil = now + COOLDOWN_MIN
+- For HOT_DROP bonus “cluster completion reward” (optional):
+  - On completion, grant 1 extra “bonus egg roll” with rates: epic 0.35, rare 0.65 (no common), apply pity maxTier rule.
+  - This bonus should be clearly returned in catch response or a separate completion response.
+
+6) REMOVE CLIENT-BASED SPAWN CREATION
+- Ensure the client “refresh” button does NOT call POST /api/hunt/spawn.
+- If it currently does, change it to only:
+  refreshSpawns(); refetchMapNodes(); haptics
+- Server /api/hunt/spawn endpoint should be admin/dev only or rate-limited; do not call in normal gameplay.
+
+========================
+E) CLIENT CHANGES (minimal, Phase I)
+========================
+Files likely:
+- client/screens/HuntScreen.tsx
+- client/context/HuntContext.tsx
+- client/components/MapViewWrapper.tsx (only if showing hotspot markers)
+
+1) Display meta for offers/active quest:
+- When area cleared, show banner:
+  - Next Home Drop timer (if provided)
+  - Ping Radar button
+  - If offer exists: show “Signal Found: {type} • {direction} • {distance}km • {time left}”
+  - Add CTA buttons:
+    - “TRACK” (calls /api/hunt/hotspot/activate with offered type/key)
+    - If active quest exists: show “TRACKING: ...” + “ABANDON” (optional)
+- Ping Radar should NOT blink/disappear:
+  - Keep banner visible when spawns length < 2 even if homeCountdown is null (show “calculating…”).
+
+2) Ensure 1 active quest:
+- If active quest exists, hide offers and show only tracking status.
+
+3) Beacon claim UI:
+- If active quest is BEACON and collected beacon eggs count == 5, show “CLAIM BEACON” button calling /api/hunt/beacon/claim.
+
+NOTE: If you don’t have a way to show “collected count” client-side, server can return beaconProgress: { collected: number, total: 5 } in meta.
+
+========================
+F) DELIVERABLES / ACCEPTANCE TESTS
+========================
+1) Clear home spawns:
+- /api/hunt/spawns returns an offer (beacon once/day else hotdrop else micro).
+2) Player activates a quest:
+- Cluster eggs spawn and are visible; quest becomes active; no other quest can be activated.
+3) Walk and catch:
+- Catching all eggs completes micro/hotdrop and sets cooldown; new offer appears later.
+4) Beacon:
+- Only 1/day. Expires end-of-day. Requires collecting 5 beacon eggs then claim.
+- Beacon claim roll returns 30% legendary else epic/rare and updates pity properly.
+5) No refresh abuse:
+- Leaving hunt and re-entering does NOT create new spawns.
+- Refresh button does not create spawns.
+
+========================
+IMPLEMENTATION NOTES
+========================
+- Keep backwards compatibility: keep existing meta.hotdrop fields if client expects them; add meta.quest/offers.
+- Use server dayKey consistently (same as economy lastCatchDate logic).
+- Use bearingDeg→direction mapping (already exists).
+- Ensure all spawned eggs are PHASE I: creatureClass='egg' and name='Mystery Egg'.
+
+END PROMPT

@@ -24,10 +24,34 @@ export const HUNT_CONFIG = {
   EXPLORE_SPAWN_RADIUS_M: 200,     // Spawn within 200m for explore
   
   HOME_TTL_MIN: 20,                // Spawn TTL in minutes
-  HOTDROP_MIN_DIST_M: 900,
-  HOTDROP_MAX_DIST_M: 3000,
+  
+  // ===== HOTSPOT QUEST SYSTEM (Phase I) =====
+  // MICRO HOTSPOT (quick walk)
+  MICRO_MIN_DIST_M: 150,
+  MICRO_MAX_DIST_M: 450,
+  MICRO_TTL_MIN: 12,
+  MICRO_COOLDOWN_MIN: 10,
+  MICRO_CLUSTER_COUNT: 2,
+  MICRO_RATES: { rare: 0.75, epic: 0.25 } as Record<string, number>,
+  
+  // HOT DROP (main excitement)
+  HOTDROP_MIN_DIST_M: 450,
+  HOTDROP_MAX_DIST_M: 1200,
   HOTDROP_TTL_MIN: 12,
-  HOTDROP_COOLDOWN_MIN: 8,
+  HOTDROP_TTL_MAX: 22,
+  HOTDROP_COOLDOWN_MIN: 25,
+  HOTDROP_CLUSTER_COUNT_MIN: 3,
+  HOTDROP_CLUSTER_COUNT_MAX: 5,
+  HOTDROP_DYNAMIC_TTL: true,
+  HOTDROP_RATES: { rare: 0.65, epic: 0.34, legendary: 0.01 } as Record<string, number>,
+  
+  // LEGENDARY BEACON (daily quest)
+  BEACON_MIN_DIST_M: 1200,
+  BEACON_MAX_DIST_M: 2000,
+  BEACON_CLUSTER_COUNT: 5,
+  BEACON_DAILY_LIMIT: 1,
+  BEACON_RATES: { rare: 0.60, epic: 0.40 } as Record<string, number>,
+  BEACON_CLAIM_TABLE: { legendary: 0.30, epic: 0.45, rare: 0.25 } as Record<string, number>,
   
   BASE_RATES: {
     common: 0.85,

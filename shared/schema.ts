@@ -80,7 +80,33 @@ export const wildCreatureSpawns = pgTable("wild_creature_spawns", {
   caughtAt: timestamp("caught_at"),
   expiresAt: timestamp("expires_at").notNull(),
   spawnedAt: timestamp("spawned_at").notNull().default(sql`now()`),
+  sourceType: text("source_type").default("HOME"),
+  sourceKey: text("source_key"),
 });
+
+export const HOTSPOT_QUEST_TYPES = ['MICRO_HOTSPOT', 'HOT_DROP', 'LEGENDARY_BEACON'] as const;
+export type HotspotQuestType = typeof HOTSPOT_QUEST_TYPES[number];
+
+export const huntHotspotPlayerState = pgTable("hunt_hotspot_player_state", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  dayKey: text("day_key").notNull(),
+  activeQuestType: text("active_quest_type"),
+  activeQuestKey: text("active_quest_key"),
+  activeQuestExpiresAt: timestamp("active_quest_expires_at"),
+  activeQuestCenterLat: decimal("active_quest_center_lat", { precision: 10, scale: 7 }),
+  activeQuestCenterLng: decimal("active_quest_center_lng", { precision: 10, scale: 7 }),
+  microCooldownUntil: timestamp("micro_cooldown_until"),
+  hotdropCooldownUntil: timestamp("hotdrop_cooldown_until"),
+  beaconAvailable: boolean("beacon_available").notNull().default(true),
+  beaconClaimedAt: timestamp("beacon_claimed_at"),
+  beaconQuestKey: text("beacon_quest_key"),
+  beaconCompleted: boolean("beacon_completed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => ({
+  walletDayUnique: unique().on(table.walletAddress, table.dayKey),
+}));
 
 export const huntCaughtCreatures = pgTable("hunt_caught_creatures", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
