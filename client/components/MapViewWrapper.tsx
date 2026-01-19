@@ -275,8 +275,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const mapReadyCalledRef = useRef(false);
     const insets = useSafeAreaInsets();
     
-    // Radar ping animation state
-    const [showRadarPing, setShowRadarPing] = useState(false);
+    // Radar ping animation state - ALWAYS MOUNTED, controlled via opacity only
     const radarScale = useSharedValue(0);
     const radarOpacity = useSharedValue(0);
     
@@ -286,18 +285,17 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     }));
     
     const triggerRadarAnimation = () => {
-      setShowRadarPing(true);
-      radarScale.value = 0;
-      radarOpacity.value = 0.9;
+      // Reset to starting position
+      radarScale.value = 0.1;
+      radarOpacity.value = 0;
       
-      // Expand outward over 10 seconds - slow radar sweep
-      radarScale.value = withTiming(4, { duration: 10000, easing: Easing.out(Easing.ease) });
-      radarOpacity.value = withTiming(0, { duration: 10000, easing: Easing.linear }, () => {
-        // Hide after animation completes
-      });
-      
-      // Hide component after animation
-      setTimeout(() => setShowRadarPing(false), 10100);
+      // Small delay to ensure reset is applied, then animate
+      setTimeout(() => {
+        radarOpacity.value = 0.9;
+        // Expand outward over 10 seconds - slow radar sweep
+        radarScale.value = withTiming(4, { duration: 10000, easing: Easing.out(Easing.ease) });
+        radarOpacity.value = withTiming(0, { duration: 10000, easing: Easing.linear });
+      }, 50);
     };
 
     useImperativeHandle(ref, () => ({
@@ -665,12 +663,10 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           </View>
         ) : null}
         
-        {/* Radar Ping Animation Overlay */}
-        {showRadarPing ? (
-          <View style={styles.radarPingOverlay} pointerEvents="none">
-            <Animated.View style={[styles.radarPingCircle, radarAnimatedStyle]} />
-          </View>
-        ) : null}
+        {/* Radar Ping Animation Overlay - Always mounted, visibility controlled by opacity */}
+        <View style={styles.radarPingOverlay} pointerEvents="none">
+          <Animated.View style={[styles.radarPingCircle, radarAnimatedStyle]} />
+        </View>
       </View>
     );
   }
