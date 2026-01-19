@@ -55,6 +55,7 @@ interface QuestMarker {
 interface MapViewWrapperProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
+  questSpawns?: Spawn[];
   raids: Raid[];
   mapNodes?: MapNode[];
   nearbyPlayers?: NearbyPlayer[];
@@ -277,7 +278,7 @@ const isActiveReserved = (n: MapNode) => {
 };
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -534,6 +535,47 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                   <Image 
                     source={spawnMarkerImage} 
                     style={styles.spawnMarkerImage} 
+                    resizeMode="contain"
+                  />
+                </MarkerComponent>
+              );
+            });
+          })() : null}
+
+          {/* Quest Spawn markers (HOT_DROP / MICRO_HOTSPOT / LEGENDARY_BEACON) - use same egg marker */}
+          {questSpawns && questSpawns.length > 0 && MarkerComponent ? (() => {
+            console.log(`[MapViewWrapper] Rendering ${questSpawns.length} quest spawn markers`);
+            return questSpawns.map((spawn) => {
+              const spawnLat = parseFloat(String(spawn.latitude));
+              const spawnLng = parseFloat(String(spawn.longitude));
+              if (isNaN(spawnLat) || isNaN(spawnLng)) {
+                console.log(`[MapViewWrapper] Invalid quest spawn coordinates: ${spawn.latitude}, ${spawn.longitude}`);
+                return null;
+              }
+
+              return (
+                <MarkerComponent
+                  key={`quest-${spawn.id}`}
+                  identifier={`quest-${spawn.id}`}
+                  coordinate={{
+                    latitude: spawnLat,
+                    longitude: spawnLng,
+                  }}
+                  onPress={() => {
+                    console.log(`[MapViewWrapper] Quest spawn onPress: ${spawn.id}`);
+                    onSpawnTap(spawn);
+                  }}
+                  onSelect={() => {
+                    console.log(`[MapViewWrapper] Quest spawn onSelect (iOS): ${spawn.id}`);
+                    onSpawnTap(spawn);
+                  }}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={false}
+                  tappable={true}
+                >
+                  <Image
+                    source={spawnMarkerImage}
+                    style={styles.spawnMarkerImage}
                     resizeMode="contain"
                   />
                 </MarkerComponent>

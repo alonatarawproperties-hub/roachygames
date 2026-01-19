@@ -119,6 +119,7 @@ export default function HuntScreen() {
     walletAddress,
     playerLocation,
     spawns,
+    questSpawns,
     spawnsFetching,
     spawnsLoaded,
     huntMeta,
@@ -1155,6 +1156,7 @@ export default function HuntScreen() {
           ref={mapRef}
           playerLocation={playerLocation}
           spawns={spawns}
+          questSpawns={questSpawns}
           raids={raids}
           mapNodes={allMapNodes}
           nearbyPlayers={nearbyPlayers}
