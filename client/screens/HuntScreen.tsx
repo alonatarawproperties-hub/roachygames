@@ -140,6 +140,8 @@ export default function HuntScreen() {
     refreshPhaseIStats,
     claimNode,
     pingRadar,
+    activateHotspot,
+    claimBeacon,
   } = useHunt();
   
   useGamePresence("roachy-hunt");
@@ -190,6 +192,8 @@ export default function HuntScreen() {
   const [radarCooldown, setRadarCooldown] = useState(0);
   const [radarResult, setRadarResult] = useState<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null>(null);
   const [radarResultVisibleUntil, setRadarResultVisibleUntil] = useState(0);
+  const [activatingQuest, setActivatingQuest] = useState<string | null>(null);
+  const [questCountdown, setQuestCountdown] = useState<number | null>(null);
   
   // Banner latch - keep visible for minimum time to prevent flicker
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
@@ -219,6 +223,11 @@ export default function HuntScreen() {
     } else {
       setHotdropCountdown(null);
     }
+    if (huntMeta?.quest?.expiresInSec) {
+      setQuestCountdown(huntMeta.quest.expiresInSec);
+    } else {
+      setQuestCountdown(null);
+    }
   }, [huntMeta]);
   
   // Tick countdown timers every second
@@ -226,6 +235,7 @@ export default function HuntScreen() {
     const interval = setInterval(() => {
       setHomeCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
       setHotdropCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
+      setQuestCountdown(prev => prev !== null && prev > 0 ? prev - 1 : null);
       setRadarCooldown(prev => prev > 0 ? prev - 1 : 0);
     }, 1000);
     return () => clearInterval(interval);
@@ -1005,13 +1015,139 @@ export default function HuntScreen() {
           </View>
         )}
         
-        {huntMeta?.hotdrop?.active && (
+        {huntMeta?.hotdrop?.active && !huntMeta?.quest?.active && (
           <View style={styles.hotdropRow}>
             <Feather name="zap" size={14} color={GameColors.gold} />
             <ThemedText style={styles.hotdropText}>
               Hot Drop: LIVE • {huntMeta.hotdrop.direction} • {((huntMeta.hotdrop.distanceM || 0) / 1000).toFixed(1)}km
               {hotdropCountdown !== null && hotdropCountdown > 0 && ` • ${formatCountdown(hotdropCountdown)} left`}
             </ThemedText>
+          </View>
+        )}
+        
+        {huntMeta?.quest?.active && (
+          <View style={styles.questTrackerRow}>
+            <Feather 
+              name={huntMeta.quest.type === 'LEGENDARY_BEACON' ? 'star' : huntMeta.quest.type === 'HOT_DROP' ? 'zap' : 'map-pin'} 
+              size={14} 
+              color={huntMeta.quest.type === 'LEGENDARY_BEACON' ? GameColors.gold : huntMeta.quest.type === 'HOT_DROP' ? '#FF6B35' : GameColors.primary} 
+            />
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.questText}>
+                {huntMeta.quest.type === 'LEGENDARY_BEACON' ? 'Beacon Quest' : huntMeta.quest.type === 'HOT_DROP' ? 'Hot Drop Quest' : 'Micro Hotspot'}
+                {' • '}{huntMeta.quest.direction} • {((huntMeta.quest.distanceM || 0) / 1000).toFixed(1)}km
+              </ThemedText>
+              <ThemedText style={styles.questProgress}>
+                Progress: {huntMeta.quest.progress?.collected || 0}/{huntMeta.quest.progress?.total || 0} eggs
+                {questCountdown !== null && questCountdown > 0 && ` • ${formatCountdown(questCountdown)} left`}
+              </ThemedText>
+            </View>
+            {huntMeta.quest.type === 'LEGENDARY_BEACON' && 
+             huntMeta.quest.progress?.collected === huntMeta.quest.progress?.total && (
+              <Pressable 
+                style={[styles.claimBeaconButton, activatingQuest && styles.radarButtonDisabled]}
+                onPress={async () => {
+                  setActivatingQuest('claiming');
+                  const result = await claimBeacon();
+                  setActivatingQuest(null);
+                  if (result.success) {
+                    Alert.alert('Beacon Claimed!', `You received a ${result.rewardRarity?.toUpperCase()} egg!`);
+                    refreshSpawns();
+                  } else {
+                    Alert.alert('Error', result.error || 'Failed to claim beacon');
+                  }
+                }}
+                disabled={!!activatingQuest}
+              >
+                <Feather name="gift" size={14} color="#fff" />
+                <ThemedText style={styles.claimBeaconText}>Claim</ThemedText>
+              </Pressable>
+            )}
+          </View>
+        )}
+        
+        {!huntMeta?.quest?.active && huntMeta?.offers && (
+          <View style={styles.questOffersContainer}>
+            <ThemedText style={styles.questOffersTitle}>Quest Offers</ThemedText>
+            <View style={styles.questOffersRow}>
+              {huntMeta.offers.micro && (
+                <Pressable 
+                  style={[
+                    styles.questOfferButton, 
+                    !huntMeta.offers.micro.available && styles.questOfferButtonDisabled
+                  ]}
+                  onPress={async () => {
+                    if (!huntMeta.offers?.micro?.available) return;
+                    setActivatingQuest('MICRO_HOTSPOT');
+                    const result = await activateHotspot('MICRO_HOTSPOT');
+                    setActivatingQuest(null);
+                    if (result.success) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      refreshSpawns();
+                    }
+                  }}
+                  disabled={!huntMeta.offers.micro.available || !!activatingQuest}
+                >
+                  <Feather name="map-pin" size={16} color={huntMeta.offers.micro.available ? GameColors.primary : GameColors.textTertiary} />
+                  <ThemedText style={[styles.questOfferText, !huntMeta.offers.micro.available && styles.questOfferTextDisabled]}>
+                    {huntMeta.offers.micro.available ? 'Micro' : `${Math.ceil((huntMeta.offers.micro.cooldownEndsInSec || 0) / 60)}m`}
+                  </ThemedText>
+                </Pressable>
+              )}
+              {huntMeta.offers.hotdrop && (
+                <Pressable 
+                  style={[
+                    styles.questOfferButton, 
+                    styles.questOfferButtonHotdrop,
+                    !huntMeta.offers.hotdrop.available && styles.questOfferButtonDisabled
+                  ]}
+                  onPress={async () => {
+                    if (!huntMeta.offers?.hotdrop?.available) return;
+                    setActivatingQuest('HOT_DROP');
+                    const result = await activateHotspot('HOT_DROP');
+                    setActivatingQuest(null);
+                    if (result.success) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      refreshSpawns();
+                    }
+                  }}
+                  disabled={!huntMeta.offers.hotdrop.available || !!activatingQuest}
+                >
+                  <Feather name="zap" size={16} color={huntMeta.offers.hotdrop.available ? '#FF6B35' : GameColors.textTertiary} />
+                  <ThemedText style={[styles.questOfferText, !huntMeta.offers.hotdrop.available && styles.questOfferTextDisabled]}>
+                    {huntMeta.offers.hotdrop.available ? 'Hot Drop' : `${Math.ceil((huntMeta.offers.hotdrop.cooldownEndsInSec || 0) / 60)}m`}
+                  </ThemedText>
+                </Pressable>
+              )}
+              {huntMeta.offers.beacon && (
+                <Pressable 
+                  style={[
+                    styles.questOfferButton, 
+                    styles.questOfferButtonBeacon,
+                    (!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed) && styles.questOfferButtonDisabled
+                  ]}
+                  onPress={async () => {
+                    if (!huntMeta.offers?.beacon?.available || huntMeta.offers.beacon.claimed) return;
+                    setActivatingQuest('LEGENDARY_BEACON');
+                    const result = await activateHotspot('LEGENDARY_BEACON');
+                    setActivatingQuest(null);
+                    if (result.success) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      refreshSpawns();
+                    }
+                  }}
+                  disabled={!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed || !!activatingQuest}
+                >
+                  <Feather name="star" size={16} color={huntMeta.offers.beacon.available && !huntMeta.offers.beacon.claimed ? GameColors.gold : GameColors.textTertiary} />
+                  <ThemedText style={[styles.questOfferText, (!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed) && styles.questOfferTextDisabled]}>
+                    {huntMeta.offers.beacon.claimed ? 'Done' : 'Beacon'}
+                  </ThemedText>
+                </Pressable>
+              )}
+            </View>
+            {activatingQuest && (
+              <ThemedText style={styles.activatingText}>Spawning quest eggs...</ThemedText>
+            )}
           </View>
         )}
         
@@ -3011,5 +3147,92 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#fff",
+  },
+  questTrackerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    backgroundColor: GameColors.primary + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  questText: {
+    fontSize: 13,
+    color: GameColors.textPrimary,
+    fontWeight: "600",
+  },
+  questProgress: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginTop: 2,
+  },
+  claimBeaconButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.gold,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  claimBeaconText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  questOffersContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: GameColors.surfaceLight,
+  },
+  questOffersTitle: {
+    fontSize: 12,
+    color: GameColors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  questOffersRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  questOfferButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.surface,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: GameColors.primary + "40",
+  },
+  questOfferButtonHotdrop: {
+    borderColor: "#FF6B35" + "40",
+  },
+  questOfferButtonBeacon: {
+    borderColor: GameColors.gold + "40",
+  },
+  questOfferButtonDisabled: {
+    backgroundColor: GameColors.surfaceLight,
+    borderColor: GameColors.surfaceLight,
+    opacity: 0.6,
+  },
+  questOfferText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
+  },
+  questOfferTextDisabled: {
+    color: GameColors.textTertiary,
+  },
+  activatingText: {
+    fontSize: 11,
+    color: GameColors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
+    fontStyle: "italic",
   },
 });
