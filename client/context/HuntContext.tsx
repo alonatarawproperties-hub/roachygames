@@ -130,6 +130,21 @@ export interface HuntMeta {
     direction?: string;
     expiresInSec?: number;
   };
+  quest?: {
+    active: boolean;
+    type?: string;
+    key?: string;
+    expiresInSec?: number;
+    distanceM?: number;
+    bearingDeg?: number;
+    direction?: string;
+    progress?: { collected: number; total: number };
+  };
+  offers?: {
+    micro?: { available: boolean; cooldownEndsInSec?: number };
+    hotdrop?: { available: boolean; cooldownEndsInSec?: number };
+    beacon?: { available: boolean; claimed?: boolean };
+  };
 }
 
 export interface Raid {
@@ -195,6 +210,8 @@ interface HuntContextType {
   refreshEconomy: () => void;
   refreshPhaseIStats: () => void;
   pingRadar: () => Promise<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null>;
+  activateHotspot: (questType: 'MICRO_HOTSPOT' | 'HOT_DROP' | 'LEGENDARY_BEACON') => Promise<{ success: boolean; quest?: any; error?: string }>;
+  claimBeacon: () => Promise<{ success: boolean; rewardRarity?: string; error?: string }>;
 }
 
 const HuntContext = createContext<HuntContextType | null>(null);
@@ -747,6 +764,45 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [playerLocation, walletAddress]);
 
+  const activateHotspot = useCallback(async (questType: 'MICRO_HOTSPOT' | 'HOT_DROP' | 'LEGENDARY_BEACON') => {
+    if (!playerLocation) {
+      return { success: false, error: "No location available" };
+    }
+    try {
+      const response = await apiRequest("POST", "/api/hunt/hotspot/activate", {
+        walletAddress,
+        questType,
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+      }
+      return data;
+    } catch (error: any) {
+      console.error("[HOTSPOT] Activate error:", error);
+      return { success: false, error: error.message || "Failed to activate hotspot" };
+    }
+  }, [walletAddress, playerLocation, queryClient]);
+
+  const claimBeacon = useCallback(async () => {
+    try {
+      const response = await apiRequest("POST", "/api/hunt/beacon/claim", {
+        walletAddress,
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+      }
+      return data;
+    } catch (error: any) {
+      console.error("[BEACON] Claim error:", error);
+      return { success: false, error: error.message || "Failed to claim beacon" };
+    }
+  }, [walletAddress, queryClient]);
+
   return (
     <HuntContext.Provider
       value={{
@@ -780,6 +836,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
         refreshEconomy,
         refreshPhaseIStats,
         pingRadar,
+        activateHotspot,
+        claimBeacon,
       }}
     >
       {children}
