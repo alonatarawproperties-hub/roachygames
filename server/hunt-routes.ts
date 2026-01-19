@@ -1339,6 +1339,42 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
+  // Test-only endpoint: force-create a single spawn for security testing
+  app.post("/api/hunt/test-spawn", async (req: Request, res: Response) => {
+    try {
+      const adminKey = req.headers["x-admin-key"] as string;
+      if (adminKey !== process.env.ADMIN_API_KEY) {
+        return res.status(403).json({ error: "Forbidden - admin key required" });
+      }
+
+      const { latitude, longitude } = req.body;
+      const lat = parseFloat(latitude) || 14.5995;
+      const lng = parseFloat(longitude) || 120.9842;
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+
+      const [spawn] = await db.insert(wildCreatureSpawns).values({
+        latitude: lat.toString(),
+        longitude: lng.toString(),
+        templateId: "wild_egg_test",
+        name: "Test Egg",
+        creatureClass: "tank",
+        rarity: "common",
+        baseHp: 100,
+        baseAtk: 20,
+        baseDef: 15,
+        baseSpd: 10,
+        isActive: true,
+        expiresAt,
+      }).returning();
+
+      console.log("[TEST-SPAWN] Created spawn for security testing:", spawn.id);
+      res.json({ success: true, spawn });
+    } catch (error) {
+      console.error("Test spawn error:", error);
+      res.status(500).json({ error: "Failed to create test spawn" });
+    }
+  });
+
   app.post("/api/hunt/catch", async (req: Request, res: Response) => {
     try {
       const { walletAddress, spawnId, catchQuality, latitude, longitude } = req.body;
@@ -1347,15 +1383,13 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
+      // Fetch spawn data for later use (don't check isActive/caughtByWallet - atomic UPDATE is authoritative)
       const [spawn] = await db.select().from(wildCreatureSpawns)
-        .where(and(
-          eq(wildCreatureSpawns.id, spawnId),
-          eq(wildCreatureSpawns.isActive, true),
-        ))
+        .where(eq(wildCreatureSpawns.id, spawnId))
         .limit(1);
 
       if (!spawn) {
-        return res.status(404).json({ error: "Spawn not found or already caught" });
+        return res.status(404).json({ error: "Spawn not found" });
       }
 
       const [economy] = await db.select().from(huntEconomyStats)
@@ -2512,13 +2546,29 @@ export function registerHuntRoutes(app: Express) {
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
       const isPerfect = quality === 'perfect';
 
-      await db.update(wildCreatureSpawns)
+      // --- ATOMIC CLAIM (authoritative) ---
+      const claimNow = new Date();
+
+      const claimed = await db
+        .update(wildCreatureSpawns)
         .set({
-          caughtByWallet: walletAddress,
-          caughtAt: new Date(),
           isActive: false,
+          caughtByWallet: walletAddress,
+          caughtAt: claimNow,
         })
-        .where(eq(wildCreatureSpawns.id, spawnId));
+        .where(and(
+          eq(wildCreatureSpawns.id, spawnId),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.expiresAt, claimNow),
+        ))
+        .returning({ id: wildCreatureSpawns.id });
+
+      if (!claimed || claimed.length === 0) {
+        console.log("[Hunt] catch rejected - already claimed/expired", { walletAddress, spawnId });
+        return res.status(409).json({ error: "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" });
+      }
+      // --- END ATOMIC CLAIM ---
 
       let newSinceRare = pityCounters.sinceRare;
       let newSinceEpic = pityCounters.sinceEpic;

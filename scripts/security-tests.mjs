@@ -70,16 +70,15 @@ async function testLocation() {
 async function testCatchAtomic() {
   console.log("\n[TEST B] /api/hunt/catch atomic claim (parallel)");
 
-  // Create 1 spawn near baseline using /api/hunt/spawn (requires admin key)
-  const spawnResp = await post("/api/hunt/spawn", {
+  // Create test spawn via admin test-spawn endpoint (forces creation)
+  const spawnResp = await post("/api/hunt/test-spawn", {
     latitude: 14.5995,
     longitude: 120.9842,
-    count: 1,
   }, true);
 
-  assert(spawnResp.res.status === 200, `Spawn create failed. status=${spawnResp.res.status} body=${spawnResp.text}`);
-  const spawnId = spawnResp.json?.spawns?.[0]?.id;
-  assert(spawnId, `No spawnId returned from /api/hunt/spawn. body=${spawnResp.text}`);
+  assert(spawnResp.res.status === 200, `Test spawn create failed. status=${spawnResp.res.status} body=${spawnResp.text}`);
+  const spawnId = spawnResp.json?.spawn?.id;
+  assert(spawnId, `No spawnId returned. body=${spawnResp.text}`);
   console.log("  ✓ created spawn", spawnId);
 
   const payload = {

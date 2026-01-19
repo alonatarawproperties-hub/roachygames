@@ -1,0 +1,65 @@
+REPLIT AGENT — IMPLEMENT ATOMIC CLAIM FIX (DO NOT TOUCH ANYTHING ELSE)
+
+Context:
+Security TEST B shows race condition in server/hunt-routes.ts /api/hunt/catch around lines ~2433-2521.
+Currently flow is SELECT (checks uncaught) then UPDATE (marks caught). Under parallel requests all succeed.
+We must make the UPDATE conditional and authoritative using .returning(), and if no rows updated return 409.
+
+Rules:
+- Modify ONLY server/hunt-routes.ts in the /api/hunt/catch handler at the spawn-claim section (the part that sets caughtByWallet/caughtAt/isActive).
+- Do NOT rewrite quest completion logic, pity logic, economy logic, or response shape.
+- Keep the existing SELECT if later code needs the spawn fields, BUT do NOT rely on it for authorization.
+- The conditional UPDATE must be the single source of truth.
+- If claim fails, return immediately with 409 { error: "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" } and do not continue.
+
+Steps:
+1) Open server/hunt-routes.ts and locate the POST /api/hunt/catch handler around lines 2433-2521.
+2) Find the current UPDATE that marks the spawn as caught (sets isActive false, caughtByWallet, caughtAt).
+3) Replace that UPDATE block with the atomic conditional claim below.
+
+Paste this EXACT replacement block:
+
+// --- ATOMIC CLAIM (authoritative) ---
+const now = new Date();
+
+const claimed = await db
+  .update(wildCreatureSpawns)
+  .set({
+    isActive: false,
+    caughtByWallet: walletAddress,
+    caughtAt: now,
+  })
+  .where(and(
+    eq(wildCreatureSpawns.id, spawnId),
+    eq(wildCreatureSpawns.isActive, true),
+    isNull(wildCreatureSpawns.caughtByWallet),
+    gte(wildCreatureSpawns.expiresAt, now),
+  ))
+  .returning({ id: wildCreatureSpawns.id });
+
+if (!claimed || claimed.length === 0) {
+  console.log("[Hunt] catch rejected - already claimed/expired", { walletAddress, spawnId });
+  return res.status(409).json({ error: "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" });
+}
+// --- END ATOMIC CLAIM ---
+
+4) IMPORTANT:
+- Ensure any logic that follows (egg rarity, pity updates, quest progress, rewards) runs only AFTER the atomic claim succeeds.
+- If the handler currently uses spawn data loaded earlier by SELECT, keep it. But do not do any more spawn updates that could revert the claim.
+
+5) Imports:
+If server/hunt-routes.ts does not already import these from drizzle-orm, add them to the existing import line (do not duplicate):
+- and
+- eq
+- gte
+- isNull
+
+6) Run tests again:
+node scripts/security-tests.mjs
+Expected:
+- 1 catch success (200)
+- 4 conflicts (409 SPAWN_ALREADY_CLAIMED_OR_EXPIRED)
+
+Deliverable:
+- Paste the diff or the exact updated /api/hunt/catch snippet showing the atomic claim is now in the correct location.
+- Paste the rerun test output showing TEST B PASS.
