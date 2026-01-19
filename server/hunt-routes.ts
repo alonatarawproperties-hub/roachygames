@@ -13,7 +13,9 @@ import {
   huntRaidParticipants,
   huntClaims,
   huntWeeklyLeaderboard,
+  huntHotspotPlayerState,
   users,
+  type HotspotQuestType,
 } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, isNull, asc } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
@@ -215,6 +217,86 @@ function selectHotDropRarity(): string {
   if (roll < 0.05) return 'legendary';
   if (roll < 0.30) return 'epic';
   return 'rare';
+}
+
+// ===== HOTSPOT QUEST SYSTEM HELPERS =====
+type QuestType = 'MICRO_HOTSPOT' | 'HOT_DROP' | 'LEGENDARY_BEACON';
+
+function selectHotspotRarity(questType: QuestType, pityCounters: { sinceRare: number; sinceEpic: number; sinceLegendary: number }, heatModeActive: boolean): string {
+  const rates = questType === 'MICRO_HOTSPOT' ? HUNT_CONFIG.MICRO_RATES 
+              : questType === 'HOT_DROP' ? HUNT_CONFIG.HOTDROP_RATES 
+              : HUNT_CONFIG.BEACON_RATES;
+  
+  const roll = Math.random();
+  let cumulative = 0;
+  let hotspotRarity = 'rare';
+  for (const [rarity, rate] of Object.entries(rates)) {
+    cumulative += rate;
+    if (roll <= cumulative) {
+      hotspotRarity = rarity;
+      break;
+    }
+  }
+  
+  const pityRarity = selectEggRarity(pityCounters, heatModeActive);
+  const rarityOrder = ['common', 'rare', 'epic', 'legendary'];
+  const hotspotIdx = rarityOrder.indexOf(hotspotRarity);
+  const pityIdx = rarityOrder.indexOf(pityRarity);
+  return hotspotIdx >= pityIdx ? hotspotRarity : pityRarity;
+}
+
+function calculateHotdropTTL(distanceM: number): number {
+  if (!HUNT_CONFIG.HOTDROP_DYNAMIC_TTL) {
+    return HUNT_CONFIG.HOTDROP_TTL_MIN * 60;
+  }
+  const walkSpeedMps = 1.2;
+  const bufferSec = 180;
+  const ttlSec = Math.ceil(distanceM / walkSpeedMps + bufferSec);
+  const minSec = HUNT_CONFIG.HOTDROP_TTL_MIN * 60;
+  const maxSec = HUNT_CONFIG.HOTDROP_TTL_MAX * 60;
+  return Math.max(minSec, Math.min(maxSec, ttlSec));
+}
+
+function getEndOfDayTimestamp(): Date {
+  const now = new Date();
+  const manilaOffset = 8 * 60;
+  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const manilaMs = utcMs + (manilaOffset * 60000);
+  const manilaDate = new Date(manilaMs);
+  const endOfDay = new Date(manilaDate);
+  endOfDay.setHours(23, 59, 59, 999);
+  const endOfDayUtcMs = endOfDay.getTime() - (manilaOffset * 60000) + (now.getTimezoneOffset() * 60000);
+  return new Date(endOfDayUtcMs);
+}
+
+function generateQuestKey(): string {
+  return `quest_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+function directionFromBearing(bearing: number): string {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dirIndex = Math.round(bearing / 45) % 8;
+  return directions[dirIndex];
+}
+
+async function getOrCreatePlayerHotspotState(walletAddress: string, dayKey: string) {
+  const [existing] = await db.select().from(huntHotspotPlayerState)
+    .where(and(
+      eq(huntHotspotPlayerState.walletAddress, walletAddress),
+      eq(huntHotspotPlayerState.dayKey, dayKey)
+    ))
+    .limit(1);
+  
+  if (existing) return existing;
+  
+  const [newState] = await db.insert(huntHotspotPlayerState).values({
+    walletAddress,
+    dayKey,
+    beaconAvailable: true,
+    beaconCompleted: false,
+  }).returning();
+  
+  return newState;
 }
 
 export function registerHuntRoutes(app: Express) {
@@ -432,98 +514,106 @@ export function registerHuntRoutes(app: Express) {
         }
       }
 
-      // ===== HOT DROP LOGIC =====
-      const hotdropBounds = getCellBounds(lat, lng, 3500);
-      let hotdropMeta: { active: boolean; distanceM?: number; bearingDeg?: number; expiresInSec?: number; direction?: string } = { active: false };
+      // ===== HOTSPOT QUEST SYSTEM (No spawn creation in GET - offers only) =====
+      const dayKey = getManilaDate();
+      let questMeta: {
+        active: boolean;
+        type?: string;
+        key?: string;
+        expiresInSec?: number;
+        distanceM?: number;
+        bearingDeg?: number;
+        direction?: string;
+        progress?: { collected: number; total: number };
+      } = { active: false };
       
-      const [activeHotdrop] = await db.select().from(wildCreatureSpawns)
-        .where(and(
-          eq(wildCreatureSpawns.templateId, 'wild_egg_hotdrop'),
-          eq(wildCreatureSpawns.isActive, true),
-          isNull(wildCreatureSpawns.caughtByWallet),
-          gte(wildCreatureSpawns.expiresAt, now),
-          gte(wildCreatureSpawns.latitude, hotdropBounds.minLat.toString()),
-          lte(wildCreatureSpawns.latitude, hotdropBounds.maxLat.toString()),
-          gte(wildCreatureSpawns.longitude, hotdropBounds.minLng.toString()),
-          lte(wildCreatureSpawns.longitude, hotdropBounds.maxLng.toString()),
-        ))
-        .limit(1);
-
-      if (activeHotdrop) {
-        const hdLat = parseFloat(activeHotdrop.latitude);
-        const hdLng = parseFloat(activeHotdrop.longitude);
-        const distM = haversineMeters(lat, lng, hdLat, hdLng);
-        const bearing = bearingDegrees(lat, lng, hdLat, hdLng);
-        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        const dirIndex = Math.round(bearing / 45) % 8;
-        
-        hotdropMeta = {
-          active: true,
-          distanceM: Math.round(distM),
-          bearingDeg: Math.round(bearing),
-          direction: directions[dirIndex],
-          expiresInSec: Math.ceil((activeHotdrop.expiresAt!.getTime() - nowMs) / 1000),
-        };
-      } else {
-        // Check cooldown for hotdrop
-        const [lastHotdrop] = await db.select().from(wildCreatureSpawns)
-          .where(and(
-            eq(wildCreatureSpawns.templateId, 'wild_egg_hotdrop'),
-            gte(wildCreatureSpawns.latitude, hotdropBounds.minLat.toString()),
-            lte(wildCreatureSpawns.latitude, hotdropBounds.maxLat.toString()),
-            gte(wildCreatureSpawns.longitude, hotdropBounds.minLng.toString()),
-            lte(wildCreatureSpawns.longitude, hotdropBounds.maxLng.toString()),
-          ))
-          .orderBy(desc(wildCreatureSpawns.expiresAt))
-          .limit(1);
-
-        let canSpawnHotdrop = true;
-        if (lastHotdrop && lastHotdrop.expiresAt) {
-          const lastCreatedAt = new Date(lastHotdrop.expiresAt.getTime() - HUNT_CONFIG.HOTDROP_TTL_MIN * 60 * 1000);
-          const cooldownEndAt = new Date(lastCreatedAt.getTime() + HUNT_CONFIG.HOTDROP_COOLDOWN_MIN * 60 * 1000);
-          if (now < cooldownEndAt) {
-            canSpawnHotdrop = false;
+      let offers: {
+        micro?: { available: boolean; cooldownEndsInSec?: number };
+        hotdrop?: { available: boolean; cooldownEndsInSec?: number };
+        beacon?: { available: boolean; claimed?: boolean };
+      } = {};
+      
+      // Get player's hotspot state for today
+      if (walletAddress) {
+        try {
+          const playerState = await getOrCreatePlayerHotspotState(walletAddress, dayKey);
+          
+          // Check if there's an active quest
+          if (playerState.activeQuestType && playerState.activeQuestExpiresAt && playerState.activeQuestExpiresAt > now) {
+            const centerLat = parseFloat(playerState.activeQuestCenterLat?.toString() || '0');
+            const centerLng = parseFloat(playerState.activeQuestCenterLng?.toString() || '0');
+            const distM = haversineMeters(lat, lng, centerLat, centerLng);
+            const bearing = bearingDegrees(lat, lng, centerLat, centerLng);
+            
+            // Count collected eggs for this quest
+            const collectedEggs = await db.select({ count: sql<number>`count(*)` })
+              .from(wildCreatureSpawns)
+              .where(and(
+                eq(wildCreatureSpawns.sourceKey, playerState.activeQuestKey || ''),
+                eq(wildCreatureSpawns.caughtByWallet, walletAddress)
+              ));
+            
+            const totalEggs = playerState.activeQuestType === 'MICRO_HOTSPOT' ? HUNT_CONFIG.MICRO_CLUSTER_COUNT
+                            : playerState.activeQuestType === 'HOT_DROP' ? HUNT_CONFIG.HOTDROP_CLUSTER_COUNT_MAX
+                            : HUNT_CONFIG.BEACON_CLUSTER_COUNT;
+            
+            questMeta = {
+              active: true,
+              type: playerState.activeQuestType,
+              key: playerState.activeQuestKey || undefined,
+              expiresInSec: Math.ceil((playerState.activeQuestExpiresAt.getTime() - nowMs) / 1000),
+              distanceM: Math.round(distM),
+              bearingDeg: Math.round(bearing),
+              direction: directionFromBearing(bearing),
+              progress: { collected: Number(collectedEggs[0]?.count || 0), total: totalEggs },
+            };
+          } else {
+            // Clear expired quest
+            if (playerState.activeQuestType && playerState.activeQuestExpiresAt && playerState.activeQuestExpiresAt <= now) {
+              await db.update(huntHotspotPlayerState)
+                .set({ activeQuestType: null, activeQuestKey: null, activeQuestExpiresAt: null })
+                .where(eq(huntHotspotPlayerState.id, playerState.id));
+            }
+            
+            // Build offers based on cooldowns (only when area is clear)
+            const areaCleared = homeSpawns.length <= 1;
+            
+            if (areaCleared) {
+              // Micro cooldown check
+              const microAvailable = !playerState.microCooldownUntil || playerState.microCooldownUntil <= now;
+              const microCooldownRemaining = playerState.microCooldownUntil && playerState.microCooldownUntil > now
+                ? Math.ceil((playerState.microCooldownUntil.getTime() - nowMs) / 1000)
+                : undefined;
+              
+              // Hotdrop cooldown check
+              const hotdropAvailable = !playerState.hotdropCooldownUntil || playerState.hotdropCooldownUntil <= now;
+              const hotdropCooldownRemaining = playerState.hotdropCooldownUntil && playerState.hotdropCooldownUntil > now
+                ? Math.ceil((playerState.hotdropCooldownUntil.getTime() - nowMs) / 1000)
+                : undefined;
+              
+              // Beacon availability (1/day)
+              const beaconAvailable = playerState.beaconAvailable && !playerState.beaconCompleted;
+              
+              offers = {
+                micro: { available: microAvailable, cooldownEndsInSec: microCooldownRemaining },
+                hotdrop: { available: hotdropAvailable, cooldownEndsInSec: hotdropCooldownRemaining },
+                beacon: { available: beaconAvailable, claimed: playerState.beaconCompleted },
+              };
+            }
           }
-        }
-
-        if (canSpawnHotdrop) {
-          const offset = randomOffsetInRing(HUNT_CONFIG.HOTDROP_MIN_DIST_M, HUNT_CONFIG.HOTDROP_MAX_DIST_M, lat);
-          const expiresAt = new Date(nowMs + HUNT_CONFIG.HOTDROP_TTL_MIN * 60 * 1000);
-          const rarity = selectHotDropRarity();
-          
-          const [newHotdrop] = await db.insert(wildCreatureSpawns).values({
-            latitude: (lat + offset.lat).toString(),
-            longitude: (lng + offset.lng).toString(),
-            templateId: 'wild_egg_hotdrop',
-            name: 'Hot Drop Egg',
-            creatureClass: 'egg',
-            rarity,
-            baseHp: 0,
-            baseAtk: 0,
-            baseDef: 0,
-            baseSpd: 0,
-            containedTemplateId: null,
-            expiresAt,
-          }).returning();
-          
-          console.log(`[HOTDROP] inserted 1 (${rarity})`);
-          
-          const hdLat = parseFloat(newHotdrop.latitude);
-          const hdLng = parseFloat(newHotdrop.longitude);
-          const distM = haversineMeters(lat, lng, hdLat, hdLng);
-          const bearing = bearingDegrees(lat, lng, hdLat, hdLng);
-          const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-          const dirIndex = Math.round(bearing / 45) % 8;
-          
-          hotdropMeta = {
-            active: true,
-            distanceM: Math.round(distM),
-            bearingDeg: Math.round(bearing),
-            direction: directions[dirIndex],
-            expiresInSec: HUNT_CONFIG.HOTDROP_TTL_MIN * 60,
-          };
+        } catch (err) {
+          console.error('[HOTSPOT] Error fetching player state:', err);
         }
       }
+      
+      // Backward compat: keep hotdrop field for old clients
+      const hotdropMeta = questMeta.active && questMeta.type === 'HOT_DROP' ? {
+        active: true,
+        distanceM: questMeta.distanceM,
+        bearingDeg: questMeta.bearingDeg,
+        direction: questMeta.direction,
+        expiresInSec: questMeta.expiresInSec,
+      } : { active: false };
 
       // Re-fetch spawns after potential inserts
       if (dripCreated > 0 || exploreCreated > 0) {
@@ -548,6 +638,8 @@ export function registerHuntRoutes(app: Express) {
           nextTopUpInSec: nextDripInSec,
         },
         hotdrop: hotdropMeta,
+        quest: questMeta,
+        offers: Object.keys(offers).length > 0 ? offers : undefined,
       };
 
       res.json({ spawns: homeSpawns, meta });
@@ -655,6 +747,277 @@ export function registerHuntRoutes(app: Express) {
     } catch (error) {
       console.error("Radar error:", error);
       res.status(500).json({ error: "Failed to ping radar" });
+    }
+  });
+
+  // ===== HOTSPOT QUEST ACTIVATION ENDPOINT =====
+  app.post("/api/hunt/hotspot/activate", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, questType, latitude, longitude } = req.body;
+      
+      if (!walletAddress || !questType || !latitude || !longitude) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      const validTypes: QuestType[] = ['MICRO_HOTSPOT', 'HOT_DROP', 'LEGENDARY_BEACON'];
+      if (!validTypes.includes(questType)) {
+        return res.status(400).json({ error: "Invalid quest type" });
+      }
+      
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      const dayKey = getManilaDate();
+      const now = new Date();
+      const nowMs = now.getTime();
+      
+      // Get player state
+      const playerState = await getOrCreatePlayerHotspotState(walletAddress, dayKey);
+      
+      // Check for active quest
+      if (playerState.activeQuestType && playerState.activeQuestExpiresAt && playerState.activeQuestExpiresAt > now) {
+        return res.status(409).json({ error: "Quest already active", activeType: playerState.activeQuestType });
+      }
+      
+      // Validate cooldowns and availability
+      if (questType === 'MICRO_HOTSPOT') {
+        if (playerState.microCooldownUntil && playerState.microCooldownUntil > now) {
+          const remainingSec = Math.ceil((playerState.microCooldownUntil.getTime() - nowMs) / 1000);
+          return res.status(429).json({ error: "Micro cooldown active", remainingSec });
+        }
+      } else if (questType === 'HOT_DROP') {
+        if (playerState.hotdropCooldownUntil && playerState.hotdropCooldownUntil > now) {
+          const remainingSec = Math.ceil((playerState.hotdropCooldownUntil.getTime() - nowMs) / 1000);
+          return res.status(429).json({ error: "Hotdrop cooldown active", remainingSec });
+        }
+      } else if (questType === 'LEGENDARY_BEACON') {
+        if (!playerState.beaconAvailable || playerState.beaconCompleted) {
+          return res.status(429).json({ error: "Beacon already claimed today" });
+        }
+      }
+      
+      // Generate quest center and TTL
+      let minDist: number, maxDist: number, clusterCount: number, ttlSec: number;
+      
+      if (questType === 'MICRO_HOTSPOT') {
+        minDist = HUNT_CONFIG.MICRO_MIN_DIST_M;
+        maxDist = HUNT_CONFIG.MICRO_MAX_DIST_M;
+        clusterCount = HUNT_CONFIG.MICRO_CLUSTER_COUNT;
+        ttlSec = HUNT_CONFIG.MICRO_TTL_MIN * 60;
+      } else if (questType === 'HOT_DROP') {
+        minDist = HUNT_CONFIG.HOTDROP_MIN_DIST_M;
+        maxDist = HUNT_CONFIG.HOTDROP_MAX_DIST_M;
+        clusterCount = HUNT_CONFIG.HOTDROP_CLUSTER_COUNT_MIN + Math.floor(Math.random() * (HUNT_CONFIG.HOTDROP_CLUSTER_COUNT_MAX - HUNT_CONFIG.HOTDROP_CLUSTER_COUNT_MIN + 1));
+        const distM = minDist + Math.random() * (maxDist - minDist);
+        ttlSec = calculateHotdropTTL(distM);
+      } else {
+        minDist = HUNT_CONFIG.BEACON_MIN_DIST_M;
+        maxDist = HUNT_CONFIG.BEACON_MAX_DIST_M;
+        clusterCount = HUNT_CONFIG.BEACON_CLUSTER_COUNT;
+        ttlSec = Math.ceil((getEndOfDayTimestamp().getTime() - nowMs) / 1000);
+      }
+      
+      const offset = randomOffsetInRing(minDist, maxDist, lat);
+      const centerLat = lat + offset.lat;
+      const centerLng = lng + offset.lng;
+      const distM = haversineMeters(lat, lng, centerLat, centerLng);
+      const expiresAt = new Date(nowMs + ttlSec * 1000);
+      const questKey = generateQuestKey();
+      
+      // Get player economy for pity counters
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+      
+      const pityCounters = {
+        sinceRare: economy?.catchesSinceRare || 0,
+        sinceEpic: economy?.catchesSinceEpic || 0,
+        sinceLegendary: economy?.catchesSinceLegendary || 0,
+      };
+      const heatModeActive = economy?.heatModeUntil ? economy.heatModeUntil > now : false;
+      
+      // Spawn cluster eggs at quest center
+      const spawnedEggs: any[] = [];
+      for (let i = 0; i < clusterCount; i++) {
+        const eggOffset = getRandomOffset(50); // Cluster within 50m radius
+        const rarity = selectHotspotRarity(questType, pityCounters, heatModeActive);
+        
+        const [egg] = await db.insert(wildCreatureSpawns).values({
+          latitude: (centerLat + eggOffset.lat).toString(),
+          longitude: (centerLng + eggOffset.lng).toString(),
+          templateId: `wild_egg_${questType.toLowerCase()}`,
+          name: questType === 'LEGENDARY_BEACON' ? 'Beacon Egg' : questType === 'HOT_DROP' ? 'Hot Drop Egg' : 'Micro Egg',
+          creatureClass: 'egg',
+          rarity,
+          baseHp: 0,
+          baseAtk: 0,
+          baseDef: 0,
+          baseSpd: 0,
+          containedTemplateId: null,
+          expiresAt,
+          sourceType: questType,
+          sourceKey: questKey,
+        }).returning();
+        
+        spawnedEggs.push(egg);
+      }
+      
+      // Update player state
+      await db.update(huntHotspotPlayerState)
+        .set({
+          activeQuestType: questType,
+          activeQuestKey: questKey,
+          activeQuestExpiresAt: expiresAt,
+          activeQuestCenterLat: centerLat.toString(),
+          activeQuestCenterLng: centerLng.toString(),
+          beaconQuestKey: questType === 'LEGENDARY_BEACON' ? questKey : playerState.beaconQuestKey,
+          updatedAt: now,
+        })
+        .where(eq(huntHotspotPlayerState.id, playerState.id));
+      
+      const bearing = bearingDegrees(lat, lng, centerLat, centerLng);
+      
+      console.log(`[HOTSPOT] Activated ${questType} for ${walletAddress}: ${clusterCount} eggs at ${Math.round(distM)}m ${directionFromBearing(bearing)}`);
+      
+      res.json({
+        success: true,
+        quest: {
+          type: questType,
+          key: questKey,
+          expiresInSec: ttlSec,
+          distanceM: Math.round(distM),
+          bearingDeg: Math.round(bearing),
+          direction: directionFromBearing(bearing),
+          clusterCount,
+        },
+        spawnedCount: spawnedEggs.length,
+      });
+    } catch (error) {
+      console.error("Hotspot activate error:", error);
+      res.status(500).json({ error: "Failed to activate hotspot" });
+    }
+  });
+
+  // ===== BEACON CLAIM ENDPOINT =====
+  app.post("/api/hunt/beacon/claim", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.body;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: "Missing wallet address" });
+      }
+      
+      const dayKey = getManilaDate();
+      const now = new Date();
+      
+      // Get player state
+      const [playerState] = await db.select().from(huntHotspotPlayerState)
+        .where(and(
+          eq(huntHotspotPlayerState.walletAddress, walletAddress),
+          eq(huntHotspotPlayerState.dayKey, dayKey)
+        ))
+        .limit(1);
+      
+      if (!playerState) {
+        return res.status(404).json({ error: "No player state found" });
+      }
+      
+      // Validate active beacon quest
+      if (playerState.activeQuestType !== 'LEGENDARY_BEACON') {
+        return res.status(400).json({ error: "No active beacon quest" });
+      }
+      
+      if (playerState.beaconCompleted) {
+        return res.status(400).json({ error: "Beacon already claimed today" });
+      }
+      
+      // Count collected beacon eggs
+      const collectedResult = await db.select({ count: sql<number>`count(*)` })
+        .from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.sourceKey, playerState.activeQuestKey || ''),
+          eq(wildCreatureSpawns.caughtByWallet, walletAddress)
+        ));
+      
+      const collected = Number(collectedResult[0]?.count || 0);
+      const required = HUNT_CONFIG.BEACON_CLUSTER_COUNT;
+      
+      if (collected < required) {
+        return res.status(400).json({ error: "Not all beacon eggs collected", collected, required });
+      }
+      
+      // Roll beacon claim reward
+      const roll = Math.random();
+      let claimRarity: string;
+      let cumulative = 0;
+      const claimTable = HUNT_CONFIG.BEACON_CLAIM_TABLE;
+      
+      if (roll < claimTable.legendary) {
+        claimRarity = 'legendary';
+      } else if (roll < claimTable.legendary + claimTable.epic) {
+        claimRarity = 'epic';
+      } else {
+        claimRarity = 'rare';
+      }
+      
+      // Get economy stats for pity update
+      const [economy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress))
+        .limit(1);
+      
+      // Update pity counters based on claim rarity
+      const pityUpdates: any = {};
+      if (claimRarity === 'legendary') {
+        pityUpdates.catchesSinceLegendary = 0;
+        pityUpdates.catchesSinceEpic = 0;
+        pityUpdates.catchesSinceRare = 0;
+        pityUpdates.lastLegendaryCatch = now;
+      } else if (claimRarity === 'epic') {
+        pityUpdates.catchesSinceEpic = 0;
+        pityUpdates.catchesSinceRare = 0;
+      } else {
+        pityUpdates.catchesSinceRare = 0;
+      }
+      
+      // Update egg count in economy
+      const eggField = `egg${claimRarity.charAt(0).toUpperCase() + claimRarity.slice(1)}` as 'eggCommon' | 'eggRare' | 'eggEpic' | 'eggLegendary';
+      if (economy) {
+        await db.update(huntEconomyStats)
+          .set({
+            ...pityUpdates,
+            [eggField]: (economy[eggField] || 0) + 1,
+            collectedEggs: (economy.collectedEggs || 0) + 1,
+            updatedAt: now,
+          })
+          .where(eq(huntEconomyStats.walletAddress, walletAddress));
+      }
+      
+      // Mark beacon as complete
+      await db.update(huntHotspotPlayerState)
+        .set({
+          activeQuestType: null,
+          activeQuestKey: null,
+          activeQuestExpiresAt: null,
+          beaconCompleted: true,
+          beaconClaimedAt: now,
+          beaconAvailable: false,
+          updatedAt: now,
+        })
+        .where(eq(huntHotspotPlayerState.id, playerState.id));
+      
+      console.log(`[BEACON] Claimed by ${walletAddress}: ${claimRarity} egg`);
+      
+      res.json({
+        success: true,
+        rewardRarity: claimRarity,
+        pity: {
+          sinceRare: pityUpdates.catchesSinceRare ?? (economy?.catchesSinceRare || 0),
+          sinceEpic: pityUpdates.catchesSinceEpic ?? (economy?.catchesSinceEpic || 0),
+          sinceLegendary: pityUpdates.catchesSinceLegendary ?? (economy?.catchesSinceLegendary || 0),
+        },
+      });
+    } catch (error) {
+      console.error("Beacon claim error:", error);
+      res.status(500).json({ error: "Failed to claim beacon" });
     }
   });
 
