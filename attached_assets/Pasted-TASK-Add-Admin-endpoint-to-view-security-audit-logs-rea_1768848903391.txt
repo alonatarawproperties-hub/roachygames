@@ -1,0 +1,109 @@
+TASK: Add Admin endpoint to view security audit logs (read-only) for wipe monitoring.
+
+CONTEXT:
+- We already log to `security_audit_log` via `safeAudit()` in `server/admin-routes.ts`.
+- We want a read-only endpoint to fetch recent logs so we don’t need DB console.
+- Must NOT modify any hunt gameplay routes or auth.
+- Must be protected by existing `adminAuth` middleware (x-admin-api-key).
+
+FILES:
+- server/admin-routes.ts (primary)
+- shared/schema.ts already exports `securityAuditLog` table (do not change schema)
+
+REQUIREMENTS:
+1) Add endpoint:
+   GET /api/admin/security-audit
+   - Protected by adminAuth
+   - Read-only; NO inserts/updates/deletes
+   - Returns latest logs in descending time order
+
+2) Query params (all optional):
+   - eventPrefix: string  (example: "admin_hunt_wipe_")
+   - eventType: string    (exact match)
+   - severity: string     ("info" | "warning" | "critical")
+   - userId: string
+   - limit: number (default 50; clamp to 1..200)
+   - sinceIso: string (ISO date; only return createdAt >= sinceIso)
+   - cursorIso: string (ISO date; pagination: return createdAt < cursorIso)
+
+3) Response format:
+{
+  success: true,
+  count: number,
+  nextCursorIso: string | null,
+  items: Array<{
+    id: string,
+    userId: string | null,
+    eventType: string,
+    severity: string,
+    details: string | null,
+    clientIp: string | null,
+    userAgent: string | null,
+    createdAt: string
+  }>
+}
+
+4) Pagination logic:
+- Always sort by createdAt DESC.
+- If cursorIso provided, filter createdAt < cursorIso.
+- nextCursorIso should be the last item’s createdAt (ISO) if items.length === limit, else null.
+
+5) Safety:
+- Validate sinceIso/cursorIso parsing; if invalid, return 400 with { error: "INVALID_DATE" }.
+- Clamp limit; if invalid number, use default 50.
+- Never throw raw errors; return 500 { error: "FAILED_TO_FETCH_AUDIT_LOGS" } and console.error.
+
+IMPLEMENTATION DETAILS:
+- Use drizzle-orm conditions with and()/eq()/gte()/lt()/like()/sql where needed.
+- IMPORTANT: This codebase uses drizzle; keep consistent imports.
+- Use `desc(securityAuditLog.createdAt)` for ordering.
+- Convert createdAt to ISO strings in response.
+
+STEP-BY-STEP:
+A) In server/admin-routes.ts:
+   - Ensure imports include:
+     import { securityAuditLog } from "@shared/schema";
+     import { and, eq, gte, lt, like, desc } from "drizzle-orm";
+   - (If some are already imported, don’t duplicate.)
+
+B) Inside registerAdminRoutes(app):
+   Add:
+
+   app.get("/api/admin/security-audit", adminAuth, async (req, res) => { ... });
+
+C) Build filters array:
+   const filters = [];
+   - If eventType: eq(securityAuditLog.eventType, eventType)
+   - Else if eventPrefix: like(securityAuditLog.eventType, `${eventPrefix}%`)
+   - If severity: eq(securityAuditLog.severity, severity)
+   - If userId: eq(securityAuditLog.userId, userId)
+   - If sinceIso: gte(securityAuditLog.createdAt, sinceDate)
+   - If cursorIso: lt(securityAuditLog.createdAt, cursorDate)
+
+   Then:
+   const whereClause = filters.length ? and(...filters) : undefined;
+
+D) Query:
+   const rows = await db.select().from(securityAuditLog)
+     .where(whereClause)
+     .orderBy(desc(securityAuditLog.createdAt))
+     .limit(limit);
+
+E) Respond with mapped items and nextCursorIso.
+
+ACCEPTANCE TESTS:
+1) With valid admin key:
+   GET /api/admin/security-audit?eventPrefix=admin_hunt_wipe_&limit=10
+   - returns success true, items <= 10, ordered newest->oldest
+2) Pagination:
+   - call once, take nextCursorIso, call again with cursorIso=that value
+   - second page should not repeat the last record
+3) Invalid date:
+   GET /api/admin/security-audit?sinceIso=notadate
+   -> 400 { error: "INVALID_DATE" }
+4) No gameplay impact:
+   - Do NOT modify hunt routes, only add this admin GET route.
+
+DELIVERABLE:
+- Commit changes only in server/admin-routes.ts (unless import conflicts require small adjustments).
+- Ensure TypeScript passes and server boots.

@@ -31,7 +31,7 @@ import {
   flappyLeaderboard,
   flappyScores,
 } from "@shared/schema";
-import { desc, eq, sql, and, gte, lte, count } from "drizzle-orm";
+import { desc, eq, sql, and, gte, lte, lt, like, count } from "drizzle-orm";
 import { getSecurityLogs, getSecurityStats } from "./security";
 import { reconcileBalance, getTransactionHistory } from "./secure-economy";
 
@@ -1022,6 +1022,97 @@ export function registerAdminRoutes(app: Express) {
         timestamp: new Date().toISOString(),
       });
       res.status(500).json({ error: "Failed to wipe Hunt data" });
+    }
+  });
+
+  app.get("/api/admin/security-audit", adminAuth, async (req, res) => {
+    try {
+      const {
+        eventPrefix,
+        eventType,
+        severity,
+        userId,
+        sinceIso,
+        cursorIso,
+      } = req.query;
+
+      let limit = parseInt(req.query.limit as string, 10);
+      if (!Number.isFinite(limit) || limit < 1) limit = 50;
+      if (limit > 200) limit = 200;
+
+      let sinceDate: Date | null = null;
+      let cursorDate: Date | null = null;
+
+      if (sinceIso && typeof sinceIso === "string") {
+        sinceDate = new Date(sinceIso);
+        if (isNaN(sinceDate.getTime())) {
+          return res.status(400).json({ error: "INVALID_DATE" });
+        }
+      }
+
+      if (cursorIso && typeof cursorIso === "string") {
+        cursorDate = new Date(cursorIso);
+        if (isNaN(cursorDate.getTime())) {
+          return res.status(400).json({ error: "INVALID_DATE" });
+        }
+      }
+
+      const filters: ReturnType<typeof eq>[] = [];
+
+      if (eventType && typeof eventType === "string") {
+        filters.push(eq(securityAuditLog.eventType, eventType));
+      } else if (eventPrefix && typeof eventPrefix === "string") {
+        filters.push(like(securityAuditLog.eventType, `${eventPrefix}%`));
+      }
+
+      if (severity && typeof severity === "string") {
+        filters.push(eq(securityAuditLog.severity, severity));
+      }
+
+      if (userId && typeof userId === "string") {
+        filters.push(eq(securityAuditLog.userId, userId));
+      }
+
+      if (sinceDate) {
+        filters.push(gte(securityAuditLog.createdAt, sinceDate));
+      }
+
+      if (cursorDate) {
+        filters.push(lt(securityAuditLog.createdAt, cursorDate));
+      }
+
+      const whereClause = filters.length ? and(...filters) : undefined;
+
+      const rows = await db
+        .select()
+        .from(securityAuditLog)
+        .where(whereClause)
+        .orderBy(desc(securityAuditLog.createdAt))
+        .limit(limit);
+
+      const items = rows.map((row) => ({
+        id: row.id,
+        userId: row.userId,
+        eventType: row.eventType,
+        severity: row.severity,
+        details: row.details,
+        clientIp: row.clientIp,
+        userAgent: row.userAgent,
+        createdAt: row.createdAt.toISOString(),
+      }));
+
+      const nextCursorIso =
+        items.length === limit ? items[items.length - 1].createdAt : null;
+
+      res.json({
+        success: true,
+        count: items.length,
+        nextCursorIso,
+        items,
+      });
+    } catch (error) {
+      console.error("[Admin] Security audit fetch error:", error);
+      res.status(500).json({ error: "FAILED_TO_FETCH_AUDIT_LOGS" });
     }
   });
 
