@@ -45,12 +45,20 @@ interface NearbyPlayer {
   lng: number;
 }
 
+interface QuestMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  type: 'HOT_DROP' | 'MICRO_HOTSPOT' | 'LEGENDARY_BEACON';
+}
+
 interface MapViewWrapperProps {
   playerLocation: PlayerLocation | null;
   spawns: Spawn[];
   raids: Raid[];
   mapNodes?: MapNode[];
   nearbyPlayers?: NearbyPlayer[];
+  questMarker?: QuestMarker | null;
   gpsAccuracy?: number | null;
   isVisible?: boolean;
   reservedByMe?: Record<string, true>;
@@ -58,6 +66,7 @@ interface MapViewWrapperProps {
   onSpawnTap: (spawn: Spawn) => void;
   onRaidTap: (raid: Raid) => void;
   onNodeTap?: (node: MapNode) => void;
+  onQuestMarkerTap?: (marker: QuestMarker) => void;
   onMapPress?: () => void;
   onRefresh: () => void;
   onMapReady?: () => void;
@@ -268,7 +277,7 @@ const isActiveReserved = (n: MapNode) => {
 };
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, gpsAccuracy, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -597,6 +606,39 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               </MarkerComponent>
             );
           }) : null}
+
+          {/* Quest Marker (HOT_DROP, MICRO_HOTSPOT, LEGENDARY_BEACON) */}
+          {questMarker && MarkerComponent && (
+            <MarkerComponent
+              key={`quest-${questMarker.id}`}
+              identifier={`quest-${questMarker.id}`}
+              coordinate={{
+                latitude: questMarker.lat,
+                longitude: questMarker.lng,
+              }}
+              onPress={() => onQuestMarkerTap?.(questMarker)}
+              onSelect={() => onQuestMarkerTap?.(questMarker)}
+              anchor={{ x: 0.5, y: 1 }}
+              tracksViewChanges={false}
+              tappable={true}
+            >
+              <View style={styles.questMarkerContainer}>
+                <View style={[
+                  styles.questMarkerPin,
+                  questMarker.type === 'LEGENDARY_BEACON' ? styles.questMarkerBeacon :
+                  questMarker.type === 'HOT_DROP' ? styles.questMarkerHotdrop :
+                  styles.questMarkerMicro
+                ]}>
+                  <Feather 
+                    name={questMarker.type === 'LEGENDARY_BEACON' ? 'star' : questMarker.type === 'HOT_DROP' ? 'zap' : 'map-pin'}
+                    size={16} 
+                    color="#fff" 
+                  />
+                </View>
+                <View style={styles.questMarkerTail} />
+              </View>
+            </MarkerComponent>
+          )}
 
           {/* Nearby Players - Anonymous dots */}
           {nearbyPlayers && nearbyPlayers.length > 0 && MarkerComponent ? nearbyPlayers.map((player, idx) => (
@@ -1108,6 +1150,45 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: GameColors.primary,
     backgroundColor: "rgba(212, 175, 55, 0.15)",
+  },
+  questMarkerContainer: {
+    alignItems: "center",
+    width: 40,
+    height: 50,
+  },
+  questMarkerPin: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  questMarkerBeacon: {
+    backgroundColor: GameColors.gold,
+  },
+  questMarkerHotdrop: {
+    backgroundColor: "#FF6B35",
+  },
+  questMarkerMicro: {
+    backgroundColor: GameColors.primary,
+  },
+  questMarkerTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 12,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#fff",
+    marginTop: -2,
   },
 });
 

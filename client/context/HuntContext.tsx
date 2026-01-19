@@ -141,6 +141,8 @@ export interface HuntMeta {
     bearingDeg?: number;
     direction?: string;
     progress?: { collected: number; total: number };
+    lat?: number;
+    lng?: number;
   };
   offers?: {
     micro?: { available: boolean; cooldownEndsInSec?: number };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -1129,6 +1129,24 @@ export default function HuntScreen() {
     );
   };
 
+  const questMarker = useMemo(() => {
+    const quest = huntMeta?.quest;
+    if (!quest?.active || !quest.lat || !quest.lng || !quest.key) return null;
+    const type = quest.type as 'HOT_DROP' | 'MICRO_HOTSPOT' | 'LEGENDARY_BEACON';
+    if (!['HOT_DROP', 'MICRO_HOTSPOT', 'LEGENDARY_BEACON'].includes(type)) return null;
+    return { id: quest.key, lat: quest.lat, lng: quest.lng, type };
+  }, [huntMeta?.quest]);
+
+  const handleQuestMarkerTap = () => {
+    if (!huntMeta?.quest) return;
+    const typeName = huntMeta.quest.type === 'LEGENDARY_BEACON' ? 'Beacon Quest' :
+                     huntMeta.quest.type === 'HOT_DROP' ? 'Hot Drop' : 'Micro Hotspot';
+    Alert.alert(
+      typeName,
+      `Mystery Egg cluster nearby!\n\nWalk to this hotspot area before it expires to reveal and catch eggs.\n\nDistance: ${((huntMeta.quest.distanceM || 0) / 1000).toFixed(1)}km ${huntMeta.quest.direction}`
+    );
+  };
+
   const renderMapView = () => {
     return (
       <View style={{ flex: 1 }}>
@@ -1140,6 +1158,7 @@ export default function HuntScreen() {
           raids={raids}
           mapNodes={allMapNodes}
           nearbyPlayers={nearbyPlayers}
+          questMarker={questMarker}
           gpsAccuracy={gpsAccuracy}
           isVisible={isVisible}
           reservedByMe={reservedByMe}
@@ -1147,6 +1166,7 @@ export default function HuntScreen() {
           onSpawnTap={handleSpawnTap}
           onRaidTap={(raid) => setSelectedRaid(raid)}
           onNodeTap={handleNodeTap}
+          onQuestMarkerTap={handleQuestMarkerTap}
           onMapPress={handleMapPress}
           onRefresh={() => {
             refreshSpawns();
