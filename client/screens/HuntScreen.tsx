@@ -131,7 +131,6 @@ export default function HuntScreen() {
     isLoading,
     collectedEggs,
     updateLocation,
-    spawnCreatures,
     catchCreature,
     collectEgg,
     walkEgg,
@@ -140,6 +139,7 @@ export default function HuntScreen() {
     refreshSpawns,
     refreshPhaseIStats,
     claimNode,
+    pingRadar,
   } = useHunt();
   
   useGamePresence("roachy-hunt");
@@ -151,14 +151,8 @@ export default function HuntScreen() {
     }
   }, [playerLocation?.latitude, playerLocation?.longitude, setPresenceLocation]);
 
-  // Ensure spawns exist when entering Hunt with valid location (runs once)
-  const hasEnsuredSpawnsRef = useRef(false);
-  useEffect(() => {
-    if (playerLocation && !hasEnsuredSpawnsRef.current) {
-      hasEnsuredSpawnsRef.current = true;
-      spawnCreatures("hunt_mount_first_location");
-    }
-  }, [playerLocation, spawnCreatures]);
+  // NOTE: Spawns are now created server-side via drip/explore logic in GET /api/hunt/spawns
+  // No need to call spawnCreatures on mount - the GET request handles drip creation
 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -194,6 +188,8 @@ export default function HuntScreen() {
   const [homeCountdown, setHomeCountdown] = useState<number | null>(null);
   const [hotdropCountdown, setHotdropCountdown] = useState<number | null>(null);
   const [radarCooldown, setRadarCooldown] = useState(0);
+  const [radarResult, setRadarResult] = useState<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null>(null);
+  const [radarResultVisibleUntil, setRadarResultVisibleUntil] = useState(0);
   
   // Banner latch - keep visible for minimum time to prevent flicker
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
@@ -449,21 +445,8 @@ export default function HuntScreen() {
     return () => subscription.remove();
   }, [permissionDenied, startLocationTracking]);
 
-  useEffect(() => {
-    console.log("[HUNT] Auto-spawn check:", { 
-      hasLocation: !!playerLocation, 
-      spawnsLength: spawns.length, 
-      isLoading,
-      hasAutoSpawned: hasAutoSpawned.current
-    });
-    // Auto-spawn eggs when player location is first detected and no spawns nearby
-    // Server-side guards will prevent spam if user catches all and re-opens Hunt
-    if (playerLocation && spawns.length === 0 && !isLoading && !hasAutoSpawned.current) {
-      console.log("[HUNT] Triggering auto-spawn - server will guard against spam");
-      hasAutoSpawned.current = true;
-      spawnCreatures("auto_spawn_no_spawns");
-    }
-  }, [playerLocation, spawns.length, isLoading, spawnCreatures]);
+  // NOTE: Auto-spawn logic removed - drip system now creates spawns server-side via GET /api/hunt/spawns
+  // The server checks session timestamps and creates 1 drip spawn every 4 minutes automatically
 
   const handleSpawnTap = (spawn: Spawn) => {
     dbg({ lastTap: "SPAWN_TAP", nodeId: spawn.id });
@@ -984,13 +967,20 @@ export default function HuntScreen() {
     // showBanner is computed at parent level to prevent flicker
     if (!showBanner) return null;
     
-    const handleRadarPing = () => {
+    const handleRadarPing = async () => {
       if (radarCooldown > 0) return;
       setRadarCooldown(60);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      // Trigger radar ping animation FIRST before any state changes
+      // Trigger radar ping animation FIRST
       mapRef.current?.triggerRadarPing();
+      
+      // Call the radar endpoint
+      const result = await pingRadar();
+      if (result) {
+        setRadarResult(result);
+        setRadarResultVisibleUntil(Date.now() + 5000); // Show for 5 seconds
+      }
       
       // Delay data refresh to prevent re-renders from interrupting animation
       setTimeout(() => {
@@ -1021,6 +1011,21 @@ export default function HuntScreen() {
             <ThemedText style={styles.hotdropText}>
               Hot Drop: LIVE • {huntMeta.hotdrop.direction} • {((huntMeta.hotdrop.distanceM || 0) / 1000).toFixed(1)}km
               {hotdropCountdown !== null && hotdropCountdown > 0 && ` • ${formatCountdown(hotdropCountdown)} left`}
+            </ThemedText>
+          </View>
+        )}
+        
+        {radarResult && Date.now() < radarResultVisibleUntil && (
+          <View style={styles.radarResultRow}>
+            <Feather 
+              name={radarResult.mode === 'hotdrop' ? 'zap' : radarResult.mode === 'nearest_spawn' ? 'target' : 'x'} 
+              size={14} 
+              color={radarResult.mode === 'hotdrop' ? GameColors.gold : GameColors.primary} 
+            />
+            <ThemedText style={styles.radarResultText}>
+              {radarResult.mode === 'hotdrop' && `Hot Drop detected! ${radarResult.direction} • ${((radarResult.distanceM || 0) / 1000).toFixed(1)}km`}
+              {radarResult.mode === 'nearest_spawn' && `Egg nearby! ${radarResult.direction} • ${radarResult.distanceM}m • ${radarResult.rarity}`}
+              {radarResult.mode === 'none' && 'No spawns detected in range'}
             </ThemedText>
           </View>
         )}
@@ -1569,18 +1574,8 @@ export default function HuntScreen() {
       {activeTab === "eggs" && renderEggs()}
       {activeTab === "leaderboard" && <HuntLeaderboard />}
 
-      {__DEV__ && activeTab === "map" && playerLocation ? (
-        <Pressable 
-          style={styles.devSpawnButton}
-          onPress={() => {
-            spawnCreatures("dev_button");
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-          }}
-        >
-          <Feather name="plus-circle" size={16} color="#fff" />
-          <ThemedText style={styles.devSpawnText}>Spawn Here</ThemedText>
-        </Pressable>
-      ) : null}
+      {/* Dev spawn button removed - POST /api/hunt/spawn now requires admin key */}
+      {/* Spawns are created automatically via drip system in GET /api/hunt/spawns */}
 
       <Modal
         visible={showCameraEncounter && selectedSpawn !== null}
@@ -2980,6 +2975,21 @@ const styles = StyleSheet.create({
   hotdropText: {
     fontSize: 13,
     color: GameColors.gold,
+    fontWeight: "600",
+  },
+  radarResultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+    backgroundColor: GameColors.primary + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  radarResultText: {
+    fontSize: 13,
+    color: GameColors.primary,
     fontWeight: "600",
   },
   radarButton: {
