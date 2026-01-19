@@ -331,6 +331,23 @@ export default function HuntScreen() {
   const lastLocationUpdateRef = useRef<number>(Date.now());
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef(true);
+  const lastAcceptedRef = useRef<{
+    lat: number;
+    lng: number;
+    ts: number;
+    accuracy: number;
+  } | null>(null);
+
+  function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371000;
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
 
   // Detect stale GPS (no updates for 15 seconds)
   useEffect(() => {
@@ -406,34 +423,76 @@ export default function HuntScreen() {
       locationSubscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 1000,
-          distanceInterval: 2,
+          timeInterval: 2000,
+          distanceInterval: 5,
         },
         (newLocation) => {
           if (!isMountedRef.current) return;
-          const accuracy = newLocation.coords.accuracy ?? 100;
-          
+
+          const coords = newLocation.coords;
+          const accuracy = coords.accuracy ?? 999;
+          const ts = newLocation.timestamp ?? Date.now();
+
           lastLocationUpdateRef.current = Date.now();
           setGpsAccuracy(accuracy);
           setGpsStale(false);
-          
-          const shouldUpdate = !hasInitialLocation || 
-            accuracy <= bestAccuracyRef.current || 
-            accuracy <= 50;
-          
-          if (shouldUpdate) {
-            if (accuracy < bestAccuracyRef.current) {
-              bestAccuracyRef.current = accuracy;
-            }
-            
+
+          const lat = coords.latitude;
+          const lng = coords.longitude;
+
+          // Always accept the very first fix
+          if (!lastAcceptedRef.current) {
+            lastAcceptedRef.current = { lat, lng, ts, accuracy };
             hasInitialLocation = true;
-            const heading = newLocation.coords.heading;
+
+            const heading = coords.heading;
             updateLocation(
-              newLocation.coords.latitude, 
-              newLocation.coords.longitude,
+              lat,
+              lng,
               heading !== null && heading >= 0 ? heading : undefined
             );
+            return;
           }
+
+          const prev = lastAcceptedRef.current;
+          const dtSec = Math.max(0.5, (ts - prev.ts) / 1000);
+          const distM = haversineMeters(prev.lat, prev.lng, lat, lng);
+
+          // Tunables (by-foot game)
+          const MAX_BAD_ACCURACY = 65;     // ignore readings worse than this
+          const STATIONARY_DIST = 6;       // within 6m treated as still (jitter)
+          const MIN_MOVE_TO_UPDATE = 8;    // must move >= 8m to update
+          const MAX_SPEED_MPS = 8;         // blocks teleports (8 m/s ~ 28.8kph)
+          const MAX_JUMP_BASE = 35;        // allow slightly more if dt is large
+          const MAX_JUMP = Math.max(MAX_JUMP_BASE, MAX_SPEED_MPS * dtSec);
+
+          // 1) Reject poor accuracy readings (prevents WiFi bounce)
+          if (accuracy > MAX_BAD_ACCURACY) return;
+
+          // 2) Reject teleports (too far for the time elapsed)
+          if (distM > MAX_JUMP) return;
+
+          // 3) If stationary, ignore jitter unless accuracy improves significantly
+          const accuracyImprovedALot = accuracy + 10 < prev.accuracy;
+          if (distM < STATIONARY_DIST && !accuracyImprovedALot) return;
+
+          // 4) Only update when movement is meaningful OR accuracy improved a lot
+          if (distM < MIN_MOVE_TO_UPDATE && !accuracyImprovedALot) return;
+
+          // Accept this fix
+          lastAcceptedRef.current = { lat, lng, ts, accuracy };
+          hasInitialLocation = true;
+
+          if (accuracy < bestAccuracyRef.current) {
+            bestAccuracyRef.current = accuracy;
+          }
+
+          const heading = coords.heading;
+          updateLocation(
+            lat,
+            lng,
+            heading !== null && heading >= 0 ? heading : undefined
+          );
         }
       );
     } catch (error) {

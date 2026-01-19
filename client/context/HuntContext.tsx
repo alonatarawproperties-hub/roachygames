@@ -521,6 +521,30 @@ export function HuntProvider({ children }: HuntProviderProps) {
 
   const updateLocation = useCallback(async (latitude: number, longitude: number, heading?: number) => {
     setPlayerLocation({ latitude, longitude, heading });
+
+    const now = Date.now();
+    const prev = (globalThis as any).__lastHuntPost as { lat: number; lng: number; ts: number } | null;
+
+    const haversineMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371000;
+      const toRad = (v: number) => (v * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    };
+
+    const moved = prev ? haversineMeters(prev.lat, prev.lng, latitude, longitude) : 999;
+    const elapsed = prev ? (now - prev.ts) : 999999;
+
+    if (prev && moved < 10 && elapsed < 10000) {
+      return; // skip spam POST
+    }
+
+    (globalThis as any).__lastHuntPost = { lat: latitude, lng: longitude, ts: now };
+
     try {
       await apiRequest("POST", "/api/hunt/location", {
         walletAddress,
