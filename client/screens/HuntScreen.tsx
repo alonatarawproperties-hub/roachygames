@@ -119,6 +119,8 @@ export default function HuntScreen() {
     walletAddress,
     playerLocation,
     spawns,
+    spawnsFetching,
+    spawnsLoaded,
     huntMeta,
     economy,
     phaseIStats,
@@ -192,6 +194,22 @@ export default function HuntScreen() {
   const [homeCountdown, setHomeCountdown] = useState<number | null>(null);
   const [hotdropCountdown, setHotdropCountdown] = useState<number | null>(null);
   const [radarCooldown, setRadarCooldown] = useState(0);
+  
+  // Banner latch - keep visible for minimum time to prevent flicker
+  const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
+  const MIN_VISIBLE_MS = 8000;
+  
+  // Compute banner visibility OUTSIDE renderAreaClearedBanner
+  const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active;
+  const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && spawns.length < 2;
+  
+  useEffect(() => {
+    if (showBannerRaw) {
+      setBannerVisibleUntil((prev) => Math.max(prev, Date.now() + MIN_VISIBLE_MS));
+    }
+  }, [showBannerRaw]);
+  
+  const showBanner = showBannerRaw || Date.now() < bannerVisibleUntil;
   
   // Update countdown timers from huntMeta
   useEffect(() => {
@@ -963,9 +981,7 @@ export default function HuntScreen() {
   }, [allMapNodes]);
 
   const renderAreaClearedBanner = () => {
-    // Show banner when area is cleared (less than 2 spawns) and we have countdown data
-    const showBanner = spawns.length < 2 && (homeCountdown !== null || huntMeta?.hotdrop?.active);
-    
+    // showBanner is computed at parent level to prevent flicker
     if (!showBanner) return null;
     
     const handleRadarPing = () => {
@@ -1010,6 +1026,7 @@ export default function HuntScreen() {
         )}
         
         <Pressable 
+          hitSlop={12}
           style={[styles.radarButton, radarCooldown > 0 && styles.radarButtonDisabled]}
           onPress={handleRadarPing}
           disabled={radarCooldown > 0}

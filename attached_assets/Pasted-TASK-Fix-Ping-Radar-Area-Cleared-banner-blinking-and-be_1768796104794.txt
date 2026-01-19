@@ -1,0 +1,133 @@
+TASK: Fix “Ping Radar” / “Area Cleared” banner blinking and being untappable by:
+(1) keeping previous spawns array during refetch (TanStack Query v5 placeholderData)
+(2) exposing spawnsFetching + spawnsLoaded
+(3) adding a parent-level latch (min visible time) in HuntScreen (NO hooks inside renderAreaClearedBanner)
+(4) ensuring radarCooldown actually counts down.
+
+FILES:
+- client/context/HuntContext.tsx (spawns useQuery and useHunt return object)
+- client/screens/HuntScreen.tsx
+
+========================================
+A) HuntContext.tsx — add placeholderData + isFetching + isSuccess
+========================================
+
+1) In the spawns useQuery, add isFetching + isSuccess and placeholderData:
+
+Change:
+const { data: spawnsData, refetch: refreshSpawns, isLoading: spawnsLoading } = useQuery({
+
+To:
+const {
+  data: spawnsData,
+  refetch: refreshSpawns,
+  isLoading: spawnsLoading,
+  isFetching: spawnsFetching,
+  isSuccess: spawnsLoaded,
+} = useQuery({
+
+2) Add TanStack v5 keep-previous-data behavior:
+Inside the useQuery config object, add:
+
+placeholderData: (prev) => prev,
+
+So the query becomes:
+
+const {
+  data: spawnsData,
+  refetch: refreshSpawns,
+  isLoading: spawnsLoading,
+  isFetching: spawnsFetching,
+  isSuccess: spawnsLoaded,
+} = useQuery({
+  queryKey: ["/api/hunt/spawns", playerLocation?.latitude, playerLocation?.longitude],
+  enabled: !!playerLocation,
+  refetchInterval: 30000,
+  placeholderData: (prev) => prev,
+  queryFn: async () => { ... }
+});
+
+3) In useHunt() return object, expose these fields:
+
+Add:
+spawnsFetching,
+spawnsLoaded,
+
+So value={{ ... }} includes:
+
+spawns: spawnsData || [],
+spawnsFetching,
+spawnsLoaded,
+huntMeta,
+...
+
+========================================
+B) HuntScreen.tsx — implement latch in parent (NOT inside renderAreaClearedBanner)
+========================================
+
+1) In HuntScreen component body (top-level, near your other states), add:
+
+const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
+const MIN_VISIBLE_MS = 8000;
+
+2) Ensure you can read:
+const { spawns, huntMeta, spawnsFetching, spawnsLoaded, refreshSpawns } = useHunt();
+
+3) Compute banner visibility OUTSIDE renderAreaClearedBanner:
+
+const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active;
+
+const showBannerRaw =
+  spawnsLoaded &&
+  !spawnsFetching &&
+  hasCountdownData &&
+  spawns.length < 2;
+
+useEffect(() => {
+  if (showBannerRaw) {
+    setBannerVisibleUntil((prev) => Math.max(prev, Date.now() + MIN_VISIBLE_MS));
+  }
+}, [showBannerRaw]);
+
+const showBanner = showBannerRaw || Date.now() < bannerVisibleUntil;
+
+4) Add/ensure radarCooldown countdown effect in component body:
+
+useEffect(() => {
+  if (radarCooldown <= 0) return;
+  const t = setInterval(() => {
+    setRadarCooldown((s) => (s <= 1 ? 0 : s - 1));
+  }, 1000);
+  return () => clearInterval(t);
+}, [radarCooldown]);
+
+5) Update renderAreaClearedBanner inner function to ONLY read showBanner (no conditions inside that flicker):
+
+Replace its first lines:
+
+const renderAreaClearedBanner = () => {
+  // Show banner when area is cleared...
+  const showBanner = spawns.length < 2 && (homeCountdown !== null || huntMeta?.hotdrop?.active);
+  if (!showBanner) return null;
+
+With:
+
+const renderAreaClearedBanner = () => {
+  if (!showBanner) return null;
+
+6) Make the Pressable easier to tap:
+
+<Pressable
+  hitSlop={12}
+  style={[styles.radarButton, radarCooldown > 0 && styles.radarButtonDisabled]}
+  onPress={handleRadarPing}
+  disabled={radarCooldown > 0}
+>
+
+========================================
+ACCEPTANCE TEST
+========================================
+- Banner does not flash/blink on refetch or re-entering Hunt
+- Ping Radar button is tappable (stays visible for >= 8s once shown)
+- Banner does not appear purely due to transient [] during fetch
+- Cooldown decrements each second (no stuck “60s”)

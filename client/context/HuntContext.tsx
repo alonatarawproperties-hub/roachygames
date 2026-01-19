@@ -163,6 +163,8 @@ interface HuntContextType {
   walletAddress: string;
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
   spawns: Spawn[];
+  spawnsFetching: boolean;
+  spawnsLoaded: boolean;
   huntMeta: HuntMeta | null;
   economy: EconomyStats | null;
   phaseIStats: PhaseIStats | null;
@@ -296,8 +298,15 @@ export function HuntProvider({ children }: HuntProviderProps) {
 
   const [huntMeta, setHuntMeta] = useState<HuntMeta | null>(null);
 
-  const { data: spawnsData, refetch: refreshSpawns, isLoading: spawnsLoading } = useQuery({
+  const {
+    data: spawnsData,
+    refetch: refreshSpawns,
+    isLoading: spawnsLoading,
+    isFetching: spawnsFetching,
+    isSuccess: spawnsLoaded,
+  } = useQuery({
     queryKey: ["/api/hunt/spawns", playerLocation?.latitude, playerLocation?.longitude],
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       if (!playerLocation) {
         console.log("No player location, returning empty spawns");
@@ -663,6 +672,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
         walletAddress,
         playerLocation,
         spawns: spawnsData || [],
+        spawnsFetching,
+        spawnsLoaded,
         huntMeta,
         economy: economyData || null,
         phaseIStats: phaseIData || null,
