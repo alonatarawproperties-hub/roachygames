@@ -973,7 +973,8 @@ export default function HuntScreen() {
       refreshSpawns();
       refetchMapNodes();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Re-center map if method available
+      // Trigger radar ping animation on map
+      mapRef.current?.triggerRadarPing();
     };
     
     return (

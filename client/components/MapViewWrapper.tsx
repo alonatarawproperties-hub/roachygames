@@ -65,6 +65,7 @@ interface MapViewWrapperProps {
 
 export interface MapViewWrapperRef {
   centerOnPlayer: () => void;
+  triggerRadarPing: () => void;
 }
 
 let MapViewComponent: any = null;
@@ -273,6 +274,31 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
     const mapReadyCalledRef = useRef(false);
     const insets = useSafeAreaInsets();
+    
+    // Radar ping animation state
+    const [showRadarPing, setShowRadarPing] = useState(false);
+    const radarScale = useSharedValue(0);
+    const radarOpacity = useSharedValue(0);
+    
+    const radarAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: radarScale.value }],
+      opacity: radarOpacity.value,
+    }));
+    
+    const triggerRadarAnimation = () => {
+      setShowRadarPing(true);
+      radarScale.value = 0;
+      radarOpacity.value = 0.8;
+      
+      // Expand outward over 2 seconds
+      radarScale.value = withTiming(3, { duration: 2000, easing: Easing.out(Easing.ease) });
+      radarOpacity.value = withTiming(0, { duration: 2000, easing: Easing.in(Easing.ease) }, () => {
+        // Hide after animation completes
+      });
+      
+      // Hide component after animation
+      setTimeout(() => setShowRadarPing(false), 2100);
+    };
 
     useImperativeHandle(ref, () => ({
       centerOnPlayer: () => {
@@ -286,6 +312,9 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
         } else if (leafletMapRef.current) {
           leafletMapRef.current.centerOnPlayer();
         }
+      },
+      triggerRadarPing: () => {
+        triggerRadarAnimation();
       },
     }));
 
@@ -633,6 +662,13 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             <ThemedText style={styles.locationText}>
               {playerLocation.latitude.toFixed(4)}, {playerLocation.longitude.toFixed(4)}
             </ThemedText>
+          </View>
+        ) : null}
+        
+        {/* Radar Ping Animation Overlay */}
+        {showRadarPing ? (
+          <View style={styles.radarPingOverlay} pointerEvents="none">
+            <Animated.View style={[styles.radarPingCircle, radarAnimatedStyle]} />
           </View>
         ) : null}
       </View>
@@ -1064,6 +1100,19 @@ const styles = StyleSheet.create({
   },
   visibilityButtonOff: {
     borderColor: GameColors.textSecondary,
+  },
+  radarPingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radarPingCircle: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    borderWidth: 3,
+    borderColor: GameColors.primary,
+    backgroundColor: "rgba(212, 175, 55, 0.15)",
   },
 });
 
