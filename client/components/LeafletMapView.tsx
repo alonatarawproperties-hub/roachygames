@@ -5,6 +5,8 @@ import * as Haptics from "expo-haptics";
 import type { Spawn, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
+const SECRET_SOURCE_TYPES = ["EXPLORE", "MICRO_HOTSPOT", "HOT_DROP", "LEGENDARY_BEACON"];
+
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
   rare: "#3B82F6",
@@ -659,6 +661,7 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
         const lat = parseFloat(String(spawn.latitude));
         const lng = parseFloat(String(spawn.longitude));
         if (isNaN(lat) || isNaN(lng)) return null;
+        const isSecret = !!spawn.sourceType && SECRET_SOURCE_TYPES.includes(spawn.sourceType);
         return {
           id: spawn.id,
           lat,
@@ -666,7 +669,7 @@ export const LeafletMapView = React.forwardRef<LeafletMapViewRef, LeafletMapView
           name: spawn.name,
           rarity: spawn.rarity,
           distance: spawn.distance || 0,
-          color: RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common
+          color: isSecret || !spawn.rarity ? "#FF9500" : (RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common)
         };
       }).filter(Boolean);
     }, []);

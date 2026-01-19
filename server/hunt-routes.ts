@@ -642,7 +642,21 @@ export function registerHuntRoutes(app: Express) {
         offers: Object.keys(offers).length > 0 ? offers : undefined,
       };
 
-      res.json({ spawns: homeSpawns, meta });
+      // Rarity secrecy: hide rarity for special spawn types until catch
+      const SECRET_SOURCE_TYPES = new Set(["EXPLORE", "MICRO_HOTSPOT", "HOT_DROP", "LEGENDARY_BEACON"]);
+      const clientSpawns = homeSpawns.map((spawn) => {
+        if (spawn.sourceType && SECRET_SOURCE_TYPES.has(spawn.sourceType)) {
+          return {
+            ...spawn,
+            rarity: null,
+            name: "Mystery Egg",
+            containedTemplateId: null,
+          };
+        }
+        return spawn;
+      });
+
+      res.json({ spawns: clientSpawns, meta });
     } catch (error) {
       console.error("Spawns fetch error:", error);
       res.status(500).json({ error: "Failed to fetch spawns" });

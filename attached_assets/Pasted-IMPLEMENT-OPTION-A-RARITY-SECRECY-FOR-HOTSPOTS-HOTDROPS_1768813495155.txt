@@ -1,0 +1,110 @@
+IMPLEMENT OPTION A (RARITY SECRECY FOR HOTSPOTS/HOTDROPS) — DO NOT ADD DB FIELDS.
+
+Goal:
+- Hotspot/Hotdrop/Explore spawns must NOT reveal rarity before catch.
+- Rarity is shown ONLY in the catch result screen (/api/hunt/catch response).
+- Keep DB rarity unchanged (catch logic needs it).
+- HOME spawns can keep current behavior.
+
+DO NOT:
+- Do NOT change schema.
+- Do NOT change spawn rarity roll logic.
+- Do NOT change /api/hunt/catch logic (except UI consumption if needed).
+- Do NOT touch unrelated files.
+
+---------------------------------------
+STEP 1 — SERVER: Sanitize rarity in GET /api/hunt/spawns
+File: server/hunt-routes.ts (or wherever app.get("/api/hunt/spawns") lives)
+
+Right before res.json({ spawns, ... }), create a mapped list.
+
+Add this near the handler (top of file or inside handler, but keep clean):
+
+const SECRET_SOURCE_TYPES = new Set(["EXPLORE", "MICRO_HOTSPOT", "HOT_DROP", "LEGENDARY_BEACON"]);
+
+function isSecretSourceType(sourceType?: string | null) {
+  return !!sourceType && SECRET_SOURCE_TYPES.has(sourceType);
+}
+
+function toClientSpawn(spawn: any) {
+  // If special spawn: hide rarity BEFORE catch
+  if (isSecretSourceType(spawn.sourceType)) {
+    // IMPORTANT: Keep id/lat/lng/expiresAt/sourceType/sourceKey so gameplay works.
+    return {
+      ...spawn,
+      rarity: null,            // hide rarity
+      name: "Mystery Egg",     // avoid leaking identity via name
+      // If you have other fields that leak (like 'containedTemplateId'), hide them too:
+      containedTemplateId: null,
+    };
+  }
+  return spawn;
+}
+
+Then change the response to:
+const clientSpawns = (spawns || []).map(toClientSpawn);
+
+Return:
+res.json({ spawns: clientSpawns, meta: computedMetaIfAny });
+
+NOTES:
+- Do NOT modify the DB record.
+- Do NOT remove spawn.id, latitude/longitude, expiresAt, sourceType, sourceKey.
+- If your code returns { spawns } only, keep it consistent. If you return meta, keep meta same.
+
+---------------------------------------
+STEP 2 — CLIENT TYPES: Allow rarity to be null
+Wherever your Spawn type/interface is defined (client types), change:
+
+rarity: 'common'|'rare'|'epic'|'legendary'
+
+to:
+
+rarity?: 'common'|'rare'|'epic'|'legendary' | null
+
+Do NOT change any other fields.
+
+---------------------------------------
+STEP 3 — CLIENT UI: Do not render rarity badge for secret spawns
+Find the bottom sheet / spawn details UI where you currently show:
+“Mystery Egg” + rarity label (ex: COMMON) + distance.
+
+Add:
+
+const SECRET_SOURCE_TYPES = ["EXPLORE", "MICRO_HOTSPOT", "HOT_DROP", "LEGENDARY_BEACON"];
+const isSecret = !!spawn?.sourceType && SECRET_SOURCE_TYPES.includes(spawn.sourceType);
+const showRarity = !isSecret && !!spawn?.rarity;
+
+Then:
+- Only render the rarity chip/text if showRarity is true.
+- If isSecret, show no rarity chip at all (or show “???” text).
+- Keep distance visible.
+
+This must apply to:
+- Hot Drop spawns shown outside radius
+- Legendary beacon spawns
+- Any special hotspot spawn
+
+HOME spawns remain unchanged.
+
+---------------------------------------
+STEP 4 — CLIENT MARKERS: Don’t leak rarity via marker style
+If you change marker icon/glow based on rarity anywhere:
+- When isSecret === true OR spawn.rarity is null:
+  Use the default “mystery” marker icon (no rarity colors).
+
+Do not change marker behavior for HOME.
+
+---------------------------------------
+STEP 5 — VERIFY (must pass)
+1) Create a HOT_DROP spawn in DB with rarity 'epic' (existing logic).
+2) GET /api/hunt/spawns returns it with rarity: null.
+3) Tapping that marker shows NO rarity on the sheet.
+4) Catching it via /api/hunt/catch still returns true rarity and catch modal shows it.
+5) HOME spawns still behave exactly the same as before.
+
+Add temporary logs (remove after):
+- Server log: console.log("DB rarity:", spawn.rarity, "sourceType:", spawn.sourceType, "client rarity:", clientSpawn.rarity)
+- Confirm clientSpawn.rarity is null for secret types.
+
+END.

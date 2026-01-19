@@ -18,13 +18,15 @@ export interface Spawn {
   templateId: string;
   name: string;
   creatureClass: string;
-  rarity: string;
+  rarity: string | null;
   baseHp: number;
   baseAtk: number;
   baseDef: number;
   baseSpd: number;
   containedTemplateId?: string | null;
   distance?: number;
+  sourceType?: string | null;
+  sourceKey?: string | null;
 }
 
 export interface CaughtCreature {

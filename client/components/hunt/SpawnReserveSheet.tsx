@@ -30,6 +30,8 @@ const RARITY_COLORS: Record<string, string> = {
   legendary: "#F59E0B",
 };
 
+const SECRET_SOURCE_TYPES = ["EXPLORE", "MICRO_HOTSPOT", "HOT_DROP", "LEGENDARY_BEACON"];
+
 interface SpawnReserveSheetProps {
   visible: boolean;
   spawn: Spawn | null;
@@ -98,7 +100,9 @@ export function SpawnReserveSheet({
 
   if (!spawn) return null;
 
-  const rarityColor = RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common;
+  const isSecret = !!spawn.sourceType && SECRET_SOURCE_TYPES.includes(spawn.sourceType);
+  const showRarity = !isSecret && !!spawn.rarity;
+  const rarityColor = spawn.rarity ? (RARITY_COLORS[spawn.rarity] || RARITY_COLORS.common) : GameColors.textSecondary;
   const distanceText = playerDistance
     ? playerDistance >= 1000
       ? `${(playerDistance / 1000).toFixed(1)}km away`
@@ -131,17 +135,25 @@ export function SpawnReserveSheet({
           <View style={styles.handle} />
 
           <View style={styles.header}>
-            <View style={[styles.iconCircle, { backgroundColor: rarityColor + "30" }]}>
-              <Feather name="gift" size={28} color={rarityColor} />
+            <View style={[styles.iconCircle, { backgroundColor: isSecret ? GameColors.primary + "30" : rarityColor + "30" }]}>
+              <Feather name={isSecret ? "help-circle" : "gift"} size={28} color={isSecret ? GameColors.primary : rarityColor} />
             </View>
             <View style={styles.headerText}>
               <ThemedText style={styles.title}>{spawn.name || "Mystery Egg"}</ThemedText>
               <View style={styles.badgeRow}>
-                <View style={[styles.rarityBadge, { backgroundColor: rarityColor + "30" }]}>
-                  <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
-                    {spawn.rarity.toUpperCase()}
-                  </ThemedText>
-                </View>
+                {showRarity ? (
+                  <View style={[styles.rarityBadge, { backgroundColor: rarityColor + "30" }]}>
+                    <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
+                      {spawn.rarity?.toUpperCase()}
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <View style={[styles.rarityBadge, { backgroundColor: GameColors.primary + "20" }]}>
+                    <ThemedText style={[styles.rarityText, { color: GameColors.primary }]}>
+                      ???
+                    </ThemedText>
+                  </View>
+                )}
                 <ThemedText style={styles.distance}>{distanceText}</ThemedText>
               </View>
             </View>
