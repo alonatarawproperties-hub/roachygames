@@ -1688,6 +1688,12 @@ export function registerHuntRoutes(app: Express) {
         sinceLegendary: (economy.catchesSinceLegendary ?? 0) + 1,
       };
 
+      // V17: Enhanced debug logging for pity system
+      console.log(`[Pity-Debug-v17] wallet=${walletAddress} DB counters: rare=${economy.catchesSinceRare}, epic=${economy.catchesSinceEpic}, legendary=${economy.catchesSinceLegendary}`);
+      console.log(`[Pity-Debug-v17] After +1: rare=${pityCounters.sinceRare}, epic=${pityCounters.sinceEpic}, legendary=${pityCounters.sinceLegendary}`);
+      console.log(`[Pity-Debug-v17] Thresholds: PITY_RARE=${HUNT_CONFIG.PITY_RARE}, PITY_EPIC=${HUNT_CONFIG.PITY_EPIC}, PITY_LEGENDARY=${HUNT_CONFIG.PITY_LEGENDARY}`);
+      console.log(`[Pity-Debug-v17] spawn.rarity=${spawn.rarity}`);
+
       // Check if pity threshold is reached (guaranteed rarity)
       type EggRarity = 'common' | 'rare' | 'epic' | 'legendary';
       const guaranteed: EggRarity | null =
@@ -1696,14 +1702,18 @@ export function registerHuntRoutes(app: Express) {
         : pityCounters.sinceRare >= HUNT_CONFIG.PITY_RARE ? 'rare'
         : null;
 
+      console.log(`[Pity-Debug-v17] guaranteed=${guaranteed} (epic check: ${pityCounters.sinceEpic} >= ${HUNT_CONFIG.PITY_EPIC} = ${pityCounters.sinceEpic >= HUNT_CONFIG.PITY_EPIC})`);
+
       // Use spawn preset rarity if present, otherwise roll normally
       let rawRarity: EggRarity = (spawn.rarity as EggRarity) || selectEggRarity(pityCounters, heatModeActive);
+      console.log(`[Pity-Debug-v17] rawRarity after spawn/roll=${rawRarity}`);
 
       // Normalize any legacy uncommon value
       rawRarity = (rawRarity === ('uncommon' as any) ? 'common' : rawRarity) as EggRarity;
 
       // ✅ If pity threshold is reached, override to the guaranteed tier
       const eggRarity: EggRarity = guaranteed ?? rawRarity;
+      console.log(`[Pity-Debug-v17] FINAL eggRarity=${eggRarity} (guaranteed=${guaranteed} ?? rawRarity=${rawRarity})`);
       
       const pointsAwarded = HUNT_CONFIG.POINTS_REWARDS[quality] || 30;
       const isPerfect = quality === 'perfect';
