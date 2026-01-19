@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   },
   faqItem: {
     marginBottom: Spacing.lg,
-    backgroundColor: GameColors.cardDark,
+    backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
   },

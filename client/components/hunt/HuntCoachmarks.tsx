@@ -101,11 +101,9 @@ export function HuntCoachmarks({ visible, onClose, onComplete }: HuntCoachmarksP
             <Pressable onPress={handleSkip} style={styles.skipBtn}>
               <ThemedText style={styles.skipText}>Skip All</ThemedText>
             </Pressable>
-            <Button
-              title={isLast ? "Get Started" : "Next"}
-              onPress={handleNext}
-              style={styles.nextBtn}
-            />
+            <Button onPress={handleNext} style={styles.nextBtn}>
+              {isLast ? "Get Started" : "Next"}
+            </Button>
           </View>
         </View>
       </View>
@@ -124,7 +122,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   card: {
-    backgroundColor: GameColors.cardDark,
+    backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
     width: width - Spacing.lg * 2,

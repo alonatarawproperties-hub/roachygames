@@ -42,6 +42,18 @@ import { FusionAnimationModal } from "@/components/hunt/FusionAnimationModal";
 import { LevelProgressSheet } from "@/components/hunt/LevelProgressSheet";
 import { NodeDetailsBottomSheet } from "@/components/hunt/NodeDetailsBottomSheet";
 import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
+import { HuntCoachmarks } from "@/components/hunt/HuntCoachmarks";
+import { HuntHelpSheet, HelpSheetData } from "@/components/hunt/HuntHelpSheet";
+import { HuntFaqModal } from "@/components/hunt/HuntFaqModal";
+import {
+  isOnboardingCompleted,
+  setOnboardingCompleted,
+  canShowTip,
+  markTipShown,
+  hasSeenQuestKey,
+  markQuestKeySeen,
+  formatSeconds,
+} from "@/lib/huntGuides";
 import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
@@ -194,6 +206,13 @@ export default function HuntScreen() {
   const [activatingQuest, setActivatingQuest] = useState<string | null>(null);
   const [questCountdown, setQuestCountdown] = useState<number | null>(null);
   
+  // Hunt guides state
+  const [showCoachmarks, setShowCoachmarks] = useState(false);
+  const [showHelpSheet, setShowHelpSheet] = useState(false);
+  const [showFaq, setShowFaq] = useState(false);
+  const [tipMessage, setTipMessage] = useState<string | null>(null);
+  const tipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Banner latch - keep visible for minimum time to prevent flicker
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
@@ -307,6 +326,71 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [allReady]);
+
+  // Check onboarding status on mount
+  useEffect(() => {
+    (async () => {
+      const completed = await isOnboardingCompleted();
+      if (!completed && allReady) {
+        setShowCoachmarks(true);
+      }
+    })();
+  }, [allReady]);
+
+  // Tip display helper
+  const showTip = useCallback(async (tipId: string, message: string) => {
+    const can = await canShowTip(tipId);
+    if (!can) return;
+    await markTipShown(tipId);
+    setTipMessage(message);
+    if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
+    tipTimeoutRef.current = setTimeout(() => setTipMessage(null), 4000);
+  }, []);
+
+  // Contextual tip: Area cleared
+  useEffect(() => {
+    if (spawnsLoaded && spawns.length < 2 && homeCountdown && homeCountdown > 0) {
+      showTip("tip_area_cleared", `Area cleared! Next Home Drop in ${formatSeconds(homeCountdown)}. Walk to find Explore spawns.`);
+    }
+  }, [spawnsLoaded, spawns.length, homeCountdown, showTip]);
+
+  // Contextual tip: Quest active
+  useEffect(() => {
+    if (huntMeta?.quest?.active && huntMeta.quest.key) {
+      (async () => {
+        const seen = await hasSeenQuestKey(huntMeta.quest!.key!);
+        if (!seen) {
+          await markQuestKeySeen(huntMeta.quest!.key!);
+          showTip("tip_quest_active", "Quest live on map. Follow the marker!");
+        }
+      })();
+    }
+  }, [huntMeta?.quest?.active, huntMeta?.quest?.key, showTip]);
+
+  // Contextual tip: Pity close
+  useEffect(() => {
+    if (phaseIStats?.pity?.epicIn !== undefined && phaseIStats.pity.epicIn <= 5 && phaseIStats.pity.epicIn > 0) {
+      showTip("tip_pity_close", `Epic pity soon! ${phaseIStats.pity.epicIn} catches to guaranteed Epic.`);
+    }
+  }, [phaseIStats?.pity?.epicIn, showTip]);
+
+  // Cleanup tip timeout
+  useEffect(() => {
+    return () => {
+      if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
+    };
+  }, []);
+
+  // Help sheet data
+  const helpSheetData: HelpSheetData = useMemo(() => ({
+    spawnsCount: spawns.length,
+    homeNextTopUpInSec: homeCountdown,
+    questActive: !!huntMeta?.quest?.active,
+    questType: huntMeta?.quest?.type,
+    distanceM: huntMeta?.quest?.distanceM,
+    direction: huntMeta?.quest?.direction,
+    expiresInSec: questCountdown ?? undefined,
+  }), [spawns.length, homeCountdown, huntMeta?.quest, questCountdown]);
 
   const loadingOverlayStyle = useAnimatedStyle(() => ({
     opacity: loadingFadeAnim.value,
@@ -1092,6 +1176,7 @@ export default function HuntScreen() {
                 Progress: {huntMeta.quest.progress?.collected || 0}/{huntMeta.quest.progress?.total || 0} eggs
                 {questCountdown !== null && questCountdown > 0 && ` • ${formatCountdown(questCountdown)} left`}
               </ThemedText>
+              <ThemedText style={styles.questHint}>Quest marker on map - zoom out if needed</ThemedText>
             </View>
             {huntMeta.quest.type === 'LEGENDARY_BEACON' && 
              huntMeta.quest.progress?.collected === huntMeta.quest.progress?.total && (
@@ -1674,6 +1759,25 @@ export default function HuntScreen() {
 
       {renderEconomyPanel()}
 
+      {/* Guide help buttons */}
+      <View style={styles.guideButtonsRow}>
+        <Pressable style={styles.guideButton} onPress={() => setShowHelpSheet(true)}>
+          <Feather name="compass" size={16} color={GameColors.primary} />
+          <ThemedText style={styles.guideButtonText}>What next?</ThemedText>
+        </Pressable>
+        <Pressable style={styles.guideButtonSmall} onPress={() => setShowFaq(true)}>
+          <Feather name="help-circle" size={18} color={GameColors.textSecondary} />
+        </Pressable>
+      </View>
+
+      {/* Contextual tip banner */}
+      {tipMessage && (
+        <View style={styles.tipBanner}>
+          <Feather name="info" size={14} color={GameColors.primary} />
+          <ThemedText style={styles.tipText}>{tipMessage}</ThemedText>
+        </View>
+      )}
+
       <View style={styles.tabBar}>
         <Pressable
           style={[styles.tab, activeTab === "map" && styles.activeTab]}
@@ -1945,6 +2049,25 @@ export default function HuntScreen() {
           onRequestPermission={handleRequestPermission}
         />
       </Animated.View>
+
+      {/* Guide modals */}
+      <HuntCoachmarks
+        visible={showCoachmarks}
+        onClose={() => {
+          setShowCoachmarks(false);
+          setOnboardingCompleted(true);
+        }}
+        onComplete={() => {
+          setShowCoachmarks(false);
+          setOnboardingCompleted(true);
+        }}
+      />
+      <HuntHelpSheet
+        visible={showHelpSheet}
+        onClose={() => setShowHelpSheet(false)}
+        data={helpSheetData}
+      />
+      <HuntFaqModal visible={showFaq} onClose={() => setShowFaq(false)} />
     </View>
   );
 }
@@ -1968,6 +2091,50 @@ const styles = StyleSheet.create({
   errorText: {
     color: "#F59E0B",
     fontSize: 12,
+  },
+  guideButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  guideButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+  },
+  guideButtonText: {
+    fontSize: 12,
+    color: GameColors.primary,
+    fontWeight: "500",
+  },
+  guideButtonSmall: {
+    padding: Spacing.xs,
+    backgroundColor: GameColors.surface,
+    borderRadius: BorderRadius.md,
+  },
+  tipBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: "rgba(212, 175, 55, 0.15)",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+    borderLeftWidth: 3,
+    borderLeftColor: GameColors.primary,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 13,
+    color: GameColors.textPrimary,
+    lineHeight: 18,
   },
   economyCard: {
     marginTop: Spacing.md,
@@ -3220,6 +3387,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: GameColors.textSecondary,
     marginTop: 2,
+  },
+  questHint: {
+    fontSize: 11,
+    color: GameColors.textTertiary,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   claimBeaconButton: {
     flexDirection: "row",
