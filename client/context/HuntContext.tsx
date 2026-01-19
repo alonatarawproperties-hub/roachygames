@@ -409,8 +409,17 @@ export function HuntProvider({ children }: HuntProviderProps) {
         setHuntMeta(data.meta);
       }
       
-      // Store quest spawns
-      setQuestSpawns(Array.isArray(data.questSpawns) ? data.questSpawns : []);
+      // Store quest spawns with distance calculated
+      const mappedQuestSpawns = (data.questSpawns || []).map((spawn: Spawn) => ({
+        ...spawn,
+        distance: calculateDistance(
+          playerLocation.latitude,
+          playerLocation.longitude,
+          parseFloat(spawn.latitude),
+          parseFloat(spawn.longitude)
+        ),
+      }));
+      setQuestSpawns(mappedQuestSpawns);
       
       const mappedSpawns = (data.spawns || []).map((spawn: Spawn) => ({
         ...spawn,
