@@ -189,6 +189,7 @@ interface HuntContextType {
   refreshSpawns: () => void;
   refreshEconomy: () => void;
   refreshPhaseIStats: () => void;
+  pingRadar: () => Promise<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null>;
 }
 
 const HuntContext = createContext<HuntContextType | null>(null);
@@ -318,7 +319,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
       url.searchParams.set("longitude", playerLocation.longitude.toString());
       url.searchParams.set("radius", "500");
       console.log("Fetching spawns from:", url.toString());
-      const response = await fetch(url.toString());
+      const response = await fetch(url.toString(), {
+        headers: { "x-wallet-address": walletAddress },
+      });
       if (!response.ok) {
         console.log("Spawns fetch failed:", response.status);
         setHuntMeta(null);
@@ -666,6 +669,35 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [walletAddress, queryClient]);
 
+  const pingRadar = useCallback(async (): Promise<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null> => {
+    if (!playerLocation) {
+      console.log("[RADAR] No player location");
+      return null;
+    }
+    try {
+      const url = new URL("/api/hunt/radar", getApiUrl());
+      url.searchParams.set("latitude", playerLocation.latitude.toString());
+      url.searchParams.set("longitude", playerLocation.longitude.toString());
+      console.log("[RADAR] Pinging:", url.toString());
+      
+      const response = await fetch(url.toString(), {
+        headers: { "x-wallet-address": walletAddress },
+      });
+      
+      if (!response.ok) {
+        console.log("[RADAR] Failed:", response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      console.log("[RADAR] Result:", data);
+      return data;
+    } catch (error) {
+      console.error("[RADAR] Error:", error);
+      return null;
+    }
+  }, [playerLocation, walletAddress]);
+
   return (
     <HuntContext.Provider
       value={{
@@ -698,6 +730,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         refreshSpawns,
         refreshEconomy,
         refreshPhaseIStats,
+        pingRadar,
       }}
     >
       {children}
