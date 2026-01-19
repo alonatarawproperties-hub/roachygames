@@ -1,0 +1,88 @@
+REPLIT AGENT PROMPT (ONE-CLICK) — FIX: “Hot Drop LIVE but no spawn on map” + make quest spawns always visible
+
+GOAL
+Hot Drop / Micro Hotspot / Legendary Beacon spawns must appear on the map whenever meta.hotdrop/quest says ACTIVE. Current bug: server query filters `isActive = true` but hotspot eggs are being inserted with `isActive` NULL or false, so query returns 0 even though hotdrop is LIVE.
+
+RULES
+- Make ONLY the changes listed below.
+- Do NOT refactor unrelated code.
+- Keep all existing response shapes (`meta.hotdrop`, `meta.quest`) intact.
+- Add logs ONLY around quest spawn selection if needed.
+
+STEP 1 — SERVER: Fix quest spawn SELECT to allow isActive NULL rows
+File: server/hunt-routes.ts
+Find the query that loads quest spawns (the one currently like):
+  eq(wildCreatureSpawns.isActive, true),
+  isNull(wildCreatureSpawns.caughtByWallet),
+  gte(wildCreatureSpawns.expiresAt, now),
+  eq(wildCreatureSpawns.sourceKey, questMeta.key),
+  eq(wildCreatureSpawns.sourceType, questMeta.type)
+
+Change ONLY the `isActive` filter to allow TRUE OR NULL:
+- Ensure `or` is imported from drizzle-orm.
+
+Exact patch:
+
+1) At top imports (where drizzle-orm imports are):
+Add `or` if missing:
+  import { and, or, eq, isNull, gte, ... } from "drizzle-orm";
+
+2) Replace the `eq(isActive,true)` line with:
+  or(
+    eq(wildCreatureSpawns.isActive, true),
+    isNull(wildCreatureSpawns.isActive)
+  ),
+
+So final WHERE becomes:
+
+const rawQuestSpawns = await db.select().from(wildCreatureSpawns)
+  .where(and(
+    or(
+      eq(wildCreatureSpawns.isActive, true),
+      isNull(wildCreatureSpawns.isActive)
+    ),
+    isNull(wildCreatureSpawns.caughtByWallet),
+    gte(wildCreatureSpawns.expiresAt, now),
+    eq(wildCreatureSpawns.sourceKey, questMeta.key),
+    eq(wildCreatureSpawns.sourceType, questMeta.type)
+  ))
+  .limit(20);
+
+STEP 2 — SERVER: Ensure hotspot eggs are inserted with isActive: true
+File: server/hunt-routes.ts
+Endpoint: POST /api/hunt/hotspot/activate (the cluster egg insert loop)
+
+Find the db.insert(wildCreatureSpawns).values({ ... }) for quest eggs (HOT_DROP / MICRO_HOTSPOT / LEGENDARY_BEACON).
+Add this field inside the inserted values object:
+  isActive: true,
+
+Do not change any other inserted fields.
+
+STEP 3 — OPTIONAL (BUT RECOMMENDED): One-time backfill for existing NULL isActive quest eggs
+If your stack supports running raw SQL or drizzle sql execution, do it once.
+- If you have a migrations folder, create a single migration “backfill_quest_spawns_is_active.sql”.
+- Otherwise run via your DB admin console.
+
+SQL:
+
+UPDATE wildCreatureSpawns
+SET isActive = true
+WHERE sourceType IN ('HOT_DROP','MICRO_HOTSPOT','LEGENDARY_BEACON')
+  AND (isActive IS NULL OR isActive = false)
+  AND caughtByWallet IS NULL
+  AND expiresAt > NOW();
+
+STEP 4 — VERIFY (MUST DO)
+1) Trigger a Hot Drop (clear area until meta.hotdrop.active = true).
+2) Call GET /api/hunt/spawns with same lat/lng.
+3) Confirm response contains:
+   - meta.hotdrop.active = true
+   - and spawns array includes at least 1 spawn with sourceType = 'HOT_DROP' and sourceKey matching activeQuestKey
+4) In app, confirm the hot drop cluster marker(s) appear on the map.
+
+STEP 5 — SAFETY CHECK
+- Do NOT touch HOME spawns logic except these filters.
+- Do NOT change client MapViewWrapper marker rendering.
+
+DELIVERABLE
+Commit these exact changes. If any TypeScript error appears due to missing import, fix ONLY by adjusting drizzle-orm import list (add `or`).

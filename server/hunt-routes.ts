@@ -17,7 +17,7 @@ import {
   users,
   type HotspotQuestType,
 } from "@shared/schema";
-import { eq, and, gte, lte, sql, desc, isNull, asc } from "drizzle-orm";
+import { eq, and, or, gte, lte, sql, desc, isNull, asc } from "drizzle-orm";
 import { logUserActivity } from "./economy-routes";
 import {
   HUNT_CONFIG,
@@ -669,7 +669,10 @@ export function registerHuntRoutes(app: Express) {
         try {
           const rawQuestSpawns = await db.select().from(wildCreatureSpawns)
             .where(and(
-              eq(wildCreatureSpawns.isActive, true),
+              or(
+                eq(wildCreatureSpawns.isActive, true),
+                isNull(wildCreatureSpawns.isActive)
+              ),
               isNull(wildCreatureSpawns.caughtByWallet),
               gte(wildCreatureSpawns.expiresAt, now),
               eq(wildCreatureSpawns.sourceKey, questMeta.key),
@@ -909,6 +912,7 @@ export function registerHuntRoutes(app: Express) {
           expiresAt,
           sourceType: questType,
           sourceKey: questKey,
+          isActive: true,
         }).returning();
         
         spawnedEggs.push(egg);
