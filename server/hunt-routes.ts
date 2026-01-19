@@ -563,8 +563,111 @@ export function registerHuntRoutes(app: Express) {
   const SPAWN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes per grid cell
   const HOME_RESPAWN_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes after catching all spawns
 
+  // ===== RADAR ENDPOINT =====
+  app.get("/api/hunt/radar", async (req: Request, res: Response) => {
+    try {
+      const { latitude, longitude } = req.query;
+      const walletAddress = req.headers["x-wallet-address"] as string || req.query.walletAddress as string;
+      
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: "Missing coordinates" });
+      }
+
+      const lat = parseFloat(latitude as string);
+      const lng = parseFloat(longitude as string);
+      const now = new Date();
+
+      // Check for active hotdrop first
+      const hotdropBounds = getCellBounds(lat, lng, 3500);
+      const [activeHotdrop] = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.templateId, 'wild_egg_hotdrop'),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.expiresAt, now),
+          gte(wildCreatureSpawns.latitude, hotdropBounds.minLat.toString()),
+          lte(wildCreatureSpawns.latitude, hotdropBounds.maxLat.toString()),
+          gte(wildCreatureSpawns.longitude, hotdropBounds.minLng.toString()),
+          lte(wildCreatureSpawns.longitude, hotdropBounds.maxLng.toString()),
+        ))
+        .limit(1);
+
+      if (activeHotdrop) {
+        const hdLat = parseFloat(activeHotdrop.latitude);
+        const hdLng = parseFloat(activeHotdrop.longitude);
+        const distM = haversineMeters(lat, lng, hdLat, hdLng);
+        const bearing = bearingDegrees(lat, lng, hdLat, hdLng);
+        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const dirIndex = Math.round(bearing / 45) % 8;
+        
+        return res.json({
+          mode: 'hotdrop',
+          direction: directions[dirIndex],
+          distanceM: Math.round(distM),
+          rarity: activeHotdrop.rarity,
+        });
+      }
+
+      // Find nearest active uncaught spawn within 2km
+      const nearbyBounds = getCellBounds(lat, lng, 2000);
+      const nearbySpawns = await db.select().from(wildCreatureSpawns)
+        .where(and(
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+          gte(wildCreatureSpawns.expiresAt, now),
+          gte(wildCreatureSpawns.latitude, nearbyBounds.minLat.toString()),
+          lte(wildCreatureSpawns.latitude, nearbyBounds.maxLat.toString()),
+          gte(wildCreatureSpawns.longitude, nearbyBounds.minLng.toString()),
+          lte(wildCreatureSpawns.longitude, nearbyBounds.maxLng.toString()),
+        ))
+        .limit(50);
+
+      if (nearbySpawns.length > 0) {
+        // Find nearest spawn
+        let nearestSpawn = nearbySpawns[0];
+        let nearestDist = Infinity;
+        
+        for (const spawn of nearbySpawns) {
+          const sLat = parseFloat(spawn.latitude);
+          const sLng = parseFloat(spawn.longitude);
+          const dist = haversineMeters(lat, lng, sLat, sLng);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestSpawn = spawn;
+          }
+        }
+        
+        const sLat = parseFloat(nearestSpawn.latitude);
+        const sLng = parseFloat(nearestSpawn.longitude);
+        const bearing = bearingDegrees(lat, lng, sLat, sLng);
+        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const dirIndex = Math.round(bearing / 45) % 8;
+        
+        return res.json({
+          mode: 'nearest_spawn',
+          direction: directions[dirIndex],
+          distanceM: Math.round(nearestDist),
+          rarity: nearestSpawn.rarity,
+        });
+      }
+
+      return res.json({ mode: 'none' });
+    } catch (error) {
+      console.error("Radar error:", error);
+      res.status(500).json({ error: "Failed to ping radar" });
+    }
+  });
+
+  // ===== ADMIN-PROTECTED SPAWN ENDPOINT =====
   app.post("/api/hunt/spawn", async (req: Request, res: Response) => {
     try {
+      // Admin key protection - only admin can manually create spawns
+      const adminKey = req.headers["x-admin-key"] as string;
+      if (adminKey !== process.env.ADMIN_API_KEY) {
+        console.log(`[SPAWN_API] BLOCKED: missing or invalid admin key`);
+        return res.status(403).json({ error: "Forbidden - admin key required" });
+      }
+      
       const { latitude, longitude, walletAddress: bodyWallet, reason } = req.body;
       const walletAddress = (req.headers["x-wallet-address"] as string) || bodyWallet;
       
