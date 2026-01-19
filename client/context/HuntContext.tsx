@@ -1,10 +1,14 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useWallet } from "./WalletContext";
+import { useAuth } from "./AuthContext";
 
-const WALLET_STORAGE_KEY = "roachy_hunt_wallet_address";
+// Storage key prefix - will be combined with user ID for per-user storage
+const WALLET_STORAGE_PREFIX = "roachy_hunt_wallet_";
+// Legacy key for migration
+const LEGACY_WALLET_KEY = "roachy_hunt_wallet_address";
 
 export interface Spawn {
   id: string;
@@ -214,26 +218,54 @@ function generateTempWalletId(): string {
 export function HuntProvider({ children }: HuntProviderProps) {
   const queryClient = useQueryClient();
   const { wallet: solanaWallet } = useWallet();
+  const { user } = useAuth();
+  
   // Initialize with a temporary wallet immediately so queries can start
   const [guestWalletAddress, setGuestWalletAddress] = useState<string>(() => generateTempWalletId());
   const [walletSynced, setWalletSynced] = useState(false);
   const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
 
+  // User-specific storage key - ensures each logged-in user has their own hunt progress
+  const userStorageKey = useMemo(() => {
+    if (user?.id) {
+      return `${WALLET_STORAGE_PREFIX}${user.id}`;
+    }
+    // Fallback for guests (not logged in) - use device-level storage
+    return `${WALLET_STORAGE_PREFIX}guest_device`;
+  }, [user?.id]);
+
+  // Priority: 1. Connected Solana wallet, 2. User-specific player ID
   const walletAddress = solanaWallet.connected && solanaWallet.address 
     ? solanaWallet.address 
     : guestWalletAddress;
 
   // Sync with AsyncStorage to maintain persistence across sessions
+  // Uses user-specific key so each account has separate progress
   useEffect(() => {
     const syncWalletFromStorage = async () => {
       try {
-        const storedWallet = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
+        // First check for user-specific wallet
+        const storedWallet = await AsyncStorage.getItem(userStorageKey);
+        
         if (storedWallet && storedWallet !== guestWalletAddress) {
-          // Use the stored wallet instead of the temp one
+          // Use the stored wallet for this user
+          console.log(`[Hunt] Loaded wallet for user: ${user?.id || 'guest'}`, storedWallet);
           setGuestWalletAddress(storedWallet);
         } else if (!storedWallet) {
-          // No stored wallet - save the current temp one
-          await AsyncStorage.setItem(WALLET_STORAGE_KEY, guestWalletAddress);
+          // No wallet for this user yet - check for legacy migration
+          const legacyWallet = await AsyncStorage.getItem(LEGACY_WALLET_KEY);
+          
+          if (legacyWallet && user?.id) {
+            // Migrate legacy wallet to user-specific storage (one-time migration)
+            console.log(`[Hunt] Migrating legacy wallet to user: ${user.id}`, legacyWallet);
+            await AsyncStorage.setItem(userStorageKey, legacyWallet);
+            setGuestWalletAddress(legacyWallet);
+            // Don't delete legacy key - other accounts might need it
+          } else {
+            // Generate new wallet for this user
+            console.log(`[Hunt] Creating new wallet for user: ${user?.id || 'guest'}`, guestWalletAddress);
+            await AsyncStorage.setItem(userStorageKey, guestWalletAddress);
+          }
         }
       } catch (error) {
         console.error("Failed to sync wallet:", error);
@@ -243,7 +275,19 @@ export function HuntProvider({ children }: HuntProviderProps) {
       }
     };
     syncWalletFromStorage();
-  }, [guestWalletAddress]);
+  }, [userStorageKey, user?.id]);
+
+  // Invalidate all hunt queries when user changes to ensure fresh data for each account
+  useEffect(() => {
+    if (user?.id) {
+      console.log(`[Hunt] User changed to ${user.id}, invalidating hunt queries`);
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+    }
+  }, [user?.id, queryClient]);
 
   const { data: economyData, refetch: refreshEconomy, isFetched: economyFetched, isError: economyError } = useQuery({
     queryKey: ["/api/hunt/economy", walletAddress],
