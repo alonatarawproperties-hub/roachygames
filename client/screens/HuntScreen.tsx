@@ -1754,7 +1754,15 @@ export default function HuntScreen() {
       {activeTab === "map" && renderMapView()}
       {activeTab === "collection" && renderCollection()}
       {activeTab === "eggs" && renderEggs()}
-      {activeTab === "leaderboard" && <HuntLeaderboard />}
+      {activeTab === "leaderboard" && (
+        <View style={styles.comingSoonContainer}>
+          <Feather name="award" size={64} color={GameColors.textSecondary} />
+          <ThemedText style={styles.comingSoonTitle}>Ranks Coming Soon</ThemedText>
+          <ThemedText style={styles.comingSoonSubtitle}>
+            Seasonal rankings and rewards will be available in Phase II
+          </ThemedText>
+        </View>
+      )}
 
       {/* Dev spawn button removed - POST /api/hunt/spawn now requires admin key */}
       {/* Spawns are created automatically via drip system in GET /api/hunt/spawns */}
@@ -3283,5 +3291,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.sm,
     fontStyle: "italic",
+  },
+  comingSoonContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  comingSoonTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: GameColors.textPrimary,
+    textAlign: "center",
+  },
+  comingSoonSubtitle: {
+    fontSize: 14,
+    color: GameColors.textSecondary,
+    textAlign: "center",
+    maxWidth: 280,
   },
 });
