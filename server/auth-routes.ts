@@ -1096,4 +1096,65 @@ router.post("/update-username", async (req: Request, res: Response) => {
   }
 });
 
+// Development-only login for testing - creates or finds a test user
+router.post("/dev-login", async (req: Request, res: Response) => {
+  // Only allow in development mode
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ error: "Dev login not available in production" });
+  }
+
+  try {
+    const { testUserId } = req.body;
+    const devUserId = testUserId || "dev_test_user_1";
+    const devEmail = `${devUserId}@dev.test`;
+
+    // Find or create the dev user
+    let [existingUser] = await db.select().from(users).where(eq(users.email, devEmail)).limit(1);
+
+    if (!existingUser) {
+      // Create the dev user
+      [existingUser] = await db.insert(users).values({
+        email: devEmail,
+        displayName: `DevUser_${devUserId}`,
+        authProvider: "dev",
+        chyBalance: 1000,
+        diamondBalance: 100,
+        lastLoginAt: new Date(),
+      }).returning();
+      console.log(`[Auth] Created dev user: ${existingUser.id}`);
+    } else {
+      // Update last login
+      await db.update(users)
+        .set({ lastLoginAt: new Date() })
+        .where(eq(users.id, existingUser.id));
+    }
+
+    const token = generateToken({
+      userId: existingUser.id,
+      email: existingUser.email || undefined,
+      authProvider: "dev",
+    });
+
+    console.log(`[Auth] Dev login: ${existingUser.id} (${devEmail})`);
+
+    return res.json({
+      success: true,
+      user: {
+        id: existingUser.id,
+        email: existingUser.email,
+        displayName: existingUser.displayName,
+        authProvider: existingUser.authProvider,
+        chyBalance: existingUser.chyBalance,
+        diamondBalance: existingUser.diamondBalance,
+        walletAddress: existingUser.walletAddress,
+        avatarUrl: existingUser.avatarUrl,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error("[Auth] Dev login error:", error);
+    return res.status(500).json({ error: "Dev login failed" });
+  }
+});
+
 export default router;
