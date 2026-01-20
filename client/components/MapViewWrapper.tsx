@@ -895,13 +895,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: Spacing.md,
     bottom: Spacing.md,
-    flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
     zIndex: 50,
     elevation: 50,
   },
   controlButtonsColumn: {
+    alignItems: "center",
     gap: 8,
   },
   controlButton: {
