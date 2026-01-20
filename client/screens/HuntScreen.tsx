@@ -398,6 +398,19 @@ export default function HuntScreen() {
     }
   }, [phaseIStats?.pity?.epicIn, showTip]);
 
+  // Contextual tip: Spawns outside catch radius
+  useEffect(() => {
+    if (!spawnsLoaded || !playerLocation || spawns.length === 0) return;
+    const CATCH_RADIUS_M = 100;
+    const hasNearbySpawn = spawns.some((s) => {
+      const dist = haversineMeters(playerLocation.latitude, playerLocation.longitude, s.lat, s.lng);
+      return dist <= CATCH_RADIUS_M;
+    });
+    if (!hasNearbySpawn && spawns.length > 0) {
+      showTip("tip_spawns_distant", "Eggs are outside catch radius (100m). Walk closer!");
+    }
+  }, [spawnsLoaded, playerLocation?.latitude, playerLocation?.longitude, spawns, showTip]);
+
   // Cleanup tip timeout
   useEffect(() => {
     return () => {
