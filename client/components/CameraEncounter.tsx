@@ -52,6 +52,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
   const [permission, requestPermission] = useCameraPermissions();
   const [isCatching, setIsCatching] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
+  const [showMissed, setShowMissed] = useState(false);
   const apiCalledRef = useRef(false);
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
@@ -149,13 +150,14 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
 
     const randomMove = () => {
       if (isCatching) return;
-      const newX = 60 + Math.random() * (SCREEN_WIDTH - 180);
-      const newY = 150 + Math.random() * (SCREEN_HEIGHT / 2.5 - 100);
-      creatureX.value = withTiming(newX, { duration: 3500, easing: Easing.inOut(Easing.ease) });
-      creatureY.value = withTiming(newY, { duration: 3500, easing: Easing.inOut(Easing.ease) });
+      // More exaggerated movement - wider range, faster
+      const newX = 40 + Math.random() * (SCREEN_WIDTH - 280);
+      const newY = 120 + Math.random() * (SCREEN_HEIGHT / 2 - 80);
+      creatureX.value = withTiming(newX, { duration: 1800, easing: Easing.inOut(Easing.ease) });
+      creatureY.value = withTiming(newY, { duration: 1800, easing: Easing.inOut(Easing.ease) });
     };
 
-    const moveInterval = setInterval(randomMove, 4500);
+    const moveInterval = setInterval(randomMove, 2200);
     return () => clearInterval(moveInterval);
   }, [isCatching]);
 
@@ -283,9 +285,25 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
     }, 600);
   };
 
+  // Handle tap on egg - successful catch attempt
+  const handleEggTap = () => {
+    if (isCollecting || isCatching || showMissed) return;
+    startCatchAnimation();
+  };
+
+  // Handle tap on background - missed!
+  const handleBackgroundTap = () => {
+    if (isCollecting || isCatching || showMissed) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setShowMissed(true);
+    setTimeout(() => {
+      onCancel(); // Exit the catch screen on miss
+    }, 1200);
+  };
+
   const tapGesture = Gesture.Tap()
     .onEnd(() => {
-      runOnJS(handleThrowNet)();
+      runOnJS(handleBackgroundTap)();
     });
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
@@ -488,11 +506,13 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <Image
-                source={require("@/assets/hunt/mystery-egg.png")}
-                style={styles.mysteryEggImage}
-                resizeMode="contain"
-              />
+              <Pressable onPress={handleEggTap} style={styles.eggTapArea}>
+                <Image
+                  source={require("@/assets/hunt/mystery-egg.png")}
+                  style={styles.mysteryEggImage}
+                  resizeMode="contain"
+                />
+              </Pressable>
             </Animated.View>
 
             <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
@@ -559,11 +579,12 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
             <Animated.View style={shockwaveAnimatedStyle} pointerEvents="none" />
           </View>
 
-          <Animated.View 
-            entering={FadeInUp.duration(400).springify()}
-            style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
-          >
-            {isCollecting || isCatching ? (
+          {/* Status indicator - only show when catching/collecting */}
+          {(isCollecting || isCatching) && (
+            <Animated.View 
+              entering={FadeInUp.duration(400).springify()}
+              style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
+            >
               <View style={styles.actionCapsule}>
                 <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
                   <ActivityIndicator size="large" color={GameColors.primary} />
@@ -572,30 +593,37 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
                   </ThemedText>
                 </BlurView>
               </View>
-            ) : (
-              <Pressable 
-                onPress={handleThrowNet} 
-                style={styles.actionCapsule}
-              >
-                <BlurView intensity={60} tint="dark" style={styles.capsuleBlur} pointerEvents="none">
-                  <Animated.View style={pulseAnimatedStyle} pointerEvents="none">
-                    <LinearGradient
-                      colors={["#FFD700", "#FFA500"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.catchButton}
-                    >
-                      <View style={styles.catchButtonInner}>
-                        <Feather name="crosshair" size={28} color="#000" />
-                      </View>
-                    </LinearGradient>
-                  </Animated.View>
-                  
-                  <ThemedText style={[styles.catchLabel, { color: "#FFD700" }]}>GRAB EGG</ThemedText>
+            </Animated.View>
+          )}
+
+          {/* Missed banner */}
+          {showMissed && (
+            <Animated.View 
+              entering={FadeIn.duration(200)}
+              style={styles.missedBanner}
+            >
+              <BlurView intensity={80} tint="dark" style={styles.missedBlur}>
+                <Feather name="x-circle" size={32} color="#FF6B6B" />
+                <ThemedText style={styles.missedText}>MISSED!</ThemedText>
+                <ThemedText style={styles.missedSubtext}>Tap the egg to catch it</ThemedText>
+              </BlurView>
+            </Animated.View>
+          )}
+
+          {/* Tap hint - only show when idle */}
+          {!isCollecting && !isCatching && !showMissed && (
+            <Animated.View 
+              entering={FadeInUp.duration(400).springify()}
+              style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
+            >
+              <View style={styles.hintCapsule}>
+                <BlurView intensity={40} tint="dark" style={styles.hintBlur}>
+                  <Feather name="target" size={16} color="#FFD700" />
+                  <ThemedText style={styles.hintText}>Tap the egg to catch!</ThemedText>
                 </BlurView>
-              </Pressable>
-            )}
-          </Animated.View>
+              </View>
+            </Animated.View>
+          )}
         </View>
       </GestureDetector>
     </View>
@@ -782,24 +810,30 @@ const styles = StyleSheet.create({
   },
   creature: {
     position: "absolute",
-    width: 120,
-    height: 120,
+    width: 240,
+    height: 300,
     justifyContent: "center",
     alignItems: "center",
   },
   creatureGlow: {
     position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 260,
+    height: 320,
+    borderRadius: 130,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 30,
+    shadowRadius: 40,
     elevation: 20,
   },
+  eggTapArea: {
+    width: 240,
+    height: 300,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   mysteryEggImage: {
-    width: 120,
-    height: 150,
+    width: 240,
+    height: 300,
   },
   eggBody: {
     width: 90,
@@ -992,5 +1026,48 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.8)",
     borderWidth: 3,
     borderColor: "#FFD700",
+  },
+  missedBanner: {
+    position: "absolute",
+    top: "40%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 100,
+  },
+  missedBlur: {
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    overflow: "hidden",
+    gap: Spacing.xs,
+  },
+  missedText: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FF6B6B",
+    letterSpacing: 3,
+  },
+  missedSubtext: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+  },
+  hintCapsule: {
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  hintBlur: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    overflow: "hidden",
+    gap: Spacing.sm,
+  },
+  hintText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFD700",
   },
 });
