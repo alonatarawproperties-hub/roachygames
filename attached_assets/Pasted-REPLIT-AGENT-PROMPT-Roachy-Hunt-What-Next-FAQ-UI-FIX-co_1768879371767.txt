@@ -1,0 +1,181 @@
+REPLIT AGENT PROMPT — Roachy Hunt “What Next / FAQ” UI FIX (compact + not broken + more gamified)
+
+Goal
+- “What next?” + “FAQ” should NOT consume vertical space above the map.
+- The tip/balloon should look gamified (lightweight, “quest hint”), not like a big overlay.
+- Opening “What Next?” should NOT be cut/broken. It must render as a proper bottom sheet with safe-area padding + scroll.
+- Keep changes minimal and isolated to Hunt UI (no gameplay logic touched).
+
+Primary issues observed (from screenshots)
+1) The inline balloon/tip overlay is awkwardly placed and doesn’t feel “game UI”.
+2) The “What Next?” bottom sheet opens but is clipped/cut (height/safe area/layout bug).
+3) The “What next?” + “FAQ” triggers remain in the same congested area, stealing map space.
+
+Plan (implement exactly)
+A) Move triggers to floating “chips” overlaying the map (top-right), NOT inside the header/area-cleared card
+B) Replace the “balloon” with a compact “Quest Hint” toast chip (auto-dismiss) that sits above the quest offers row OR near the floating chips
+C) Replace the current “What Next?” UI with a safe bottom sheet (Modal + Animated) that:
+   - respects Safe Area (bottom inset)
+   - has maxHeight (e.g. 70% of screen)
+   - uses ScrollView for content
+   - never clips text/buttons
+   - has close button visible and reachable
+
+————————————————————————————————————————
+STEP 1 — Find current implementations
+1) In `client/screens/HuntScreen.tsx`, locate:
+   - “What next?” button / trigger
+   - the balloon/tip component
+   - the bottom sheet/modal for What Next + FAQ
+   Search keywords: “What next”, “FAQ”, “BottomSheet”, “Modal”, “renderWhatNext”, “tooltip”, “coach”, “hint”.
+
+2) In `client/components/MapViewWrapper.tsx`, confirm you can overlay absolute-positioned UI on top of the map container.
+
+————————————————————————————————————————
+STEP 2 — Add floating overlay triggers on map (compact)
+In `HuntScreen.tsx`, inside the map container wrapper (the View that contains <MapViewWrapper />),
+add a new overlay component rendered ABOVE MapViewWrapper (absolute positioning):
+
+- A small horizontal row at top-right:
+  [ What next? ] [ ? ]
+- “What next?” is a pill chip (small height)
+- “?” is a small circular icon button (FAQ)
+- These should not shift layout (position: "absolute").
+
+Example UI spec:
+- position: absolute
+- top: 12
+- right: 12
+- zIndex: 50
+- gap: 8
+- pill height: 32, paddingHorizontal: 12, borderRadius: 16
+- use existing theme colors (GameColors / ThemedText)
+- subtle glow/shadow like your quest buttons (NOT huge)
+
+Wire actions:
+- tapping “What next?” sets `isWhatNextOpen=true`
+- tapping “?” sets `isFaqOpen=true`
+
+IMPORTANT:
+- Remove/stop rendering the old “What next?” button inside the congested header/card area (or keep but hide it via feature flag). We want ONLY the floating triggers to exist.
+
+————————————————————————————————————————
+STEP 3 — Replace balloon with a “Quest Hint Toast” (gamified + tiny)
+Remove the current balloon placement (the one showing inside the Area Cleared banner / awkward overlay).
+
+Implement a toast-style hint that:
+- appears ONLY when “area cleared” and player has 0–1 spawns, OR after user closes the bottom sheet the first time
+- auto-dismisses after 4–6 seconds
+- can be dismissed with a small “x”
+- is compact: one line + optional icon
+
+Copy guidance text:
+- “Quest Hint: Tap eggs to catch • Try Micro/Hot Drop”
+(or if quest active: “Quest Hint: Follow the marker • Eggs inside the ring count”)
+
+Placement:
+- absolute overlay near top-right under the floating chips OR
+- inside the Area Cleared card but as a compact single-line chip (NOT a big balloon)
+
+Implementation detail:
+- Use `Animated` fade/slide in (simple, no new libs).
+- Keep it within safe bounds: maxWidth: 260, borderRadius: 14, padding: 10.
+
+State:
+- `const [hintVisible, setHintVisible] = useState(false);`
+- show it based on conditions, then auto-hide with setTimeout
+- store a “dismissed” flag in memory for the session (or AsyncStorage later; for now session is fine)
+
+————————————————————————————————————————
+STEP 4 — Fix “What Next?” bottom sheet (no clipping)
+DO NOT rely on the current broken container.
+
+Implement a reliable sheet using:
+- React Native `Modal` + `Animated` slide-up
+- `useSafeAreaInsets()` to pad bottom
+- `Dimensions.get("window").height` to clamp max height
+- `ScrollView` inside for content
+
+Create a new component:
+`client/components/hunt/WhatNextSheet.tsx` (or inline in HuntScreen if you prefer, but component is cleaner)
+
+Props:
+- `visible: boolean`
+- `onClose: () => void`
+- `title: string` (e.g. “What Next?” or “FAQ”)
+- `children` content
+
+Sheet behavior:
+- Backdrop press closes
+- Slide up from bottom
+- Container style:
+  - width: 100%
+  - borderTopLeftRadius: 20, borderTopRightRadius: 20
+  - backgroundColor: your card color
+  - maxHeight: screenHeight * 0.7
+  - paddingBottom: insets.bottom + 12
+- Header row:
+  - left: title
+  - right: close “X”
+- Body:
+  - ScrollView with contentContainerStyle padding: 16
+
+IMPORTANT FIXES (this is what stops “cut”):
+- Do NOT use fixed height without maxHeight
+- Ensure the sheet container uses `maxHeight`, not `height`
+- Ensure ScrollView wraps content
+- Ensure header is outside ScrollView
+- Ensure bottom padding includes safe area inset
+
+Hook it up:
+- `isWhatNextOpen` renders the sheet with “What Next” content
+- `isFaqOpen` renders the sheet with FAQ content
+- Only one can open at a time:
+  - opening FAQ closes WhatNext and vice versa
+
+————————————————————————————————————————
+STEP 5 — Content for “What Next” and “FAQ” (keep short + actionable)
+“What Next?” sections (bulleted, compact):
+1) Catch Eggs
+- “Tap nearby egg markers on the map to catch.”
+2) Micro / Hot Drop
+- “Use Micro for quick nearby spawns.”
+- “Use Hot Drop for a bigger radius, limited time.”
+3) Quests
+- “Follow the quest marker. Eggs inside the quest radius count.”
+4) If you see Weak GPS
+- “Step outside, wait a few seconds, then try again.”
+
+FAQ entries (very short):
+- “Why ‘Weak GPS’?” → “Indoor/low accuracy. Move outside.”
+- “Why no spawns?” → “Area cleared. Wait for Home drop timer or start Micro/Hot Drop.”
+- “Why can’t I catch?” → “You must be within radius and have a valid spawn.”
+
+————————————————————————————————————————
+STEP 6 — Remove old broken UI + verify
+1) Remove/hide the old inline “What next?” bottom sheet trigger that was stealing space.
+2) Remove/hide the old balloon overlay.
+3) Verify in iPhone sizes:
+   - iPhone mini / SE (small height)
+   - iPhone Pro Max
+4) Verify:
+   - sheet never clips
+   - close button always visible
+   - map area is larger (more gamified)
+   - floating chips do not block right-side map controls (put chips top-right; controls are mid-right, so OK)
+
+————————————————————————————————————————
+Deliverables (must do)
+- Code changes in:
+  - `client/screens/HuntScreen.tsx` (move triggers, state wiring, remove old balloon)
+  - `client/components/hunt/WhatNextSheet.tsx` (new reusable sheet)
+  - optional: small styles additions
+- No gameplay logic touched
+- No new libraries added
+- Make sure TypeScript passes
+
+After implementation, add a short note in the console logs:
+`console.log("[HuntUI] WhatNextSheet mounted", { visible });`
+ONLY for debug; keep minimal.
+
+Go implement now.
