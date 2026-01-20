@@ -1,0 +1,70 @@
+TASK: Add a small UX hint when GPS is Weak (amber state) without touching gameplay logic.
+
+CONTEXT:
+We already implemented gpsNoSignal + gpsWeak split:
+- gpsNoSignal => show "No Signal"
+- gpsWeak => show "Weak" (amber) when raw GPS ticks exist but accepted location is stale
+MapViewWrapper currently renders the GPS badge with label/color using getGpsStatusInfo() and props gpsNoSignal/gpsWeak.
+
+GOAL:
+When gpsWeak === true, display a small helper text directly under the GPS label:
+"Weak GPS — step outside / avoid indoors"
+This must NOT affect spawns, map, location tracking, refresh logic, or any hunt gameplay state. Pure UI only.
+
+FILES TO CHANGE (ONLY THESE):
+1) client/components/MapViewWrapper.tsx
+(Optionally 2) styles inside MapViewWrapper.tsx for the hint text)
+
+IMPLEMENTATION DETAILS:
+A) Update props interface (if not already):
+- Ensure MapViewWrapper props include:
+  gpsNoSignal?: boolean
+  gpsWeak?: boolean
+
+B) In the GPS badge render block (where it currently shows the dot + label):
+Existing pattern:
+<View style={[styles.gpsIndicatorDot, { backgroundColor: gpsStatus.color }]} />
+<ThemedText style={[styles.gpsIndicatorText, { color: gpsStatus.color }]}>
+  {gpsStatus.label}
+</ThemedText>
+
+Wrap the label area so we can add a second line when gpsWeak is true:
+- Keep existing dot and label unchanged.
+- Add below the label:
+  {gpsWeak && !gpsNoSignal ? (
+    <ThemedText style={styles.gpsWeakHint}>
+      Weak GPS — step outside / avoid indoors
+    </ThemedText>
+  ) : null}
+
+Important: Only show the hint when gpsWeak is true AND gpsNoSignal is false (No Signal should not show the hint).
+
+C) Add a new style in MapViewWrapper styles:
+gpsWeakHint: {
+  marginTop: 2,
+  fontSize: 11,
+  lineHeight: 13,
+  opacity: 0.85,
+}
+
+Color rules:
+- Use the SAME color as gpsStatus.color (amber) OR just inherit default text color with opacity.
+Preferred: set color equal to gpsStatus.color so it visually matches the badge state.
+
+Example:
+<ThemedText style={[styles.gpsWeakHint, { color: gpsStatus.color }]}>...</ThemedText>
+
+D) DO NOT:
+- change getGpsStatusInfo logic
+- change location tracking thresholds
+- change any hunt queries/refetch
+- change any spawn rendering logic
+- add new hooks/state
+
+TEST:
+1) Indoor / stationary: badge shows "Weak" and hint appears.
+2) Disable location services: badge shows "No Signal" and hint DOES NOT appear.
+3) Walk outside: badge shows "Good/Excellent" and hint disappears.
+
+Deliverable:
+- Commit only MapViewWrapper.tsx changes and confirm no other files were touched.

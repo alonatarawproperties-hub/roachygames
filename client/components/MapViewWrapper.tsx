@@ -709,13 +709,20 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
 
         {/* GPS Signal Indicator - Top Left below status bar area */}
         <View style={styles.gpsIndicator}>
-          <View style={[styles.gpsIndicatorDot, { backgroundColor: gpsStatus.color }]} />
-          <ThemedText style={[styles.gpsIndicatorText, { color: gpsStatus.color }]}>
-            {gpsStatus.label}
-          </ThemedText>
-          {gpsAccuracy ? (
-            <ThemedText style={styles.gpsAccuracyText}>
-              {Math.round(gpsAccuracy)}m
+          <View style={styles.gpsIndicatorRow}>
+            <View style={[styles.gpsIndicatorDot, { backgroundColor: gpsStatus.color }]} />
+            <ThemedText style={[styles.gpsIndicatorText, { color: gpsStatus.color }]}>
+              {gpsStatus.label}
+            </ThemedText>
+            {gpsAccuracy ? (
+              <ThemedText style={styles.gpsAccuracyText}>
+                {Math.round(gpsAccuracy)}m
+              </ThemedText>
+            ) : null}
+          </View>
+          {gpsWeak && !gpsNoSignal ? (
+            <ThemedText style={[styles.gpsWeakHint, { color: gpsStatus.color }]}>
+              Weak GPS — step outside / avoid indoors
             </ThemedText>
           ) : null}
         </View>
@@ -834,13 +841,21 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: Spacing.sm,
     left: Spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
+  },
+  gpsIndicatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
+  },
+  gpsWeakHint: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 13,
+    opacity: 0.85,
   },
   gpsIndicatorDot: {
     width: 6,
