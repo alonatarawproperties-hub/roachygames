@@ -324,20 +324,15 @@ export function HuntProvider({ children }: HuntProviderProps) {
   }, [user?.id, queryClient]);
 
   const { data: economyData, refetch: refreshEconomy, isFetched: economyFetched, isError: economyError } = useQuery({
-    queryKey: ["/api/hunt/economy", walletAddress],
+    queryKey: ["/api/hunt/economy"],
     queryFn: async () => {
-      console.log("Economy query starting for:", walletAddress);
-      const url = new URL(`/api/hunt/economy/${walletAddress}`, getApiUrl());
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-      
+      console.log("Economy query starting");
       try {
-        const response = await fetch(url.toString(), { signal: controller.signal });
-        clearTimeout(timeoutId);
+        // Use apiRequest for JWT auth - the walletAddress in URL is ignored by server
+        const response = await apiRequest("GET", `/api/hunt/economy/me`);
         
         if (!response.ok) {
           console.log("Economy fetch failed:", response.status);
-          // Return default economy on error instead of null
           return {
             energy: 100,
             maxEnergy: 100,
@@ -354,9 +349,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         console.log("Economy data loaded:", data.economy);
         return data.economy as EconomyStats;
       } catch (error) {
-        clearTimeout(timeoutId);
         console.log("Economy fetch error:", error);
-        // Return default economy on error
         return {
           energy: 100,
           maxEnergy: 100,
@@ -370,7 +363,6 @@ export function HuntProvider({ children }: HuntProviderProps) {
         } as EconomyStats;
       }
     },
-    // Always enabled since walletAddress is guaranteed non-empty from initialization
     retry: 2,
     retryDelay: 1000,
   });
@@ -466,11 +458,10 @@ export function HuntProvider({ children }: HuntProviderProps) {
   });
 
   const { data: collectionData } = useQuery({
-    queryKey: ["/api/hunt/collection", walletAddress],
+    queryKey: ["/api/hunt/collection"],
     queryFn: async () => {
       try {
-        // URL param is ignored by server - identity comes from JWT
-        const response = await apiRequest("GET", `/api/hunt/collection/${walletAddress}`);
+        const response = await apiRequest("GET", `/api/hunt/collection/me`);
         const data = await response.json();
         return data.creatures || [];
       } catch {
@@ -480,11 +471,10 @@ export function HuntProvider({ children }: HuntProviderProps) {
   });
 
   const { data: eggsData } = useQuery({
-    queryKey: ["/api/hunt/eggs", walletAddress],
+    queryKey: ["/api/hunt/eggs"],
     queryFn: async () => {
       try {
-        // URL param is ignored by server - identity comes from JWT
-        const response = await apiRequest("GET", `/api/hunt/eggs/${walletAddress}`);
+        const response = await apiRequest("GET", `/api/hunt/eggs/me`);
         return await response.json();
       } catch {
         return { eggs: [], incubators: [] };
@@ -510,14 +500,45 @@ export function HuntProvider({ children }: HuntProviderProps) {
   });
 
   const { data: phaseIData, refetch: refreshPhaseIStats } = useQuery({
-    queryKey: ["/api/hunt/me", walletAddress],
+    queryKey: ["/api/hunt/me"],
     queryFn: async () => {
-      const url = new URL("/api/hunt/me", getApiUrl());
-      url.searchParams.set("walletAddress", walletAddress);
-      const response = await fetch(url.toString());
-      if (!response.ok) {
+      try {
+        const response = await apiRequest("GET", "/api/hunt/me");
+        if (!response.ok) {
+          return {
+            walletAddress: "",
+            huntsToday: 0,
+            dailyCap: 25,
+            dailyCapBase: 25,
+            dailyCapStreakBonus: 0,
+            streakCount: 0,
+            longestStreak: 0,
+            eggs: { common: 0, rare: 0, epic: 0, legendary: 0 },
+            pity: { rareIn: 20, epicIn: 60, legendaryIn: 180 },
+            warmth: 0,
+            warmthCap: 10,
+            level: 1,
+            xp: 0,
+            xpThisLevel: 0,
+            xpToNextLevel: 500,
+            currentLevelStartXp: 0,
+            nextLevelTotalXp: 500,
+            unlockedFeatures: { trackerPing: false, secondAttempt: false, heatMode: false },
+            nextUnlock: "Tracker Ping at Lv.3",
+            warmthShopCosts: { trackerPing: 3, secondAttempt: 5, heatMode: 10 },
+            hunterLevel: 1,
+            hunterXp: 0,
+            boostTokens: 0,
+            recentDrops: [],
+            weekKey: "",
+            pointsThisWeek: 0,
+            perfectsThisWeek: 0,
+          } as PhaseIStats;
+        }
+        return await response.json() as PhaseIStats;
+      } catch {
         return {
-          walletAddress,
+          walletAddress: "",
           huntsToday: 0,
           dailyCap: 25,
           dailyCapBase: 25,
@@ -546,7 +567,6 @@ export function HuntProvider({ children }: HuntProviderProps) {
           perfectsThisWeek: 0,
         } as PhaseIStats;
       }
-      return await response.json() as PhaseIStats;
     },
     refetchInterval: 30000,
   });
@@ -579,14 +599,13 @@ export function HuntProvider({ children }: HuntProviderProps) {
 
     try {
       await apiRequest("POST", "/api/hunt/location", {
-        walletAddress,
         latitude,
         longitude,
       });
     } catch (error) {
       console.error("Failed to update location:", error);
     }
-  }, [walletAddress]);
+  }, []);
 
   const spawnCreatures = useCallback(async (reason: string = "unknown") => {
     if (!playerLocation) {
@@ -598,7 +617,6 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const response = await apiRequest("POST", "/api/hunt/spawn", {
         latitude: playerLocation.latitude,
         longitude: playerLocation.longitude,
-        walletAddress,
         reason,
       });
       const data = await response.json();
@@ -611,13 +629,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
     } catch (error) {
       console.error("[HUNT][SPAWN] ERROR", error);
     }
-  }, [playerLocation, walletAddress, refreshSpawns]);
+  }, [playerLocation, refreshSpawns]);
 
   const catchCreature = useCallback(async (spawnId: string, catchQuality: string): Promise<CaughtCreature | null> => {
     if (!playerLocation) return null;
     try {
       const response = await apiRequest("POST", "/api/hunt/catch", {
-        walletAddress,
         spawnId,
         catchQuality,
         latitude: playerLocation.latitude,
@@ -626,9 +643,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", walletAddress] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
         return data.creature;
       }
       return null;
@@ -636,13 +653,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
       console.error("Failed to catch creature:", error);
       return null;
     }
-  }, [walletAddress, playerLocation, queryClient]);
+  }, [playerLocation, queryClient]);
 
   const collectEgg = useCallback(async (spawnId: string): Promise<CatchResult | null> => {
     if (!playerLocation) return null;
     try {
       const response = await apiRequest("POST", "/api/hunt/catch", {
-        walletAddress,
         spawnId,
         catchQuality: "perfect",
         latitude: playerLocation.latitude,
@@ -651,8 +667,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
         return {
           success: true,
           isMysteryEgg: data.isMysteryEgg,
@@ -668,50 +684,44 @@ export function HuntProvider({ children }: HuntProviderProps) {
       console.error("Failed to collect egg:", error);
       return null;
     }
-  }, [walletAddress, playerLocation, queryClient]);
+  }, [playerLocation, queryClient]);
 
   const startIncubation = useCallback(async (eggId: string, incubatorId: string) => {
     try {
       await apiRequest("POST", `/api/hunt/eggs/${eggId}/incubate`, { incubatorId });
-      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
     } catch (error) {
       console.error("Failed to start incubation:", error);
     }
-  }, [queryClient, walletAddress]);
+  }, [queryClient]);
 
   const walkEgg = useCallback(async (eggId: string, distance: number) => {
     try {
-      const response = await apiRequest("POST", `/api/hunt/eggs/${eggId}/walk`, {
-        distance,
-        walletAddress,
-      });
+      const response = await apiRequest("POST", `/api/hunt/eggs/${eggId}/walk`, { distance });
       const data = await response.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
       if (data.hatched) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
       }
       return data;
     } catch (error) {
       console.error("Failed to walk egg:", error);
       return null;
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   const joinRaid = useCallback(async (raidId: string) => {
     try {
-      await apiRequest("POST", `/api/hunt/raids/${raidId}/join`, { walletAddress });
+      await apiRequest("POST", `/api/hunt/raids/${raidId}/join`, {});
       queryClient.invalidateQueries({ queryKey: ["/api/hunt/raids"] });
     } catch (error) {
       console.error("Failed to join raid:", error);
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   const attackRaid = useCallback(async (raidId: string, attackPower: number) => {
     try {
-      const response = await apiRequest("POST", `/api/hunt/raids/${raidId}/attack`, {
-        walletAddress,
-        attackPower,
-      });
+      const response = await apiRequest("POST", `/api/hunt/raids/${raidId}/attack`, { attackPower });
       const data = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/hunt/raids"] });
       return data;
@@ -719,7 +729,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       console.error("Failed to attack raid:", error);
       return null;
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   const hatchEggs = useCallback(async (): Promise<HatchResult> => {
     const collectedEggs = economyData?.collectedEggs || 0;
@@ -728,14 +738,13 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
     try {
       const response = await apiRequest("POST", "/api/hunt/hatch", {
-        walletAddress,
         latitude: playerLocation?.latitude,
         longitude: playerLocation?.longitude,
       });
       const data = await response.json();
       if (data.success && data.creature) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
         return {
           success: true,
           creature: data.creature as CaughtCreature,
@@ -746,14 +755,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
       console.error("Failed to hatch eggs:", error);
       return { success: false, error: "Failed to hatch eggs" };
     }
-  }, [walletAddress, playerLocation, economyData, queryClient]);
+  }, [playerLocation, economyData, queryClient]);
 
   const claimNode = useCallback(async (spawnId: string, lat: number, lon: number, quality: string) => {
-    console.log("[ClaimNode] v16 Starting claim:", { spawnId, lat, lon, quality, walletAddress });
+    console.log("[ClaimNode] v16 Starting claim:", { spawnId, lat, lon, quality });
     try {
-      // Phase I: Use spawn-based claim endpoint
       const response = await apiRequest("POST", "/api/hunt/phase1/claim-spawn", {
-        walletAddress,
         spawnId,
         lat,
         lon,
@@ -763,53 +770,45 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const data = await response.json();
       console.log("[ClaimNode] v16 Parsed data:", JSON.stringify(data));
       if (data.success || data.eggRarity) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy", walletAddress] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/phase1"] });
       }
       return data;
     } catch (error: any) {
-      // v16: Return ACTUAL error message, not hardcoded
       const errorMsg = error?.message || String(error) || "Network error";
       console.error("[ClaimNode] v16 ERROR:", errorMsg, error);
       return { success: false, error: errorMsg };
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   const recycleEggs = useCallback(async (amount: number) => {
     try {
-      const response = await apiRequest("POST", "/api/hunt/recycle", {
-        walletAddress,
-        amount,
-      });
+      const response = await apiRequest("POST", "/api/hunt/recycle", { amount });
       const data = await response.json();
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
       }
       return data;
     } catch (error) {
       console.error("Failed to recycle eggs:", error);
       return { success: false, error: "Failed to recycle eggs" };
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   const fuseEggs = useCallback(async (rarity: string, times: number = 1) => {
     try {
-      const response = await apiRequest("POST", "/api/hunt/inventory/fuse", {
-        walletAddress,
-        rarity,
-        times,
-      });
+      const response = await apiRequest("POST", "/api/hunt/inventory/fuse", { rarity, times });
       const data = await response.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
       return data;
     } catch (error) {
       console.error("Failed to fuse eggs:", error);
       throw error;
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   const pingRadar = useCallback(async (): Promise<{ mode: 'hotdrop' | 'nearest_spawn' | 'none'; direction?: string; distanceM?: number; rarity?: string } | null> => {
     if (!playerLocation) {
@@ -822,9 +821,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       url.searchParams.set("longitude", playerLocation.longitude.toString());
       console.log("[RADAR] Pinging:", url.toString());
       
-      const response = await fetch(url.toString(), {
-        headers: { "x-wallet-address": walletAddress },
-      });
+      const response = await apiRequest("GET", url.pathname + url.search);
       
       if (!response.ok) {
         console.log("[RADAR] Failed:", response.status);
@@ -838,7 +835,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       console.error("[RADAR] Error:", error);
       return null;
     }
-  }, [playerLocation, walletAddress]);
+  }, [playerLocation]);
 
   const activateHotspot = useCallback(async (questType: 'MICRO_HOTSPOT' | 'HOT_DROP' | 'LEGENDARY_BEACON') => {
     if (!playerLocation) {
@@ -846,7 +843,6 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
     try {
       const response = await apiRequest("POST", "/api/hunt/hotspot/activate", {
-        walletAddress,
         questType,
         latitude: playerLocation.latitude,
         longitude: playerLocation.longitude,
@@ -860,24 +856,22 @@ export function HuntProvider({ children }: HuntProviderProps) {
       console.error("[HOTSPOT] Activate error:", error);
       return { success: false, error: error.message || "Failed to activate hotspot" };
     }
-  }, [walletAddress, playerLocation, queryClient]);
+  }, [playerLocation, queryClient]);
 
   const claimBeacon = useCallback(async () => {
     try {
-      const response = await apiRequest("POST", "/api/hunt/beacon/claim", {
-        walletAddress,
-      });
+      const response = await apiRequest("POST", "/api/hunt/beacon/claim", {});
       const data = await response.json();
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me", walletAddress] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
       }
       return data;
     } catch (error: any) {
       console.error("[BEACON] Claim error:", error);
       return { success: false, error: error.message || "Failed to claim beacon" };
     }
-  }, [walletAddress, queryClient]);
+  }, [queryClient]);
 
   return (
     <HuntContext.Provider

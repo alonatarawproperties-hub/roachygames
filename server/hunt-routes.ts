@@ -188,6 +188,13 @@ function getCellBounds(lat: number, lng: number, cellMeters: number) {
   };
 }
 
+// ===== IDENTITY HELPER =====
+function getPlayerId(req: Request): string {
+  const uid = (req as any).userId;
+  if (!uid) throw new Error("Missing req.userId (requireAuth not applied)");
+  return uid; // Raw userId, NOT prefixed
+}
+
 function bearingDegrees(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
   const lat1 = fromLat * Math.PI / 180;
   const lat2 = toLat * Math.PI / 180;
@@ -309,7 +316,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { latitude, longitude, displayName, accuracy, timestamp } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (latitude === undefined || longitude === undefined) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -441,7 +448,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { latitude, longitude } = req.query;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
@@ -779,7 +786,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { latitude, longitude } = req.query;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
@@ -875,7 +882,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { questType, latitude, longitude } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!questType || !latitude || !longitude) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -1024,7 +1031,7 @@ export function registerHuntRoutes(app: Express) {
   app.post("/api/hunt/beacon/claim", async (req: Request, res: Response) => {
     try {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       const dayKey = getManilaDate();
       const now = new Date();
@@ -1151,8 +1158,9 @@ export function registerHuntRoutes(app: Express) {
         return res.status(403).json({ error: "Forbidden - admin key required" });
       }
       
-      const { latitude, longitude, walletAddress: bodyWallet, reason } = req.body;
-      const walletAddress = (req.headers["x-wallet-address"] as string) || bodyWallet;
+      const { latitude, longitude, reason } = req.body;
+      // Admin spawn endpoint: use JWT userId if available, otherwise fallback to 'admin'
+      const walletAddress = (req as any).userId || 'admin';
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
@@ -1411,7 +1419,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { spawnId, catchQuality, latitude, longitude } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!spawnId) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -1723,7 +1731,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { latitude, longitude } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       const [economy] = await db.select().from(huntEconomyStats)
         .where(eq(huntEconomyStats.walletAddress, walletAddress))
@@ -1829,7 +1837,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       // URL param is ignored for security - identity comes from JWT only
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       let [economy] = await db.select().from(huntEconomyStats)
         .where(eq(huntEconomyStats.walletAddress, walletAddress))
@@ -1872,7 +1880,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       // URL param is ignored for security - identity comes from JWT only
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       const creatures = await db.select().from(huntCaughtCreatures)
         .where(eq(huntCaughtCreatures.walletAddress, walletAddress))
@@ -1902,7 +1910,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       // URL param is ignored for security - identity comes from JWT only
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       const eggs = await db.select().from(huntEggs)
         .where(and(
@@ -1949,7 +1957,7 @@ export function registerHuntRoutes(app: Express) {
       const { eggId } = req.params;
       const { distance } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       const [egg] = await db.select().from(huntEggs)
         .where(and(
@@ -2066,7 +2074,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { raidId } = req.params;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       const existing = await db.select().from(huntRaidParticipants)
         .where(and(
@@ -2104,7 +2112,7 @@ export function registerHuntRoutes(app: Express) {
       const { raidId } = req.params;
       const { attackPower } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       const [raid] = await db.select().from(huntRaids)
         .where(and(
@@ -2222,7 +2230,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { latitude, longitude } = req.query;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
@@ -2263,7 +2271,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { nodeId, lat, lon, quality } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!nodeId || lat === undefined || lon === undefined || !quality) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -2513,7 +2521,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { spawnId, lat, lon, quality } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       console.log(`[Phase1 Claim] Parsed: wallet=${walletAddress}, spawn=${spawnId}, quality=${quality}`);
       
       if (!spawnId || lat === undefined || lon === undefined || !quality) {
@@ -2780,7 +2788,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { amount } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!amount || amount < 1) {
         return res.status(400).json({ error: "Invalid request" });
@@ -2837,7 +2845,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { action } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!action) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -2910,7 +2918,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { rarity, times = 1 } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
       
       if (!rarity || !['common', 'rare', 'epic'].includes(rarity)) {
         return res.status(400).json({ error: "Invalid request" });
@@ -3006,7 +3014,7 @@ export function registerHuntRoutes(app: Express) {
   app.get("/api/hunt/me", async (req: Request, res: Response) => {
     try {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       let [economy] = await db.select().from(huntEconomyStats)
         .where(eq(huntEconomyStats.walletAddress, walletAddress))
@@ -3103,7 +3111,7 @@ export function registerHuntRoutes(app: Express) {
     try {
       const { rarity, times } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = `u_${(req as any).userId}`;
+      const walletAddress = getPlayerId(req);
 
       if (!rarity || !times) {
         return res.status(400).json({ error: "Missing required fields" });

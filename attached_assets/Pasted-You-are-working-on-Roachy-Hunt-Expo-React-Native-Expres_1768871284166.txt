@@ -1,0 +1,96 @@
+You are working on Roachy Hunt (Expo/React Native + Express + Drizzle). After security hardening, Hunt identity now derives from JWT userId (requireAuth), but parts of the client/server still use walletAddress/x-wallet-address or cached state, causing: catches update pity counters but Hunter Stats + Egg Inventory remain 0, and “signal” sometimes shows No Signal. Fix this completely by unifying identity and making UI consistent.
+
+GOALS
+1) Unify Hunt identity to JWT userId everywhere.
+2) Remove all client-controlled identity from Hunt requests (no walletAddress header/body).
+3) Ensure Hunter Stats, Egg Inventory, and Spawn lists reflect catches immediately.
+4) Make “signal” indicator depend on device GPS accuracy / last GPS update time, NOT server meta.
+5) Add a quick smoke test script to verify: after wipe -> spawn -> catch -> stats/inventory change.
+
+SERVER CHANGES
+A) Introduce helper in server/hunt-routes.ts (or server/security.ts) and use everywhere:
+   function getPlayerId(req: Request): string {
+     const uid = (req as any).userId;
+     if (!uid) throw new Error("Missing req.userId (requireAuth not applied)");
+     return uid; // USE RAW userId, NOT `u_${...}` anymore
+   }
+
+B) Replace ALL Hunt logic that uses walletAddress as identity:
+   - In /api/hunt/location, /api/hunt/spawns, /api/hunt/catch, /api/hunt/phase1/claim-spawn, hotspots, leaderboards, economy stats, player state, etc:
+     const playerId = getPlayerId(req);
+   - Wherever DB tables currently store walletAddress as key, KEEP the column name for now (to avoid migration) BUT store playerId into it consistently.
+     Example: huntPlayerLocations.walletAddress = playerId
+              huntEconomyStats.walletAddress = playerId
+              wildCreatureSpawns.caughtByWallet = playerId
+              huntHotspotPlayerState.walletAddress = playerId (if it exists)
+   - Search the entire repo for:
+       "x-wallet-address"
+       "walletAddress" in Hunt requests
+       "caughtByWallet"
+       "huntEconomyStats" reads/writes
+       "huntEggs" reads/writes
+     and ensure all Hunt DB access uses playerId.
+
+C) Make sure requireAuth is actually applied to ALL hunt endpoints:
+   - Keep: app.use("/api/hunt", requireAuth);
+   - Ensure no alternate route path bypasses it (e.g. registerHuntRoutes mounting absolute /api/hunt/* is fine because middleware matches).
+
+D) Fix the “stats/inventory 0” bug by ensuring the endpoints that power Hunter Stats and Egg Inventory read from the SAME key that catch writes to.
+   - Identify which endpoints the client uses for hunter stats + egg inventory (search HuntContext, Eggs screen, any /api/hunt/* stats route).
+   - Ensure those server queries use playerId.
+   - If eggs inventory is derived from huntEggs table, ensure catch actually increments/creates eggs inventory rows under playerId OR update the inventory endpoint to derive from caught spawns if that’s the design.
+
+E) Logging for verification (temporary, keep guarded by NODE_ENV !== "production"):
+   - In /api/hunt/catch: log playerId, spawnId, and which table rows were updated.
+   - In stats/inventory endpoints: log playerId and counts returned.
+
+CLIENT CHANGES
+F) Remove client identity from Hunt calls:
+   - In HuntContext updateLocation(): stop sending walletAddress. Only send latitude/longitude (+ accuracy/timestamp if used).
+   - In fetch spawns use apiRequest("GET", route) (already updated). Remove x-wallet-address header usage everywhere.
+   - In catch request: stop sending walletAddress.
+   - Ensure any other hunt-related fetch uses apiRequest so Authorization is included.
+
+G) Fix UI refresh:
+   - After a successful catch:
+     - refreshSpawns()
+     - refetch hunter stats query (or invalidate relevant React Query keys)
+     - refetch egg inventory query
+   - Ensure queryKeys include stable identifiers (do NOT include walletAddress now; identity comes from JWT).
+
+H) Fix “signal” badge logic:
+   - Signal state must be purely local:
+     - “Excellent/Good/…” derived from latest device coords.accuracy
+     - “No Signal” only if:
+         (now - lastGpsUpdateAt) > 15s OR accuracy is null/very high (e.g. > 250m)
+   - Do NOT set “No Signal” just because spawns fetch failed or server ignored location spam.
+   - In HuntScreen watchPositionAsync callback, always update:
+       lastGpsUpdateAtRef.current = Date.now()
+       gpsAccuracy state
+     even if server call is ignored/rate-limited.
+
+SMOKE TEST
+I) Add script: scripts/hunt-smoke-test.ts that:
+   1) Calls /api/auth/google-code is hard to automate, so instead:
+      - Create a DEV-only route /api/auth/dev-login (NODE_ENV !== "production") that returns a JWT for a known userId (or creates one).
+   2) Uses that JWT to:
+      - POST /api/admin/hunt/wipe (with admin key) to start clean (optional)
+      - POST /api/hunt/test-spawn (admin-only if you keep it) near a lat/lng
+      - POST /api/hunt/location (with JWT)
+      - GET /api/hunt/spawns (with JWT) and confirm spawn visible
+      - POST /api/hunt/catch (with JWT) and confirm 200
+      - GET hunter stats endpoint and egg inventory endpoint and confirm values increased
+   3) Print PASS/FAIL.
+
+COMMANDS
+- Run typecheck/lint if present.
+- Run the smoke test: npx tsx scripts/hunt-smoke-test.ts
+- Confirm in logs that the same playerId is used across catch + stats + inventory.
+
+DELIVERABLES
+- No TypeScript errors
+- No remaining usage of x-wallet-address in the repo
+- All hunt endpoints derive identity from req.userId (playerId)
+- Catch updates are reflected in Hunter Stats + Egg Inventory immediately
+- Signal badge is stable and based on local GPS only
+- Smoke test passes end-to-end

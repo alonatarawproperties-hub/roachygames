@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { getApiUrl } from "@/lib/query-client";
+import { apiRequest } from "@/lib/query-client";
 
 export type NodeType = "PERSONAL" | "HOTSPOT" | "EVENT";
 export type NodeQuality = "POOR" | "GOOD" | "GREAT" | "EXCELLENT";
@@ -51,24 +51,16 @@ interface CollectResponse {
 
 export function useMapNodes(lat: number | null, lng: number | null) {
   const { user, isGuest } = useAuth();
-  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
+  const hasAuth = !!(user?.id || isGuest);
 
   return useQuery<MapNodesResponse>({
-    queryKey: ["/api/map/nodes", lat, lng, walletAddress],
+    queryKey: ["/api/map/nodes", lat, lng],
     queryFn: async () => {
-      if (!lat || !lng || !walletAddress) {
+      if (!lat || !lng || !hasAuth) {
         return { scenario: "", personalNodes: [], hotspots: [], events: [] };
       }
 
-      const url = new URL("/api/map/nodes", getApiUrl());
-      url.searchParams.set("lat", lat.toString());
-      url.searchParams.set("lng", lng.toString());
-
-      const response = await fetch(url.toString(), {
-        headers: {
-          "x-wallet-address": walletAddress,
-        },
-      });
+      const response = await apiRequest("GET", `/api/map/nodes?lat=${lat}&lng=${lng}`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch map nodes");
@@ -76,16 +68,13 @@ export function useMapNodes(lat: number | null, lng: number | null) {
 
       return response.json();
     },
-    enabled: !!lat && !!lng && !!walletAddress,
+    enabled: !!lat && !!lng && hasAuth,
     refetchInterval: 30000,
     staleTime: 10000,
   });
 }
 
 export function useLocationUpdate() {
-  const { user, isGuest } = useAuth();
-  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
-
   return useMutation({
     mutationFn: async (location: {
       lat: number;
@@ -94,18 +83,9 @@ export function useLocationUpdate() {
       speedMps?: number;
       headingDeg?: number;
     }) => {
-      if (!walletAddress) throw new Error("No wallet address");
-
-      const response = await fetch(`${getApiUrl()}/api/location/update`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wallet-address": walletAddress,
-        },
-        body: JSON.stringify({
-          ...location,
-          clientTime: new Date().toISOString(),
-        }),
+      const response = await apiRequest("POST", "/api/location/update", {
+        ...location,
+        clientTime: new Date().toISOString(),
       });
 
       if (!response.ok) {
@@ -118,22 +98,11 @@ export function useLocationUpdate() {
 }
 
 export function useReserveNode() {
-  const { user, isGuest } = useAuth();
-  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
   const queryClient = useQueryClient();
 
   return useMutation<ReserveResponse, Error, { nodeId: string; lat?: number; lng?: number }>({
     mutationFn: async ({ nodeId, lat, lng }) => {
-      if (!walletAddress) throw new Error("No wallet address");
-
-      const response = await fetch(`${getApiUrl()}/api/nodes/reserve`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wallet-address": walletAddress,
-        },
-        body: JSON.stringify({ nodeId, lat, lng }),
-      });
+      const response = await apiRequest("POST", "/api/nodes/reserve", { nodeId, lat, lng });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -149,22 +118,11 @@ export function useReserveNode() {
 }
 
 export function useArriveNode() {
-  const { user, isGuest } = useAuth();
-  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
   const queryClient = useQueryClient();
 
   return useMutation<ArriveResponse, Error, { reservationId: string; lat?: number; lng?: number }>({
     mutationFn: async ({ reservationId, lat, lng }) => {
-      if (!walletAddress) throw new Error("No wallet address");
-
-      const response = await fetch(`${getApiUrl()}/api/nodes/arrive`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wallet-address": walletAddress,
-        },
-        body: JSON.stringify({ reservationId, lat, lng }),
-      });
+      const response = await apiRequest("POST", "/api/nodes/arrive", { reservationId, lat, lng });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -180,22 +138,11 @@ export function useArriveNode() {
 }
 
 export function useCollectNode() {
-  const { user, isGuest } = useAuth();
-  const walletAddress = user?.walletAddress || (isGuest ? `guest_${user?.id || "anon"}` : null);
   const queryClient = useQueryClient();
 
   return useMutation<CollectResponse, Error, { reservationId?: string; nodeId?: string }>({
     mutationFn: async ({ reservationId, nodeId }) => {
-      if (!walletAddress) throw new Error("No wallet address");
-
-      const response = await fetch(`${getApiUrl()}/api/nodes/collect`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wallet-address": walletAddress,
-        },
-        body: JSON.stringify({ reservationId, nodeId }),
-      });
+      const response = await apiRequest("POST", "/api/nodes/collect", { reservationId, nodeId });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

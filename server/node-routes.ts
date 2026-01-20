@@ -25,6 +25,13 @@ function log(context: string, message: string, data?: any) {
   console.log(`[${timestamp}] [NODE] [${context}] ${message}`, data ? JSON.stringify(data) : "");
 }
 
+// Identity helper - use JWT userId
+function getPlayerId(req: Request): string {
+  const uid = (req as any).userId;
+  if (!uid) throw new Error("Missing req.userId (requireAuth not applied)");
+  return uid;
+}
+
 async function expireNodes() {
   const now = new Date();
   try {
@@ -417,11 +424,8 @@ export function registerNodeRoutes(app: Express) {
   app.post("/api/location/update", async (req: Request, res: Response) => {
     try {
       const { lat, lng, accuracy, speedMps, headingDeg, clientTime } = req.body;
-      const walletAddress = req.headers["x-wallet-address"] as string;
+      const walletAddress = getPlayerId(req);
 
-      if (!walletAddress) {
-        return res.status(401).json({ error: "Wallet address required" });
-      }
       if (lat == null || lng == null) {
         return res.status(400).json({ error: "lat/lng required" });
       }
@@ -448,11 +452,8 @@ export function registerNodeRoutes(app: Express) {
     try {
       const lat = parseFloat(req.query.lat as string);
       const lng = parseFloat(req.query.lng as string);
-      const walletAddress = req.headers["x-wallet-address"] as string;
+      const walletAddress = getPlayerId(req);
 
-      if (!walletAddress) {
-        return res.status(401).json({ error: "Wallet address required" });
-      }
       if (isNaN(lat) || isNaN(lng)) {
         return res.status(400).json({ error: "lat/lng required" });
       }
@@ -521,11 +522,8 @@ export function registerNodeRoutes(app: Express) {
   app.post("/api/nodes/reserve", async (req: Request, res: Response) => {
     try {
       const { nodeId, lat, lng } = req.body;
-      const walletAddress = req.headers["x-wallet-address"] as string;
+      const walletAddress = getPlayerId(req);
 
-      if (!walletAddress) {
-        return res.status(401).json({ error: "Wallet address required" });
-      }
       if (!nodeId) {
         return res.status(400).json({ error: "nodeId required" });
       }
@@ -610,11 +608,8 @@ export function registerNodeRoutes(app: Express) {
   app.post("/api/nodes/arrive", async (req: Request, res: Response) => {
     try {
       const { reservationId, lat, lng } = req.body;
-      const walletAddress = req.headers["x-wallet-address"] as string;
+      const walletAddress = getPlayerId(req);
 
-      if (!walletAddress) {
-        return res.status(401).json({ error: "Wallet address required" });
-      }
       if (!reservationId) {
         return res.status(400).json({ error: "reservationId required" });
       }
@@ -675,11 +670,7 @@ export function registerNodeRoutes(app: Express) {
   app.post("/api/nodes/collect", async (req: Request, res: Response) => {
     try {
       const { reservationId, nodeId } = req.body;
-      const walletAddress = req.headers["x-wallet-address"] as string;
-
-      if (!walletAddress) {
-        return res.status(401).json({ error: "Wallet address required" });
-      }
+      const walletAddress = getPlayerId(req);
 
       const targetId = reservationId || null;
       const now = new Date();
