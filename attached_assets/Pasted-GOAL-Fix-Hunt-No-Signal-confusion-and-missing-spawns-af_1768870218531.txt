@@ -1,0 +1,96 @@
+GOAL:
+Fix Hunt “No Signal” confusion and missing spawns after security hardening by:
+1) Separating GPS status from Server/Auth status
+2) Ensuring ALL hunt API calls use apiRequest() (Bearer token)
+3) Adding a small debug overlay (dev-only) showing: GPS age, accuracy, last /api/hunt/spawns status, spawn counts
+4) Making the GPS pill driven by actual location timestamps (NOT by server responses)
+5) Preventing silent failures: if /api/hunt/spawns gets 401/429 show a clear banner instead of empty state
+
+DO NOT:
+- Change DB schema
+- Change spawn generation logic
+- Change security rules (requireAuth stays)
+Only client fixes + better diagnostics + ensure correct request helper usage.
+
+FILES TO EDIT:
+- client/screens/HuntScreen.tsx
+- client/context/HuntContext.tsx
+- client/lib/query-client.ts (only if needed)
+- client/context/AuthContext.tsx (only if needed to ensure token saved)
+- client/components/hunt/HuntStatusPill.tsx (if exists) OR wherever the GPS pill is rendered
+- (NEW) client/components/hunt/HuntDebugOverlay.tsx
+
+STEP 1 — Make GPS status correct (freshness-based):
+In HuntScreen.tsx (or wherever watchPositionAsync callback is):
+- Track:
+  const [lastGpsTs, setLastGpsTs] = useState<number | null>(null);
+  const [gpsAcc, setGpsAcc] = useState<number | null>(null);
+
+On every newLocation from watchPositionAsync:
+- setLastGpsTs(newLocation.timestamp ?? Date.now());
+- setGpsAcc(newLocation.coords.accuracy ?? null);
+
+Create helper:
+function getGpsLabel(lastGpsTs: number|null, acc: number|null) {
+  if (!lastGpsTs) return { label: "No Signal", color: "danger" };
+  const ageSec = (Date.now() - lastGpsTs) / 1000;
+  if (ageSec > 30) return { label: `No Signal ${Math.round(ageSec/60)}m`, color: "danger" };
+  if (acc == null) return { label: "GPS…", color: "warning" };
+  if (acc <= 20) return { label: `Excellent ${Math.round(ageSec)}s`, color: "good" };
+  if (acc <= 50) return { label: `Good ${Math.round(ageSec)}s`, color: "good" };
+  if (acc <= 100) return { label: `Fair ${Math.round(ageSec)}s`, color: "warning" };
+  return { label: `Weak ${Math.round(ageSec)}s`, color: "warning" };
+}
+
+Use this for the pill. This makes “No Signal” ONLY mean “no recent GPS update”, not “server failed”.
+
+STEP 2 — Ensure ALL Hunt endpoints use apiRequest (Bearer token):
+Search for any of these routes using raw fetch:
+- "/api/hunt/location"
+- "/api/hunt/spawns"
+- "/api/hunt/catch"
+- "/api/hunt/phase1/claim-spawn"
+Replace raw fetch with apiRequest.
+Important: HuntContext.updateLocation MUST call apiRequest, not fetch.
+If updateLocation currently posts walletAddress, keep payload but it’s ignored server-side; do not depend on it.
+
+STEP 3 — Add Server/Auth status tracking for spawns:
+In HuntContext.tsx useQuery queryFn, capture:
+- lastSpawnsHttpStatus
+- lastSpawnsErrorCode (401, 429, etc)
+- lastSpawnsFetchTs
+Store in state:
+  const [serverStatus, setServerStatus] = useState<{status:number|null, ts:number|null, error?:string|null}>({status:null, ts:null, error:null});
+
+When response not ok:
+- read status code
+- setServerStatus({status: response.status, ts: Date.now(), error: "SPAWNS_FETCH_FAILED"});
+- If 401, show banner in UI: “Session expired — please relog”
+- If 429, show banner: “Rate limited — retry in a bit”
+Do NOT set spawns to empty silently unless you also show banner.
+
+STEP 4 — Add Dev Debug Overlay (only in development):
+Create client/components/hunt/HuntDebugOverlay.tsx that shows a small translucent box at bottom-left with:
+- GPS age sec, accuracy
+- last spawns status + age
+- spawns count + quest spawns count
+- playerLocation lat/lng shortened
+
+Render only when:
+- __DEV__ is true OR process.env.EXPO_PUBLIC_SHOW_HUNT_DEBUG === "1"
+
+STEP 5 — Fix “No spawns in radius” mismatch UX:
+If spawns are outside radius, show small hint once:
+“Try moving a bit — some eggs are just outside your catch radius.”
+Do NOT change spawn placement logic.
+
+VERIFICATION:
+1) Turn off Wi-Fi, keep GPS: pill should still show GPS status; server banner may show fetch failed.
+2) If token missing/expired: /api/hunt/spawns returns 401 and banner shows “Session expired”.
+3) If GPS updates stop: pill shows No Signal after 30s; debug overlay shows GPS age climbing.
+4) With good GPS + 200 spawns: you should see spawns and correct counts.
+
+After implementing:
+- Provide a summary of all hunt endpoints confirmed using apiRequest
+- Confirm where the token is stored (SecureStore key roachy_auth_token)
+- Ensure no TypeScript errors.

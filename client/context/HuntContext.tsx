@@ -183,6 +183,12 @@ interface HatchResult {
   error?: string;
 }
 
+export interface SpawnsServerStatus {
+  status: number | null;
+  ts: number | null;
+  error: string | null;
+}
+
 interface HuntContextType {
   walletAddress: string;
   playerLocation: { latitude: number; longitude: number; heading?: number } | null;
@@ -190,6 +196,7 @@ interface HuntContextType {
   questSpawns: Spawn[];
   spawnsFetching: boolean;
   spawnsLoaded: boolean;
+  spawnsServerStatus: SpawnsServerStatus;
   huntMeta: HuntMeta | null;
   economy: EconomyStats | null;
   phaseIStats: PhaseIStats | null;
@@ -370,6 +377,11 @@ export function HuntProvider({ children }: HuntProviderProps) {
 
   const [huntMeta, setHuntMeta] = useState<HuntMeta | null>(null);
   const [questSpawns, setQuestSpawns] = useState<Spawn[]>([]);
+  const [spawnsServerStatus, setSpawnsServerStatus] = useState<SpawnsServerStatus>({
+    status: null,
+    ts: null,
+    error: null,
+  });
 
   const {
     data: spawnsData,
@@ -392,6 +404,24 @@ export function HuntProvider({ children }: HuntProviderProps) {
       try {
         // Use apiRequest to automatically include Authorization Bearer token
         const response = await apiRequest("GET", route);
+        
+        // Track server status for diagnostics
+        if (!response.ok) {
+          const errorCode = response.status;
+          let errorMsg = "SPAWNS_FETCH_FAILED";
+          if (errorCode === 401) errorMsg = "SESSION_EXPIRED";
+          else if (errorCode === 429) errorMsg = "RATE_LIMITED";
+          
+          console.log(`Spawns fetch failed with status ${errorCode}`);
+          setSpawnsServerStatus({ status: errorCode, ts: Date.now(), error: errorMsg });
+          setHuntMeta(null);
+          setQuestSpawns([]);
+          return [];
+        }
+        
+        // Success - clear error state
+        setSpawnsServerStatus({ status: 200, ts: Date.now(), error: null });
+        
         const data = await response.json();
         console.log("Spawns response:", data?.spawns?.length || 0, "spawns, meta:", data?.meta);
         
@@ -423,8 +453,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
         }));
         console.log("Mapped spawns:", mappedSpawns.length);
         return mappedSpawns;
-      } catch (error) {
+      } catch (error: any) {
         console.log("Spawns fetch failed:", error);
+        setSpawnsServerStatus({ status: null, ts: Date.now(), error: error?.message || "NETWORK_ERROR" });
         setHuntMeta(null);
         setQuestSpawns([]);
         return [];
@@ -857,6 +888,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         questSpawns,
         spawnsFetching,
         spawnsLoaded,
+        spawnsServerStatus,
         huntMeta,
         economy: economyData || null,
         phaseIStats: phaseIData || null,

@@ -45,6 +45,7 @@ import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
 import { HuntCoachmarks } from "@/components/hunt/HuntCoachmarks";
 import { HuntHelpSheet, HelpSheetData } from "@/components/hunt/HuntHelpSheet";
 import { HuntFaqModal } from "@/components/hunt/HuntFaqModal";
+import { HuntDebugOverlay } from "@/components/hunt/HuntDebugOverlay";
 import {
   isOnboardingCompleted,
   setOnboardingCompleted,
@@ -54,7 +55,29 @@ import {
   markQuestKeySeen,
   formatSeconds,
 } from "@/lib/huntGuides";
-import { useHunt, Spawn, CaughtCreature, Egg, Raid } from "@/context/HuntContext";
+import { useHunt, Spawn, CaughtCreature, Egg, Raid, SpawnsServerStatus } from "@/context/HuntContext";
+
+// GPS status helper - driven by actual location timestamps, NOT server responses
+function getGpsLabel(lastGpsTs: number | null, acc: number | null): { label: string; color: "good" | "warning" | "danger" } {
+  if (!lastGpsTs) return { label: "No Signal", color: "danger" };
+  const ageSec = (Date.now() - lastGpsTs) / 1000;
+  if (ageSec > 30) return { label: `No Signal ${Math.round(ageSec / 60)}m`, color: "danger" };
+  if (acc == null) return { label: "GPS...", color: "warning" };
+  if (acc <= 20) return { label: `Excellent ${Math.round(ageSec)}s`, color: "good" };
+  if (acc <= 50) return { label: `Good ${Math.round(ageSec)}s`, color: "good" };
+  if (acc <= 100) return { label: `Fair ${Math.round(ageSec)}s`, color: "warning" };
+  return { label: `Weak ${Math.round(ageSec)}s`, color: "warning" };
+}
+
+// Server error message helper
+function getServerErrorMessage(status: SpawnsServerStatus): string | null {
+  if (!status.error) return null;
+  if (status.error === "SESSION_EXPIRED") return "Session expired — please log in again";
+  if (status.error === "RATE_LIMITED") return "Rate limited — retry in a bit";
+  if (status.error === "NETWORK_ERROR") return "Network error — check your connection";
+  return "Failed to load spawns";
+}
+
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
 import { useMapNodes, useReserveNode, MapNode } from "@/hooks/useMapNodes";
@@ -134,6 +157,7 @@ export default function HuntScreen() {
     questSpawns,
     spawnsFetching,
     spawnsLoaded,
+    spawnsServerStatus,
     huntMeta,
     economy,
     phaseIStats,
@@ -410,6 +434,7 @@ export default function HuntScreen() {
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsStale, setGpsStale] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [lastGpsTimestamp, setLastGpsTimestamp] = useState<number | null>(null);
 
   const bestAccuracyRef = useRef<number>(Infinity);
   const lastLocationUpdateRef = useRef<number>(Date.now());
@@ -486,6 +511,7 @@ export default function HuntScreen() {
           hasInitialLocation = true;
           bestAccuracyRef.current = accuracy;
           lastLocationUpdateRef.current = Date.now();
+          setLastGpsTimestamp(quickLocation.timestamp ?? Date.now());
           setGpsAccuracy(accuracy);
           setGpsStale(false);
           updateLocation(
@@ -518,6 +544,7 @@ export default function HuntScreen() {
           const ts = newLocation.timestamp ?? Date.now();
 
           lastLocationUpdateRef.current = Date.now();
+          setLastGpsTimestamp(ts);
           setGpsAccuracy(accuracy);
           setGpsStale(false);
 
@@ -1757,6 +1784,16 @@ export default function HuntScreen() {
         </View>
       ) : null}
 
+      {/* Server/Auth error banner */}
+      {spawnsServerStatus.error && (
+        <View style={styles.serverErrorBanner}>
+          <Feather name="wifi-off" size={16} color="#EF4444" />
+          <ThemedText style={styles.serverErrorText}>
+            {getServerErrorMessage(spawnsServerStatus)}
+          </ThemedText>
+        </View>
+      )}
+
       {renderEconomyPanel()}
 
       {/* Guide help buttons */}
@@ -2068,6 +2105,19 @@ export default function HuntScreen() {
         data={helpSheetData}
       />
       <HuntFaqModal visible={showFaq} onClose={() => setShowFaq(false)} />
+
+      {/* Dev debug overlay */}
+      <HuntDebugOverlay
+        gpsAgeMs={lastGpsTimestamp ? Date.now() - lastGpsTimestamp : null}
+        gpsAccuracy={gpsAccuracy}
+        spawnsStatus={spawnsServerStatus.status}
+        spawnsAgeMs={spawnsServerStatus.ts ? Date.now() - spawnsServerStatus.ts : null}
+        spawnsCount={spawns.length}
+        questSpawnsCount={questSpawns.length}
+        playerLat={playerLocation?.latitude ?? null}
+        playerLng={playerLocation?.longitude ?? null}
+        serverError={spawnsServerStatus.error}
+      />
     </View>
   );
 }
@@ -2091,6 +2141,23 @@ const styles = StyleSheet.create({
   errorText: {
     color: "#F59E0B",
     fontSize: 12,
+  },
+  serverErrorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: "#EF4444",
+  },
+  serverErrorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    flex: 1,
   },
   guideButtonsRow: {
     flexDirection: "row",
