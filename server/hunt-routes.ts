@@ -1736,9 +1736,11 @@ export function registerHuntRoutes(app: Express) {
 
   // Miss endpoint - player failed to tap the egg, spawn is removed
   app.post("/api/hunt/miss", async (req: Request, res: Response) => {
+    console.log("[Hunt] MISS endpoint hit, body:", req.body);
     try {
       const { spawnId } = req.body;
       const walletAddress = getPlayerId(req);
+      console.log("[Hunt] MISS for wallet:", walletAddress, "spawnId:", spawnId);
       
       if (!spawnId) {
         return res.status(400).json({ error: "Missing spawnId" });

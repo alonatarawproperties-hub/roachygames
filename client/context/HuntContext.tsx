@@ -699,16 +699,20 @@ export function HuntProvider({ children }: HuntProviderProps) {
   }, [playerLocation, queryClient]);
 
   const missSpawn = useCallback(async (spawnId: string): Promise<boolean> => {
+    console.log("[HuntContext] missSpawn called for:", spawnId);
     try {
+      console.log("[HuntContext] Making API request to /api/hunt/miss");
       const response = await apiRequest("POST", "/api/hunt/miss", { spawnId });
+      console.log("[HuntContext] Got response from miss API");
       const data = await response.json();
+      console.log("[HuntContext] Miss API response:", data);
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
         return true;
       }
       return false;
     } catch (error) {
-      console.error("Failed to mark spawn as missed:", error);
+      console.error("[HuntContext] Failed to mark spawn as missed:", error);
       return false;
     }
   }, [queryClient]);
