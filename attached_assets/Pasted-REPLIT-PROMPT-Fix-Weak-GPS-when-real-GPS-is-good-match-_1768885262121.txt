@@ -1,0 +1,110 @@
+REPLIT PROMPT — Fix “Weak GPS” when real GPS is good (match Google Maps behavior)
+
+Context
+- In client/screens/HuntScreen.tsx we watchPositionAsync with BestForNavigation.
+- We currently reject updates when:
+  - accuracy > MAX_BAD_ACCURACY (65m)
+  - distM > MAX_JUMP (teleport gate)
+  - distM < STATIONARY_DIST (jitter)
+  - distM < MIN_MOVE_TO_UPDATE (needs >=8m)
+- gpsWeak is shown if raw GPS is alive but accepted points are stale.
+Problem: even outdoors, iOS can report good accuracy but small jitter and small movement; our filters reject too many points, so accepted updates stall → gpsWeak.
+
+Goal
+- Keep anti-teleport protection
+- BUT accept “stationary” updates (no movement) periodically like Maps does
+- Smooth position using a Kalman-lite / EMA filter so marker doesn’t jump
+- Use “accuracy-aware thresholds”: be stricter only when accuracy is bad
+- Add debug logs to confirm when we reject and why
+
+Implementation Plan (do exactly)
+
+A) Add smoothing + “heartbeat accept”
+In HuntScreen.tsx inside watchPosition callback:
+1) Track a smoothed position ref:
+   - lastSmoothedRef = { lat, lng }
+2) Apply an EMA (exponential moving average) to raw coords:
+   - alpha depends on accuracy:
+     - if accuracy <= 10 → alpha = 0.25 (smooth more)
+     - if accuracy <= 25 → alpha = 0.35
+     - if accuracy <= 50 → alpha = 0.45
+     - else alpha = 0.60 (don’t over-smooth when accuracy is worse)
+   newSmoothed = alpha*raw + (1-alpha)*prevSmoothed
+3) Use smoothed coords for “accepted movement” checks and for updateLocation() calls.
+
+4) Heartbeat accept rule:
+   - Even if player is stationary and dist < MIN_MOVE_TO_UPDATE,
+     accept a location update at least every 8 seconds IF accuracy is good (<=25m).
+   This matches how Maps keeps your dot “fresh” even without moving.
+
+B) Make thresholds accuracy-aware (big impact)
+Replace fixed constants with dynamic ones:
+- MAX_BAD_ACCURACY:
+  - if user is outdoors, allow up to 80m but label changes
+  - acceptance gate should be:
+    - if accuracy > 120 → reject (truly bad)
+    - else accept but may mark gpsWeak if not good
+- MIN_MOVE_TO_UPDATE:
+  - if accuracy <= 15 → 4m
+  - if accuracy <= 30 → 6m
+  - else → 10m
+- STATIONARY_DIST:
+  - set to max(4m, accuracy*0.25) clamped to 12m
+This prevents rejecting tiny jitter when accuracy is high.
+
+C) Teleport gate should use “speed with buffer”, not just dist
+Currently: if dist > MAX_JUMP reject.
+Change to:
+- speed = distM / dtSec
+- if speed > 12 m/s (43kph) → reject (still blocks teleport)
+- else accept, BUT clamp movement:
+  - if speed > 6 m/s and accuracy > 50 → reject (fast + inaccurate = suspicious)
+This avoids falsely rejecting when timestamps are weird or dtSec is tiny.
+
+D) Update accepted tick based on ACCEPTED (already fixed), but ensure accepted can happen while stationary (heartbeat)
+When heartbeat accept triggers, update lastAcceptedRef + lastAcceptedTickRef.
+
+E) Improve iOS location settings
+When calling watchPositionAsync, adjust:
+- accuracy: BestForNavigation (keep)
+- timeInterval: 1000 (from 2000)
+- distanceInterval: 1 (from 5)  // gives smoother stream, we handle filtering
+Also ensure:
+- Location.setGoogleApiKey is not needed for Apple Maps
+- On iOS, Location.enableNetworkProviderAsync doesn’t apply; ok.
+
+F) Add debug reasons (temporary)
+Add a debug counter/ref:
+- rejectedPoorAcc++
+- rejectedTeleport++
+- rejectedJitter++
+- acceptedHeartbeat++
+- acceptedMove++
+Log every 20 ticks:
+console.log("[GPS]", { acc, dtSec, distM, speed, accepted: reason, counts })
+
+G) Server tolerance (small)
+Server anti-teleport currently rejects >80m accuracy etc.
+Do NOT loosen security too much. Just ensure “heartbeat accepted” doesn’t get blocked:
+- /api/hunt/location should accept stationary updates; it already does.
+- If server has a “min move” check, remove it (server should not require movement).
+- Keep server teleport gate strict (speed based) and compare against last accepted sample.
+
+Files to modify
+- client/screens/HuntScreen.tsx (main)
+- optionally: client/components/MapViewWrapper.tsx only if you want label tweaks (not required)
+
+After changes, test checklist
+1) Stand outside, don’t move:
+   - badge should become Good/Excellent, NOT Weak
+   - accepted updates should occur every <=8s
+2) Walk a few meters:
+   - marker should move smoothly, no jumping
+3) Simulate teleport (change mock coords):
+   - should still reject
+4) Indoors:
+   - should show Weak (expected)
+
+Important: keep gameplay logic untouched; only GPS sampling/filtering.
+
+Now implement.
