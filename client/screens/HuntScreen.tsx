@@ -472,6 +472,20 @@ export default function HuntScreen() {
     ts: number;
     accuracy: number;
   } | null>(null);
+  
+  // Smoothed position for EMA filtering
+  const lastSmoothedRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Last heartbeat accept timestamp (for stationary updates)
+  const lastHeartbeatTickRef = useRef<number>(0);
+  // Debug counters for GPS rejection reasons
+  const gpsDebugRef = useRef({
+    rejectedPoorAcc: 0,
+    rejectedTeleport: 0,
+    rejectedJitter: 0,
+    acceptedHeartbeat: 0,
+    acceptedMove: 0,
+    totalTicks: 0,
+  });
 
   function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371000;
@@ -576,8 +590,8 @@ export default function HuntScreen() {
       locationSubscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 2000,
-          distanceInterval: 5,
+          timeInterval: 1000,  // More frequent updates for smoother tracking
+          distanceInterval: 1, // Let our filter handle distance, get raw stream
         },
         (newLocation) => {
           if (!isMountedRef.current) return;
@@ -585,70 +599,136 @@ export default function HuntScreen() {
           const coords = newLocation.coords;
           const accuracy = coords.accuracy ?? 999;
           const ts = newLocation.timestamp ?? Date.now();
+          const now = Date.now();
 
           setLastRawGpsTs(ts);
-          lastRawTickRef.current = Date.now();
+          lastRawTickRef.current = now;
           setGpsAccuracy(accuracy);
 
-          const lat = coords.latitude;
-          const lng = coords.longitude;
+          const rawLat = coords.latitude;
+          const rawLng = coords.longitude;
+          
+          gpsDebugRef.current.totalTicks++;
+
+          // === ACCURACY-AWARE THRESHOLDS ===
+          // Reject truly bad accuracy (>120m is unusable)
+          if (accuracy > 120) {
+            gpsDebugRef.current.rejectedPoorAcc++;
+            return;
+          }
+
+          // Dynamic thresholds based on accuracy
+          const minMoveToUpdate = accuracy <= 15 ? 4 : accuracy <= 30 ? 6 : 10;
+          const stationaryDist = Math.min(12, Math.max(4, accuracy * 0.25));
+          const HEARTBEAT_INTERVAL_MS = 8000; // Accept stationary update every 8s
+
+          // === EMA SMOOTHING ===
+          // Alpha depends on accuracy: smoother when accuracy is better
+          const alpha = accuracy <= 10 ? 0.25 : accuracy <= 25 ? 0.35 : accuracy <= 50 ? 0.45 : 0.60;
+          
+          let smoothedLat: number;
+          let smoothedLng: number;
+          
+          if (!lastSmoothedRef.current) {
+            // First point - no smoothing
+            smoothedLat = rawLat;
+            smoothedLng = rawLng;
+          } else {
+            // Apply EMA: newSmoothed = alpha*raw + (1-alpha)*prev
+            smoothedLat = alpha * rawLat + (1 - alpha) * lastSmoothedRef.current.lat;
+            smoothedLng = alpha * rawLng + (1 - alpha) * lastSmoothedRef.current.lng;
+          }
+          lastSmoothedRef.current = { lat: smoothedLat, lng: smoothedLng };
 
           // Always accept the very first fix
           if (!lastAcceptedRef.current) {
-            lastAcceptedRef.current = { lat, lng, ts, accuracy };
+            lastAcceptedRef.current = { lat: smoothedLat, lng: smoothedLng, ts, accuracy };
+            lastHeartbeatTickRef.current = now;
             hasInitialLocation = true;
 
             setLastAcceptedGpsTs(ts);
-            lastAcceptedTickRef.current = Date.now();
+            lastAcceptedTickRef.current = now;
             const heading = coords.heading;
             updateLocation(
-              lat,
-              lng,
+              smoothedLat,
+              smoothedLng,
               heading !== null && heading >= 0 ? heading : undefined
             );
+            gpsDebugRef.current.acceptedMove++;
             return;
           }
 
           const prev = lastAcceptedRef.current;
-          const dtSec = Math.max(0.5, (ts - prev.ts) / 1000);
-          const distM = haversineMeters(prev.lat, prev.lng, lat, lng);
+          const dtSec = Math.max(0.1, (ts - prev.ts) / 1000);
+          const distM = haversineMeters(prev.lat, prev.lng, smoothedLat, smoothedLng);
+          const speed = distM / dtSec; // m/s
 
-          // Tunables (by-foot game)
-          const MAX_BAD_ACCURACY = 65;     // ignore readings worse than this
-          const STATIONARY_DIST = 6;       // within 6m treated as still (jitter)
-          const MIN_MOVE_TO_UPDATE = 8;    // must move >= 8m to update
-          const MAX_SPEED_MPS = 8;         // blocks teleports (8 m/s ~ 28.8kph)
-          const MAX_JUMP_BASE = 35;        // allow slightly more if dt is large
-          const MAX_JUMP = Math.max(MAX_JUMP_BASE, MAX_SPEED_MPS * dtSec);
+          // === SPEED-BASED TELEPORT DETECTION ===
+          // Reject if speed > 12 m/s (43 kph) - impossible on foot
+          if (speed > 12) {
+            gpsDebugRef.current.rejectedTeleport++;
+            return;
+          }
+          // Reject fast + inaccurate (suspicious)
+          if (speed > 6 && accuracy > 50) {
+            gpsDebugRef.current.rejectedTeleport++;
+            return;
+          }
 
-          // 1) Reject poor accuracy readings (prevents WiFi bounce)
-          if (accuracy > MAX_BAD_ACCURACY) return;
+          // === HEARTBEAT ACCEPT (for stationary users) ===
+          const timeSinceHeartbeat = now - lastHeartbeatTickRef.current;
+          const isHeartbeatDue = timeSinceHeartbeat >= HEARTBEAT_INTERVAL_MS && accuracy <= 25;
 
-          // 2) Reject teleports (too far for the time elapsed)
-          if (distM > MAX_JUMP) return;
-
-          // 3) If stationary, ignore jitter unless accuracy improves significantly
+          // === MOVEMENT CHECK ===
           const accuracyImprovedALot = accuracy + 10 < prev.accuracy;
-          if (distM < STATIONARY_DIST && !accuracyImprovedALot) return;
+          const isStationary = distM < stationaryDist;
+          const isMinimalMove = distM < minMoveToUpdate;
 
-          // 4) Only update when movement is meaningful OR accuracy improved a lot
-          if (distM < MIN_MOVE_TO_UPDATE && !accuracyImprovedALot) return;
+          // Reject jitter if stationary and no heartbeat due
+          if (isStationary && !accuracyImprovedALot && !isHeartbeatDue) {
+            gpsDebugRef.current.rejectedJitter++;
+            return;
+          }
 
-          // Accept this fix
-          lastAcceptedRef.current = { lat, lng, ts, accuracy };
+          // Reject minimal movement unless accuracy improved or heartbeat due
+          if (isMinimalMove && !accuracyImprovedALot && !isHeartbeatDue) {
+            gpsDebugRef.current.rejectedJitter++;
+            return;
+          }
+
+          // === ACCEPT THIS FIX ===
+          lastAcceptedRef.current = { lat: smoothedLat, lng: smoothedLng, ts, accuracy };
           hasInitialLocation = true;
 
           setLastAcceptedGpsTs(ts);
-          lastAcceptedTickRef.current = Date.now();
+          lastAcceptedTickRef.current = now;
+
+          if (isHeartbeatDue || isStationary) {
+            lastHeartbeatTickRef.current = now;
+            gpsDebugRef.current.acceptedHeartbeat++;
+          } else {
+            gpsDebugRef.current.acceptedMove++;
+          }
 
           if (accuracy < bestAccuracyRef.current) {
             bestAccuracyRef.current = accuracy;
           }
 
+          // Debug log every 20 ticks
+          if (gpsDebugRef.current.totalTicks % 20 === 0) {
+            console.log("[GPS]", {
+              acc: Math.round(accuracy),
+              dtSec: dtSec.toFixed(1),
+              distM: distM.toFixed(1),
+              speed: speed.toFixed(1),
+              counts: { ...gpsDebugRef.current },
+            });
+          }
+
           const heading = coords.heading;
           updateLocation(
-            lat,
-            lng,
+            smoothedLat,
+            smoothedLng,
             heading !== null && heading >= 0 ? heading : undefined
           );
         }
