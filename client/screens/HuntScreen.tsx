@@ -447,10 +447,12 @@ export default function HuntScreen() {
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsStale, setGpsStale] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [lastGpsTimestamp, setLastGpsTimestamp] = useState<number | null>(null);
+  const [lastRawGpsTs, setLastRawGpsTs] = useState<number | null>(null);
+  const [lastAcceptedGpsTs, setLastAcceptedGpsTs] = useState<number | null>(null);
 
   const bestAccuracyRef = useRef<number>(Infinity);
-  const lastLocationUpdateRef = useRef<number>(Date.now());
+  const lastRawTickRef = useRef<number>(0);
+  const lastAcceptedTickRef = useRef<number>(0);
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef(true);
   const lastAcceptedRef = useRef<{
@@ -471,15 +473,29 @@ export default function HuntScreen() {
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // Detect stale GPS (no updates for 15 seconds)
+  // Detect stale GPS (no ACCEPTED updates for 15 seconds)
   useEffect(() => {
     const staleCheckInterval = setInterval(() => {
-      const timeSinceUpdate = Date.now() - lastLocationUpdateRef.current;
-      const isStale = timeSinceUpdate > 15000;
+      const lastAccepted = lastAcceptedTickRef.current;
+      const isStale = !lastAccepted || (Date.now() - lastAccepted) > 15000;
       setGpsStale(isStale);
     }, 5000);
     return () => clearInterval(staleCheckInterval);
   }, []);
+
+  const gpsNoSignal = useMemo(() => {
+    if (permissionDenied) return true;
+    const lastRaw = lastRawTickRef.current;
+    if (!lastRaw) return true;
+    return (Date.now() - lastRaw) > 30000;
+  }, [permissionDenied, lastRawGpsTs]);
+
+  const gpsWeak = useMemo(() => {
+    if (gpsNoSignal) return false;
+    const lastAccepted = lastAcceptedTickRef.current;
+    if (!lastAccepted) return true;
+    return (Date.now() - lastAccepted) > 15000;
+  }, [gpsNoSignal, lastAcceptedGpsTs]);
 
   const startLocationTracking = useCallback(async () => {
     let hasInitialLocation = false;
@@ -520,13 +536,16 @@ export default function HuntScreen() {
         if (isMountedRef.current && quickLocation && !hasInitialLocation) {
           const heading = quickLocation.coords.heading;
           const accuracy = quickLocation.coords.accuracy ?? 100;
+          const rawTs = quickLocation.timestamp ?? Date.now();
+          
+          setLastRawGpsTs(rawTs);
+          lastRawTickRef.current = Date.now();
+          setGpsAccuracy(accuracy);
           
           hasInitialLocation = true;
           bestAccuracyRef.current = accuracy;
-          lastLocationUpdateRef.current = Date.now();
-          setLastGpsTimestamp(quickLocation.timestamp ?? Date.now());
-          setGpsAccuracy(accuracy);
-          setGpsStale(false);
+          setLastAcceptedGpsTs(rawTs);
+          lastAcceptedTickRef.current = Date.now();
           updateLocation(
             quickLocation.coords.latitude, 
             quickLocation.coords.longitude,
@@ -556,10 +575,9 @@ export default function HuntScreen() {
           const accuracy = coords.accuracy ?? 999;
           const ts = newLocation.timestamp ?? Date.now();
 
-          lastLocationUpdateRef.current = Date.now();
-          setLastGpsTimestamp(ts);
+          setLastRawGpsTs(ts);
+          lastRawTickRef.current = Date.now();
           setGpsAccuracy(accuracy);
-          setGpsStale(false);
 
           const lat = coords.latitude;
           const lng = coords.longitude;
@@ -569,6 +587,8 @@ export default function HuntScreen() {
             lastAcceptedRef.current = { lat, lng, ts, accuracy };
             hasInitialLocation = true;
 
+            setLastAcceptedGpsTs(ts);
+            lastAcceptedTickRef.current = Date.now();
             const heading = coords.heading;
             updateLocation(
               lat,
@@ -606,6 +626,9 @@ export default function HuntScreen() {
           // Accept this fix
           lastAcceptedRef.current = { lat, lng, ts, accuracy };
           hasInitialLocation = true;
+
+          setLastAcceptedGpsTs(ts);
+          lastAcceptedTickRef.current = Date.now();
 
           if (accuracy < bestAccuracyRef.current) {
             bestAccuracyRef.current = accuracy;
@@ -1362,7 +1385,8 @@ export default function HuntScreen() {
           nearbyPlayers={nearbyPlayers}
           questMarker={questMarker}
           gpsAccuracy={gpsAccuracy}
-          hasLocationError={!!locationError || permissionDenied || gpsStale}
+          gpsNoSignal={!!locationError || gpsNoSignal}
+          gpsWeak={gpsWeak}
           isVisible={isVisible}
           reservedByMe={reservedByMe}
           onToggleVisibility={() => setVisibility(!isVisible)}
@@ -2121,7 +2145,7 @@ export default function HuntScreen() {
 
       {/* Dev debug overlay */}
       <HuntDebugOverlay
-        gpsAgeMs={lastGpsTimestamp ? Date.now() - lastGpsTimestamp : null}
+        gpsAgeMs={lastRawGpsTs ? Date.now() - lastRawGpsTs : null}
         gpsAccuracy={gpsAccuracy}
         spawnsStatus={spawnsServerStatus.status}
         spawnsAgeMs={spawnsServerStatus.ts ? Date.now() - spawnsServerStatus.ts : null}

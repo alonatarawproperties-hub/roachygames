@@ -1,0 +1,154 @@
+TASK: Fix GPS badge + “No Signal” bug correctly by separating RAW GPS signal vs ACCEPTED gameplay GPS updates.
+
+FILES:
+- client/screens/HuntScreen.tsx
+- client/components/MapViewWrapper.tsx
+
+CURRENT BUG:
+- MapViewWrapper shows “No Signal” when hasLocationError=true.
+- HuntScreen passes hasLocationError={!!locationError || permissionDenied || gpsStale}
+- gpsStale is driven by lastLocationUpdateRef which is updated even for filtered/invalid readings → badge flips to No Signal incorrectly and gameplay feels broken.
+
+GOAL:
+1) Track RAW GPS ticks (watchPosition callback firing)
+2) Track ACCEPTED GPS updates (when filters pass and we actually call updateLocation + update lastAcceptedRef)
+3) gpsStale must mean “no ACCEPTED location update for >15s”
+4) “No Signal” must mean “no RAW tick for >30s OR permission denied”
+5) MapViewWrapper badge should not rely on hasLocationError for everything; it should accept explicit booleans:
+   - gpsNoSignal (raw dead)
+   - gpsWeak (raw alive but accepted stale / filtered out)
+   - gpsAccuracy
+
+-----------------------------------
+A) HuntScreen.tsx changes
+-----------------------------------
+
+1) Add refs + state near your location state:
+- const [lastRawGpsTs, setLastRawGpsTs] = useState<number | null>(null);
+- const [lastAcceptedGpsTs, setLastAcceptedGpsTs] = useState<number | null>(null);
+
+- const lastRawTickRef = useRef<number>(0);       // Date.now() when last raw tick arrived
+- const lastAcceptedTickRef = useRef<number>(0);  // Date.now() when last accepted tick happened (updateLocation called)
+
+2) In quick initial location block:
+When quickLocation succeeds:
+- const rawTs = quickLocation.timestamp ?? Date.now();
+- setLastRawGpsTs(rawTs);
+- lastRawTickRef.current = Date.now();
+
+When you call updateLocation(...) from quickLocation:
+- setLastAcceptedGpsTs(rawTs);
+- lastAcceptedTickRef.current = Date.now();
+
+3) In watchPositionAsync callback:
+At the TOP of callback (every raw tick):
+- const ts = newLocation.timestamp ?? Date.now();
+- setLastRawGpsTs(ts);
+- lastRawTickRef.current = Date.now();
+- setGpsAccuracy(accuracy);
+- setGpsStale(false) should NOT be here anymore (remove)
+
+Then ONLY when you ACCEPT a location (the same branches where you set lastAcceptedRef.current and call updateLocation):
+Before calling updateLocation(...):
+- setLastAcceptedGpsTs(ts);
+- lastAcceptedTickRef.current = Date.now();
+
+Do this in:
+- the “first fix” block (!lastAcceptedRef.current)
+- the normal accepted update path after passing filters
+
+4) Replace gpsStale interval logic to use lastAcceptedTickRef:
+Existing interval uses lastLocationUpdateRef. Replace with:
+
+useEffect(() => {
+  const staleCheckInterval = setInterval(() => {
+    const lastAccepted = lastAcceptedTickRef.current;
+    const isStale = !lastAccepted || (Date.now() - lastAccepted) > 15000; // 15s
+    setGpsStale(isStale);
+  }, 5000);
+  return () => clearInterval(staleCheckInterval);
+}, []);
+
+5) Derive RAW “no signal” and “weak” flags:
+Add:
+
+const gpsNoSignal = useMemo(() => {
+  if (permissionDenied) return true;
+  const lastRaw = lastRawTickRef.current;
+  if (!lastRaw) return true;
+  return (Date.now() - lastRaw) > 30000; // 30s
+}, [permissionDenied, lastRawGpsTs]);
+
+const gpsWeak = useMemo(() => {
+  if (gpsNoSignal) return false;
+  const lastAccepted = lastAcceptedTickRef.current;
+  if (!lastAccepted) return true;
+  return (Date.now() - lastAccepted) > 15000; // 15s accepted stale
+}, [gpsNoSignal, lastAcceptedGpsTs]);
+
+NOTE: lastRawGpsTs/lastAcceptedGpsTs are used only to trigger memo re-eval.
+
+6) Update the MapViewWrapper props in HuntScreen:
+Currently:
+  gpsAccuracy={gpsAccuracy}
+  hasLocationError={!!locationError || permissionDenied || gpsStale}
+
+Change to:
+  gpsAccuracy={gpsAccuracy}
+  gpsNoSignal={!!locationError || gpsNoSignal}
+  gpsWeak={gpsWeak}
+
+Keep gpsStale for other UI logic if you want, but it should no longer directly force “No Signal” on the badge.
+
+-----------------------------------
+B) MapViewWrapper.tsx changes
+-----------------------------------
+
+1) Update getGpsStatusInfo signature and logic:
+
+Replace:
+function getGpsStatusInfo(accuracy, hasLocationError?)
+
+With:
+function getGpsStatusInfo(
+  accuracy: number | null | undefined,
+  gpsNoSignal?: boolean,
+  gpsWeak?: boolean
+): { label: string; color: string } {
+  if (gpsNoSignal) return { label: "No Signal", color: "#6B7280" };
+  if (gpsWeak) return { label: "Weak", color: "#F59E0B" };
+  if (!accuracy || accuracy > 100) return { label: "Poor", color: "#EF4444" };
+  if (accuracy > 50) return { label: "Fair", color: "#F59E0B" };
+  if (accuracy > 20) return { label: "Good", color: "#22C55E" };
+  return { label: "Excellent", color: "#10B981" };
+}
+
+2) Update usage:
+Replace:
+const gpsStatus = getGpsStatusInfo(gpsAccuracy, hasLocationError);
+
+With:
+const gpsStatus = getGpsStatusInfo(gpsAccuracy, gpsNoSignal, gpsWeak);
+
+3) Update MapViewWrapper props type:
+Add props:
+- gpsNoSignal?: boolean
+- gpsWeak?: boolean
+Keep existing gpsAccuracy.
+
+Remove/stop using hasLocationError for badge (you can keep prop if used elsewhere, but badge must use gpsNoSignal/gpsWeak).
+
+-----------------------------------
+TEST PLAN:
+1) Sit indoors with GPS jitter:
+- RAW ticks arrive → gpsNoSignal=false
+- If filters reject updates → gpsWeak=true and badge shows “Weak” (amber), not “No Signal”
+2) Turn off location services:
+- RAW ticks stop → after 30s gpsNoSignal=true and badge shows “No Signal”
+3) Walk outside:
+- Accepted updates happen → gpsWeak=false, badge shows Good/Excellent
+
+IMPORTANT:
+- Do NOT change any hunt spawn logic.
+- Only change the badge + stale detection correctness.
+- Ensure TypeScript compiles; update prop typings accordingly.
