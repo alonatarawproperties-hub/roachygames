@@ -1,0 +1,152 @@
+REPLIT AGENT PROMPT (ONE PROMPT ONLY)
+
+Bug:
+When user activates a quest (micro/hotdrop), the “Next Home Drop in …” countdown disappears.
+Expected:
+Home countdown should ALWAYS be visible when meta.home.nextTopUpInSec is not null, regardless of active quest.
+Quest banner should appear IN ADDITION (stacked below), not replace it.
+
+Why it happens:
+The UI likely does something like:
+if (questActive) show quest banner else show home countdown
+So activating quest hides home countdown.
+
+Task:
+Update HuntScreen.tsx (or the component that renders the “Area Cleared / Next Home Drop / Hot Drop Live” banner) so:
+1) Home countdown row always renders when meta.home.nextTopUpInSec != null
+2) Quest row renders when meta.quest.active (or meta.quest.active === true, depending on current meta shape)
+3) If both are present, show BOTH (stacked).
+4) Make countdown tick locally every second without waiting for server refresh (optional but recommended).
+
+Steps:
+
+A) Find the banner component
+- Search in client/screens/HuntScreen.tsx for:
+  - "Area Cleared"
+  - "Next Home Drop"
+  - "Hot Drop"
+  - "Quest Offers"
+  - "expiresInSec"
+  - "nextTopUpInSec"
+- Identify the block that currently conditionally renders either home countdown OR quest status.
+
+B) Add derived values
+Assume HuntContext stores huntMeta from /api/hunt/spawns response.
+We want to support BOTH meta shapes you used earlier:
+- Older example: meta.home.nextTopUpInSec
+- Quest may be meta.quest.active as object or meta.quest.active boolean.
+So handle safely.
+
+Add helpers near the banner render:
+
+const homeNextSec = huntMeta?.home?.nextTopUpInSec ?? null;
+
+// questActiveObj style:
+const questActiveObj = (huntMeta as any)?.quest?.active && typeof (huntMeta as any).quest.active === "object"
+  ? (huntMeta as any).quest.active
+  : null;
+
+// questMeta style:
+const questMeta = (huntMeta as any)?.quest && typeof (huntMeta as any).quest === "object" ? (huntMeta as any).quest : null;
+
+// Determine active quest in either format:
+const questIsActive =
+  !!questActiveObj ||
+  (!!questMeta?.active && (questMeta?.type || questMeta?.expiresInSec || questMeta?.lat || questMeta?.lng));
+
+C) Local ticking countdown (so it never “vanishes” due to refetch timing)
+Create state:
+const [homeCountdownSec, setHomeCountdownSec] = useState<number | null>(null);
+
+Sync when meta updates:
+useEffect(() => {
+  if (homeNextSec == null) {
+    setHomeCountdownSec(null);
+  } else {
+    setHomeCountdownSec(Math.max(0, Number(homeNextSec)));
+  }
+}, [homeNextSec]);
+
+Tick every second:
+useEffect(() => {
+  if (homeCountdownSec == null) return;
+  const t = setInterval(() => {
+    setHomeCountdownSec((s) => (s == null ? null : Math.max(0, s - 1)));
+  }, 1000);
+  return () => clearInterval(t);
+}, [homeCountdownSec != null]);
+
+Format helper:
+const formatMMSS = (sec: number) => {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+};
+
+D) Replace mutually-exclusive rendering with stacked rendering
+
+In the banner UI, make it:
+
+1) Always show home countdown row when homeCountdownSec != null AND homeCountdownSec > 0
+(If 0, you can show “Home Drop ready” or hide.)
+
+2) If quest is active, show quest row below it.
+
+Pseudo JSX:
+
+<View style={styles.areaCard}>
+  <View style={styles.areaHeaderRow}>
+    <Feather name="check-circle" ... />
+    <ThemedText>Area Cleared</ThemedText>
+  </View>
+
+  {homeCountdownSec != null && homeCountdownSec > 0 && (
+    <View style={styles.row}>
+      <Feather name="clock" ... />
+      <ThemedText>
+        Next Home Drop in: {formatMMSS(homeCountdownSec)}
+      </ThemedText>
+    </View>
+  )}
+
+  {questIsActive && (
+    <View style={styles.questRow}>
+      // If questActiveObj exists, use its fields:
+      // type, distanceM, direction, expiresAt, eggsRemaining, etc.
+      // Otherwise use questMeta fields: type, direction, distanceM, expiresInSec
+      <Feather name={...based on type...} ... />
+      <ThemedText>
+        {questTitle} • {direction} • {distanceKm}km • {timeLeft}
+      </ThemedText>
+
+      // optional 2nd line: Progress (0/5 eggs etc)
+    </View>
+  )}
+
+  // Quest offers buttons should stay below (unchanged)
+</View>
+
+Important: DO NOT wrap quest rendering in else/ternary that removes home countdown.
+
+E) Ensure quest activation doesn’t wipe meta.home
+- Confirm /api/hunt/spawns always returns meta.home even when quest active.
+- But even if it does, our UI now reads both.
+If meta.home.nextTopUpInSec becomes null when quest active, fix server:
+In server/hunt-routes.ts /api/hunt/spawns response, ALWAYS include meta.home (target/current/nextTopUpInSec) regardless of quest state.
+
+F) Verify
+1) Launch app
+2) Ensure home countdown shows
+3) Activate Hot Drop or Micro
+4) Confirm:
+   - Home countdown remains visible
+   - Quest banner appears below
+5) Wait 5 seconds: countdown ticks down locally
+6) Kill and reopen screen: countdown re-syncs from server meta
+
+Deliverables:
+- Commit changes to the file(s) that render the Hunt header/banner
+- No breaking TypeScript errors
+- No change to quest logic, only UI rendering + countdown tick
+
+Do it now.

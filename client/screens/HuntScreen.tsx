@@ -265,7 +265,7 @@ export default function HuntScreen() {
   const MIN_VISIBLE_MS = 8000;
   
   // Compute banner visibility OUTSIDE renderAreaClearedBanner
-  const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active;
+  const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active || !!huntMeta?.quest?.active;
   const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && spawns.length < 2;
   
   useEffect(() => {
@@ -1236,7 +1236,7 @@ export default function HuntScreen() {
           </View>
         )}
         
-        {huntMeta?.hotdrop?.active && !huntMeta?.quest?.active && (
+        {huntMeta?.hotdrop?.active && (
           <View style={styles.hotdropRow}>
             <Feather name="zap" size={14} color={GameColors.gold} />
             <ThemedText style={styles.hotdropText}>
