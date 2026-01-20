@@ -7,6 +7,7 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import Animated, {
@@ -487,24 +488,11 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <LinearGradient
-                colors={["#FFD700", "#FFA500", "#FF8C00"]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.eggBody}
-              >
-                <View style={styles.eggShine} />
-                <View style={styles.eggShineSmall} />
-                <ThemedText style={styles.eggQuestion}>?</ThemedText>
-                <View style={[styles.eggClassBadge, { backgroundColor: classColor }]}>
-                  <Feather name={classIcon as any} size={12} color="#fff" />
-                </View>
-              </LinearGradient>
-              <View style={styles.eggSparkles}>
-                <View style={[styles.sparkle, styles.sparkle1]} />
-                <View style={[styles.sparkle, styles.sparkle2]} />
-                <View style={[styles.sparkle, styles.sparkle3]} />
-              </View>
+              <Image
+                source={require("@/assets/hunt/mystery-egg.png")}
+                style={styles.mysteryEggImage}
+                resizeMode="contain"
+              />
             </Animated.View>
 
             <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
@@ -808,6 +796,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 30,
     elevation: 20,
+  },
+  mysteryEggImage: {
+    width: 120,
+    height: 150,
   },
   eggBody: {
     width: 90,
