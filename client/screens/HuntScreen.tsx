@@ -1866,17 +1866,6 @@ export default function HuntScreen() {
 
       {renderEconomyPanel()}
 
-      {/* Guide help buttons */}
-      <View style={styles.guideButtonsRow}>
-        <Pressable style={styles.guideButton} onPress={() => setShowHelpSheet(true)}>
-          <Feather name="compass" size={16} color={GameColors.primary} />
-          <ThemedText style={styles.guideButtonText}>What next?</ThemedText>
-        </Pressable>
-        <Pressable style={styles.guideButtonSmall} onPress={() => setShowFaq(true)}>
-          <Feather name="help-circle" size={18} color={GameColors.textSecondary} />
-        </Pressable>
-      </View>
-
       {/* Contextual tip banner */}
       {tipMessage && (
         <View style={styles.tipBanner}>
@@ -2236,32 +2225,6 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     fontSize: 12,
     flex: 1,
-  },
-  guideButtonsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  guideButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: GameColors.surface,
-    borderRadius: BorderRadius.md,
-  },
-  guideButtonText: {
-    fontSize: 12,
-    color: GameColors.primary,
-    fontWeight: "500",
-  },
-  guideButtonSmall: {
-    padding: Spacing.xs,
-    backgroundColor: GameColors.surface,
-    borderRadius: BorderRadius.md,
   },
   floatingChipsRow: {
     position: "absolute",
