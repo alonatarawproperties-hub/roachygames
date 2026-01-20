@@ -730,8 +730,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
         </View>
 
         {/* Map Controls - Bottom Right inside map container */}
-        <View style={styles.mapControlsContainer}>
-          <View style={styles.controlButtonsColumn}>
+        <View style={styles.mapControlsContainer} pointerEvents="box-none">
+          <View style={styles.controlButtonsColumn} pointerEvents="box-none">
             <AnimatedControlButton 
               iconName="navigation" 
               onPress={centerOnPlayerMap}
@@ -754,7 +754,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             ) : null}
           </View>
           {(onHelpPress || onFaqPress) ? (
-            <View style={styles.helpChipsRow}>
+            <View style={styles.helpChipsRow} pointerEvents="box-none">
               {onHelpPress ? (
                 <Pressable style={styles.helpChip} onPress={onHelpPress}>
                   <Feather name="help-circle" size={14} color={GameColors.primary} />
