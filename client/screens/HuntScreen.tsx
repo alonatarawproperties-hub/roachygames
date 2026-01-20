@@ -266,9 +266,14 @@ export default function HuntScreen() {
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
   
-  // Compute effective spawns - only count active, in-radius, not expired spawns
-  const effectiveSpawnCount = useMemo(() => {
+  // Compute effective HOME spawns - only count home/drip spawns in radius (not hotdrop/quest)
+  // This determines if the "Area Cleared" banner should show
+  const effectiveHomeSpawnCount = useMemo(() => {
     return (spawns || []).filter((s: Spawn) => {
+      // Only count home-type spawns (home, drip, or null/undefined for backwards compat)
+      const isHomeSpawn = !s.sourceType || s.sourceType === 'home' || s.sourceType === 'drip';
+      if (!isHomeSpawn) return false;
+      // Check distance
       const dist = typeof s.distance === "number" ? s.distance : null;
       if (dist !== null && dist > HUNT_RADIUS_M) return false;
       return true;
@@ -276,15 +281,17 @@ export default function HuntScreen() {
   }, [spawns, HUNT_RADIUS_M]);
   
   // Compute banner visibility OUTSIDE renderAreaClearedBanner
+  // Banner shows when: countdown data exists AND no home spawns in radius
+  // (hotdrop/quest spawns don't affect home drop countdown display)
   const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active || !!huntMeta?.quest?.active;
-  const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && effectiveSpawnCount === 0;
+  const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && effectiveHomeSpawnCount === 0;
   
   // Debug log for banner visibility
   useEffect(() => {
     if (spawnsLoaded && hasCountdownData) {
-      console.log("[BannerDBG]", { hasCountdownData, spawnsLen: spawns.length, effectiveSpawnCount, hotdropActive: !!huntMeta?.hotdrop?.active, homeCountdown });
+      console.log("[BannerDBG]", { hasCountdownData, spawnsLen: spawns.length, effectiveHomeSpawnCount, hotdropActive: !!huntMeta?.hotdrop?.active, homeCountdown });
     }
-  }, [spawnsLoaded, hasCountdownData, spawns.length, effectiveSpawnCount, huntMeta?.hotdrop?.active, homeCountdown]);
+  }, [spawnsLoaded, hasCountdownData, spawns.length, effectiveHomeSpawnCount, huntMeta?.hotdrop?.active, homeCountdown]);
   
   useEffect(() => {
     if (showBannerRaw) {
@@ -414,10 +421,10 @@ export default function HuntScreen() {
 
   // Contextual tip: Area cleared
   useEffect(() => {
-    if (spawnsLoaded && effectiveSpawnCount === 0 && homeCountdown && homeCountdown > 0) {
+    if (spawnsLoaded && effectiveHomeSpawnCount === 0 && homeCountdown && homeCountdown > 0) {
       showTip("tip_area_cleared", `Area cleared! Next Home Drop in ${formatSeconds(homeCountdown)}. Walk to find Explore spawns.`);
     }
-  }, [spawnsLoaded, effectiveSpawnCount, homeCountdown, showTip]);
+  }, [spawnsLoaded, effectiveHomeSpawnCount, homeCountdown, showTip]);
 
   // Contextual tip: Quest active
   useEffect(() => {
