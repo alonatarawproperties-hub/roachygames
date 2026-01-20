@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   chyBalance: integer("chy_balance").notNull().default(0),
   diamondBalance: integer("diamond_balance").notNull().default(0),
   isEmailVerified: boolean("is_email_verified").notNull().default(false),
+  isGod: boolean("is_god").notNull().default(false),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
