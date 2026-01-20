@@ -61,7 +61,8 @@ export function WhatNextSheet({ visible, onClose, title, children }: WhatNextShe
             styles.sheetContainer,
             {
               transform: [{ translateY: slideAnim }],
-              maxHeight: SCREEN_HEIGHT * 0.7,
+              minHeight: SCREEN_HEIGHT * 0.75,
+              maxHeight: SCREEN_HEIGHT * 0.75,
               paddingBottom: insets.bottom + 12,
             },
           ]}
