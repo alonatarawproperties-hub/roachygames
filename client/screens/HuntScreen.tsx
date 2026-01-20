@@ -44,8 +44,7 @@ import { LevelProgressSheet } from "@/components/hunt/LevelProgressSheet";
 import { NodeDetailsBottomSheet } from "@/components/hunt/NodeDetailsBottomSheet";
 import { SpawnReserveSheet } from "@/components/hunt/SpawnReserveSheet";
 import { HuntCoachmarks } from "@/components/hunt/HuntCoachmarks";
-import { HuntHelpSheet, HelpSheetData } from "@/components/hunt/HuntHelpSheet";
-import { HuntFaqModal } from "@/components/hunt/HuntFaqModal";
+import { WhatNextSheet, WhatNextContent, FaqContent } from "@/components/hunt/WhatNextSheet";
 import { HuntDebugOverlay } from "@/components/hunt/HuntDebugOverlay";
 import {
   isOnboardingCompleted,
@@ -440,17 +439,6 @@ export default function HuntScreen() {
       if (tipTimeoutRef.current) clearTimeout(tipTimeoutRef.current);
     };
   }, []);
-
-  // Help sheet data
-  const helpSheetData: HelpSheetData = useMemo(() => ({
-    spawnsCount: spawns.length,
-    homeNextTopUpInSec: homeCountdown,
-    questActive: !!huntMeta?.quest?.active,
-    questType: huntMeta?.quest?.type,
-    distanceM: huntMeta?.quest?.distanceM,
-    direction: huntMeta?.quest?.direction,
-    expiresInSec: questCountdown ?? undefined,
-  }), [spawns.length, homeCountdown, huntMeta?.quest, questCountdown]);
 
   const loadingOverlayStyle = useAnimatedStyle(() => ({
     opacity: loadingFadeAnim.value,
@@ -1425,16 +1413,27 @@ export default function HuntScreen() {
           }}
           onMapReady={() => setMapReady(true)}
         />
-        {!coachTipDismissed && !showHelpSheet && (
-          <Pressable style={styles.coachTipCard} onPress={() => setShowHelpSheet(true)}>
-            <View style={styles.coachTipHeaderRow}>
-              <ThemedText style={styles.coachTipTitle}>What next?</ThemedText>
-              <Pressable hitSlop={10} onPress={(e) => { e.stopPropagation(); dismissCoachTip(); }}>
-                <Feather name="x" size={16} color="#C7B299" />
-              </Pressable>
-            </View>
-            <ThemedText style={styles.coachTipHint}>Tap eggs to catch • Try Micro/Hot Drop</ThemedText>
+        {/* Floating chips: What next? + FAQ */}
+        <View style={styles.floatingChipsRow}>
+          <Pressable style={styles.floatingChip} onPress={() => setShowHelpSheet(true)}>
+            <Feather name="help-circle" size={14} color={GameColors.primary} />
+            <ThemedText style={styles.floatingChipText}>What next?</ThemedText>
           </Pressable>
+          <Pressable style={styles.floatingChipCircle} onPress={() => setShowFaq(true)}>
+            <Feather name="book-open" size={14} color={GameColors.textSecondary} />
+          </Pressable>
+        </View>
+        {/* Quest hint toast */}
+        {!coachTipDismissed && !showHelpSheet && !showFaq && (
+          <View style={styles.hintToast}>
+            <Feather name="zap" size={12} color={GameColors.gold} />
+            <ThemedText style={styles.hintToastText}>
+              {huntMeta?.quest?.active ? "Follow marker • Eggs inside ring count" : "Tap eggs • Try Micro/Hot Drop"}
+            </ThemedText>
+            <Pressable hitSlop={10} onPress={dismissCoachTip}>
+              <Feather name="x" size={12} color="rgba(244,214,176,0.6)" />
+            </Pressable>
+          </View>
         )}
       </View>
     );
@@ -2170,12 +2169,20 @@ export default function HuntScreen() {
           setOnboardingCompleted(true);
         }}
       />
-      <HuntHelpSheet
+      <WhatNextSheet
         visible={showHelpSheet}
         onClose={() => setShowHelpSheet(false)}
-        data={helpSheetData}
-      />
-      <HuntFaqModal visible={showFaq} onClose={() => setShowFaq(false)} />
+        title="What Next?"
+      >
+        <WhatNextContent />
+      </WhatNextSheet>
+      <WhatNextSheet
+        visible={showFaq}
+        onClose={() => setShowFaq(false)}
+        title="FAQ"
+      >
+        <FaqContent />
+      </WhatNextSheet>
 
       {/* Dev debug overlay */}
       <HuntDebugOverlay
@@ -2256,33 +2263,61 @@ const styles = StyleSheet.create({
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.md,
   },
-  coachTipCard: {
+  floatingChipsRow: {
     position: "absolute",
-    top: 48,
-    left: 12,
-    maxWidth: 260,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "rgba(20, 12, 8, 0.85)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 153, 51, 0.20)",
-    zIndex: 50,
-  },
-  coachTipHeaderRow: {
+    top: 12,
+    right: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 8,
+    zIndex: 50,
   },
-  coachTipTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#F4D6B0",
+  floatingChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(20, 12, 8, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 153, 51, 0.25)",
   },
-  coachTipHint: {
-    marginTop: 4,
+  floatingChipText: {
     fontSize: 12,
-    color: "rgba(244, 214, 176, 0.85)",
+    fontWeight: "600",
+    color: GameColors.primary,
+  },
+  floatingChipCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(20, 12, 8, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 153, 51, 0.15)",
+  },
+  hintToast: {
+    position: "absolute",
+    top: 52,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: 220,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(20, 12, 8, 0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.2)",
+    zIndex: 49,
+  },
+  hintToastText: {
+    flex: 1,
+    fontSize: 11,
+    color: "rgba(244, 214, 176, 0.9)",
   },
   tipBanner: {
     flexDirection: "row",

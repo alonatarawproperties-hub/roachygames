@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetContainer: {
-    backgroundColor: GameColors.cardBackground,
+    backgroundColor: GameColors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: "100%",
