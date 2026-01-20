@@ -763,7 +763,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               ) : null}
               {onFaqPress ? (
                 <Pressable style={styles.faqChip} onPress={onFaqPress}>
-                  <Feather name="book-open" size={14} color={GameColors.textSecondary} />
+                  <Feather name="book-open" size={20} color="#fff" />
                 </Pressable>
               ) : null}
             </View>
@@ -914,6 +914,7 @@ const styles = StyleSheet.create({
   helpChipsRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 8,
   },
   helpChip: {
@@ -933,14 +934,14 @@ const styles = StyleSheet.create({
     color: GameColors.primary,
   },
   faqChip: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(20, 12, 8, 0.88)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     borderWidth: 1,
-    borderColor: "rgba(255, 153, 51, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
 
   // Location info - Bottom Left inside map container
