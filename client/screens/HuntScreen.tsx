@@ -181,6 +181,9 @@ export default function HuntScreen() {
     claimBeacon,
   } = useHunt();
   
+  // Hunt radius constant - must match server radius for spawns query
+  const HUNT_RADIUS_M = 500;
+  
   useGamePresence("roachy-hunt");
   const { nearbyPlayers, isVisible, setVisibility, setLocation: setPresenceLocation } = usePresenceContext();
   
@@ -263,9 +266,25 @@ export default function HuntScreen() {
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
   
+  // Compute effective spawns - only count active, in-radius, not expired spawns
+  const effectiveSpawnCount = useMemo(() => {
+    return (spawns || []).filter((s: Spawn) => {
+      const dist = typeof s.distance === "number" ? s.distance : null;
+      if (dist !== null && dist > HUNT_RADIUS_M) return false;
+      return true;
+    }).length;
+  }, [spawns, HUNT_RADIUS_M]);
+  
   // Compute banner visibility OUTSIDE renderAreaClearedBanner
   const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active || !!huntMeta?.quest?.active;
-  const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && spawns.length < 2;
+  const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && effectiveSpawnCount === 0;
+  
+  // Debug log for banner visibility
+  useEffect(() => {
+    if (spawnsLoaded && hasCountdownData) {
+      console.log("[BannerDBG]", { hasCountdownData, spawnsLen: spawns.length, effectiveSpawnCount, hotdropActive: !!huntMeta?.hotdrop?.active, homeCountdown });
+    }
+  }, [spawnsLoaded, hasCountdownData, spawns.length, effectiveSpawnCount, huntMeta?.hotdrop?.active, homeCountdown]);
   
   useEffect(() => {
     if (showBannerRaw) {
@@ -395,10 +414,10 @@ export default function HuntScreen() {
 
   // Contextual tip: Area cleared
   useEffect(() => {
-    if (spawnsLoaded && spawns.length < 2 && homeCountdown && homeCountdown > 0) {
+    if (spawnsLoaded && effectiveSpawnCount === 0 && homeCountdown && homeCountdown > 0) {
       showTip("tip_area_cleared", `Area cleared! Next Home Drop in ${formatSeconds(homeCountdown)}. Walk to find Explore spawns.`);
     }
-  }, [spawnsLoaded, spawns.length, homeCountdown, showTip]);
+  }, [spawnsLoaded, effectiveSpawnCount, homeCountdown, showTip]);
 
   // Contextual tip: Quest active
   useEffect(() => {
@@ -425,7 +444,9 @@ export default function HuntScreen() {
     if (!spawnsLoaded || !playerLocation || spawns.length === 0) return;
     const CATCH_RADIUS_M = 100;
     const hasNearbySpawn = spawns.some((s) => {
-      const dist = haversineMeters(playerLocation.latitude, playerLocation.longitude, s.lat, s.lng);
+      const lat = typeof s.latitude === "string" ? parseFloat(s.latitude) : s.latitude;
+      const lng = typeof s.longitude === "string" ? parseFloat(s.longitude) : s.longitude;
+      const dist = haversineMeters(playerLocation.latitude, playerLocation.longitude, lat, lng);
       return dist <= CATCH_RADIUS_M;
     });
     if (!hasNearbySpawn && spawns.length > 0) {

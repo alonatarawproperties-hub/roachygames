@@ -1,0 +1,59 @@
+REPLIT AGENT TASK: Fix “Home drop countdown disappears after Hot Drop activation” by changing Area Cleared banner gating from raw spawns.length to effective in-radius/catchable spawns count.
+
+Problem
+- In HuntScreen.tsx, showBannerRaw uses: spawns.length < 2.
+- After activating hotdrop, API can return 2-3 spawns (hotdrop markers/cached/home spawns) even when user has no catchable spawn in radius.
+- This makes spawns.length >= 2 and hides banner, so Home Drop countdown row disappears, even though the area is actually empty.
+
+Goal
+- Banner should display when the player has no *effective* spawns in their hunting radius.
+- “Effective spawn” = active, not expired, distance <= radius (same radius used in /api/hunt/spawns call, currently 500m), and not already caught/claimed if such flag exists.
+
+Implement:
+
+1) In client/screens/HuntScreen.tsx
+A) Define a constant used by both fetch + banner logic:
+const HUNT_RADIUS_M = 500;
+
+B) After you map spawns with distance (you already compute distance for mappedSpawns), compute:
+const effectiveSpawns = useMemo(() => {
+  return (spawnsData || []).filter((s: any) => {
+    const dist = typeof s.distance === "number" ? s.distance : null;
+    if (dist == null) return true; // fallback: if no distance, treat as visible
+    if (dist > HUNT_RADIUS_M) return false;
+    // If fields exist, filter non-catchable:
+    if (s.isActive === false) return false;
+    if (s.expiresAt && new Date(s.expiresAt).getTime() <= Date.now()) return false;
+    if (s.caughtByWallet) return false;
+    return true;
+  });
+}, [spawnsData]);
+
+const effectiveSpawnCount = effectiveSpawns.length;
+
+C) Replace the banner condition:
+OLD:
+const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && spawns.length < 2;
+
+NEW:
+const showBannerRaw =
+  spawnsLoaded &&
+  !spawnsFetching &&
+  hasCountdownData &&
+  effectiveSpawnCount === 0;
+
+D) Keep your MIN_VISIBLE_MS latch logic unchanged.
+
+E) Add a temporary debug log when banner hides:
+console.log("[BannerDBG]", { hasCountdownData, spawnsLen: spawns.length, effectiveSpawnCount, hotdropActive: !!huntMeta?.hotdrop?.active, homeCountdown });
+
+2) Ensure the radius used here matches your query radius (you set radius=500 in fetch route string). Use the same constant so they can’t drift.
+
+3) Do NOT change server logic, quest logic, security logic.
+
+Verification
+- Activate Hot Drop
+- If no in-radius spawns are shown/catchable, banner MUST remain visible and show “Next Home Drop in …” row.
+- If 1+ spawns are truly within 500m, banner can hide.
+
+Commit changes.
