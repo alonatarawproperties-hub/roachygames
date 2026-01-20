@@ -73,6 +73,8 @@ interface MapViewWrapperProps {
   onMapPress?: () => void;
   onRefresh: () => void;
   onMapReady?: () => void;
+  onHelpPress?: () => void;
+  onFaqPress?: () => void;
 }
 
 export interface MapViewWrapperRef {
@@ -286,7 +288,7 @@ const isActiveReserved = (n: MapNode) => {
 };
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, gpsNoSignal, gpsWeak, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady }, ref) => {
+  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, gpsNoSignal, gpsWeak, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady, onHelpPress, onFaqPress }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -749,6 +751,21 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               />
             </Pressable>
           ) : null}
+          {(onHelpPress || onFaqPress) ? (
+            <View style={styles.helpChipsRow}>
+              {onHelpPress ? (
+                <Pressable style={styles.helpChip} onPress={onHelpPress}>
+                  <Feather name="help-circle" size={14} color={GameColors.primary} />
+                  <ThemedText style={styles.helpChipText}>What next?</ThemedText>
+                </Pressable>
+              ) : null}
+              {onFaqPress ? (
+                <Pressable style={styles.faqChip} onPress={onFaqPress}>
+                  <Feather name="book-open" size={14} color={GameColors.textSecondary} />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         {/* Coordinates display - Bottom Left inside map container */}
@@ -875,7 +892,7 @@ const styles = StyleSheet.create({
   mapControlsContainer: {
     position: "absolute",
     right: Spacing.md,
-    bottom: 56,
+    bottom: Spacing.md,
     gap: 10,
     zIndex: 50,
     elevation: 50,
@@ -886,6 +903,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  helpChipsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  helpChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(20, 12, 8, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 153, 51, 0.25)",
+  },
+  helpChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GameColors.primary,
+  },
+  faqChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(20, 12, 8, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 153, 51, 0.15)",
   },
 
   // Location info - Bottom Left inside map container

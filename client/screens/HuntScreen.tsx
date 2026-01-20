@@ -1412,17 +1412,9 @@ export default function HuntScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
           onMapReady={() => setMapReady(true)}
+          onHelpPress={() => setShowHelpSheet(true)}
+          onFaqPress={() => setShowFaq(true)}
         />
-        {/* Floating chips: What next? + FAQ */}
-        <View style={styles.floatingChipsRow}>
-          <Pressable style={styles.floatingChip} onPress={() => setShowHelpSheet(true)}>
-            <Feather name="help-circle" size={14} color={GameColors.primary} />
-            <ThemedText style={styles.floatingChipText}>What next?</ThemedText>
-          </Pressable>
-          <Pressable style={styles.floatingChipCircle} onPress={() => setShowFaq(true)}>
-            <Feather name="book-open" size={14} color={GameColors.textSecondary} />
-          </Pressable>
-        </View>
         {/* Quest hint toast */}
         {!coachTipDismissed && !showHelpSheet && !showFaq && (
           <View style={styles.hintToast}>
@@ -2225,41 +2217,6 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     fontSize: 12,
     flex: 1,
-  },
-  floatingChipsRow: {
-    position: "absolute",
-    bottom: 16,
-    right: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    zIndex: 50,
-  },
-  floatingChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: "rgba(20, 12, 8, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 153, 51, 0.25)",
-  },
-  floatingChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: GameColors.primary,
-  },
-  floatingChipCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(20, 12, 8, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 153, 51, 0.15)",
   },
   hintToast: {
     position: "absolute",
