@@ -18,6 +18,7 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -236,6 +237,28 @@ export default function HuntScreen() {
   const [showFaq, setShowFaq] = useState(false);
   const [tipMessage, setTipMessage] = useState<string | null>(null);
   const tipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [coachTipDismissed, setCoachTipDismissed] = useState(true);
+
+  useEffect(() => {
+    const checkCoachTipDismissed = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const dismissedDate = await AsyncStorage.getItem('hunt_coach_tip_dismissed');
+        setCoachTipDismissed(dismissedDate === today);
+      } catch {
+        setCoachTipDismissed(false);
+      }
+    };
+    checkCoachTipDismissed();
+  }, []);
+
+  const dismissCoachTip = useCallback(async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await AsyncStorage.setItem('hunt_coach_tip_dismissed', today);
+      setCoachTipDismissed(true);
+    } catch {}
+  }, []);
   
   // Banner latch - keep visible for minimum time to prevent flicker
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
@@ -1402,6 +1425,17 @@ export default function HuntScreen() {
           }}
           onMapReady={() => setMapReady(true)}
         />
+        {!coachTipDismissed && !showHelpSheet && (
+          <Pressable style={styles.coachTipCard} onPress={() => setShowHelpSheet(true)}>
+            <View style={styles.coachTipHeaderRow}>
+              <ThemedText style={styles.coachTipTitle}>What next?</ThemedText>
+              <Pressable hitSlop={10} onPress={(e) => { e.stopPropagation(); dismissCoachTip(); }}>
+                <Feather name="x" size={16} color="#C7B299" />
+              </Pressable>
+            </View>
+            <ThemedText style={styles.coachTipHint}>Tap eggs to catch • Try Micro/Hot Drop</ThemedText>
+          </Pressable>
+        )}
       </View>
     );
   };
@@ -2221,6 +2255,34 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     backgroundColor: GameColors.surface,
     borderRadius: BorderRadius.md,
+  },
+  coachTipCard: {
+    position: "absolute",
+    top: 48,
+    left: 12,
+    maxWidth: 260,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(20, 12, 8, 0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 153, 51, 0.20)",
+    zIndex: 50,
+  },
+  coachTipHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  coachTipTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#F4D6B0",
+  },
+  coachTipHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(244, 214, 176, 0.85)",
   },
   tipBanner: {
     flexDirection: "row",

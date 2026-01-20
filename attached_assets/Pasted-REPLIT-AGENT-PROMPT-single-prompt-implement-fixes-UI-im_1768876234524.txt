@@ -1,0 +1,110 @@
+REPLIT AGENT PROMPT (single prompt — implement fixes + UI improvement)
+
+Goal:
+Fix the “What Next?” UI so it does NOT eat map space, is NOT cut off, and is actually usable. Convert it into a compact, gamified “coach tip” card (collapsed) that can expand into a proper sheet when the user wants more help.
+
+Context:
+Right now the “What Next?” bottom sheet/modal is too tall, gets cut (safe-area/height/snap points), and covers the map. We want:
+1) Collapsed mode (tiny card) that takes minimal space
+2) Expand mode (bottom sheet) with proper snap points + safe area padding so nothing is clipped
+3) Close/dismiss works reliably
+
+What to do (step-by-step):
+1) Locate the current “What Next?” implementation
+   - Search for: "What Next?" text, "whatsNext", "WhatsNext", "WhatNext", "BottomSheet", "Modal", "Sheet"
+   - Most likely in: client/screens/HuntScreen.tsx or a component imported by it.
+
+2) Replace the current always-big UI with a two-state component:
+   A) Collapsed “CoachTip” card (default)
+   B) Expandable bottom sheet for full tips/FAQ
+
+=== A) Collapsed CoachTip card (minimal space) ===
+- Render as a small floating card OVER the map (absolute positioned), NOT a large container that pushes layout.
+- Position: top-left inside the map container (below GPS badge), with small padding.
+- Size: one line title + one line hint max.
+- Example content:
+  Title: “What next?”
+  Hint: “Tap eggs to catch • Try Micro/Hot Drop”
+- Tapping it opens the bottom sheet (expand mode).
+- Also add a small “X” to dismiss the card (store dismissed state in AsyncStorage so it stays dismissed for the day or until next app launch).
+
+Implementation notes:
+- In the map container wrapper (the same place you render GPS badge / map), add:
+
+  const [coachTipVisible, setCoachTipVisible] = useState(true);
+  const [whatNextOpen, setWhatNextOpen] = useState(false);
+
+- Render:
+  {coachTipVisible && !whatNextOpen && (
+    <Pressable style={styles.coachTipCard} onPress={() => setWhatNextOpen(true)}>
+      <View style={styles.coachTipHeaderRow}>
+        <ThemedText style={styles.coachTipTitle}>What next?</ThemedText>
+        <Pressable hitSlop={10} onPress={() => setCoachTipVisible(false)}>
+          <Feather name="x" size={16} color="#C7B299" />
+        </Pressable>
+      </View>
+      <ThemedText style={styles.coachTipHint}>Tap eggs to catch • Try Micro/Hot Drop</ThemedText>
+    </Pressable>
+  )}
+
+- Styles:
+  coachTipCard: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    maxWidth: 260,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(20, 12, 8, 0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 153, 51, 0.20)",
+    zIndex: 50,
+  }
+  coachTipHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }
+  coachTipTitle: { fontSize: 13, fontWeight: "700", color: "#F4D6B0" }
+  coachTipHint: { marginTop: 4, fontSize: 12, color: "rgba(244,214,176,0.85)" }
+
+This alone fixes “taking a lot of space”.
+
+=== B) Expand mode: Bottom sheet that is NOT cut ===
+- Use @gorhom/bottom-sheet if that’s what you already use. If not, use the existing sheet library but apply the same rules:
+  1) Provide explicit snap points (small + medium)
+  2) Use safe area insets for bottom padding
+  3) Ensure content can scroll
+  4) Ensure the handle + close button are visible
+
+If using @gorhom/bottom-sheet:
+- Import:
+  import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
+  import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+- Setup:
+  const insets = useSafeAreaInsets();
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => [160, 340], []); // px, not percentages = stable, less clipping
+
+- Open/close:
+  useEffect(() => { if (whatNextOpen) sheetRef.current?.present(); }, [whatNextOpen]);
+  const closeWhatNext = () => { sheetRef.current?.dismiss(); setWhatNextOpen(false); };
+
+- Render modal:
+  <BottomSheetModal
+    ref={sheetRef}
+    index={0}
+    snapPoints={snapPoints}
+    enablePanDownToClose
+    onDismiss={() => setWhatNextOpen(false)}
+    backdropComponent={(p) => <BottomSheetBackdrop {...p} appearsOnIndex={0} disappearsOnIndex={-1} />}
+    handleIndicatorStyle={{ backgroundColor: "rgba(244,214,176,0.6)" }}
+    backgroundStyle={{ backgroundColor: "#140C08" }}
+  >
+    <BottomSheetView style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: insets.bottom + 14 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <ThemedText style={{ fontSize: 16, fontWeight: "800", color: "#F4D6B0" }}>What next?</ThemedText>
+        <Pressable hitSlop={10} onPress={closeWhatNext}>
+          <Feather name="x" size={18} color="#F4D6B0" />
+        </Pressable>
+      </View>
+
+      <ScrollView style={{
