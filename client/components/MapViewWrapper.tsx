@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
   mapControlsContainer: {
     position: "absolute",
     right: Spacing.md,
-    bottom: Spacing.md,
+    bottom: 56,
     gap: 10,
     zIndex: 50,
     elevation: 50,
