@@ -291,27 +291,45 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     }, 600);
   };
 
-  // Handle tap on egg - successful catch attempt
-  const handleEggTap = () => {
-    if (isCollecting || isCatching || showMissed) return;
-    startCatchAnimation();
-  };
+  // Hit detection constants - egg is 240x300, positioned at creatureX/Y
+  const EGG_WIDTH = 240;
+  const EGG_HEIGHT = 300;
+  const HIT_PADDING = 30; // Extra padding for easier tapping
 
-  // Handle tap on background - missed!
-  const handleBackgroundTap = () => {
+  // Handle tap with coordinate-based hit detection
+  const handleTapAtPosition = (tapX: number, tapY: number) => {
     if (isCollecting || isCatching || showMissed) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    setShowMissed(true);
-    // Call onMiss to remove spawn from server
-    onMiss(spawn);
-    setTimeout(() => {
-      onCancel(); // Exit the catch screen on miss
-    }, 1200);
+    
+    // Get current egg position (center of egg)
+    const eggCenterX = creatureX.value + EGG_WIDTH / 2;
+    const eggCenterY = creatureY.value + EGG_HEIGHT / 2;
+    
+    // Check if tap is within egg bounds (with padding)
+    const hitboxLeft = creatureX.value - HIT_PADDING;
+    const hitboxRight = creatureX.value + EGG_WIDTH + HIT_PADDING;
+    const hitboxTop = creatureY.value - HIT_PADDING;
+    const hitboxBottom = creatureY.value + EGG_HEIGHT + HIT_PADDING;
+    
+    const isHit = tapX >= hitboxLeft && tapX <= hitboxRight && 
+                  tapY >= hitboxTop && tapY <= hitboxBottom;
+    
+    if (isHit) {
+      // Successful tap on egg!
+      startCatchAnimation();
+    } else {
+      // Missed - tapped outside egg
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setShowMissed(true);
+      onMiss(spawn);
+      setTimeout(() => {
+        onCancel();
+      }, 1200);
+    }
   };
 
   const tapGesture = Gesture.Tap()
-    .onEnd(() => {
-      runOnJS(handleBackgroundTap)();
+    .onEnd((event) => {
+      runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
     });
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
@@ -510,17 +528,17 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       </Animated.View>
 
       <GestureDetector gesture={tapGesture}>
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill}>
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <Pressable onPress={handleEggTap} style={styles.eggTapArea}>
+              <View style={styles.eggTapArea}>
                 <Image
                   source={require("@/assets/hunt/mystery-egg.png")}
                   style={styles.mysteryEggImage}
                   resizeMode="contain"
                 />
-              </Pressable>
+              </View>
             </Animated.View>
 
             <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
