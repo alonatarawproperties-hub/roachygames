@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { apiRequest, apiRequestNoThrow, getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useWallet } from "./WalletContext";
 import { useAuth } from "./AuthContext";
@@ -320,7 +320,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
       queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
     }
   }, [user?.id, queryClient]);
 
@@ -654,7 +654,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       });
       const data = await response.json();
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/collection"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
@@ -678,7 +678,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       });
       const data = await response.json();
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
         return {
@@ -699,20 +699,50 @@ export function HuntProvider({ children }: HuntProviderProps) {
   }, [playerLocation, queryClient]);
 
   const missSpawn = useCallback(async (spawnId: string): Promise<boolean> => {
-    console.log("[HuntContext] missSpawn called for:", spawnId);
-    try {
-      console.log("[HuntContext] Making API request to /api/hunt/miss");
-      const response = await apiRequest("POST", "/api/hunt/miss", { spawnId });
-      console.log("[HuntContext] Got response from miss API");
-      const data = await response.json();
-      console.log("[HuntContext] Miss API response:", data);
-      if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
-        return true;
+    const rid = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    console.log("[HuntContext] missSpawn called", { spawnId, rid });
+
+    // OPTIMISTIC: remove missed spawn from ALL cached spawn queries (lat/lng variants)
+    queryClient.setQueriesData(
+      { queryKey: ["/api/hunt/spawns"], exact: false },
+      (old: any) => {
+        if (!old) return old;
+
+        // Some implementations return array, others return object with {spawns}
+        if (Array.isArray(old)) {
+          return old.filter((s) => s?.id !== spawnId);
+        }
+        if (old?.spawns && Array.isArray(old.spawns)) {
+          return { ...old, spawns: old.spawns.filter((s: any) => s?.id !== spawnId) };
+        }
+        return old;
       }
-      return false;
+    );
+
+    try {
+      const res = await apiRequestNoThrow(
+        "POST",
+        "/api/hunt/miss",
+        { spawnId },
+        { "x-hunt-rid": rid }
+      );
+
+      const text = await res.text();
+      console.log("[HuntContext] miss response", { rid, status: res.status, ok: res.ok, body: text });
+
+      let data: any = null;
+      try { data = JSON.parse(text); } catch {}
+
+      // Always refetch spawns after miss attempt (success or failure) to converge with server truth
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
+
+      return !!data?.success;
     } catch (error) {
-      console.error("[HuntContext] Failed to mark spawn as missed:", error);
+      console.error("[HuntContext] miss request failed", { rid, error });
+
+      // Still refetch to converge
+      queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
+
       return false;
     }
   }, [queryClient]);
@@ -804,7 +834,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/eggs"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/phase1"] });
       }
       return data;
@@ -880,7 +910,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       });
       const data = await response.json();
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
       }
       return data;
     } catch (error: any) {
@@ -894,7 +924,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
       const response = await apiRequest("POST", "/api/hunt/beacon/claim", {});
       const data = await response.json();
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
       }
       return data;

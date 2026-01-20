@@ -1736,12 +1736,20 @@ export function registerHuntRoutes(app: Express) {
 
   // Miss endpoint - player failed to tap the egg, spawn is removed
   app.post("/api/hunt/miss", async (req: Request, res: Response) => {
-    console.log("[Hunt] MISS endpoint hit, body:", req.body);
+    const rid = (req.headers["x-hunt-rid"] as string) || "no_rid";
+    console.log("[Hunt] MISS endpoint hit", { rid, body: req.body });
+
     try {
       const { spawnId } = req.body;
-      const walletAddress = getPlayerId(req);
-      console.log("[Hunt] MISS for wallet:", walletAddress, "spawnId:", spawnId);
-      
+
+      const userId = (req as any).userId;
+      if (!userId) {
+        return res.status(401).json({ error: "AUTH_REQUIRED" });
+      }
+      const walletAddress = `u_${userId}`;
+
+      console.log("[Hunt] MISS for user:", { rid, walletAddress, spawnId });
+
       if (!spawnId) {
         return res.status(400).json({ error: "Missing spawnId" });
       }
@@ -1750,17 +1758,12 @@ export function registerHuntRoutes(app: Express) {
       const key = walletAddress;
       const rl = rateLimit({ route: "miss", key, limit: 20, windowMs: 60_000 });
       if (!rl.allowed) {
-        return res.status(429).json({ error: "RATE_LIMITED" });
+        return res.status(429).json({ error: "RATE_LIMITED", retryInSec: rl.retryInSec });
       }
 
-      const now = new Date();
-
-      // Mark spawn as inactive (missed) - don't set caughtByWallet since it wasn't caught
       const missed = await db
         .update(wildCreatureSpawns)
-        .set({
-          isActive: false,
-        })
+        .set({ isActive: false })
         .where(and(
           eq(wildCreatureSpawns.id, spawnId),
           eq(wildCreatureSpawns.isActive, true),
@@ -1772,12 +1775,12 @@ export function registerHuntRoutes(app: Express) {
         return res.status(409).json({ error: "SPAWN_ALREADY_GONE" });
       }
 
-      console.log("[Hunt] spawn missed", { walletAddress, spawnId });
+      console.log("[Hunt] spawn missed", { rid, walletAddress, spawnId });
 
-      res.json({ success: true, missed: true });
+      return res.json({ success: true, missed: true });
     } catch (error) {
-      console.error("Miss error:", error);
-      res.status(500).json({ error: "Failed to mark spawn as missed" });
+      console.error("[Hunt] Miss error:", error);
+      return res.status(500).json({ error: "Failed to mark spawn as missed" });
     }
   });
 

@@ -124,6 +124,39 @@ export async function apiRequest(
   return res;
 }
 
+export async function apiRequestNoThrow(
+  method: string,
+  route: string,
+  data?: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<Response> {
+  const baseUrl = getApiUrl();
+  const url = new URL(route, baseUrl);
+
+  const headers: Record<string, string> = {};
+  if (data) headers["Content-Type"] = "application/json";
+
+  if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
+    headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+  }
+
+  const authToken = await getAuthToken();
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) headers[k] = v;
+  }
+
+  return fetch(url, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;

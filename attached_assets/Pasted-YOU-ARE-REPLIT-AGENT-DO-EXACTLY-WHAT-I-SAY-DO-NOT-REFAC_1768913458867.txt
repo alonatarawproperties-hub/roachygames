@@ -1,0 +1,249 @@
+YOU ARE REPLIT AGENT. DO EXACTLY WHAT I SAY. DO NOT REFACTOR UNRELATED CODE. DO NOT CHANGE OTHER ROUTES. ONLY TOUCH THE FILES AND SECTIONS LISTED. KEEP TYPESCRIPT COMPILING.
+
+GOAL:
+Fix Roachy Hunt "MISS" mechanic so:
+1) /api/hunt/miss ALWAYS reaches server for authenticated users (JWT),
+2) if it fails (401/429/etc) we get clear logs on client + server,
+3) UI immediately removes the missed spawn (optimistic) so it disappears from map right away,
+4) query invalidation actually refreshes spawns even with lat/lng queryKey variations.
+
+CONTEXT:
+- All /api/hunt/* routes are behind requireAuth via app.use("/api/hunt", requireAuth)
+- Other hunt endpoints already derive identity from (req as any).userId
+- miss currently uses getPlayerId(req) which is inconsistent and can cause auth mismatch / confusion
+- missSpawn currently invalidates queries with queryKey ["/api/hunt/spawns"] but actual queryKey includes lat/lng, so it may not refetch
+
+========================
+A) SERVER FIX (JWT + TRACE)
+========================
+FILE: server/hunt-routes.ts
+FIND the existing handler:
+app.post("/api/hunt/miss", async (req: Request, res: Response) => { ... })
+
+MAKE THESE CHANGES:
+1) Remove getPlayerId(req) usage in MISS. Replace with authenticated userId:
+   const userId = (req as any).userId;
+   if (!userId) return res.status(401).json({ error: "AUTH_REQUIRED" });
+   const walletAddress = `u_${userId}`;
+
+2) Add a request trace id so we can correlate client->server:
+   const rid = (req.headers["x-hunt-rid"] as string) || "no_rid";
+
+3) Update logs to include rid and auth userId:
+   console.log("[Hunt] MISS endpoint hit", { rid, userId, body: req.body });
+
+4) Keep the atomic UPDATE exactly as-is (conditional where + returning), but include rid in logs:
+   console.log("[Hunt] spawn missed", { rid, walletAddress, spawnId });
+
+FINAL SERVER HANDLER SHOULD LOOK LIKE THIS (copy structure, keep your imports as-is):
+------------------------------------------------
+app.post("/api/hunt/miss", async (req: Request, res: Response) => {
+  const rid = (req.headers["x-hunt-rid"] as string) || "no_rid";
+  console.log("[Hunt] MISS endpoint hit", { rid, body: req.body });
+
+  try {
+    const { spawnId } = req.body;
+
+    const userId = (req as any).userId;
+    if (!userId) {
+      return res.status(401).json({ error: "AUTH_REQUIRED" });
+    }
+    const walletAddress = `u_${userId}`;
+
+    console.log("[Hunt] MISS for user:", { rid, walletAddress, spawnId });
+
+    if (!spawnId) {
+      return res.status(400).json({ error: "Missing spawnId" });
+    }
+
+    // Rate limiting
+    const key = walletAddress;
+    const rl = rateLimit({ route: "miss", key, limit: 20, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return res.status(429).json({ error: "RATE_LIMITED", retryInSec: rl.retryInSec });
+    }
+
+    const missed = await db
+      .update(wildCreatureSpawns)
+      .set({ isActive: false })
+      .where(and(
+        eq(wildCreatureSpawns.id, spawnId),
+        eq(wildCreatureSpawns.isActive, true),
+        isNull(wildCreatureSpawns.caughtByWallet),
+      ))
+      .returning({ id: wildCreatureSpawns.id });
+
+    if (!missed || missed.length === 0) {
+      return res.status(409).json({ error: "SPAWN_ALREADY_GONE" });
+    }
+
+    console.log("[Hunt] spawn missed", { rid, walletAddress, spawnId });
+
+    return res.json({ success: true, missed: true });
+  } catch (error) {
+    console.error("[Hunt] Miss error:", error);
+    return res.status(500).json({ error: "Failed to mark spawn as missed" });
+  }
+});
+------------------------------------------------
+
+NOTE: Do NOT change behavior for HOME vs other types yet. Keep isActive=false global.
+
+========================
+B) CLIENT FIX (OPTIMISTIC + PROOF LOGGING)
+========================
+Problem: You might be getting 401 from requireAuth, which means server handler never logs "[Hunt] MISS endpoint hit" (because middleware blocks it earlier).
+We will:
+- add x-hunt-rid header to MISS request,
+- log base URL + token presence + response status/body even on errors,
+- remove spawn immediately from react-query cache so it vanishes instantly.
+
+We need a "no throw" request helper because apiRequest() throws on non-2xx via throwIfResNotOk, and you lose status/body.
+
+1) Add a NEW helper in client/lib/query-client.ts (do NOT break existing apiRequest):
+FILE: client/lib/query-client.ts
+ADD this function near apiRequest (below it is fine):
+
+------------------------------------------------
+export async function apiRequestNoThrow(
+  method: string,
+  route: string,
+  data?: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<Response> {
+  const baseUrl = getApiUrl();
+  const url = new URL(route, baseUrl);
+
+  const headers: Record<string, string> = {};
+  if (data) headers["Content-Type"] = "application/json";
+
+  if (process.env.EXPO_PUBLIC_MOBILE_APP_SECRET) {
+    headers["x-api-secret"] = process.env.EXPO_PUBLIC_MOBILE_APP_SECRET;
+  }
+
+  const authToken = await getAuthToken();
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) headers[k] = v;
+  }
+
+  return fetch(url, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+}
+------------------------------------------------
+
+Make sure getAuthToken is in scope (it already exists in this file per your snippet). If not exported, keep it internal; apiRequestNoThrow is in same file so it can use it.
+
+2) Update missSpawn to:
+- create rid,
+- OPTIMISTIC remove spawn from cache for ALL matching keys,
+- call apiRequestNoThrow so we can log status/body always,
+- invalidate queries with exact:false so it refetches even with lat/lng query keys.
+
+FILE: client/context/HuntContext.tsx
+FIND:
+const missSpawn = useCallback(async (spawnId: string): Promise<boolean> => { ... })
+
+REPLACE its body with this (keep useCallback wrapper + deps):
+
+------------------------------------------------
+const missSpawn = useCallback(async (spawnId: string): Promise<boolean> => {
+  const rid = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  console.log("[HuntContext] missSpawn called", { spawnId, rid });
+
+  // OPTIMISTIC: remove missed spawn from ALL cached spawn queries (lat/lng variants)
+  queryClient.setQueriesData(
+    { queryKey: ["/api/hunt/spawns"], exact: false },
+    (old: any) => {
+      if (!old) return old;
+
+      // Some implementations return array, others return object with {spawns}
+      if (Array.isArray(old)) {
+        return old.filter((s) => s?.id !== spawnId);
+      }
+      if (old?.spawns && Array.isArray(old.spawns)) {
+        return { ...old, spawns: old.spawns.filter((s: any) => s?.id !== spawnId) };
+      }
+      return old;
+    }
+  );
+
+  try {
+    const res = await apiRequestNoThrow(
+      "POST",
+      "/api/hunt/miss",
+      { spawnId },
+      { "x-hunt-rid": rid }
+    );
+
+    const text = await res.text();
+    console.log("[HuntContext] miss response", { rid, status: res.status, ok: res.ok, body: text });
+
+    let data: any = null;
+    try { data = JSON.parse(text); } catch {}
+
+    // Always refetch spawns after miss attempt (success or failure) to converge with server truth
+    queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
+
+    return !!data?.success;
+  } catch (error) {
+    console.error("[HuntContext] miss request failed", { rid, error });
+
+    // Still refetch to converge
+    queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
+
+    return false;
+  }
+}, [queryClient]);
+------------------------------------------------
+
+IMPORTANT:
+- Ensure you import apiRequestNoThrow at top of HuntContext.tsx:
+  import { apiRequestNoThrow } from "@/lib/query-client";
+  (Use your project’s path alias consistently with existing imports)
+
+3) Ensure query invalidation everywhere for spawns uses exact:false (do NOT change other queries).
+Search for invalidateQueries({ queryKey: ["/api/hunt/spawns"] }) in HuntContext.tsx and change to:
+invalidateQueries({ queryKey: ["/api/hunt/spawns"], exact: false });
+
+========================
+C) CAMERA ENCOUNTER (OPTIONAL TINY CHANGE - DO NOT BREAK FLOW)
+========================
+FILE: client/components/CameraEncounter.tsx
+In handleTapAtPosition() miss branch, KEEP your existing behavior but add rid logging is already done in missSpawn.
+NO OTHER CHANGES REQUIRED.
+
+========================
+D) WHAT THIS FIX GUARANTEES (ACCEPTANCE)
+========================
+After this patch:
+1) If user is authenticated, server will log:
+   [Hunt] MISS endpoint hit { rid, body }
+   [Hunt] MISS for user: { rid, walletAddress, spawnId }
+   [Hunt] spawn missed { rid, walletAddress, spawnId }
+
+2) If user is NOT authenticated, client log will show:
+   miss response { status: 401, body: {"error":"Authentication required"...} }  (or AUTH_REQUIRED)
+   and server will NOT show MISS endpoint hit because middleware blocked it (expected)
+
+3) Regardless of server response, missed spawn disappears instantly from map (optimistic cache).
+   Then query invalidation refetches in background and converges.
+
+========================
+E) RUN CHECKS
+========================
+1) Typecheck/build
+2) Trigger a miss on device:
+   - verify UI spawn disappears immediately
+   - check console logs for rid on client and server
+3) If client shows 401, fix login/token storage flow (NOT in this task) — but now you have proof and exact failure mode.
+
+DELIVERABLE:
+Commit changes. Do not modify any unrelated UI/quest/spawn logic.
