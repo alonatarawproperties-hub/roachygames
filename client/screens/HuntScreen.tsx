@@ -1079,7 +1079,10 @@ export default function HuntScreen() {
 
   const handleMissEncounter = async (spawn: Spawn) => {
     // Player missed the egg - remove it from server
-    await missSpawn(spawn.id);
+    console.log("[Hunt] handleMissEncounter called for spawn:", spawn.id);
+    const result = await missSpawn(spawn.id);
+    console.log("[Hunt] missSpawn result:", result);
+    return result;
   };
 
   const handleCatchResult = async (quality: "perfect" | "great" | "good" | "miss") => {

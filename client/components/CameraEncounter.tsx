@@ -297,14 +297,10 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   const HIT_PADDING = 30; // Extra padding for easier tapping
 
   // Handle tap with coordinate-based hit detection
-  const handleTapAtPosition = (tapX: number, tapY: number) => {
+  const handleTapAtPosition = async (tapX: number, tapY: number) => {
     if (isCollecting || isCatching || showMissed) return;
     
-    // Get current egg position (center of egg)
-    const eggCenterX = creatureX.value + EGG_WIDTH / 2;
-    const eggCenterY = creatureY.value + EGG_HEIGHT / 2;
-    
-    // Check if tap is within egg bounds (with padding)
+    // Get current egg position
     const hitboxLeft = creatureX.value - HIT_PADDING;
     const hitboxRight = creatureX.value + EGG_WIDTH + HIT_PADDING;
     const hitboxTop = creatureY.value - HIT_PADDING;
@@ -313,6 +309,8 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     const isHit = tapX >= hitboxLeft && tapX <= hitboxRight && 
                   tapY >= hitboxTop && tapY <= hitboxBottom;
     
+    console.log("[TapDetect] tap at:", tapX, tapY, "hitbox:", hitboxLeft, hitboxRight, hitboxTop, hitboxBottom, "isHit:", isHit);
+    
     if (isHit) {
       // Successful tap on egg!
       startCatchAnimation();
@@ -320,7 +318,16 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       // Missed - tapped outside egg
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setShowMissed(true);
-      onMiss(spawn);
+      
+      // Call miss API and wait for it to complete before closing
+      console.log("[TapDetect] Calling onMiss for spawn:", spawn.id);
+      try {
+        await onMiss(spawn);
+        console.log("[TapDetect] onMiss completed successfully");
+      } catch (err) {
+        console.log("[TapDetect] onMiss error:", err);
+      }
+      
       setTimeout(() => {
         onCancel();
       }, 1200);
