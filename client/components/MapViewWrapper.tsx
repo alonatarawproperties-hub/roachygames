@@ -731,26 +731,28 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
 
         {/* Map Controls - Bottom Right inside map container */}
         <View style={styles.mapControlsContainer}>
-          <AnimatedControlButton 
-            iconName="navigation" 
-            onPress={centerOnPlayerMap}
-          />
-          <AnimatedControlButton 
-            iconName="refresh-cw" 
-            onPress={handleRefresh}
-          />
-          {onToggleVisibility ? (
-            <Pressable 
-              style={[styles.visibilityButton, !isVisible && styles.visibilityButtonOff]}
-              onPress={onToggleVisibility}
-            >
-              <Feather 
-                name={isVisible ? "eye" : "eye-off"} 
-                size={20} 
-                color={isVisible ? "#22C55E" : GameColors.textSecondary} 
-              />
-            </Pressable>
-          ) : null}
+          <View style={styles.controlButtonsColumn}>
+            <AnimatedControlButton 
+              iconName="navigation" 
+              onPress={centerOnPlayerMap}
+            />
+            <AnimatedControlButton 
+              iconName="refresh-cw" 
+              onPress={handleRefresh}
+            />
+            {onToggleVisibility ? (
+              <Pressable 
+                style={[styles.visibilityButton, !isVisible && styles.visibilityButtonOff]}
+                onPress={onToggleVisibility}
+              >
+                <Feather 
+                  name={isVisible ? "eye" : "eye-off"} 
+                  size={20} 
+                  color={isVisible ? "#22C55E" : GameColors.textSecondary} 
+                />
+              </Pressable>
+            ) : null}
+          </View>
           {(onHelpPress || onFaqPress) ? (
             <View style={styles.helpChipsRow}>
               {onHelpPress ? (
@@ -893,9 +895,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: Spacing.md,
     bottom: Spacing.md,
-    gap: 10,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
     zIndex: 50,
     elevation: 50,
+  },
+  controlButtonsColumn: {
+    gap: 8,
   },
   controlButton: {
     backgroundColor: "rgba(0, 0, 0, 0.75)",
