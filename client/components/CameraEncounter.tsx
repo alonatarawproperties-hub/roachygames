@@ -44,10 +44,11 @@ interface CameraEncounterProps {
   spawn: Spawn;
   onStartCatch: (spawn: Spawn) => void;
   onCancel: () => void;
+  onMiss: (spawn: Spawn) => void;
   isCollecting?: boolean;
 }
 
-export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = false }: CameraEncounterProps) {
+export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isCollecting = false }: CameraEncounterProps) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [isCatching, setIsCatching] = useState(false);
@@ -148,16 +149,21 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
       true
     );
 
-    const randomMove = () => {
+    const randomMove = (fast = false) => {
       if (isCatching) return;
-      // More exaggerated movement - wider range, faster
-      const newX = 40 + Math.random() * (SCREEN_WIDTH - 280);
-      const newY = 120 + Math.random() * (SCREEN_HEIGHT / 2 - 80);
-      creatureX.value = withTiming(newX, { duration: 1800, easing: Easing.inOut(Easing.ease) });
-      creatureY.value = withTiming(newY, { duration: 1800, easing: Easing.inOut(Easing.ease) });
+      // More exaggerated movement - wider range, unpredictable
+      const newX = 20 + Math.random() * (SCREEN_WIDTH - 280);
+      const newY = 100 + Math.random() * (SCREEN_HEIGHT / 2 - 60);
+      const duration = fast ? 600 : 1200 + Math.random() * 800; // Fast initial, then variable speed
+      creatureX.value = withTiming(newX, { duration, easing: Easing.inOut(Easing.ease) });
+      creatureY.value = withTiming(newY, { duration, easing: Easing.inOut(Easing.ease) });
     };
 
-    const moveInterval = setInterval(randomMove, 2200);
+    // Immediately start fast unpredictable movement
+    randomMove(true);
+    
+    // Then continue with rapid interval movements
+    const moveInterval = setInterval(() => randomMove(false), 1500 + Math.random() * 800);
     return () => clearInterval(moveInterval);
   }, [isCatching]);
 
@@ -296,6 +302,8 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, isCollecting = 
     if (isCollecting || isCatching || showMissed) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setShowMissed(true);
+    // Call onMiss to remove spawn from server
+    onMiss(spawn);
     setTimeout(() => {
       onCancel(); // Exit the catch screen on miss
     }, 1200);

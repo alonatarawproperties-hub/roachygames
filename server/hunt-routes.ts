@@ -1734,6 +1734,51 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
+  // Miss endpoint - player failed to tap the egg, spawn is removed
+  app.post("/api/hunt/miss", async (req: Request, res: Response) => {
+    try {
+      const { spawnId } = req.body;
+      const walletAddress = getPlayerId(req);
+      
+      if (!spawnId) {
+        return res.status(400).json({ error: "Missing spawnId" });
+      }
+
+      // Rate limiting
+      const key = walletAddress;
+      const rl = rateLimit({ route: "miss", key, limit: 20, windowMs: 60_000 });
+      if (!rl.allowed) {
+        return res.status(429).json({ error: "RATE_LIMITED" });
+      }
+
+      const now = new Date();
+
+      // Mark spawn as inactive (missed) - don't set caughtByWallet since it wasn't caught
+      const missed = await db
+        .update(wildCreatureSpawns)
+        .set({
+          isActive: false,
+        })
+        .where(and(
+          eq(wildCreatureSpawns.id, spawnId),
+          eq(wildCreatureSpawns.isActive, true),
+          isNull(wildCreatureSpawns.caughtByWallet),
+        ))
+        .returning({ id: wildCreatureSpawns.id });
+
+      if (!missed || missed.length === 0) {
+        return res.status(409).json({ error: "SPAWN_ALREADY_GONE" });
+      }
+
+      console.log("[Hunt] spawn missed", { walletAddress, spawnId });
+
+      res.json({ success: true, missed: true });
+    } catch (error) {
+      console.error("Miss error:", error);
+      res.status(500).json({ error: "Failed to mark spawn as missed" });
+    }
+  });
+
   app.post("/api/hunt/hatch", async (req: Request, res: Response) => {
     try {
       const { latitude, longitude } = req.body;

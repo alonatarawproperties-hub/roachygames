@@ -170,6 +170,7 @@ export default function HuntScreen() {
     updateLocation,
     catchCreature,
     collectEgg,
+    missSpawn,
     walkEgg,
     joinRaid,
     attackRaid,
@@ -1074,6 +1075,11 @@ export default function HuntScreen() {
     setShowCameraEncounter(false);
     setSelectedSpawn(null);
     activeSpawnRef.current = null;
+  };
+
+  const handleMissEncounter = async (spawn: Spawn) => {
+    // Player missed the egg - remove it from server
+    await missSpawn(spawn.id);
   };
 
   const handleCatchResult = async (quality: "perfect" | "great" | "good" | "miss") => {
@@ -2063,6 +2069,7 @@ export default function HuntScreen() {
             spawn={selectedSpawn}
             onStartCatch={handleStartCatch}
             onCancel={handleCancelEncounter}
+            onMiss={handleMissEncounter}
             isCollecting={isCollecting}
           />
         ) : null}

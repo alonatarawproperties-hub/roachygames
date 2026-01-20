@@ -210,6 +210,7 @@ interface HuntContextType {
   spawnCreatures: (reason?: string) => Promise<void>;
   catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
   collectEgg: (spawnId: string) => Promise<CatchResult | null>;
+  missSpawn: (spawnId: string) => Promise<boolean>;
   hatchEggs: () => Promise<HatchResult>;
   startIncubation: (eggId: string, incubatorId: string) => Promise<void>;
   walkEgg: (eggId: string, distance: number) => Promise<any>;
@@ -697,6 +698,21 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [playerLocation, queryClient]);
 
+  const missSpawn = useCallback(async (spawnId: string): Promise<boolean> => {
+    try {
+      const response = await apiRequest("POST", "/api/hunt/miss", { spawnId });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Failed to mark spawn as missed:", error);
+      return false;
+    }
+  }, [queryClient]);
+
   const startIncubation = useCallback(async (eggId: string, incubatorId: string) => {
     try {
       await apiRequest("POST", `/api/hunt/eggs/${eggId}/incubate`, { incubatorId });
@@ -907,6 +923,7 @@ export function HuntProvider({ children }: HuntProviderProps) {
         spawnCreatures,
         catchCreature,
         collectEgg,
+        missSpawn,
         hatchEggs,
         startIncubation,
         walkEgg,
