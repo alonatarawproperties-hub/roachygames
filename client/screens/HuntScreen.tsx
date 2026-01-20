@@ -267,32 +267,48 @@ export default function HuntScreen() {
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
   
-  // Compute effective HOME spawns - only count home/drip spawns in radius (not hotdrop/quest)
-  // This determines if the "Area Cleared" banner should show
-  const effectiveHomeSpawnCount = useMemo(() => {
-    return (spawns || []).filter((s: Spawn) => {
+  // Compute in-range vs out-of-range spawns for banner logic
+  const spawnRangeCounts = useMemo(() => {
+    const homeSpawns = (spawns || []).filter((s: Spawn) => {
       // Only count home-type spawns (home, drip, or null/undefined for backwards compat)
-      const isHomeSpawn = !s.sourceType || s.sourceType === 'home' || s.sourceType === 'drip';
-      if (!isHomeSpawn) return false;
-      // Check distance
+      return !s.sourceType || s.sourceType === 'home' || s.sourceType === 'drip' || s.sourceType === 'HOME';
+    });
+    
+    let inRangeCount = 0;
+    let outOfRangeCount = 0;
+    let closestOutOfRange: { distance: number } | null = null;
+    
+    for (const s of homeSpawns) {
       const dist = typeof s.distance === "number" ? s.distance : null;
-      if (dist !== null && dist > HUNT_RADIUS_M) return false;
-      return true;
-    }).length;
+      if (dist !== null && dist <= HUNT_RADIUS_M) {
+        inRangeCount++;
+      } else if (dist !== null) {
+        outOfRangeCount++;
+        if (!closestOutOfRange || dist < closestOutOfRange.distance) {
+          closestOutOfRange = { distance: dist };
+        }
+      } else {
+        // No distance info - assume in range (shouldn't happen normally)
+        inRangeCount++;
+      }
+    }
+    
+    return { inRangeCount, outOfRangeCount, closestOutOfRange };
   }, [spawns, HUNT_RADIUS_M]);
   
+  const { inRangeCount, outOfRangeCount, closestOutOfRange } = spawnRangeCounts;
+  
   // Compute banner visibility OUTSIDE renderAreaClearedBanner
-  // Banner shows when: countdown data exists AND no home spawns in radius
-  // (hotdrop/quest spawns don't affect home drop countdown display)
+  // Banner shows when: no eggs in catch range (even if some are nearby but out of range)
   const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active || !!huntMeta?.quest?.active;
-  const showBannerRaw = spawnsLoaded && !spawnsFetching && hasCountdownData && effectiveHomeSpawnCount === 0;
+  const showBannerRaw = spawnsLoaded && !spawnsFetching && inRangeCount === 0;
   
   // Debug log for banner visibility
   useEffect(() => {
-    if (spawnsLoaded && hasCountdownData) {
-      console.log("[BannerDBG]", { hasCountdownData, spawnsLen: spawns.length, effectiveHomeSpawnCount, hotdropActive: !!huntMeta?.hotdrop?.active, homeCountdown });
+    if (spawnsLoaded) {
+      console.log("[BannerDBG]", { inRangeCount, outOfRangeCount, closestDist: closestOutOfRange?.distance, homeCountdown });
     }
-  }, [spawnsLoaded, hasCountdownData, spawns.length, effectiveHomeSpawnCount, huntMeta?.hotdrop?.active, homeCountdown]);
+  }, [spawnsLoaded, inRangeCount, outOfRangeCount, closestOutOfRange, homeCountdown]);
   
   useEffect(() => {
     if (showBannerRaw) {
@@ -420,12 +436,16 @@ export default function HuntScreen() {
     tipTimeoutRef.current = setTimeout(() => setTipMessage(null), 4000);
   }, []);
 
-  // Contextual tip: Area cleared
+  // Contextual tip: No eggs in range
   useEffect(() => {
-    if (spawnsLoaded && effectiveHomeSpawnCount === 0 && homeCountdown && homeCountdown > 0) {
-      showTip("tip_area_cleared", `Area cleared! Next Home Drop in ${formatSeconds(homeCountdown)}. Walk to find Explore spawns.`);
+    if (spawnsLoaded && inRangeCount === 0 && homeCountdown && homeCountdown > 0) {
+      if (outOfRangeCount > 0) {
+        showTip("tip_move_closer", `${outOfRangeCount} egg${outOfRangeCount > 1 ? 's' : ''} nearby — move closer to catch!`);
+      } else {
+        showTip("tip_area_cleared", `No eggs nearby. Next Home Drop in ${formatSeconds(homeCountdown)}.`);
+      }
     }
-  }, [spawnsLoaded, effectiveHomeSpawnCount, homeCountdown, showTip]);
+  }, [spawnsLoaded, inRangeCount, outOfRangeCount, homeCountdown, showTip]);
 
   // Contextual tip: Quest active
   useEffect(() => {
@@ -1307,18 +1327,44 @@ export default function HuntScreen() {
     });
   }, [allMapNodes]);
 
+  // Check if user is brand new (no catches today)
+  const isNewPlayer = (economy?.catchesToday ?? 0) === 0;
+  
   const renderAreaClearedBanner = () => {
     // showBanner is computed at parent level to prevent flicker
     if (!showBanner) return null;
     
+    // Determine banner title and icon based on context
+    let bannerTitle: string;
+    let bannerIcon: keyof typeof Feather.glyphMap = "info";
+    let bannerIconColor = GameColors.primary;
+    
+    if (isNewPlayer && outOfRangeCount === 0) {
+      // New player with no eggs - show welcome message
+      bannerTitle = "Welcome! Eggs will spawn nearby soon.";
+      bannerIcon = "gift";
+      bannerIconColor = GameColors.gold;
+    } else if (outOfRangeCount > 0 && closestOutOfRange) {
+      // Eggs nearby but out of range - encourage movement
+      const distKm = (closestOutOfRange.distance / 1000).toFixed(1);
+      bannerTitle = `${outOfRangeCount} egg${outOfRangeCount > 1 ? 's' : ''} nearby — move closer (${distKm}km)`;
+      bannerIcon = "navigation";
+      bannerIconColor = GameColors.gold;
+    } else {
+      // No eggs at all
+      bannerTitle = "No eggs in range";
+      bannerIcon = "map-pin";
+    }
+    
     return (
       <View style={styles.areaClearedBanner}>
         <View style={styles.areaClearedHeader}>
-          <Feather name="check-circle" size={20} color={GameColors.primary} />
-          <ThemedText style={styles.areaClearedTitle}>Area Cleared</ThemedText>
+          <Feather name={bannerIcon} size={20} color={bannerIconColor} />
+          <ThemedText style={styles.areaClearedTitle}>{bannerTitle}</ThemedText>
         </View>
         
-        {homeCountdown !== null && homeCountdown > 0 && (
+        {/* Show countdown only when no eggs nearby at all */}
+        {outOfRangeCount === 0 && homeCountdown !== null && homeCountdown > 0 && (
           <View style={styles.countdownRow}>
             <Feather name="clock" size={14} color={GameColors.textSecondary} />
             <ThemedText style={styles.countdownText}>
