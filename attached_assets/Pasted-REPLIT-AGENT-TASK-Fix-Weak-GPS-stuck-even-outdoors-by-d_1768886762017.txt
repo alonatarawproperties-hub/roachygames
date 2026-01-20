@@ -1,0 +1,100 @@
+REPLIT AGENT TASK: Fix “Weak GPS” stuck even outdoors by decoupling ACCEPTED tick from POST + add heartbeat accept + add debug overlay.
+
+Background
+- HuntScreen.tsx uses watchPositionAsync and sets gpsWeak when raw ticks exist but accepted ticks are stale.
+- However accepted tick can remain stale if:
+  (a) filters reject too many points OR
+  (b) updateLocation() spam suppression skips POST and the accepted tick update is incorrectly tied to POST/updateLocation.
+- Current updateLocation() in HuntContext.tsx skips POST when moved<10m and elapsed<10s.
+Goal
+- Accepted tick must update whenever we accept a location from GPS (even stationary).
+- POST can be throttled, but should still send at least every 12s to keep server state fresh.
+- Provide a small debug overlay to confirm raw/accepted/post timings and rejection reasons.
+
+DO THIS EXACTLY:
+
+1) client/screens/HuntScreen.tsx
+A) Add refs for timestamps:
+- lastRawTickRef (ms)
+- lastAcceptedTickRef (ms)
+- lastPostTickRef (ms)  // when we actually POSTed location
+Initialize them to 0.
+
+B) On EVERY watchPosition callback (raw tick), set:
+- lastRawTickRef.current = Date.now()
+
+C) ACCEPTANCE RULES (keep your existing anti-teleport/accuracy rules, but ensure heartbeat):
+- Define HEARTBEAT_MS = 8000
+- Define POST_MIN_INTERVAL_MS = 12000
+- We consider a GPS point “acceptable” if:
+  - accuracy <= 120 (hard reject only if >120)
+  - teleport reject based on SPEED:
+      speed = distM / dtSec
+      reject if speed > 12
+      reject if speed > 6 AND accuracy > 50
+  - Otherwise accept if ANY of these:
+      (i) distM >= dynamicMinMove
+      (ii) accuracy improved a lot
+      (iii) (Date.now() - lastAcceptedTickRef.current) >= HEARTBEAT_MS AND accuracy <= 35
+  dynamicMinMove:
+    - if accuracy<=15 => 4
+    - if accuracy<=30 => 6
+    - else => 10
+
+D) IMPORTANT: When a point is ACCEPTED:
+- set lastAcceptedTickRef.current = Date.now()
+- setGpsStale(false)
+- update any “accepted age” state used for UI badge (if you have it)
+- then call updateLocation(lat,lng,heading, { forcePost?: boolean })
+
+E) Ensure gpsWeak derives from ticks properly:
+- gpsNoSignal = (Date.now() - lastRawTickRef.current) > 30000 OR permissionDenied
+- gpsWeak = !gpsNoSignal AND (Date.now() - lastAcceptedTickRef.current) > 15000
+This means: raw alive but we haven’t accepted any usable point for 15s.
+
+F) POST THROTTLING (this is key):
+- Even if accepted happened, we only POST when:
+  (Date.now() - lastPostTickRef.current) >= POST_MIN_INTERVAL_MS OR forcePost=true
+- If we POST, set lastPostTickRef.current = Date.now()
+
+G) Add reject reason counters + log every 25 raw ticks:
+Counters:
+- rejBadAcc, rejTeleport, rejJitter, accMove, accHeartbeat, posted
+Log:
+console.log("[GPSDBG]", { acc, distM, dtSec, speed, gpsNoSignal, gpsWeak, lastRawAgeSec, lastAcceptedAgeSec, lastPostAgeSec, counters })
+
+2) client/context/HuntContext.tsx
+Modify updateLocation signature to accept an optional options param:
+updateLocation(latitude, longitude, heading?, opts?: { forcePost?: boolean })
+
+Inside updateLocation, change spam suppression:
+- Keep existing skip rule, BUT:
+  - If opts?.forcePost is true -> DO NOT skip.
+  - Also: if elapsed >= 12000ms -> DO NOT skip (allow periodic keepalive even stationary).
+
+So:
+if (!opts?.forcePost && prev && moved < 10 && elapsed < 10000) return;
+(AND add: if elapsed >= 12000, allow post)
+
+3) Ensure MapViewWrapper badge uses gpsNoSignal + gpsWeak props (already done), but make sure it is using the NEW gpsWeak value (accepted tick based), not old gpsStale based.
+
+4) Add a small debug overlay ON-SCREEN (temporary)
+In HuntScreen.tsx (or existing HuntDebugOverlay), show:
+- Raw age (sec)
+- Accepted age (sec)
+- Post age (sec)
+- Last accuracy
+- gpsWeak/gpsNoSignal booleans
+This allows visual confirmation without Xcode logs.
+
+5) Verification steps
+- Stand outside, don’t move:
+  - raw age should stay low (ticks coming)
+  - accepted age should NEVER exceed 15s; should refresh at least every 8s (heartbeat)
+  - badge should not stay “Weak”
+- Walk a bit: accepted should update normally
+- Indoors: likely Weak (fine)
+
+Do not modify gameplay logic, catch logic, security logic, or server endpoints. Only GPS tracking + updateLocation throttling + debug overlay.
+
+Implement now.

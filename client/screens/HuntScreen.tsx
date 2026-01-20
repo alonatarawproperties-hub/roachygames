@@ -464,6 +464,7 @@ export default function HuntScreen() {
   const bestAccuracyRef = useRef<number>(Infinity);
   const lastRawTickRef = useRef<number>(0);
   const lastAcceptedTickRef = useRef<number>(0);
+  const lastPostTickRef = useRef<number>(0); // Track when we last POSTed to server
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef(true);
   const lastAcceptedRef = useRef<{
@@ -479,12 +480,24 @@ export default function HuntScreen() {
   const lastHeartbeatTickRef = useRef<number>(0);
   // Debug counters for GPS rejection reasons
   const gpsDebugRef = useRef({
-    rejectedPoorAcc: 0,
-    rejectedTeleport: 0,
-    rejectedJitter: 0,
-    acceptedHeartbeat: 0,
-    acceptedMove: 0,
+    rejBadAcc: 0,
+    rejTeleport: 0,
+    rejJitter: 0,
+    accMove: 0,
+    accHeartbeat: 0,
+    posted: 0,
     totalTicks: 0,
+  });
+  
+  // Debug overlay state
+  const [showGpsDebug, setShowGpsDebug] = useState(false);
+  const [gpsDebugInfo, setGpsDebugInfo] = useState({
+    rawAgeSec: 0,
+    acceptedAgeSec: 0,
+    postAgeSec: 0,
+    lastAcc: 0,
+    gpsNoSignal: false,
+    gpsWeak: false,
   });
 
   function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -498,15 +511,33 @@ export default function HuntScreen() {
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // Detect stale GPS (no ACCEPTED updates for 15 seconds)
+  // Detect stale GPS (no ACCEPTED updates for 15 seconds) + update debug overlay
   useEffect(() => {
     const staleCheckInterval = setInterval(() => {
+      const now = Date.now();
       const lastAccepted = lastAcceptedTickRef.current;
-      const isStale = !lastAccepted || (Date.now() - lastAccepted) > 15000;
+      const isStale = !lastAccepted || (now - lastAccepted) > 15000;
       setGpsStale(isStale);
-    }, 5000);
+      
+      // Update debug overlay info
+      if (showGpsDebug) {
+        const rawAge = lastRawTickRef.current ? (now - lastRawTickRef.current) / 1000 : 999;
+        const acceptedAge = lastAcceptedTickRef.current ? (now - lastAcceptedTickRef.current) / 1000 : 999;
+        const postAge = lastPostTickRef.current ? (now - lastPostTickRef.current) / 1000 : 999;
+        const noSignal = !lastRawTickRef.current || (now - lastRawTickRef.current) > 30000;
+        const weak = !noSignal && (!lastAcceptedTickRef.current || (now - lastAcceptedTickRef.current) > 15000);
+        setGpsDebugInfo({
+          rawAgeSec: Math.round(rawAge),
+          acceptedAgeSec: Math.round(acceptedAge),
+          postAgeSec: Math.round(postAge),
+          lastAcc: gpsAccuracy ?? 0,
+          gpsNoSignal: noSignal,
+          gpsWeak: weak,
+        });
+      }
+    }, 1000);
     return () => clearInterval(staleCheckInterval);
-  }, []);
+  }, [showGpsDebug, gpsAccuracy]);
 
   const gpsNoSignal = useMemo(() => {
     if (permissionDenied) return true;
@@ -613,7 +644,7 @@ export default function HuntScreen() {
           // === ACCURACY-AWARE THRESHOLDS ===
           // Reject truly bad accuracy (>120m is unusable)
           if (accuracy > 120) {
-            gpsDebugRef.current.rejectedPoorAcc++;
+            gpsDebugRef.current.rejBadAcc++;
             return;
           }
 
@@ -621,6 +652,7 @@ export default function HuntScreen() {
           const minMoveToUpdate = accuracy <= 15 ? 4 : accuracy <= 30 ? 6 : 10;
           const stationaryDist = Math.min(12, Math.max(4, accuracy * 0.25));
           const HEARTBEAT_INTERVAL_MS = 8000; // Accept stationary update every 8s
+          const POST_MIN_INTERVAL_MS = 12000; // POST to server every 12s minimum
 
           // === EMA SMOOTHING ===
           // Alpha depends on accuracy: smoother when accuracy is better
@@ -644,17 +676,21 @@ export default function HuntScreen() {
           if (!lastAcceptedRef.current) {
             lastAcceptedRef.current = { lat: smoothedLat, lng: smoothedLng, ts, accuracy };
             lastHeartbeatTickRef.current = now;
+            lastPostTickRef.current = now;
             hasInitialLocation = true;
 
             setLastAcceptedGpsTs(ts);
             lastAcceptedTickRef.current = now;
+            setGpsStale(false);
             const heading = coords.heading;
             updateLocation(
               smoothedLat,
               smoothedLng,
-              heading !== null && heading >= 0 ? heading : undefined
+              heading !== null && heading >= 0 ? heading : undefined,
+              { forcePost: true }
             );
-            gpsDebugRef.current.acceptedMove++;
+            gpsDebugRef.current.accMove++;
+            gpsDebugRef.current.posted++;
             return;
           }
 
@@ -666,18 +702,18 @@ export default function HuntScreen() {
           // === SPEED-BASED TELEPORT DETECTION ===
           // Reject if speed > 12 m/s (43 kph) - impossible on foot
           if (speed > 12) {
-            gpsDebugRef.current.rejectedTeleport++;
+            gpsDebugRef.current.rejTeleport++;
             return;
           }
           // Reject fast + inaccurate (suspicious)
           if (speed > 6 && accuracy > 50) {
-            gpsDebugRef.current.rejectedTeleport++;
+            gpsDebugRef.current.rejTeleport++;
             return;
           }
 
           // === HEARTBEAT ACCEPT (for stationary users) ===
-          const timeSinceHeartbeat = now - lastHeartbeatTickRef.current;
-          const isHeartbeatDue = timeSinceHeartbeat >= HEARTBEAT_INTERVAL_MS && accuracy <= 25;
+          const timeSinceAccepted = now - lastAcceptedTickRef.current;
+          const isHeartbeatDue = timeSinceAccepted >= HEARTBEAT_INTERVAL_MS && accuracy <= 35;
 
           // === MOVEMENT CHECK ===
           const accuracyImprovedALot = accuracy + 10 < prev.accuracy;
@@ -686,42 +722,61 @@ export default function HuntScreen() {
 
           // Reject jitter if stationary and no heartbeat due
           if (isStationary && !accuracyImprovedALot && !isHeartbeatDue) {
-            gpsDebugRef.current.rejectedJitter++;
+            gpsDebugRef.current.rejJitter++;
             return;
           }
 
           // Reject minimal movement unless accuracy improved or heartbeat due
           if (isMinimalMove && !accuracyImprovedALot && !isHeartbeatDue) {
-            gpsDebugRef.current.rejectedJitter++;
+            gpsDebugRef.current.rejJitter++;
             return;
           }
 
           // === ACCEPT THIS FIX ===
+          // IMPORTANT: Update accepted tick IMMEDIATELY regardless of POST
           lastAcceptedRef.current = { lat: smoothedLat, lng: smoothedLng, ts, accuracy };
           hasInitialLocation = true;
-
           setLastAcceptedGpsTs(ts);
           lastAcceptedTickRef.current = now;
+          setGpsStale(false); // Clear stale immediately on accept
 
           if (isHeartbeatDue || isStationary) {
             lastHeartbeatTickRef.current = now;
-            gpsDebugRef.current.acceptedHeartbeat++;
+            gpsDebugRef.current.accHeartbeat++;
           } else {
-            gpsDebugRef.current.acceptedMove++;
+            gpsDebugRef.current.accMove++;
           }
 
           if (accuracy < bestAccuracyRef.current) {
             bestAccuracyRef.current = accuracy;
           }
 
-          // Debug log every 20 ticks
-          if (gpsDebugRef.current.totalTicks % 20 === 0) {
-            console.log("[GPS]", {
+          // === POST THROTTLING ===
+          // POST to server only if enough time elapsed OR significant movement
+          const timeSincePost = now - lastPostTickRef.current;
+          const shouldPost = timeSincePost >= POST_MIN_INTERVAL_MS || distM >= 10;
+
+          if (shouldPost) {
+            lastPostTickRef.current = now;
+            gpsDebugRef.current.posted++;
+          }
+
+          // Debug log every 25 raw ticks
+          if (gpsDebugRef.current.totalTicks % 25 === 0) {
+            const rawAgeSec = (now - lastRawTickRef.current) / 1000;
+            const acceptedAgeSec = (now - lastAcceptedTickRef.current) / 1000;
+            const postAgeSec = (now - lastPostTickRef.current) / 1000;
+            console.log("[GPSDBG]", {
               acc: Math.round(accuracy),
-              dtSec: dtSec.toFixed(1),
               distM: distM.toFixed(1),
+              dtSec: dtSec.toFixed(1),
               speed: speed.toFixed(1),
-              counts: { ...gpsDebugRef.current },
+              gpsNoSignal: (now - lastRawTickRef.current) > 30000,
+              gpsWeak: (now - lastAcceptedTickRef.current) > 15000,
+              rawAgeSec: rawAgeSec.toFixed(1),
+              acceptedAgeSec: acceptedAgeSec.toFixed(1),
+              postAgeSec: postAgeSec.toFixed(1),
+              counters: { ...gpsDebugRef.current },
             });
           }
 
@@ -729,7 +784,8 @@ export default function HuntScreen() {
           updateLocation(
             smoothedLat,
             smoothedLng,
-            heading !== null && heading >= 0 ? heading : undefined
+            heading !== null && heading >= 0 ? heading : undefined,
+            { forcePost: shouldPost }
           );
         }
       );
@@ -2257,6 +2313,40 @@ export default function HuntScreen() {
         playerLng={playerLocation?.longitude ?? null}
         serverError={spawnsServerStatus.error}
       />
+
+      {/* GPS Debug Overlay - tap to toggle */}
+      {showGpsDebug && (
+        <View style={styles.gpsDebugOverlay}>
+          <Pressable onPress={() => setShowGpsDebug(false)} style={styles.gpsDebugClose}>
+            <Feather name="x" size={12} color="#fff" />
+          </Pressable>
+          <ThemedText style={styles.gpsDebugTitle}>GPS DEBUG</ThemedText>
+          <ThemedText style={styles.gpsDebugText}>Raw: {gpsDebugInfo.rawAgeSec}s</ThemedText>
+          <ThemedText style={styles.gpsDebugText}>Accept: {gpsDebugInfo.acceptedAgeSec}s</ThemedText>
+          <ThemedText style={styles.gpsDebugText}>POST: {gpsDebugInfo.postAgeSec}s</ThemedText>
+          <ThemedText style={styles.gpsDebugText}>Acc: {Math.round(gpsDebugInfo.lastAcc)}m</ThemedText>
+          <ThemedText style={[styles.gpsDebugText, gpsDebugInfo.gpsNoSignal && { color: '#EF4444' }]}>
+            NoSig: {gpsDebugInfo.gpsNoSignal ? 'YES' : 'no'}
+          </ThemedText>
+          <ThemedText style={[styles.gpsDebugText, gpsDebugInfo.gpsWeak && { color: '#F59E0B' }]}>
+            Weak: {gpsDebugInfo.gpsWeak ? 'YES' : 'no'}
+          </ThemedText>
+          <ThemedText style={styles.gpsDebugText}>
+            rej: {gpsDebugRef.current.rejBadAcc}/{gpsDebugRef.current.rejTeleport}/{gpsDebugRef.current.rejJitter}
+          </ThemedText>
+          <ThemedText style={styles.gpsDebugText}>
+            acc: {gpsDebugRef.current.accMove}/{gpsDebugRef.current.accHeartbeat} post:{gpsDebugRef.current.posted}
+          </ThemedText>
+        </View>
+      )}
+
+      {/* GPS Debug toggle button (bottom left) */}
+      <Pressable
+        style={styles.gpsDebugToggle}
+        onPress={() => setShowGpsDebug(!showGpsDebug)}
+      >
+        <Feather name="activity" size={16} color={showGpsDebug ? GameColors.gold : "#888"} />
+      </Pressable>
     </View>
   );
 }
@@ -3684,5 +3774,54 @@ const styles = StyleSheet.create({
     color: GameColors.textSecondary,
     textAlign: "center",
     maxWidth: 280,
+  },
+  gpsDebugOverlay: {
+    position: "absolute",
+    top: 100,
+    left: Spacing.md,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    zIndex: 1000,
+    minWidth: 140,
+    borderWidth: 1,
+    borderColor: GameColors.gold + "40",
+  },
+  gpsDebugClose: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gpsDebugTitle: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GameColors.gold,
+    marginBottom: 4,
+  },
+  gpsDebugText: {
+    fontSize: 9,
+    color: "#fff",
+    fontFamily: "monospace",
+    lineHeight: 12,
+  },
+  gpsDebugToggle: {
+    position: "absolute",
+    bottom: 140,
+    left: Spacing.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 50,
+    borderWidth: 1,
+    borderColor: "#444",
   },
 });

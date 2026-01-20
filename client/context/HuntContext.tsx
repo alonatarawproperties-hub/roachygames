@@ -206,7 +206,7 @@ interface HuntContextType {
   isLoading: boolean;
   economyReady: boolean;
   collectedEggs: number;
-  updateLocation: (latitude: number, longitude: number, heading?: number) => Promise<void>;
+  updateLocation: (latitude: number, longitude: number, heading?: number, opts?: { forcePost?: boolean }) => Promise<void>;
   spawnCreatures: (reason?: string) => Promise<void>;
   catchCreature: (spawnId: string, catchQuality: string) => Promise<CaughtCreature | null>;
   collectEgg: (spawnId: string) => Promise<CatchResult | null>;
@@ -571,7 +571,12 @@ export function HuntProvider({ children }: HuntProviderProps) {
     refetchInterval: 30000,
   });
 
-  const updateLocation = useCallback(async (latitude: number, longitude: number, heading?: number) => {
+  const updateLocation = useCallback(async (
+    latitude: number, 
+    longitude: number, 
+    heading?: number,
+    opts?: { forcePost?: boolean }
+  ) => {
     setPlayerLocation({ latitude, longitude, heading });
 
     const now = Date.now();
@@ -591,7 +596,13 @@ export function HuntProvider({ children }: HuntProviderProps) {
     const moved = prev ? haversineMeters(prev.lat, prev.lng, latitude, longitude) : 999;
     const elapsed = prev ? (now - prev.ts) : 999999;
 
-    if (prev && moved < 10 && elapsed < 10000) {
+    const POST_MIN_INTERVAL_MS = 12000;
+    
+    // Skip spam POST unless:
+    // - forcePost is true
+    // - OR elapsed >= 12s (periodic keepalive)
+    // - OR moved >= 10m
+    if (prev && !opts?.forcePost && moved < 10 && elapsed < 10000 && elapsed < POST_MIN_INTERVAL_MS) {
       return; // skip spam POST
     }
 
