@@ -500,29 +500,36 @@ export function registerHuntRoutes(app: Express) {
         const dripIntervalMs = HUNT_CONFIG.DRIP_INTERVAL_SEC * 1000;
         
         if (timeSinceLastDrip >= dripIntervalMs) {
-          // Create 1 drip spawn
-          const offset = getRandomOffset(HUNT_CONFIG.DRIP_SPAWN_RADIUS_M);
-          const expiresAt = new Date(nowMs + HUNT_CONFIG.HOME_TTL_MIN * 60 * 1000);
-          const eggTemplate = selectEggByRarity();
+          // Create 1-3 drip spawns (random)
+          const maxDripSpawns = Math.min(
+            Math.floor(Math.random() * 3) + 1, // Random 1-3
+            HUNT_CONFIG.MAX_ACTIVE_HOME_SPAWNS - activeHomeCount
+          );
           
-          await db.insert(wildCreatureSpawns).values({
-            latitude: (lat + offset.lat).toString(),
-            longitude: (lng + offset.lng).toString(),
-            templateId: 'wild_egg_home',
-            name: 'Mystery Egg',
-            creatureClass: 'egg',
-            rarity: eggTemplate.rarity,
-            baseHp: 0,
-            baseAtk: 0,
-            baseDef: 0,
-            baseSpd: 0,
-            containedTemplateId: null,
-            expiresAt,
-          });
-          dripCreated = 1;
+          for (let i = 0; i < maxDripSpawns; i++) {
+            const offset = getRandomOffset(HUNT_CONFIG.DRIP_SPAWN_RADIUS_M);
+            const expiresAt = new Date(nowMs + HUNT_CONFIG.HOME_TTL_MIN * 60 * 1000);
+            const eggTemplate = selectEggByRarity();
+            
+            await db.insert(wildCreatureSpawns).values({
+              latitude: (lat + offset.lat).toString(),
+              longitude: (lng + offset.lng).toString(),
+              templateId: 'wild_egg_home',
+              name: 'Mystery Egg',
+              creatureClass: 'egg',
+              rarity: eggTemplate.rarity,
+              baseHp: 0,
+              baseAtk: 0,
+              baseDef: 0,
+              baseSpd: 0,
+              containedTemplateId: null,
+              expiresAt,
+            });
+            dripCreated++;
+          }
           
           updateSession(walletAddress, { lastDripAt: nowMs });
-          console.log(`[DRIP] Created 1 spawn for ${walletAddress}`);
+          console.log(`[DRIP] Created ${dripCreated} spawn(s) for ${walletAddress}`);
         } else {
           nextDripInSec = Math.ceil((dripIntervalMs - timeSinceLastDrip) / 1000);
         }
