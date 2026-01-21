@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Pressable, Modal, Dimensions, Image, ScrollView, ImageBackground } from "react-native";
+import React, { useEffect, useState, useMemo } from "react";
+import { View, StyleSheet, Pressable, Modal, Dimensions, Image, ScrollView } from "react-native";
+import Svg, { Circle, Line, Defs, LinearGradient as SvgLinearGradient, Stop, Ellipse } from "react-native-svg";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,19 +9,16 @@ import Animated, {
   withTiming,
   withRepeat,
   withDelay,
-  runOnJS,
   Easing,
   FadeIn,
-  FadeInDown,
   FadeInUp,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
-import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { ObsidianBronzeAR, Spacing, BorderRadius, normalizeRarity, getFusionTheme, FusionRarity } from "@/constants/theme";
 
 const EggCommon = require("@/assets/hunt/egg-common.png");
 const EggRare = require("@/assets/hunt/egg-rare.png");
@@ -34,19 +32,8 @@ const EGG_IMAGES: Record<string, any> = {
   legendary: EggLegendary,
 };
 
-const EggCatchBgCommon = require("@/assets/egg-catch-bg-common.jpg");
-const EggCatchBgRare = require("@/assets/egg-catch-bg-rare.jpg");
-const EggCatchBgEpic = require("@/assets/egg-catch-bg-epic.jpg");
-const EggCatchBgLegendary = require("@/assets/egg-catch-bg-legendary.jpg");
-
-const EGG_CATCH_BACKGROUNDS: Record<string, any> = {
-  common: EggCatchBgCommon,
-  rare: EggCatchBgRare,
-  epic: EggCatchBgEpic,
-  legendary: EggCatchBgLegendary,
-};
-
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const STAGE_SIZE = Math.min(SCREEN_WIDTH * 0.75, 280);
 
 interface EggCollectedModalProps {
   visible: boolean;
@@ -59,48 +46,6 @@ interface EggCollectedModalProps {
   onGoToEggs: () => void;
 }
 
-const RARITY_CONFIG: Record<string, { 
-  primary: string; 
-  secondary: string;
-  glow: string;
-  gradient: [string, string, string];
-  label: string;
-  particles: number;
-}> = {
-  common: { 
-    primary: "#9CA3AF", 
-    secondary: "#6B7280",
-    glow: "rgba(156, 163, 175, 0.4)",
-    gradient: ["#D1D5DB", "#9CA3AF", "#6B7280"],
-    label: "COMMON",
-    particles: 6,
-  },
-  rare: { 
-    primary: "#60A5FA", 
-    secondary: "#3B82F6",
-    glow: "rgba(59, 130, 246, 0.5)",
-    gradient: ["#93C5FD", "#60A5FA", "#3B82F6"],
-    label: "RARE",
-    particles: 10,
-  },
-  epic: { 
-    primary: "#C084FC", 
-    secondary: "#A855F7",
-    glow: "rgba(168, 85, 247, 0.6)",
-    gradient: ["#E9D5FF", "#C084FC", "#A855F7"],
-    label: "EPIC",
-    particles: 16,
-  },
-  legendary: { 
-    primary: "#FCD34D", 
-    secondary: "#F59E0B",
-    glow: "rgba(245, 158, 11, 0.7)",
-    gradient: ["#FEF3C7", "#FCD34D", "#F59E0B"],
-    label: "LEGENDARY",
-    particles: 24,
-  },
-};
-
 export function EggCollectedModal({
   visible,
   eggRarity,
@@ -112,102 +57,171 @@ export function EggCollectedModal({
   onGoToEggs,
 }: EggCollectedModalProps) {
   const insets = useSafeAreaInsets();
-  const config = RARITY_CONFIG[eggRarity] || RARITY_CONFIG.common;
-  
+  const rarity4 = normalizeRarity(eggRarity) as FusionRarity;
+  const theme = getFusionTheme(rarity4);
+
   const [phase, setPhase] = useState<"reveal" | "complete">("reveal");
   const [showContent, setShowContent] = useState(false);
-  
+
   const eggScale = useSharedValue(0);
   const eggRotation = useSharedValue(0);
   const eggFloat = useSharedValue(0);
-  const glowScale = useSharedValue(1);
-  const glowOpacity = useSharedValue(0);
-  const burstScale = useSharedValue(0);
-  const burstOpacity = useSharedValue(0);
-  const shimmerPosition = useSharedValue(-1);
+  const haloOpacity = useSharedValue(0);
+  const ringRotation = useSharedValue(0);
+  const ringPulse = useSharedValue(1);
+  const scanSweepX = useSharedValue(-SCREEN_WIDTH);
+  const shockwaveScale = useSharedValue(1);
+  const shockwaveOpacity = useSharedValue(0);
+  const shockwave2Scale = useSharedValue(1);
+  const shockwave2Opacity = useSharedValue(0);
+  const sparkBurstOpacity = useSharedValue(0);
+  const arcFlickerOpacity = useSharedValue(0);
+  const circuitShimmerX = useSharedValue(-100);
+  const emberStreakOpacity = useSharedValue(0);
+
+  const particleCount = rarity4 === 'legendary' ? 16 : rarity4 === 'epic' ? 14 : rarity4 === 'rare' ? 12 : 10;
 
   useEffect(() => {
     if (visible) {
       setPhase("reveal");
       setShowContent(false);
+
       eggScale.value = 0;
       eggRotation.value = 0;
       eggFloat.value = 0;
-      glowScale.value = 1;
-      glowOpacity.value = 0;
-      burstScale.value = 0;
-      burstOpacity.value = 0;
-      shimmerPosition.value = -1;
+      haloOpacity.value = 0;
+      ringRotation.value = 0;
+      ringPulse.value = 1;
+      shockwaveScale.value = 1;
+      shockwaveOpacity.value = 0;
+      shockwave2Scale.value = 1;
+      shockwave2Opacity.value = 0;
+      sparkBurstOpacity.value = 0;
+      arcFlickerOpacity.value = 0;
+      circuitShimmerX.value = -100;
+      emberStreakOpacity.value = 0;
+
+      ringRotation.value = withRepeat(
+        withTiming(360, { duration: 11000, easing: Easing.linear }),
+        -1,
+        false
+      );
+
+      const pulseSpeed = rarity4 === 'legendary' ? 980 : rarity4 === 'epic' ? 1050 : rarity4 === 'rare' ? 1100 : 1200;
+      ringPulse.value = withRepeat(
+        withSequence(
+          withTiming(1.05, { duration: pulseSpeed, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: pulseSpeed, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+
+      scanSweepX.value = withRepeat(
+        withSequence(
+          withTiming(-SCREEN_WIDTH, { duration: 0 }),
+          withTiming(SCREEN_WIDTH * 2, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(SCREEN_WIDTH * 2, { duration: 500 })
+        ),
+        -1,
+        false
+      );
 
       eggScale.value = withSpring(1, { damping: 12, stiffness: 100 });
-      glowOpacity.value = withTiming(0.6, { duration: 500 });
+      haloOpacity.value = withTiming(0.3, { duration: 400 });
 
       setTimeout(() => {
         eggRotation.value = withRepeat(
           withSequence(
-            withTiming(-10, { duration: 80, easing: Easing.inOut(Easing.ease) }),
-            withTiming(10, { duration: 80, easing: Easing.inOut(Easing.ease) }),
             withTiming(-8, { duration: 70, easing: Easing.inOut(Easing.ease) }),
             withTiming(8, { duration: 70, easing: Easing.inOut(Easing.ease) }),
-            withTiming(-5, { duration: 60, easing: Easing.inOut(Easing.ease) }),
-            withTiming(5, { duration: 60, easing: Easing.inOut(Easing.ease) }),
+            withTiming(-6, { duration: 60, easing: Easing.inOut(Easing.ease) }),
+            withTiming(6, { duration: 60, easing: Easing.inOut(Easing.ease) }),
             withTiming(0, { duration: 50 })
           ),
           2,
           false
         );
-      }, 300);
+      }, 200);
 
       setTimeout(() => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        burstOpacity.value = withTiming(1, { duration: 150 });
-        burstScale.value = withSequence(
-          withSpring(1.8, { damping: 5, stiffness: 150 }),
-          withTiming(2.5, { duration: 400 })
+
+        shockwaveScale.value = withTiming(1.8, { duration: 350, easing: Easing.out(Easing.cubic) });
+        shockwaveOpacity.value = withSequence(
+          withTiming(0.8, { duration: 80 }),
+          withTiming(0, { duration: 270 })
         );
-        burstOpacity.value = withDelay(250, withTiming(0, { duration: 250 }));
+
+        if (rarity4 === 'rare' || rarity4 === 'epic' || rarity4 === 'legendary') {
+          shockwave2Scale.value = withDelay(120, withTiming(2.0, { duration: 400, easing: Easing.out(Easing.cubic) }));
+          shockwave2Opacity.value = withDelay(120, withSequence(
+            withTiming(0.5, { duration: 60 }),
+            withTiming(0, { duration: 340 })
+          ));
+        }
+
+        sparkBurstOpacity.value = withSequence(
+          withDelay(150, withTiming(1, { duration: 80 })),
+          withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) })
+        );
+
+        if (rarity4 === 'rare') {
+          arcFlickerOpacity.value = withSequence(
+            withDelay(100, withTiming(0.7, { duration: 50 })),
+            withTiming(0, { duration: 150 })
+          );
+        }
+
+        if (rarity4 === 'epic') {
+          circuitShimmerX.value = withDelay(100, withTiming(STAGE_SIZE + 100, { duration: 400, easing: Easing.out(Easing.cubic) }));
+        }
+
+        if (rarity4 === 'legendary') {
+          emberStreakOpacity.value = withSequence(
+            withDelay(50, withTiming(0.8, { duration: 100 })),
+            withTiming(0, { duration: 200 })
+          );
+          haloOpacity.value = withTiming(0.6, { duration: 400 });
+        } else if (rarity4 === 'epic') {
+          haloOpacity.value = withRepeat(
+            withSequence(
+              withTiming(0.5, { duration: 1500 }),
+              withTiming(0.35, { duration: 1500 })
+            ),
+            -1,
+            true
+          );
+        } else {
+          haloOpacity.value = withTiming(0.4, { duration: 400 });
+        }
 
         eggScale.value = withSequence(
-          withSpring(1.3, { damping: 6, stiffness: 200 }),
+          withSpring(1.2, { damping: 6, stiffness: 200 }),
           withSpring(1, { damping: 10, stiffness: 100 })
-        );
-
-        glowScale.value = withRepeat(
-          withSequence(
-            withTiming(1.2, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-            withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
-          ),
-          -1
-        );
-
-        shimmerPosition.value = withRepeat(
-          withTiming(1, { duration: 2000, easing: Easing.linear }),
-          -1
         );
 
         eggFloat.value = withRepeat(
           withSequence(
-            withTiming(-8, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-            withTiming(8, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+            withTiming(-6, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+            withTiming(6, { duration: 1500, easing: Easing.inOut(Easing.ease) })
           ),
           -1,
           true
         );
-      }, 1000);
+      }, 800);
 
       setTimeout(() => {
         setShowContent(true);
         setPhase("complete");
-      }, 1600);
-
+      }, 1400);
     } else {
       eggScale.value = 0;
-      glowOpacity.value = 0;
+      haloOpacity.value = 0;
       setShowContent(false);
       setPhase("reveal");
     }
-  }, [visible]);
+  }, [visible, rarity4]);
 
   const eggStyle = useAnimatedStyle(() => ({
     transform: [
@@ -217,15 +231,63 @@ export function EggCollectedModal({
     ],
   }));
 
-  const glowStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: glowScale.value }],
-    opacity: glowOpacity.value,
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: haloOpacity.value,
   }));
 
-  const burstStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: burstScale.value }],
-    opacity: burstOpacity.value,
+  const ringStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${ringRotation.value}deg` }, { scale: ringPulse.value }],
   }));
+
+  const scanSweepStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: scanSweepX.value }],
+  }));
+
+  const shockwaveStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: shockwaveScale.value }],
+    opacity: shockwaveOpacity.value,
+  }));
+
+  const shockwave2Style = useAnimatedStyle(() => ({
+    transform: [{ scale: shockwave2Scale.value }],
+    opacity: shockwave2Opacity.value,
+  }));
+
+  const sparkBurstStyle = useAnimatedStyle(() => ({
+    opacity: sparkBurstOpacity.value,
+  }));
+
+  const arcFlickerStyle = useAnimatedStyle(() => ({
+    opacity: arcFlickerOpacity.value,
+  }));
+
+  const circuitShimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: circuitShimmerX.value }],
+  }));
+
+  const emberStreakStyle = useAnimatedStyle(() => ({
+    opacity: emberStreakOpacity.value,
+  }));
+
+  const dustMotes = useMemo(() =>
+    Array.from({ length: particleCount }, (_, i) => ({
+      id: i,
+      x: Math.random() * SCREEN_WIDTH,
+      y: SCREEN_HEIGHT * 0.2 + Math.random() * SCREEN_HEIGHT * 0.3,
+      size: 2 + Math.random() * 2,
+      speed: 5000 + Math.random() * 4000,
+      delay: Math.random() * 2000,
+    })),
+    [particleCount]
+  );
+
+  const sparkPositions = useMemo(() => {
+    const count = rarity4 === 'legendary' ? 18 : rarity4 === 'epic' ? 12 : rarity4 === 'rare' ? 8 : 0;
+    return Array.from({ length: count }, (_, i) => ({
+      angle: (i / count) * 360,
+      distance: 35 + Math.random() * 25,
+    }));
+  }, [rarity4]);
 
   const handleContinue = () => {
     if (phase === "complete") {
@@ -240,144 +302,302 @@ export function EggCollectedModal({
   };
 
   const isSmallScreen = SCREEN_HEIGHT < 700;
-  const eggSize = isSmallScreen ? { width: 140, height: 170 } : { width: 180, height: 220 };
-
-  const backgroundImage = EGG_CATCH_BACKGROUNDS[eggRarity] || EggCatchBgCommon;
+  const eggSize = isSmallScreen ? { width: 120, height: 150 } : { width: 150, height: 185 };
 
   return (
     <Modal visible={visible} transparent={false} animationType="fade">
-      <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
-        <ScrollView 
+      <View style={styles.container}>
+        <LinearGradient
+          colors={[ObsidianBronzeAR.obsidian, ObsidianBronzeAR.obsidianBrown, '#0A0705']}
+          style={StyleSheet.absoluteFill}
+          locations={[0, 0.5, 1]}
+        />
+
+        <LinearGradient
+          colors={['rgba(11,11,13,0.7)', 'transparent', 'transparent', 'rgba(11,11,13,0.8)']}
+          locations={[0, 0.2, 0.8, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <LinearGradient
+          colors={['rgba(11,11,13,0.5)', 'transparent', 'transparent', 'rgba(11,11,13,0.6)']}
+          locations={[0, 0.15, 0.85, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <Animated.View style={[styles.scanSweep, scanSweepStyle]}>
+          <LinearGradient
+            colors={['transparent', 'rgba(176,122,58,0.06)', 'rgba(176,122,58,0.1)', 'rgba(176,122,58,0.06)', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.scanSweepGradient}
+          />
+        </Animated.View>
+
+        {dustMotes.map((mote) => (
+          <DustMote key={mote.id} mote={mote} color={ObsidianBronzeAR.amber} />
+        ))}
+
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
-            styles.scrollContent, 
+            styles.scrollContent,
             { paddingTop: insets.top + Spacing.xl, paddingBottom: Math.max(insets.bottom, 34) + Spacing["2xl"] }
           ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          <View style={styles.eggSection}>
-            <Animated.View style={[styles.burstContainer, burstStyle]}>
-              <View style={[styles.burst, { backgroundColor: config.glow }]} />
-            </Animated.View>
-
-            <Animated.View style={[styles.glowContainer, glowStyle]}>
-              <View style={[styles.glowOuter, { backgroundColor: config.glow }]} />
-              <View style={[styles.glowInner, { backgroundColor: config.primary + "40" }]} />
-            </Animated.View>
-
-            <View style={styles.particleContainer}>
-              {Array.from({ length: config.particles }).map((_, i) => {
-                const angle = (360 / config.particles) * i;
-                const distance = isSmallScreen ? 80 : 100;
-                return (
-                  <Animated.View
-                    key={i}
-                    entering={FadeIn.delay(1200 + i * 50).duration(500)}
-                    style={[
-                      styles.particle,
-                      {
-                        backgroundColor: config.primary,
-                        transform: [
-                          { rotate: `${angle}deg` },
-                          { translateY: -distance },
-                        ],
-                      },
-                    ]}
-                  />
-                );
-              })}
-            </View>
-
-            <Animated.View style={[styles.eggWrapper, eggStyle]}>
-              <Image 
-                source={EGG_IMAGES[eggRarity] || EGG_IMAGES.common}
-                style={[styles.eggImage, eggSize]}
-                resizeMode="contain"
+          <View style={[styles.stageContainer, { width: STAGE_SIZE, height: STAGE_SIZE }]}>
+            <Animated.View style={[styles.haloContainer, haloStyle, { width: STAGE_SIZE * 1.2, height: STAGE_SIZE * 1.2 }]}>
+              <LinearGradient
+                colors={[theme.accentGlow, 'transparent']}
+                style={styles.haloGradient}
               />
             </Animated.View>
+
+            <View style={styles.platformEllipse}>
+              <Svg width={STAGE_SIZE} height={50}>
+                <Defs>
+                  <SvgLinearGradient id="platformGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <Stop offset="0%" stopColor={ObsidianBronzeAR.bronze} stopOpacity="0.3" />
+                    <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                  </SvgLinearGradient>
+                </Defs>
+                <Ellipse
+                  cx={STAGE_SIZE / 2}
+                  cy={25}
+                  rx={STAGE_SIZE / 2 - 15}
+                  ry={20}
+                  fill="url(#platformGrad)"
+                />
+                <Ellipse
+                  cx={STAGE_SIZE / 2}
+                  cy={25}
+                  rx={STAGE_SIZE / 2 - 15}
+                  ry={20}
+                  fill="none"
+                  stroke={ObsidianBronzeAR.bronze}
+                  strokeWidth={1.5}
+                  opacity={0.5}
+                />
+              </Svg>
+            </View>
+
+            <Animated.View style={[styles.ringsContainer, ringStyle, { width: STAGE_SIZE, height: STAGE_SIZE }]}>
+              <Svg width={STAGE_SIZE} height={STAGE_SIZE}>
+                <Circle
+                  cx={STAGE_SIZE / 2}
+                  cy={STAGE_SIZE / 2}
+                  r={STAGE_SIZE / 2 - 15}
+                  fill="none"
+                  stroke={ObsidianBronzeAR.bronze}
+                  strokeWidth={1}
+                  strokeDasharray="8 12"
+                  opacity={0.35}
+                />
+                <Circle
+                  cx={STAGE_SIZE / 2}
+                  cy={STAGE_SIZE / 2}
+                  r={STAGE_SIZE / 2 - 35}
+                  fill="none"
+                  stroke={theme.accentMain}
+                  strokeWidth={0.8}
+                  strokeDasharray="5 15"
+                  opacity={0.3}
+                />
+                <Circle
+                  cx={STAGE_SIZE / 2}
+                  cy={STAGE_SIZE / 2}
+                  r={STAGE_SIZE / 2 - 55}
+                  fill="none"
+                  stroke={ObsidianBronzeAR.bronze}
+                  strokeWidth={0.6}
+                  strokeDasharray="3 16"
+                  opacity={0.25}
+                />
+
+                {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
+                  const rad = (angle * Math.PI) / 180;
+                  const r = STAGE_SIZE / 2 - 15;
+                  const cx = STAGE_SIZE / 2;
+                  const cy = STAGE_SIZE / 2;
+                  const x1 = cx + Math.cos(rad) * (r - 6);
+                  const y1 = cy + Math.sin(rad) * (r - 6);
+                  const x2 = cx + Math.cos(rad) * (r + 2);
+                  const y2 = cy + Math.sin(rad) * (r + 2);
+                  return (
+                    <Line
+                      key={angle}
+                      x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={ObsidianBronzeAR.bronze}
+                      strokeWidth={1.5}
+                      opacity={0.4}
+                    />
+                  );
+                })}
+              </Svg>
+            </Animated.View>
+
+            {rarity4 === 'epic' && (
+              <Animated.View style={[styles.circuitShimmer, circuitShimmerStyle]}>
+                <View style={[styles.circuitLine, { backgroundColor: theme.accentMain }]} />
+              </Animated.View>
+            )}
+
+            <View style={styles.centerArea}>
+              <Animated.View style={[styles.shockwave, shockwaveStyle]}>
+                <View style={[styles.shockwaveRing, { borderColor: ObsidianBronzeAR.bronze }]} />
+              </Animated.View>
+
+              {(rarity4 === 'rare' || rarity4 === 'epic' || rarity4 === 'legendary') && (
+                <Animated.View style={[styles.shockwave2, shockwave2Style]}>
+                  <View style={[styles.shockwaveRing, { borderColor: theme.accentMain }]} />
+                </Animated.View>
+              )}
+
+              {rarity4 === 'rare' && (
+                <Animated.View style={[styles.arcFlickerContainer, arcFlickerStyle]}>
+                  {[0, 120, 240].map((angle) => (
+                    <View
+                      key={angle}
+                      style={[
+                        styles.arcFlicker,
+                        {
+                          transform: [{ rotate: `${angle}deg` }],
+                          backgroundColor: theme.accentMain,
+                        },
+                      ]}
+                    />
+                  ))}
+                </Animated.View>
+              )}
+
+              {rarity4 === 'legendary' && (
+                <Animated.View style={[styles.emberStreaksContainer, emberStreakStyle]}>
+                  {[0, 1, 2].map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.emberStreak,
+                        {
+                          left: STAGE_SIZE / 2 - 35 + i * 35,
+                          backgroundColor: theme.accentMain,
+                        },
+                      ]}
+                    />
+                  ))}
+                </Animated.View>
+              )}
+
+              {sparkPositions.length > 0 && (
+                <Animated.View style={[styles.sparkBurst, sparkBurstStyle]}>
+                  {sparkPositions.map((spark, i) => {
+                    const rad = (spark.angle * Math.PI) / 180;
+                    const x = Math.cos(rad) * spark.distance;
+                    const y = Math.sin(rad) * spark.distance;
+                    const isAccent = i % 3 === 0;
+                    return (
+                      <View
+                        key={i}
+                        style={[
+                          styles.spark,
+                          {
+                            transform: [{ translateX: x }, { translateY: y }],
+                            backgroundColor: isAccent ? theme.accentMain : ObsidianBronzeAR.amber,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </Animated.View>
+              )}
+
+              <Animated.View style={[styles.eggWrapper, eggStyle]}>
+                <Image
+                  source={EGG_IMAGES[eggRarity] || EGG_IMAGES.common}
+                  style={[styles.eggImage, eggSize]}
+                  resizeMode="contain"
+                />
+              </Animated.View>
+            </View>
           </View>
 
           {showContent && (
-            <Animated.View 
+            <Animated.View
               entering={FadeInUp.duration(400).springify()}
               style={styles.contentContainer}
             >
               <ThemedText style={styles.caughtText}>You caught a</ThemedText>
-              
-              <View style={[styles.rarityBadge, { 
-                backgroundColor: config.primary + "20",
-                borderColor: config.primary,
-                shadowColor: config.primary,
-              }]}>
-                <ThemedText style={[styles.rarityText, { color: config.primary }]}>
-                  {config.label} EGG
+
+              <View style={[styles.rarityBadge, { borderColor: theme.accentMain + '50' }]}>
+                <ThemedText style={[styles.rarityText, { color: theme.accentMain }]}>
+                  {rarity4.toUpperCase()} EGG
                 </ThemedText>
               </View>
 
               {quality === "perfect" && (
-                <Animated.View 
+                <Animated.View
                   entering={FadeIn.delay(200).duration(300)}
                   style={styles.perfectBanner}
                 >
-                  <Feather name="star" size={14} color="#FFD700" />
+                  <Feather name="star" size={14} color={ObsidianBronzeAR.amber} />
                   <ThemedText style={styles.perfectText}>PERFECT CATCH!</ThemedText>
-                  <Feather name="star" size={14} color="#FFD700" />
+                  <Feather name="star" size={14} color={ObsidianBronzeAR.amber} />
                 </Animated.View>
               )}
 
-              <Animated.View 
+              <Animated.View
                 entering={FadeInUp.delay(300).duration(400)}
-                style={styles.rewardsCard}
+                style={[styles.rewardsCard, { borderColor: theme.accentMain + '25' }]}
               >
-                <BlurView intensity={20} tint="dark" style={styles.rewardsBlur}>
-                  <View style={styles.rewardsRow}>
-                    <View style={styles.rewardItem}>
-                      <View style={[styles.rewardIcon, { backgroundColor: "#F59E0B20" }]}>
-                        <Feather name="zap" size={20} color="#F59E0B" />
-                      </View>
-                      <ThemedText style={styles.rewardValue}>+{xpAwarded}</ThemedText>
-                      <ThemedText style={styles.rewardLabel}>XP</ThemedText>
+                <View style={styles.rewardsRow}>
+                  <View style={styles.rewardItem}>
+                    <View style={[styles.rewardIcon, { backgroundColor: '#F59E0B20' }]}>
+                      <Feather name="zap" size={20} color="#F59E0B" />
                     </View>
-                    
-                    <View style={styles.rewardDivider} />
-                    
-                    <View style={styles.rewardItem}>
-                      <View style={[styles.rewardIcon, { backgroundColor: "#3B82F620" }]}>
-                        <Feather name="award" size={20} color="#3B82F6" />
-                      </View>
-                      <ThemedText style={styles.rewardValue}>+{pointsAwarded}</ThemedText>
-                      <ThemedText style={styles.rewardLabel}>Points</ThemedText>
-                    </View>
+                    <ThemedText style={styles.rewardValue}>+{xpAwarded}</ThemedText>
+                    <ThemedText style={styles.rewardLabel}>XP</ThemedText>
                   </View>
-                </BlurView>
+
+                  <View style={styles.rewardDivider} />
+
+                  <View style={styles.rewardItem}>
+                    <View style={[styles.rewardIcon, { backgroundColor: '#3B82F620' }]}>
+                      <Feather name="award" size={20} color="#3B82F6" />
+                    </View>
+                    <ThemedText style={styles.rewardValue}>+{pointsAwarded}</ThemedText>
+                    <ThemedText style={styles.rewardLabel}>Points</ThemedText>
+                  </View>
+                </View>
               </Animated.View>
 
-              <Animated.View 
+              <Animated.View
                 entering={FadeInUp.delay(500).duration(400)}
-                style={styles.pityCard}
+                style={[styles.pityCard, { borderColor: ObsidianBronzeAR.bronze + '30' }]}
               >
                 <ThemedText style={styles.pityTitle}>Next Guaranteed Drop</ThemedText>
                 <View style={styles.pityRow}>
                   <View style={styles.pityItem}>
-                    <ThemedText style={[styles.pityCount, { color: "#60A5FA" }]}>
+                    <ThemedText style={[styles.pityCount, { color: "#8A5CFF" }]}>
                       {pity.rareIn}
                     </ThemedText>
-                    <ThemedText style={[styles.pityLabel, { color: "#60A5FA" }]}>Rare</ThemedText>
+                    <ThemedText style={[styles.pityLabel, { color: "#8A5CFF" }]}>Rare</ThemedText>
                   </View>
-                  <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
+                  <View style={styles.pityDot} />
                   <View style={styles.pityItem}>
-                    <ThemedText style={[styles.pityCount, { color: "#C084FC" }]}>
+                    <ThemedText style={[styles.pityCount, { color: "#21D4C2" }]}>
                       {pity.epicIn}
                     </ThemedText>
-                    <ThemedText style={[styles.pityLabel, { color: "#C084FC" }]}>Epic</ThemedText>
+                    <ThemedText style={[styles.pityLabel, { color: "#21D4C2" }]}>Epic</ThemedText>
                   </View>
-                  <View style={[styles.pityDot, { backgroundColor: "#374151" }]} />
+                  <View style={styles.pityDot} />
                   <View style={styles.pityItem}>
-                    <ThemedText style={[styles.pityCount, { color: "#FCD34D" }]}>
+                    <ThemedText style={[styles.pityCount, { color: "#F2B94B" }]}>
                       {pity.legendaryIn}
                     </ThemedText>
-                    <ThemedText style={[styles.pityLabel, { color: "#FCD34D" }]}>Legendary</ThemedText>
+                    <ThemedText style={[styles.pityLabel, { color: "#F2B94B" }]}>Legendary</ThemedText>
                   </View>
                 </View>
               </Animated.View>
@@ -385,302 +605,403 @@ export function EggCollectedModal({
           )}
 
           {showContent && (
-            <Animated.View 
+            <Animated.View
               entering={FadeInUp.delay(700).duration(400)}
               style={styles.buttonContainer}
             >
-            <Pressable 
-              style={styles.primaryButton}
-              onPress={handleContinue}
-            >
-              <LinearGradient
-                colors={[config.primary, config.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.primaryButtonGradient}
+              <Pressable
+                style={styles.primaryButton}
+                onPress={handleContinue}
               >
-                <Feather name="map" size={20} color="#000" />
-                <ThemedText style={styles.primaryButtonText}>Hunt More</ThemedText>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={[ObsidianBronzeAR.bronze, '#8A5A2A']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.primaryButtonGradient}
+                >
+                  <Feather name="map" size={20} color="#FFFFFF" />
+                  <ThemedText style={styles.primaryButtonText}>Hunt More</ThemedText>
+                </LinearGradient>
+              </Pressable>
 
-            <Pressable 
-              style={[styles.secondaryButton, { borderColor: config.primary + "60" }]}
-              onPress={handleGoToEggs}
-            >
-              <Feather name="package" size={18} color={config.primary} />
-              <ThemedText style={[styles.secondaryButtonText, { color: config.primary }]}>
-                View Eggs
-              </ThemedText>
-            </Pressable>
+              <Pressable
+                style={[styles.secondaryButton, { borderColor: theme.accentMain + '50' }]}
+                onPress={handleGoToEggs}
+              >
+                <Feather name="package" size={18} color={theme.accentMain} />
+                <ThemedText style={[styles.secondaryButtonText, { color: theme.accentMain }]}>
+                  View Eggs
+                </ThemedText>
+              </Pressable>
             </Animated.View>
           )}
         </ScrollView>
 
-        <Pressable 
+        <Pressable
           style={[styles.closeButton, { top: insets.top + Spacing.sm }]}
           onPress={handleContinue}
         >
-          <BlurView intensity={30} tint="dark" style={styles.closeButtonBlur}>
+          <View style={styles.closeButtonBg}>
             <Feather name="x" size={20} color="#fff" />
-          </BlurView>
+          </View>
         </Pressable>
-      </ImageBackground>
+      </View>
     </Modal>
+  );
+}
+
+function DustMote({ mote, color }: { mote: { x: number; y: number; size: number; speed: number; delay: number }; color: string }) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    translateY.value = withDelay(mote.delay, withRepeat(
+      withTiming(-40, { duration: mote.speed, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      false
+    ));
+
+    opacity.value = withDelay(mote.delay, withRepeat(
+      withSequence(
+        withTiming(0.4, { duration: mote.speed * 0.2 }),
+        withTiming(0.3, { duration: mote.speed * 0.6 }),
+        withTiming(0, { duration: mote.speed * 0.2 })
+      ),
+      -1,
+      false
+    ));
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.dustMote,
+        {
+          left: mote.x,
+          top: mote.y,
+          width: mote.size,
+          height: mote.size,
+          borderRadius: mote.size / 2,
+          backgroundColor: color,
+        },
+        style,
+      ]}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: ObsidianBronzeAR.obsidian,
+  },
+  scanSweep: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 100,
+    zIndex: 1,
+  },
+  scanSweepGradient: {
+    flex: 1,
+  },
+  dustMote: {
+    position: 'absolute',
+    zIndex: 1,
   },
   scrollView: {
     flex: 1,
+    zIndex: 2,
   },
   scrollContent: {
     flexGrow: 1,
-    alignItems: "center",
+    alignItems: 'center',
   },
-  eggSection: {
-    height: SCREEN_HEIGHT * 0.38,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
+  stageContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  burstContainer: {
-    position: "absolute",
-    alignSelf: "center",
+  haloContainer: {
+    position: 'absolute',
+    borderRadius: 1000,
+    overflow: 'hidden',
   },
-  burst: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
+  haloGradient: {
+    flex: 1,
+    borderRadius: 1000,
   },
-  glowContainer: {
-    position: "absolute",
-    alignSelf: "center",
-    alignItems: "center",
-    justifyContent: "center",
+  platformEllipse: {
+    position: 'absolute',
+    bottom: 10,
   },
-  glowOuter: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    position: "absolute",
+  ringsContainer: {
+    position: 'absolute',
   },
-  glowInner: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+  circuitShimmer: {
+    position: 'absolute',
+    width: 3,
+    height: '100%',
+    overflow: 'hidden',
   },
-  particleContainer: {
-    position: "absolute",
-    alignSelf: "center",
-    width: 10,
-    height: 10,
-    alignItems: "center",
-    justifyContent: "center",
+  circuitLine: {
+    width: 2,
+    height: '100%',
+    opacity: 0.3,
   },
-  particle: {
-    position: "absolute",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  centerArea: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  shockwave: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shockwave2: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shockwaveRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+  },
+  arcFlickerContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  arcFlicker: {
+    position: 'absolute',
+    width: 3,
+    height: 18,
+    borderRadius: 1.5,
+    top: 25,
+  },
+  emberStreaksContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  emberStreak: {
+    position: 'absolute',
+    width: 3,
+    height: 35,
+    borderRadius: 1.5,
+    bottom: '55%',
+  },
+  sparkBurst: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  spark: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
   eggWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   eggImage: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.6,
-    shadowRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
   contentContainer: {
-    alignItems: "center",
-    width: "100%",
+    alignItems: 'center',
+    width: '100%',
     paddingHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
   },
   caughtText: {
-    fontSize: 18,
-    color: "#9CA3AF",
+    fontSize: 16,
+    color: ObsidianBronzeAR.textMuted,
     marginBottom: Spacing.sm,
     letterSpacing: 1,
   },
   rarityBadge: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-    borderWidth: 2,
+    borderRadius: 20,
+    borderWidth: 1,
+    backgroundColor: ObsidianBronzeAR.smokedGlassStrong,
     marginBottom: Spacing.md,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 8,
   },
   rarityText: {
-    fontSize: 24,
-    fontWeight: "800",
-    letterSpacing: 3,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 2,
   },
   perfectBanner: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   perfectText: {
-    color: "#FFD700",
-    fontWeight: "700",
-    fontSize: 15,
+    color: ObsidianBronzeAR.amber,
+    fontWeight: '700',
+    fontSize: 14,
     letterSpacing: 2,
   },
   rewardsCard: {
-    width: "100%",
+    width: '100%',
     maxWidth: 280,
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
-    marginBottom: Spacing.lg,
-  },
-  rewardsBlur: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 16,
+    backgroundColor: ObsidianBronzeAR.smokedGlassStrong,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   rewardsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   rewardItem: {
-    alignItems: "center",
+    alignItems: 'center',
     flex: 1,
   },
   rewardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
   },
   rewardValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   rewardLabel: {
-    fontSize: 12,
-    color: "#9CA3AF",
+    fontSize: 11,
+    color: ObsidianBronzeAR.textMuted,
     marginTop: 2,
   },
   rewardDivider: {
     width: 1,
-    height: 60,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    height: 55,
+    backgroundColor: 'rgba(176,122,58,0.2)',
     marginHorizontal: Spacing.lg,
   },
   pityCard: {
-    backgroundColor: "rgba(30, 30, 40, 0.8)",
-    borderRadius: BorderRadius.lg,
+    backgroundColor: ObsidianBronzeAR.smokedGlassStrong,
+    borderRadius: 14,
     padding: Spacing.md,
-    width: "100%",
+    width: '100%',
     maxWidth: 300,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
   },
   pityTitle: {
-    fontSize: 11,
-    color: "#6B7280",
-    textAlign: "center",
+    fontSize: 10,
+    color: ObsidianBronzeAR.textMuted,
+    textAlign: 'center',
     marginBottom: Spacing.sm,
     letterSpacing: 1,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
   },
   pityRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pityItem: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingHorizontal: Spacing.md,
   },
   pityCount: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: '700',
   },
   pityLabel: {
     fontSize: 10,
     marginTop: 2,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
     letterSpacing: 1,
   },
   pityDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
+    backgroundColor: ObsidianBronzeAR.bronze + '40',
   },
   buttonContainer: {
-    width: "100%",
+    width: '100%',
     paddingHorizontal: Spacing.xl,
     gap: Spacing.md,
     marginTop: Spacing.xl,
     paddingBottom: Spacing.md,
   },
   primaryButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    borderRadius: 14,
+    overflow: 'hidden',
+    ...ObsidianBronzeAR.shadows.soft,
   },
   primaryButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md + 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md + 2,
     gap: Spacing.sm,
   },
   primaryButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#000",
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
     letterSpacing: 1,
   },
   secondaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1.5,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: ObsidianBronzeAR.smokedGlass,
     gap: Spacing.sm,
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
   closeButton: {
-    position: "absolute",
+    position: 'absolute',
     left: Spacing.lg,
     zIndex: 100,
   },
-  closeButtonBlur: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
+  closeButtonBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: ObsidianBronzeAR.smokedGlassStrong,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: 'rgba(176,122,58,0.2)',
   },
 });
