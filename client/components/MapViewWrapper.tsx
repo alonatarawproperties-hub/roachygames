@@ -1,5 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
+import { Magnetometer } from "expo-sensors";
 
 const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
 import { SPAWN_RESERVED_BY_YOU, SPAWN_RESERVED_BY_OTHER } from "@/assets/spawns";
@@ -296,6 +297,44 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const mapReadyCalledRef = useRef(false);
     const insets = useSafeAreaInsets();
     
+    // Compass mode state
+    const [compassMode, setCompassMode] = useState(false);
+    const [compassHeading, setCompassHeading] = useState(0);
+    const magnetometerSubscription = useRef<any>(null);
+    
+    // Magnetometer subscription for compass heading
+    useEffect(() => {
+      if (compassMode && Platform.OS !== "web") {
+        Magnetometer.setUpdateInterval(100);
+        magnetometerSubscription.current = Magnetometer.addListener((data) => {
+          // Calculate heading from magnetometer data
+          let heading = Math.atan2(data.y, data.x) * (180 / Math.PI);
+          heading = heading >= 0 ? heading : heading + 360;
+          // Adjust so 0 degrees is North (magnetometer gives 0 for East)
+          heading = (360 - heading + 90) % 360;
+          setCompassHeading(heading);
+        });
+      } else {
+        if (magnetometerSubscription.current) {
+          magnetometerSubscription.current.remove();
+          magnetometerSubscription.current = null;
+        }
+        setCompassHeading(0);
+      }
+      
+      return () => {
+        if (magnetometerSubscription.current) {
+          magnetometerSubscription.current.remove();
+          magnetometerSubscription.current = null;
+        }
+      };
+    }, [compassMode]);
+    
+    const toggleCompassMode = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setCompassMode(prev => !prev);
+    };
+    
     // Anti-freeze: tap lock refs to prevent double-tap and out-of-order handling
     const spawnTapLockRef = useRef(false);
     const lastSpawnTapRef = useRef<string | null>(null);
@@ -476,14 +515,24 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           provider={PROVIDER_DEFAULT_VALUE}
           showsUserLocation={false}
           showsMyLocationButton={false}
-          followsUserLocation={false}
-          showsCompass={true}
+          followsUserLocation={compassMode}
+          showsCompass={!compassMode}
           rotateEnabled={true}
           pitchEnabled={false}
           mapType="standard"
           userInterfaceStyle="dark"
           onError={handleMapError}
           onMapReady={handleNativeMapReady}
+          camera={compassMode && hasLocation ? {
+            center: {
+              latitude: playerLocation.latitude,
+              longitude: playerLocation.longitude,
+            },
+            heading: compassHeading,
+            pitch: 0,
+            zoom: 17,
+            altitude: 1000,
+          } : undefined}
           onPress={(e: any) => {
             const coord = e?.nativeEvent?.coordinate;
             console.log("[MapView] onPress coord:", coord?.latitude, coord?.longitude);
@@ -802,6 +851,22 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
         {/* Map Controls - Bottom Right inside map container */}
         <View style={styles.mapControlsContainer} pointerEvents="box-none">
           <View style={styles.controlButtonsColumn} pointerEvents="box-none">
+            {/* Compass Mode Toggle */}
+            <Pressable 
+              style={[
+                styles.compassButton, 
+                compassMode && styles.compassButtonActive
+              ]}
+              onPress={toggleCompassMode}
+            >
+              <View style={compassMode ? { transform: [{ rotate: `${-compassHeading}deg` }] } : undefined}>
+                <Feather 
+                  name="compass" 
+                  size={20} 
+                  color={compassMode ? GameColors.primary : "#fff"} 
+                />
+              </View>
+            </Pressable>
             <AnimatedControlButton 
               iconName="navigation" 
               onPress={centerOnPlayerMap}
@@ -1328,6 +1393,20 @@ const styles = StyleSheet.create({
   },
   visibilityButtonOff: {
     borderColor: GameColors.textSecondary,
+  },
+  compassButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: GameColors.textSecondary,
+  },
+  compassButtonActive: {
+    borderColor: GameColors.primary,
+    backgroundColor: "rgba(255, 149, 0, 0.2)",
   },
   radarPingOverlay: {
     ...StyleSheet.absoluteFillObject,
