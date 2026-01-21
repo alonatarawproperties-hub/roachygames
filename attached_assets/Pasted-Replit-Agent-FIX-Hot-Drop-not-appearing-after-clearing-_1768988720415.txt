@@ -1,0 +1,94 @@
+Replit Agent: FIX "Hot Drop not appearing after clearing Home Drop" (Decouple UI + Force refresh)
+
+Problem:
+After clearing Home Drop, the UI shows "No eggs in range" and the Hot Drop offer row doesn't appear.
+Cause is usually UI gating: Quest Offers (Hot Drop/Micro/Beacon) is hidden when eggsInRange == 0 or when a derived boolean is false (ex: homeDropActive), even though Hot Drop should still be offered.
+
+GOAL:
+1) Hot Drop offer must be visible whenever it is AVAILABLE by server state, regardless of eggsInRange.
+2) After every successful catch/claim, immediately refresh Phase1 state + nodes + spawns so offers update in the same second.
+3) If Hot Drop is not yet available, show the cooldown / next hot drop timer (instead of hiding the offer UI).
+
+STEP A — Add a single source of truth for offers (Phase1)
+Search in client for any Phase1 query/state (usually react-query keys like "/api/hunt/phase1" or "/api/hunt/phase1/state").
+If missing, create a query in HuntScreen that fetches Phase1 state:
+- GET /api/hunt/phase1 (or existing endpoint that returns: homeDropRemaining, nextHomeDropAt, hotDropAvailable, nextHotDropAt, activeOffers[])
+
+Expected shape (use what server already has; if not present, add client-side derived defaults):
+type Phase1State = {
+  homeDropRemaining?: number;
+  nextHomeDropAt?: string|number|null;
+  hotDropAvailable?: boolean;
+  nextHotDropAt?: string|number|null;
+  offers?: Array<{ type: "HOT_DROP"|"MICRO"|"BEACON"; available: boolean; reason?: string; distanceM?: number; expiresAt?: any }>;
+};
+
+STEP B — NEVER gate Quest Offers UI behind eggsInRange
+In client/screens/HuntScreen.tsx:
+Find the section that renders:
+- "Quest Offers" row
+- Buttons: Micro / Hot Drop / Beacon
+It is currently likely wrapped in something like:
+  {eggsInRange > 0 && (...offers...)}
+or
+  {hasEggsNearby && (...offers...)}
+
+CHANGE IT:
+Render Quest Offers based on Phase1 state, NOT eggsInRange.
+
+Implementation:
+- Compute:
+const offers = phase1?.offers ?? [];
+const hasAnyOffer = offers.length > 0;
+const hot = offers.find(o => o.type === "HOT_DROP");
+const hotAvailable = !!hot?.available;
+
+- Render rule:
+Show Quest Offers if (hasAnyOffer) OR (phase1 has next timers):
+  if (hasAnyOffer || phase1?.nextHotDropAt || phase1?.nextHomeDropAt) render the offers container.
+
+- If hotAvailable is false, show a disabled Hot Drop button with a small subtext like:
+  "Next Hot Drop in: mm:ss" (based on phase1.nextHotDropAt)
+DO NOT hide the row.
+
+STEP C — Force refresh after successful catch (this is the big one)
+In client/screens/HuntScreen.tsx inside handleStartCatch, on success branch (result.eggRarity):
+Right after you close encounter + setCollectedEggInfo, FORCE refetch:
+
+Add (using queryClient):
+await Promise.allSettled([
+  queryClient.refetchQueries({ queryKey: ["/api/hunt/phase1"] }),
+  queryClient.refetchQueries({ queryKey: ["/api/hunt/nodes"], exact: false }),
+  queryClient.refetchQueries({ queryKey: ["/api/map/nodes"], exact: false }),
+  queryClient.refetchQueries({ queryKey: ["/api/hunt/spawns"], exact: false }),
+  queryClient.refetchQueries({ queryKey: ["/api/hunt/me"] }),
+  queryClient.refetchQueries({ queryKey: ["/api/hunt/economy"], exact: false }),
+]);
+
+Do this EVEN if you already invalidateQueries — refetch is immediate, invalidate is lazy.
+
+STEP D — If Home Drop is completed, do NOT show “No eggs in range” as the primary state
+The banner "No eggs in range" is confusing if Hot Drop is available or pending.
+Change messaging priority:
+
+In HuntScreen banner logic:
+- If hotAvailable => show "Hot Drop available!" (or show offer row prominently)
+- Else if phase1.nextHotDropAt exists => show "Next Hot Drop in mm:ss"
+- Else if phase1.nextHomeDropAt exists => show "Next Home Drop in mm:ss"
+- Else fallback to "No eggs in range"
+
+This prevents the UI from looking “dead” after clearing home drops.
+
+STEP E — Add debug logs so we can prove it’s fixed
+Add logs in HuntScreen when Phase1 changes:
+console.log("[PHASE1]", JSON.stringify(phase1));
+console.log("[OFFERS]", offers);
+
+Expected outcome:
+- After clearing Home Drop, within 1 second the UI updates and Hot Drop offer appears (or shows a countdown).
+- No more “No eggs in range” hiding the entire offer row.
+- Catching triggers immediate state refresh, no waiting.
+
+IMPORTANT:
+Do NOT change spawn generation logic in this task.
+Only fix UI gating + refetch behavior and correct banner priority based on Phase1 state.

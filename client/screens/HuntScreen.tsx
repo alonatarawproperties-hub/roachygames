@@ -19,6 +19,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -185,6 +186,9 @@ export default function HuntScreen() {
   // Import shared constants for Home Drop radius
   const { CATCH_RADIUS_M } = require("@/lib/hunt-constants");
   
+  // QueryClient for force refetch after catch
+  const queryClient = useQueryClient();
+  
   useGamePresence("roachy-hunt");
   const { nearbyPlayers, isVisible, setVisibility, setLocation: setPresenceLocation } = usePresenceContext();
   
@@ -300,12 +304,13 @@ export default function HuntScreen() {
   const hasCountdownData = homeCountdown !== null || !!huntMeta?.hotdrop?.active || !!huntMeta?.quest?.active;
   const showBannerRaw = spawnsLoaded && !spawnsFetching && inRangeCount === 0;
   
-  // Debug log for banner visibility
+  // Debug log for banner visibility + offers
   useEffect(() => {
     if (spawnsLoaded) {
       console.log("[BannerDBG]", { inRangeCount, outOfRangeCount, closestDist: closestOutOfRange?.distance, homeCountdown });
+      console.log("[OFFERS]", JSON.stringify(huntMeta?.offers));
     }
-  }, [spawnsLoaded, inRangeCount, outOfRangeCount, closestOutOfRange, homeCountdown]);
+  }, [spawnsLoaded, inRangeCount, outOfRangeCount, closestOutOfRange, homeCountdown, huntMeta?.offers]);
   
   useEffect(() => {
     if (showBannerRaw) {
@@ -1063,6 +1068,17 @@ export default function HuntScreen() {
           cleanupEncounter();
         });
         
+        // Force refetch all hunt data immediately (not lazy invalidate)
+        Promise.allSettled([
+          queryClient.refetchQueries({ queryKey: ["/api/hunt/me"] }),
+          queryClient.refetchQueries({ queryKey: ["/api/hunt/spawns"], exact: false }),
+          queryClient.refetchQueries({ queryKey: ["/api/hunt/phase1"], exact: false }),
+          queryClient.refetchQueries({ queryKey: ["/api/map/nodes"], exact: false }),
+          queryClient.refetchQueries({ queryKey: ["/api/hunt/nodes"], exact: false }),
+          queryClient.refetchQueries({ queryKey: ["/api/hunt/economy"], exact: false }),
+        ]).then(() => {
+          console.log("[Phase1] Force refetch complete after catch");
+        });
         refreshPhaseIStats();
         return;
       } else if (result && result.error) {
@@ -1356,13 +1372,34 @@ export default function HuntScreen() {
     let bannerIcon: keyof typeof Feather.glyphMap = "info";
     let bannerIconColor = GameColors.primary;
     
+    // Banner priority: Hot Drop available > Hot Drop cooldown > Home Drop cooldown > No eggs
+    const hotDropOffer = huntMeta?.offers?.hotdrop;
+    const hotDropAvailable = !!hotDropOffer?.available;
+    const hotDropCooldown = hotDropOffer?.cooldownEndsInSec;
+    
     if (isNewPlayer) {
       // New player with no eggs - show welcome message
       bannerTitle = "Welcome! Eggs will spawn nearby soon.";
       bannerIcon = "gift";
       bannerIconColor = GameColors.gold;
+    } else if (hotDropAvailable) {
+      // Hot Drop is available - highlight it
+      bannerTitle = "Hot Drop available! Tap to activate";
+      bannerIcon = "zap";
+      bannerIconColor = "#FF6B35";
+    } else if (hotDropCooldown && hotDropCooldown > 0) {
+      // Hot Drop on cooldown - show timer
+      const mins = Math.ceil(hotDropCooldown / 60);
+      bannerTitle = `Hot Drop in ${mins}m • Try Micro Hotspot`;
+      bannerIcon = "clock";
+      bannerIconColor = GameColors.textSecondary;
+    } else if (homeCountdown !== null && homeCountdown > 0) {
+      // Home Drop countdown
+      bannerTitle = `Next Home Drop in ${formatCountdown(homeCountdown)}`;
+      bannerIcon = "clock";
+      bannerIconColor = GameColors.textSecondary;
     } else {
-      // HOME DROP: No eggs in range
+      // Fallback
       bannerTitle = "No eggs in range";
       bannerIcon = "map-pin";
     }
