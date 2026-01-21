@@ -27,13 +27,7 @@ interface DustMote {
   delay: number;
 }
 
-interface RadialDot {
-  angle: number;
-  radius: number;
-}
-
 const DUST_MOTE_COUNT = 15;
-const RADIAL_DOT_COUNT = 8;
 const CATCH_ZONE_RADIUS = 80;
 
 export function ARVFXLayer() {
@@ -49,14 +43,6 @@ export function ARVFXLayer() {
       size: 2 + Math.random() * 2,
       speed: 8000 + Math.random() * 6000,
       delay: Math.random() * 3000,
-    })),
-    []
-  );
-
-  const radialDots: RadialDot[] = useMemo(() =>
-    Array.from({ length: RADIAL_DOT_COUNT }, (_, i) => ({
-      angle: (i / RADIAL_DOT_COUNT) * 360,
-      radius: CATCH_ZONE_RADIUS + 20,
     })),
     []
   );
@@ -118,32 +104,6 @@ export function ARVFXLayer() {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Corner Brackets with Micro Ticks */}
-      <View style={[styles.cornerBracket, styles.topLeft]}>
-        <View style={[styles.bracketLine, styles.bracketHorizontal]} />
-        <View style={[styles.bracketLine, styles.bracketVertical]} />
-        <View style={[styles.microTick, { top: 8, left: 0 }]} />
-        <View style={[styles.microTick, { top: 0, left: 8 }]} />
-      </View>
-      <View style={[styles.cornerBracket, styles.topRight]}>
-        <View style={[styles.bracketLine, styles.bracketHorizontal, { right: 0, left: undefined }]} />
-        <View style={[styles.bracketLine, styles.bracketVertical, { right: 0, left: undefined }]} />
-        <View style={[styles.microTick, { top: 8, right: 0, left: undefined }]} />
-        <View style={[styles.microTick, { top: 0, right: 8, left: undefined }]} />
-      </View>
-      <View style={[styles.cornerBracket, styles.bottomLeft]}>
-        <View style={[styles.bracketLine, styles.bracketHorizontal, { bottom: 0, top: undefined }]} />
-        <View style={[styles.bracketLine, styles.bracketVertical, { bottom: 0, top: undefined }]} />
-        <View style={[styles.microTick, { bottom: 8, left: 0, top: undefined }]} />
-        <View style={[styles.microTick, { bottom: 0, left: 8, top: undefined }]} />
-      </View>
-      <View style={[styles.cornerBracket, styles.bottomRight]}>
-        <View style={[styles.bracketLine, styles.bracketHorizontal, { bottom: 0, top: undefined, right: 0, left: undefined }]} />
-        <View style={[styles.bracketLine, styles.bracketVertical, { bottom: 0, top: undefined, right: 0, left: undefined }]} />
-        <View style={[styles.microTick, { bottom: 8, right: 0, left: undefined, top: undefined }]} />
-        <View style={[styles.microTick, { bottom: 0, right: 8, left: undefined, top: undefined }]} />
-      </View>
-
       {/* Scan Sweep */}
       <Animated.View style={[styles.scanSweep, scanSweepStyle]}>
         <ExpoLinearGradient
@@ -184,26 +144,6 @@ export function ARVFXLayer() {
           />
         </Svg>
       </Animated.View>
-
-      {/* Radial Particle Ring */}
-      <View style={styles.radialRing}>
-        {radialDots.map((dot, i) => {
-          const rad = (dot.angle * Math.PI) / 180;
-          const x = Math.cos(rad) * dot.radius;
-          const y = Math.sin(rad) * dot.radius;
-          return (
-            <View
-              key={i}
-              style={[
-                styles.radialDot,
-                {
-                  transform: [{ translateX: x }, { translateY: y }],
-                },
-              ]}
-            />
-          );
-        })}
-      </View>
 
       {/* Drifting Dust Motes */}
       {dustMotes.map((mote) => (
@@ -330,51 +270,6 @@ function EmberSpeck({ x, y, delay }: { x: number; y: number; delay: number }) {
 }
 
 const styles = StyleSheet.create({
-  cornerBracket: {
-    position: "absolute",
-    width: 35,
-    height: 35,
-  },
-  topLeft: {
-    top: "18%",
-    left: "8%",
-  },
-  topRight: {
-    top: "18%",
-    right: "8%",
-  },
-  bottomLeft: {
-    bottom: "28%",
-    left: "8%",
-  },
-  bottomRight: {
-    bottom: "28%",
-    right: "8%",
-  },
-  bracketLine: {
-    position: "absolute",
-    backgroundColor: ObsidianBronzeAR.bronze,
-    opacity: 0.6,
-  },
-  bracketHorizontal: {
-    width: 20,
-    height: 1.5,
-    top: 0,
-    left: 0,
-  },
-  bracketVertical: {
-    width: 1.5,
-    height: 20,
-    top: 0,
-    left: 0,
-  },
-  microTick: {
-    position: "absolute",
-    width: 4,
-    height: 1,
-    backgroundColor: ObsidianBronzeAR.amber,
-    opacity: 0.5,
-  },
   scanSweep: {
     position: "absolute",
     top: 0,
@@ -388,21 +283,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: CENTER_Y - CATCH_ZONE_RADIUS - 30,
     left: CENTER_X - CATCH_ZONE_RADIUS - 30,
-  },
-  radialRing: {
-    position: "absolute",
-    top: CENTER_Y,
-    left: CENTER_X,
-    width: 0,
-    height: 0,
-  },
-  radialDot: {
-    position: "absolute",
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: ObsidianBronzeAR.bronze,
-    opacity: 0.35,
   },
   dustMote: {
     position: "absolute",
