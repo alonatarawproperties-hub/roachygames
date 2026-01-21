@@ -1462,6 +1462,30 @@ export default function HuntScreen() {
                 </ThemedText>
               </Pressable>
             )}
+            {huntMeta.offers.beacon && (
+              <Pressable 
+                style={[
+                  styles.questOfferButtonSmall, 
+                  (!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed) && styles.questOfferButtonDisabled
+                ]}
+                onPress={async () => {
+                  if (!huntMeta.offers?.beacon?.available || huntMeta.offers.beacon.claimed) return;
+                  setActivatingQuest('LEGENDARY_BEACON');
+                  const result = await activateHotspot('LEGENDARY_BEACON');
+                  setActivatingQuest(null);
+                  if (result.success) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    refreshSpawns();
+                  }
+                }}
+                disabled={!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed || !!activatingQuest}
+              >
+                <Feather name="star" size={14} color={huntMeta.offers.beacon.available && !huntMeta.offers.beacon.claimed ? GameColors.gold : GameColors.textTertiary} />
+                <ThemedText style={[styles.questOfferTextSmall, (!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed) && styles.questOfferTextDisabled]}>
+                  {huntMeta.offers.beacon.claimed ? 'Done' : 'Beacon'}
+                </ThemedText>
+              </Pressable>
+            )}
           </View>
         )}
         
@@ -1513,91 +1537,6 @@ export default function HuntScreen() {
                 <Feather name="gift" size={14} color="#fff" />
                 <ThemedText style={styles.claimBeaconText}>Claim</ThemedText>
               </Pressable>
-            )}
-          </View>
-        )}
-        
-        {!huntMeta?.quest?.active && huntMeta?.offers && (
-          <View style={styles.questOffersContainer}>
-            <ThemedText style={styles.questOffersTitle}>Quest Offers</ThemedText>
-            <View style={styles.questOffersRow}>
-              {huntMeta.offers.micro && (
-                <Pressable 
-                  style={[
-                    styles.questOfferButton, 
-                    !huntMeta.offers.micro.available && styles.questOfferButtonDisabled
-                  ]}
-                  onPress={async () => {
-                    if (!huntMeta.offers?.micro?.available) return;
-                    setActivatingQuest('MICRO_HOTSPOT');
-                    const result = await activateHotspot('MICRO_HOTSPOT');
-                    setActivatingQuest(null);
-                    if (result.success) {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      refreshSpawns();
-                    }
-                  }}
-                  disabled={!huntMeta.offers.micro.available || !!activatingQuest}
-                >
-                  <Feather name="map-pin" size={16} color={huntMeta.offers.micro.available ? GameColors.primary : GameColors.textTertiary} />
-                  <ThemedText style={[styles.questOfferText, !huntMeta.offers.micro.available && styles.questOfferTextDisabled]}>
-                    {huntMeta.offers.micro.available ? 'Micro' : `${Math.ceil((huntMeta.offers.micro.cooldownEndsInSec || 0) / 60)}m`}
-                  </ThemedText>
-                </Pressable>
-              )}
-              {huntMeta.offers.hotdrop && (
-                <Pressable 
-                  style={[
-                    styles.questOfferButton, 
-                    styles.questOfferButtonHotdrop,
-                    !huntMeta.offers.hotdrop.available && styles.questOfferButtonDisabled
-                  ]}
-                  onPress={async () => {
-                    if (!huntMeta.offers?.hotdrop?.available) return;
-                    setActivatingQuest('HOT_DROP');
-                    const result = await activateHotspot('HOT_DROP');
-                    setActivatingQuest(null);
-                    if (result.success) {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      refreshSpawns();
-                    }
-                  }}
-                  disabled={!huntMeta.offers.hotdrop.available || !!activatingQuest}
-                >
-                  <Feather name="zap" size={16} color={huntMeta.offers.hotdrop.available ? '#FF6B35' : GameColors.textTertiary} />
-                  <ThemedText style={[styles.questOfferText, !huntMeta.offers.hotdrop.available && styles.questOfferTextDisabled]}>
-                    {huntMeta.offers.hotdrop.available ? 'Hot Drop' : `${Math.ceil((huntMeta.offers.hotdrop.cooldownEndsInSec || 0) / 60)}m`}
-                  </ThemedText>
-                </Pressable>
-              )}
-              {huntMeta.offers.beacon && (
-                <Pressable 
-                  style={[
-                    styles.questOfferButton, 
-                    styles.questOfferButtonBeacon,
-                    (!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed) && styles.questOfferButtonDisabled
-                  ]}
-                  onPress={async () => {
-                    if (!huntMeta.offers?.beacon?.available || huntMeta.offers.beacon.claimed) return;
-                    setActivatingQuest('LEGENDARY_BEACON');
-                    const result = await activateHotspot('LEGENDARY_BEACON');
-                    setActivatingQuest(null);
-                    if (result.success) {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      refreshSpawns();
-                    }
-                  }}
-                  disabled={!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed || !!activatingQuest}
-                >
-                  <Feather name="star" size={16} color={huntMeta.offers.beacon.available && !huntMeta.offers.beacon.claimed ? GameColors.gold : GameColors.textTertiary} />
-                  <ThemedText style={[styles.questOfferText, (!huntMeta.offers.beacon.available || huntMeta.offers.beacon.claimed) && styles.questOfferTextDisabled]}>
-                    {huntMeta.offers.beacon.claimed ? 'Done' : 'Beacon'}
-                  </ThemedText>
-                </Pressable>
-              )}
-            </View>
-            {activatingQuest && (
-              <ThemedText style={styles.activatingText}>Spawning quest eggs...</ThemedText>
             )}
           </View>
         )}
