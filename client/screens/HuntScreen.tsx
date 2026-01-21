@@ -268,33 +268,40 @@ export default function HuntScreen() {
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
   
-  // Compute in-range vs out-of-range spawns for banner logic
+  // Compute SCAN vs CATCH range spawns for banner logic
+  // SCAN_RADIUS = 500m (eggs you can see), CATCH_RADIUS = 100m (eggs you can interact with)
+  const CATCH_RADIUS_BANNER = 100;
+  
   const spawnRangeCounts = useMemo(() => {
     const homeSpawns = (spawns || []).filter((s: Spawn) => {
       // Only count home-type spawns (home, drip, or null/undefined for backwards compat)
       return !s.sourceType || s.sourceType === 'home' || s.sourceType === 'drip' || s.sourceType === 'HOME';
     });
     
-    let inRangeCount = 0;
-    let outOfRangeCount = 0;
-    let closestOutOfRange: { distance: number } | null = null;
+    let catchableCount = 0;  // Within CATCH radius (100m) - can interact
+    let visibleCount = 0;    // Within SCAN radius (500m) - visible on map
+    let closestVisible: { distance: number } | null = null;
     
     for (const s of homeSpawns) {
       const dist = typeof s.distance === "number" ? s.distance : null;
-      if (dist !== null && dist <= HUNT_RADIUS_M) {
-        inRangeCount++;
-      } else if (dist !== null) {
-        outOfRangeCount++;
-        if (!closestOutOfRange || dist < closestOutOfRange.distance) {
-          closestOutOfRange = { distance: dist };
+      if (dist !== null && dist <= CATCH_RADIUS_BANNER) {
+        catchableCount++;
+        visibleCount++;
+      } else if (dist !== null && dist <= HUNT_RADIUS_M) {
+        visibleCount++;
+        if (!closestVisible || dist < closestVisible.distance) {
+          closestVisible = { distance: dist };
         }
-      } else {
-        // No distance info - assume in range (shouldn't happen normally)
-        inRangeCount++;
       }
     }
     
-    return { inRangeCount, outOfRangeCount, closestOutOfRange };
+    // For backwards compat: inRangeCount = catchable, outOfRangeCount = visible but not catchable
+    return { 
+      inRangeCount: catchableCount, 
+      outOfRangeCount: visibleCount - catchableCount,
+      closestOutOfRange: closestVisible,
+      visibleCount 
+    };
   }, [spawns, HUNT_RADIUS_M]);
   
   const { inRangeCount, outOfRangeCount, closestOutOfRange } = spawnRangeCounts;
@@ -1396,14 +1403,14 @@ export default function HuntScreen() {
       bannerIcon = "gift";
       bannerIconColor = GameColors.gold;
     } else if (outOfRangeCount > 0 && closestOutOfRange) {
-      // Eggs nearby but out of range - encourage movement
-      const distKm = (closestOutOfRange.distance / 1000).toFixed(1);
-      bannerTitle = `${outOfRangeCount} egg${outOfRangeCount > 1 ? 's' : ''} nearby — move closer (${distKm}km)`;
+      // Eggs visible on map (within 500m) but outside catch range (100m)
+      const distM = Math.round(closestOutOfRange.distance);
+      bannerTitle = `${outOfRangeCount} egg${outOfRangeCount > 1 ? 's' : ''} visible — move within 100m (closest: ${distM}m)`;
       bannerIcon = "navigation";
       bannerIconColor = GameColors.gold;
     } else {
-      // No eggs at all
-      bannerTitle = "No eggs in range";
+      // No eggs visible within scan radius (500m)
+      bannerTitle = "No eggs nearby (scan: 500m)";
       bannerIcon = "map-pin";
     }
     

@@ -1,0 +1,156 @@
+You are fixing ONLY BUG C in Roachy Hunt:
+
+BUG C: UI says “No eggs in range” even when a spawn marker is visible inside the radius circle / feels like it should be in range. User confusion: which radius is this? scan vs catch? Also the “Reserve” sheet shows distance (ex: 30m) but the header banner still says no eggs in range.
+
+Goal:
+1) Make radius logic CONSISTENT across: 
+   - “No eggs in range” banner
+   - Spawn “in range” filtering / enable interactions
+   - Bottom sheet distance display
+   - Map radius circle visualization
+2) Make the UI UNAMBIGUOUS by showing TWO radii:
+   - SCAN radius (spawns you can SEE on map) e.g. 500m
+   - CATCH radius (spawns you can ACT on / reserve / open encounter) e.g. 30m
+3) Fix any mismatch caused by using different location sources or different distance formulas.
+
+Constraints:
+- Do NOT change server endpoints.
+- Do NOT refactor big architecture.
+- Minimal edits, just enough to fix BUG C.
+
+---------------------------------------
+STEP 0 — Find where these are defined/used
+---------------------------------------
+Search the codebase for:
+- "No eggs in range"
+- "inRange"
+- "radius"
+- "500" and "30" in hunt/map logic
+- any distance function (haversine, getDistance, metersBetween, etc)
+
+You will likely touch:
+- client/screens/HuntScreen.tsx (banner + list state)
+- client/components/MapViewWrapper.tsx (circle radius drawing)
+- whichever file computes spawn distance (often a util or hook like useSpawns/useHuntSpawns)
+
+---------------------------------------
+STEP 1 — Create ONE source-of-truth distance function
+---------------------------------------
+Create (or reuse if exists) a single util function returning METERS:
+
+function distanceMeters(aLat:number,aLng:number,bLat:number,bLng:number) {
+  const R = 6371000;
+  const toRad = (v:number)=> (v*Math.PI)/180;
+  const dLat = toRad(bLat-aLat);
+  const dLng = toRad(bLng-aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+
+Then REPLACE any other “meters” calculations used for spawns/range with this function (do not leave multiple formulas).
+
+---------------------------------------
+STEP 2 — Unify which player location is used (no stale mismatch)
+---------------------------------------
+Create a helper that returns the BEST current location, used everywhere:
+
+const getBestPlayerLoc = () => {
+  const ref = playerLocationRef?.current;
+  if (ref?.latitude && ref?.longitude) return { latitude: ref.latitude, longitude: ref.longitude };
+  if (playerLocation?.latitude && playerLocation?.longitude) return { latitude: playerLocation.latitude, longitude: playerLocation.longitude };
+  return null;
+};
+
+Use getBestPlayerLoc() for:
+- banner “No eggs in range”
+- in-range filtering
+- bottom sheet distance
+- map circle center (if circle is meant to be around player)
+
+Do NOT compute range using one location source and distance using another.
+
+---------------------------------------
+STEP 3 — Define explicit constants for BOTH radii
+---------------------------------------
+In ONE place near the hunt UI logic (HuntScreen is fine):
+
+const SCAN_RADIUS_M = 500;   // what we query/show on map
+const CATCH_RADIUS_M = 30;   // what counts as “in range” for actions (Reserve / Catch)
+
+If your game uses a different catch radius, keep that exact value, but make it a named constant and use it everywhere.
+
+---------------------------------------
+STEP 4 — Fix the banner logic (this is the main bug)
+---------------------------------------
+Currently banner likely does something like:
+  show “No eggs in range” if spawnsInRange.length === 0
+
+Ensure spawnsInRange means CATCH RANGE ONLY:
+- spawnsVisible = spawns where distance <= SCAN_RADIUS_M
+- spawnsCatchable = spawnsVisible where distance <= CATCH_RADIUS_M
+
+Then:
+- If spawnsVisible.length === 0 -> show “No eggs nearby (scan radius 500m)”
+- Else if spawnsCatchable.length === 0 -> show “No eggs within 30m — move closer”
+- Else -> show normal state (or nothing)
+
+IMPORTANT: Do NOT use map circle to imply catch range if it’s scan range.
+Make the text match the radius used.
+
+Change the text:
+Replace “No eggs in range” with one of these (pick the best UX):
+Option A (simple):
+  “No eggs within 30m — move closer”
+Option B (more explicit):
+  “Eggs shown within 500m. Catch range: 30m.”
+
+---------------------------------------
+STEP 5 — Draw TWO circles so user stops thinking it’s a bug
+---------------------------------------
+In MapViewWrapper (or wherever the circle overlay is rendered):
+- Draw scan circle (500m) as faint
+- Draw catch circle (30m) as stronger
+Both centered on getBestPlayerLoc().
+
+If you already draw one circle today, confirm what it represents:
+- If it represents SCAN radius: keep it but label it via UI hint.
+- Add the smaller CATCH circle so it’s obvious why an egg can be visible but not catchable.
+
+Implementation example for react-native-maps Circle:
+<Circle center={playerLoc} radius={SCAN_RADIUS_M} ... />
+<Circle center={playerLoc} radius={CATCH_RADIUS_M} ... />
+
+If you are not using <Circle>, replicate the same concept with whatever overlay you use.
+
+---------------------------------------
+STEP 6 — Make “Reserve” button/state use the same catchable check
+---------------------------------------
+Wherever you enable Reserve or open the encounter:
+- Use spawnsCatchable based on distanceMeters + getBestPlayerLoc + CATCH_RADIUS_M
+- Do not allow one path to compute distance differently.
+
+Add a single debug log (temporary) to verify:
+console.log("[RANGE] loc=", playerLoc, "spawn=", spawn.id, "d=", d, "catchable=", d<=CATCH_RADIUS_M);
+
+---------------------------------------
+STEP 7 — Acceptance tests (must pass)
+---------------------------------------
+1) If an egg marker is visible inside 500m but farther than 30m:
+   - Banner must NOT say generic “No eggs in range”
+   - It must say “No eggs within 30m — move closer” (or equivalent)
+   - Map shows big (500m) + small (30m) circles.
+
+2) If an egg is within 30m:
+   - Banner should not warn “no eggs within 30m”
+   - Reserve/Catch works and distance shown matches the same formula.
+
+3) If there are truly no eggs in 500m:
+   - Banner indicates none nearby (scan radius), not catch radius.
+
+Deliverable:
+- Commit minimal changes to the 2–3 relevant files.
+- Do not touch server code.
+
+Start now and implement.
