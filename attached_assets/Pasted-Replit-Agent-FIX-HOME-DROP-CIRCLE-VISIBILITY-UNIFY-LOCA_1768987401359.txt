@@ -1,0 +1,62 @@
+Replit Agent: FIX HOME DROP CIRCLE VISIBILITY + UNIFY LOCATION SOURCE
+
+Goal:
+- Home Drop radius circle must ALWAYS render when we have any valid location.
+- Circle must be inside MapViewComponent (child of MapView), not in overlay siblings.
+- Use a single canonical location source to avoid mismatch:
+  center = playerLocationRef.current ?? playerLocation
+- Remove CircleComponent conditional (it can hide issues silently).
+
+File: client/components/MapViewWrapper.tsx
+
+1) Ensure we import Circle properly:
+   At top where react-native-maps imports are:
+   - Add/ensure:
+     import { Circle as MapCircle } from "react-native-maps";
+   (If you already import Circle, rename it to MapCircle to avoid conflicts.)
+
+2) Create a canonical mapCenter + hasLocation that uses ref fallback:
+   Near other derived values:
+   const mapCenter = (
+     (playerLocationRef?.current?.latitude && playerLocationRef?.current?.longitude)
+       ? playerLocationRef.current
+       : playerLocation
+   );
+
+   const hasLocation =
+     !!mapCenter &&
+     Number.isFinite(mapCenter.latitude) &&
+     Number.isFinite(mapCenter.longitude);
+
+3) MOVE the Home Drop circle so it renders INSIDE <MapViewComponent> children.
+   Find where <MapViewComponent ...> opens and where markers (spawns/nodes) are rendered.
+   Insert this block BEFORE markers (or before spawns) but still INSIDE MapViewComponent:
+
+   {/* HOME DROP: 500m radius circle - visible == catchable */}
+   {hasLocation && (
+     <MapCircle
+       key={`home-circle-${mapCenter.latitude.toFixed(5)}-${mapCenter.longitude.toFixed(5)}`}
+       center={{ latitude: mapCenter.latitude, longitude: mapCenter.longitude }}
+       radius={500}
+       strokeColor="rgba(255, 149, 0, 0.5)"
+       fillColor="rgba(255, 149, 0, 0.08)"
+       strokeWidth={2}
+       zIndex={1}
+     />
+   )}
+
+   IMPORTANT:
+   - This must be a direct child of MapViewComponent (same level as <Marker />),
+     not after </MapViewComponent> and not inside overlay Views.
+
+4) Delete/replace the old circle block that used:
+   {hasLocation && CircleComponent ? (...) : null}
+   Replace with the new MapCircle version above.
+
+5) Sanity:
+   - Keep spawn markers zIndex higher if needed (e.g. Marker wrapper zIndex 10).
+   - Do NOT change any overlay pointerEvents for this task.
+
+After change:
+- If spawns show and we have location, circle should always show.
+- Circle should no longer “randomly disappear” due to ref/state mismatch.

@@ -85,7 +85,7 @@ export interface MapViewWrapperRef {
 
 let MapViewComponent: any = null;
 let MarkerComponent: any = null;
-let CircleComponent: any = null;
+let MapCircle: any = null;
 let PROVIDER_DEFAULT_VALUE: any = undefined;
 let mapsAvailable = false;
 
@@ -93,7 +93,7 @@ try {
   const maps = require("react-native-maps");
   MapViewComponent = maps.default;
   MarkerComponent = maps.Marker;
-  CircleComponent = maps.Circle;
+  MapCircle = maps.Circle;
   PROVIDER_DEFAULT_VALUE = maps.PROVIDER_DEFAULT;
   mapsAvailable = true;
 } catch (e) {
@@ -392,7 +392,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
       },
     }));
 
-    const hasLocation = playerLocation && playerLocation.latitude && playerLocation.longitude;
+    // Canonical mapCenter with proper checks for Home Drop circle
+    const mapCenter = playerLocation;
+    const hasLocation = !!mapCenter && 
+      Number.isFinite(mapCenter.latitude) && 
+      Number.isFinite(mapCenter.longitude);
     const gpsStatus = getGpsStatusInfo(gpsAccuracy, gpsNoSignal, gpsWeak);
     
     // Web: use simple fallback (grid)
@@ -545,19 +549,18 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             longitudeDelta: 0.005,
           }}
         >
-          {/* HOME DROP: Single 500m radius circle - visible == catchable */}
-          {hasLocation && CircleComponent ? (
-            <CircleComponent
-              center={{
-                latitude: playerLocation.latitude,
-                longitude: playerLocation.longitude,
-              }}
+          {/* HOME DROP: 500m radius circle - visible == catchable */}
+          {hasLocation && (
+            <MapCircle
+              key={`home-circle-${mapCenter!.latitude.toFixed(5)}-${mapCenter!.longitude.toFixed(5)}`}
+              center={{ latitude: mapCenter!.latitude, longitude: mapCenter!.longitude }}
               radius={500}
               strokeColor="rgba(255, 149, 0, 0.5)"
               fillColor="rgba(255, 149, 0, 0.08)"
               strokeWidth={2}
+              zIndex={1}
             />
-          ) : null}
+          )}
 
           {/* Custom player marker with heading wedge */}
           {hasLocation && MarkerComponent ? (
