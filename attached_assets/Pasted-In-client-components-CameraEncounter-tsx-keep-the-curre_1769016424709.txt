@@ -1,0 +1,46 @@
+In `client/components/CameraEncounter.tsx`, keep the current layout and egg behavior. Do NOT implement egg tracking.
+
+Goal: make the AR catching screen feel AAA and less generic by upgrading the VFX + HUD depth in our Obsidian Bronze AR theme.
+
+Implement these FX improvements:
+
+1) PARTICLES (replace random scatter)
+- Remove/limit random dot field.
+- Add a designed particle system with:
+  a) Subtle drifting dust motes (10–20 max) moving slowly diagonally.
+  b) A low-count radial particle ring (evenly spaced dots) near the center catch zone, very faint bronze.
+  c) Tiny ember specks only near bronze HUD elements, not everywhere.
+Particles must be subtle, clean, not noisy.
+
+2) SIGNATURE “SCAN SWEEP”
+- Add a faint bronze scan sweep band that crosses the screen every ~2.5s (left→right or top→bottom).
+- Use a soft gradient + very subtle noise; opacity low so it feels cinematic.
+
+3) HUD DEPTH STACK
+- Add a faint edge vignette (dark) and a very soft blur mask behind HUD.
+- Add 4 minimal corner brackets in bronze with micro ticks (thin strokes).
+- Keep strokes crisp, 1–1.5px, minimal glow.
+
+4) CENTER “CATCH ZONE” (static, no tracking)
+- Add a subtle centered radius circle or bracket frame that pulses slowly (scale/opacity) every ~1.2s.
+- This defines the interaction area without following the egg.
+
+5) CTA PANEL UPGRADE
+- Upgrade bottom “Tap the egg to catch!” pill:
+  - smoked glass background with stronger blur
+  - thin bronze border + warm glow
+  - optional gentle shine sweep every 3s
+- Keep typography consistent with the app.
+
+6) THEME LOCK
+- Ensure accents are burnished bronze/amber (not bright yellow gold).
+- Put reusable constants in `client/constants/theme.ts` if needed.
+
+Performance:
+- Use lightweight Animated/Reanimated; avoid heavy particle counts.
+- Maintain smooth 60fps feel.
+
+Deliver:
+- Updated CameraEncounter.tsx with improved FX overlays
+- Any helper component(s) if needed (e.g., ParticleField, ScanSweep)
+- Brief comments on tuning (particle count, opacity, sweep interval)
