@@ -455,16 +455,25 @@ export function registerNodeRoutes(app: Express) {
     const startMs = Date.now();
     
     try {
-      const lat = parseFloat(req.query.lat as string);
-      const lng = parseFloat(req.query.lng as string);
+      // Support both lat/lng and latitude/longitude param styles
+      const latRaw = (req.query.lat ?? req.query.latitude) as string | undefined;
+      const lngRaw = (req.query.lng ?? req.query.longitude) as string | undefined;
+      
+      if (!latRaw || !lngRaw) {
+        return res.status(400).json({ ok: false, error: "MISSING_COORDS", nodes: [], requestId });
+      }
+      
+      const lat = parseFloat(latRaw);
+      const lng = parseFloat(lngRaw);
+      
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ ok: false, error: "INVALID_COORDS", nodes: [], requestId });
+      }
+      
       const walletAddress = getPlayerId(req);
       
       if (!walletAddress) {
-        return res.status(401).json({ error: "UNAUTHORIZED" });
-      }
-
-      if (isNaN(lat) || isNaN(lng)) {
-        return res.status(400).json({ error: "lat/lng required" });
+        return res.status(401).json({ ok: false, error: "UNAUTHORIZED", nodes: [], requestId });
       }
 
       const samples = await getRecentSamples(walletAddress);
@@ -518,22 +527,25 @@ export function registerNodeRoutes(app: Express) {
       log("MAP", `[${requestId}] OK ${personalNodes.length} personal, ${hotspots.length} hotspots, ${events.length} events for ${walletAddress.slice(-8)} (${ms}ms)`);
 
       res.json({
+        ok: true,
         scenario: ACTIVE_SCENARIO,
         personalNodes,
         hotspots,
         events,
+        requestId,
       });
     } catch (err: any) {
       const playerId = getPlayerId(req);
       console.error(`[HUNT][MAP_NODES] ERROR`, { requestId, playerId, err: String(err), stack: err?.stack });
       // Return safe empty payload instead of 500
       res.json({
+        ok: false,
+        error: "NODES_UNAVAILABLE",
         scenario: ACTIVE_SCENARIO,
         personalNodes: [],
         hotspots: [],
         events: [],
-        ok: false,
-        error: "NODES_UNAVAILABLE",
+        requestId,
       });
     }
   });

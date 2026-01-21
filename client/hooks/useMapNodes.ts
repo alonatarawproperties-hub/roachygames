@@ -20,11 +20,14 @@ export interface MapNode {
 }
 
 interface MapNodesResponse {
+  ok?: boolean;
   scenario: string;
   personalNodes: MapNode[];
   hotspots: MapNode[];
   events: MapNode[];
   warning?: string;
+  error?: string;
+  requestId?: string;
 }
 
 interface ReserveResponse {
@@ -63,10 +66,19 @@ export function useMapNodes(lat: number | null, lng: number | null) {
       const response = await apiRequest("GET", `/api/map/nodes?lat=${lat}&lng=${lng}`);
 
       if (!response.ok) {
-        throw new Error("Failed to fetch map nodes");
+        console.warn("[useMapNodes] HTTP error, returning empty nodes");
+        return { ok: false, scenario: "", personalNodes: [], hotspots: [], events: [], error: "HTTP_ERROR" };
       }
 
-      return response.json();
+      const data = await response.json() as MapNodesResponse;
+      
+      // Handle ok:false gracefully - don't throw, just return empty nodes
+      if (data.ok === false) {
+        console.warn("[useMapNodes] Server returned ok:false", { error: data.error, requestId: data.requestId });
+        return { ...data, personalNodes: data.personalNodes ?? [], hotspots: data.hotspots ?? [], events: data.events ?? [] };
+      }
+      
+      return data;
     },
     enabled: !!lat && !!lng && hasAuth,
     refetchInterval: 30000,

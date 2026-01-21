@@ -2362,19 +2362,30 @@ export function registerHuntRoutes(app: Express) {
   // ==================== PHASE I ENDPOINTS ====================
 
   app.get("/api/hunt/nodes", requireAuth, async (req: Request, res: Response) => {
+    const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    res.setHeader("x-request-id", requestId);
+    
     try {
-      const { latitude, longitude } = req.query;
+      // Support both lat/lng and latitude/longitude param styles
+      const latRaw = (req.query.lat ?? req.query.latitude) as string | undefined;
+      const lngRaw = (req.query.lng ?? req.query.longitude) as string | undefined;
+      
       const playerId = getPlayerId(req);
       if (!playerId) {
-        return res.status(401).json({ error: "UNAUTHORIZED" });
+        return res.status(401).json({ ok: false, error: "UNAUTHORIZED", nodes: [], requestId });
       }
       
-      if (!latitude || !longitude) {
-        return res.status(400).json({ error: "Missing coordinates" });
+      if (!latRaw || !lngRaw) {
+        return res.status(400).json({ ok: false, error: "MISSING_COORDS", nodes: [], requestId });
       }
 
-      const lat = parseFloat(latitude as string);
-      const lon = parseFloat(longitude as string);
+      const lat = parseFloat(latRaw);
+      const lon = parseFloat(lngRaw);
+      
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return res.status(400).json({ ok: false, error: "INVALID_COORDS", nodes: [], requestId });
+      }
+      
       const dayKey = getManilaDate();
       
       const nodes = generateDeterministicNodes(lat, lon, dayKey);
@@ -2393,15 +2404,17 @@ export function registerHuntRoutes(app: Express) {
       }));
 
       res.json({ 
+        ok: true,
         nodes: nodesWithStatus,
         dayKey,
         totalNodes: nodes.length,
         claimedCount: claimedNodeIds.length,
+        requestId,
       });
     } catch (error) {
-      console.warn("[HUNT_NODES] failed", { err: String(error) });
+      console.warn("[HUNT_NODES] failed", { requestId, err: String(error) });
       // Return safe empty payload instead of 500
-      res.json({ nodes: [], ok: false, error: "NODES_UNAVAILABLE", dayKey: getManilaDate(), totalNodes: 0, claimedCount: 0 });
+      res.json({ ok: false, error: "NODES_UNAVAILABLE", nodes: [], dayKey: getManilaDate(), totalNodes: 0, claimedCount: 0, requestId });
     }
   });
 

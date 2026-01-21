@@ -1,0 +1,69 @@
+You are editing an Expo + Node/Express (Replit) app. Fix the remaining "Failed to get nodes" 500 error robustly.
+
+GOALS
+1) Find exactly which endpoint returns JSON { "error": "Failed to get nodes" } and/or logs that message.
+2) Fix the root cause: support BOTH query param styles:
+   - lat/lng (client currently sends this)
+   - latitude/longitude (some endpoints use this)
+3) Ensure the nodes endpoint NEVER throws and NEVER returns 500 for expected failures.
+   - Return HTTP 200 with { ok:false, error:"NODES_UNAVAILABLE", nodes:[] } for provider/db failures
+   - Return HTTP 400 for truly invalid requests (missing/NaN coords), but do NOT crash.
+4) Keep requireAuth on this endpoint and derive playerId from JWT only (no walletAddress param needed).
+5) Add correlation logging via x-request-id, and include requestId in the JSON response for easier debugging.
+6) Update the client fetcher (wherever nodes are requested) to send a consistent param scheme (pick lat/lng OR latitude/longitude) and display nodes gracefully when ok:false.
+
+STEPS
+A) SERVER: Locate endpoint(s)
+- Search the server code for the exact string: "Failed to get nodes"
+- Identify the route path(s) (likely GET /api/hunt/nodes or GET /api/map/nodes).
+- Confirm if it reads req.query.latitude/longitude while client sends lat/lng.
+
+B) SERVER: Patch endpoint(s)
+For EACH nodes route found:
+1) Ensure middleware is applied:
+   app.get("/api/___/nodes", requireAuth, async (req,res)=>{...})
+2) Parse coords safely with fallback keys:
+   const latRaw = (req.query.latitude ?? req.query.lat) as string | undefined;
+   const lngRaw = (req.query.longitude ?? req.query.lng) as string | undefined;
+   const radiusRaw = (req.query.radius ?? req.query.r) as string | undefined;
+
+   if (!latRaw || !lngRaw) return res.status(400).json({ ok:false, error:"MISSING_COORDS", nodes:[] , requestId });
+   const lat = Number(latRaw); const lng = Number(lngRaw);
+   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ ok:false, error:"INVALID_COORDS", nodes:[] , requestId });
+
+   const radius = Math.min(Math.max(Number(radiusRaw ?? 500), 50), 2000); // clamp
+3) Derive playerId from req.userId (set by requireAuth), do not throw:
+   const playerId = (req as any).userId || null;
+   if (!playerId) return res.status(401).json({ ok:false, error:"UNAUTHORIZED", nodes:[], requestId });
+
+4) Wrap the internal node-fetch logic in try/catch:
+   try { ... compute nodes ...; return res.status(200).json({ ok:true, nodes, requestId }); }
+   catch (err) {
+     console.log("[HUNT][NODES] ERROR", { requestId, playerId, err: String(err), stack: (err as any)?.stack });
+     return res.status(200).json({ ok:false, error:"NODES_UNAVAILABLE", nodes:[], requestId });
+   }
+
+5) Always set x-request-id header:
+   const requestId = req.headers["x-request-id"]?.toString() ?? crypto.randomUUID();
+   res.setHeader("x-request-id", requestId);
+
+C) CLIENT: Make request consistent + handle ok:false
+- Find where client calls nodes endpoint (search for "/nodes" or "get nodes").
+- Ensure it uses the SAME keys the server supports (choose lat/lng for simplicity):
+   /api/.../nodes?lat=${lat}&lng=${lng}&radius=${radius}
+- If response is { ok:false }, do NOT treat as fatal:
+   - show no nodes (empty)
+   - keep spawns working
+   - optionally log a debug entry that nodes are unavailable
+- Also capture x-request-id in apiRequest and store it in debug history:
+   const requestId = res.headers.get("x-request-id");
+   include requestId in pushApiDebug + overlay so we can grep server logs quickly.
+
+OUTPUT
+- Implement the above changes with minimal diff.
+- Do not break existing endpoints.
+- Ensure build passes TypeScript/ESLint.
+- After changes, the nodes request should never return 500; it should return either:
+  200 ok:true with nodes, OR
+  200 ok:false nodes:[] error:"NODES_UNAVAILABLE", OR
+  400 ok:false nodes:[] error:"MISSING_COORDS"/"INVALID_COORDS"
