@@ -1,0 +1,130 @@
+You are editing a React Native Expo + Node/Express (TypeScript) app with hunt endpoints.
+
+GOAL:
+1) Eliminate ALL remaining "Wallet address required" errors across hunt APIs (should be JWT-only auth).
+2) Ensure MISS/CATCH actually hits server (must show POST /api/hunt/miss and POST /api/hunt/catch in debug overlay + server logs).
+3) Make auth + playerId handling consistent across ALL /api/hunt/* routes.
+
+DO NOT refactor gameplay logic, UI, or spawn math. Only fix auth/wallet gating + the miss/catch request chain reliability.
+Keep changes minimal and safe.
+
+----------------------------------------
+A) SERVER FIXES (Express)
+----------------------------------------
+
+1) GLOBAL HUNT AUTH (best fix)
+In the file where hunt routes are registered (server/hunt-routes.ts or server/index.ts where app is available):
+- Add a router-level middleware so every /api/hunt/* route requires JWT, except any endpoints you explicitly want public.
+
+Implement ONE of these:
+
+Option 1 (preferred):
+app.use("/api/hunt", requireAuth);
+
+Option 2:
+Wrap every hunt endpoint:
+app.get("/api/hunt/spawns", requireAuth, async (...) => {...})
+app.post("/api/hunt/catch", requireAuth, async (...) => {...})
+app.post("/api/hunt/miss", requireAuth, async (...) => {...})
+...and any other /api/hunt/* endpoints.
+
+Pick Option 1 unless you KNOW some /api/hunt/* must be public.
+
+2) REMOVE ALL "Wallet address required" RESPONSES
+Search the entire server for the exact string:
+"Wallet address required"
+Replace every occurrence with the new standard:
+- status 401 with JSON { error: "UNAUTHORIZED" }
+Also remove any logic that reads walletAddress from query/body for hunt routes.
+Hunt must derive playerId ONLY from JWT (req.userId set by requireAuth).
+
+3) SAFE getPlayerId
+Keep getPlayerId consistent and never throwing in normal request flow.
+
+Implement:
+
+function getPlayerId(req: Request): string | null {
+  return ((req as any).userId as string) || null;
+}
+
+Then, in each route:
+const playerId = getPlayerId(req);
+if (!playerId) return res.status(401).json({ error: "UNAUTHORIZED" });
+
+(If you apply app.use("/api/hunt", requireAuth), playerId should always exist, but keep the guard anyway.)
+
+4) ENSURE /api/hunt/spawns USES JWT OWNER
+- Confirm /api/hunt/spawns is protected by requireAuth (via app.use or route middleware).
+- Confirm it uses playerId from JWT to filter HOME spawns by sourceType=HOME AND sourceKey=playerId.
+
+5) LOGS FOR CONFIRMATION
+Add short logs (do NOT spam):
+- In requireAuth success: already logs [Auth] OK path userId=...
+- Add in miss/catch handlers:
+console.log("[MISS] hit", { playerId, spawnId });
+console.log("[CATCH] hit", { playerId, spawnId });
+
+----------------------------------------
+B) CLIENT FIXES (Make sure onMiss actually triggers HTTP)
+----------------------------------------
+
+Problem right now: overlay shows EVENT onMiss_resolved but often NO HTTP POST /api/hunt/miss.
+That means the onMiss chain is resolving without awaiting the real missSpawn call (or returning early).
+
+1) GUARANTEE handleMissEncounter RETURNS THE PROMISE
+In HuntScreen.tsx (or wherever onMiss prop is created), ensure:
+
+const handleMissEncounter = useCallback(async (spawn) => {
+  // MUST await and RETURN
+  return await missSpawn(spawn.id);
+}, [missSpawn]);
+
+IMPORTANT:
+- No try/catch that swallows errors without rethrowing.
+- No missing "return" before missSpawn.
+- No conditional early-return that skips missSpawn.
+
+2) IN HuntContext.tsx missSpawn()
+Keep as-is BUT add debug marker events (optional but helpful):
+console.log("[HuntContext] missSpawn called for:", spawnId);
+console.log("[HuntContext] missSpawn response status:", response.status);
+
+Also: after success, await invalidate:
+await queryClient.invalidateQueries({ queryKey: ["/api/hunt/spawns"] });
+
+3) CAMERA MISS FLOW
+In CameraEncounter.tsx miss branch:
+- Keep await onMiss(spawn)
+- After it resolves, also immediately call a local refresh action if available (or rely on query invalidate).
+No UI changes.
+
+----------------------------------------
+C) FINAL VERIFICATION CHECKLIST (YOU MUST RUN THESE)
+----------------------------------------
+
+1) Server: grep confirms ZERO occurrences of:
+"Wallet address required"
+
+2) Mobile debug overlay:
+- When missing an egg tap:
+  - EVENT tap_miss
+  - EVENT calling_onMiss
+  - HTTP POST /api/hunt/miss  (status 200 with { success: true } OR 409 SPAWN_ALREADY_GONE)
+  - Then next GET /api/hunt/spawns should NOT include that spawn anymore.
+
+3) Server logs after a miss:
+- Must show:
+[Auth] OK /api/hunt/miss ...
+[MISS] hit { playerId, spawnId }
+
+4) If any hunt call returns 401:
+- Response must be { error: "UNAUTHORIZED" }
+- NOT "Wallet address required"
+
+----------------------------------------
+OUTPUT REQUIRED:
+After edits, print:
+- list of files changed
+- exact hunt endpoints confirmed protected by auth
+- where you removed "Wallet address required"
+- confirmation that onMiss now produces a POST /api/hunt/miss in overlay

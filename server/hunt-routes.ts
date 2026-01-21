@@ -318,7 +318,7 @@ async function getOrCreatePlayerHotspotState(walletAddress: string, dayKey: stri
 }
 
 export function registerHuntRoutes(app: Express) {
-  app.post("/api/hunt/location", async (req: Request, res: Response) => {
+  app.post("/api/hunt/location", requireAuth, async (req: Request, res: Response) => {
     try {
       const { latitude, longitude, displayName, accuracy, timestamp } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
@@ -1439,11 +1439,12 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  app.post("/api/hunt/catch", async (req: Request, res: Response) => {
+  app.post("/api/hunt/catch", requireAuth, async (req: Request, res: Response) => {
     try {
       const { spawnId, catchQuality, latitude, longitude } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       const walletAddress = requirePlayerId(req);
+      console.log("[CATCH] hit", { playerId: walletAddress, spawnId });
       
       if (!spawnId) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -1768,17 +1769,13 @@ export function registerHuntRoutes(app: Express) {
   });
 
   // Miss endpoint - player failed to tap the egg, spawn is removed
-  app.post("/api/hunt/miss", async (req: Request, res: Response) => {
+  app.post("/api/hunt/miss", requireAuth, async (req: Request, res: Response) => {
     const rid = (req.headers["x-hunt-rid"] as string) || "no_rid";
 
     try {
       const { spawnId } = req.body;
-
-      const userId = (req as any).userId;
-      if (!userId) {
-        return res.status(401).json({ error: "AUTH_REQUIRED" });
-      }
       const playerId = requirePlayerId(req);
+      console.log("[MISS] hit", { playerId, spawnId, rid });
 
       if (!spawnId) {
         return res.status(400).json({ error: "Missing spawnId" });
@@ -1836,7 +1833,7 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  app.post("/api/hunt/hatch", async (req: Request, res: Response) => {
+  app.post("/api/hunt/hatch", requireAuth, async (req: Request, res: Response) => {
     try {
       const { latitude, longitude } = req.body;
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
