@@ -1411,13 +1411,57 @@ export default function HuntScreen() {
           <ThemedText style={styles.areaClearedTitle}>{bannerTitle}</ThemedText>
         </View>
         
-        {/* Show countdown only when no eggs nearby at all */}
-        {outOfRangeCount === 0 && homeCountdown !== null && homeCountdown > 0 && (
-          <View style={styles.countdownRow}>
-            <Feather name="clock" size={14} color={GameColors.textSecondary} />
-            <ThemedText style={styles.countdownText}>
-              Next Home Drop in: {formatCountdown(homeCountdown)}
-            </ThemedText>
+        {/* Quest Offers - show Hot Drop/Micro/Beacon buttons when no quest active */}
+        {!huntMeta?.quest?.active && huntMeta?.offers && (
+          <View style={styles.questOffersRowInline}>
+            {huntMeta.offers.hotdrop && (
+              <Pressable 
+                style={[
+                  styles.questOfferButtonSmall, 
+                  !huntMeta.offers.hotdrop.available && styles.questOfferButtonDisabled
+                ]}
+                onPress={async () => {
+                  if (!huntMeta.offers?.hotdrop?.available) return;
+                  setActivatingQuest('HOT_DROP');
+                  const result = await activateHotspot('HOT_DROP');
+                  setActivatingQuest(null);
+                  if (result.success) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    refreshSpawns();
+                  }
+                }}
+                disabled={!huntMeta.offers.hotdrop.available || !!activatingQuest}
+              >
+                <Feather name="zap" size={14} color={huntMeta.offers.hotdrop.available ? '#FF6B35' : GameColors.textTertiary} />
+                <ThemedText style={[styles.questOfferTextSmall, !huntMeta.offers.hotdrop.available && styles.questOfferTextDisabled]}>
+                  {huntMeta.offers.hotdrop.available ? 'Hot Drop' : `${Math.ceil((huntMeta.offers.hotdrop.cooldownEndsInSec || 0) / 60)}m`}
+                </ThemedText>
+              </Pressable>
+            )}
+            {huntMeta.offers.micro && (
+              <Pressable 
+                style={[
+                  styles.questOfferButtonSmall, 
+                  !huntMeta.offers.micro.available && styles.questOfferButtonDisabled
+                ]}
+                onPress={async () => {
+                  if (!huntMeta.offers?.micro?.available) return;
+                  setActivatingQuest('MICRO_HOTSPOT');
+                  const result = await activateHotspot('MICRO_HOTSPOT');
+                  setActivatingQuest(null);
+                  if (result.success) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    refreshSpawns();
+                  }
+                }}
+                disabled={!huntMeta.offers.micro.available || !!activatingQuest}
+              >
+                <Feather name="map-pin" size={14} color={huntMeta.offers.micro.available ? GameColors.primary : GameColors.textTertiary} />
+                <ThemedText style={[styles.questOfferTextSmall, !huntMeta.offers.micro.available && styles.questOfferTextDisabled]}>
+                  {huntMeta.offers.micro.available ? 'Micro' : `${Math.ceil((huntMeta.offers.micro.cooldownEndsInSec || 0) / 60)}m`}
+                </ThemedText>
+              </Pressable>
+            )}
           </View>
         )}
         
@@ -3779,6 +3823,27 @@ const styles = StyleSheet.create({
   },
   questOfferTextDisabled: {
     color: GameColors.textTertiary,
+  },
+  questOffersRowInline: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  questOfferButtonSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: GameColors.surface,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: GameColors.primary + "40",
+  },
+  questOfferTextSmall: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: GameColors.textPrimary,
   },
   activatingText: {
     fontSize: 11,
