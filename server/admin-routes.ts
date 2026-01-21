@@ -1136,7 +1136,16 @@ export function registerAdminRoutes(app: Express) {
         ))
         .groupBy(huntEggs.rarity);
 
-      res.json({ userId, eggs });
+      // Also get raw egg list (limited)
+      const rawEggs = await db.select()
+        .from(huntEggs)
+        .where(and(
+          eq(huntEggs.userId, userId as string),
+          sql`${huntEggs.hatchedAt} IS NULL`
+        ))
+        .limit(10);
+
+      res.json({ userId, eggs, sampleEggs: rawEggs });
     } catch (error) {
       console.error("[Admin] User eggs check error:", error);
       res.status(500).json({ error: "Failed to check user eggs" });

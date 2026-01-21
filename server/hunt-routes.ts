@@ -2042,6 +2042,8 @@ export function registerHuntRoutes(app: Express) {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       // URL param is ignored for security - identity comes from JWT only
       const walletAddress = requirePlayerId(req);
+      
+      console.log(`[Eggs] Fetching eggs for userId: ${walletAddress}`);
 
       const eggs = await db.select().from(huntEggs)
         .where(and(
@@ -2049,6 +2051,8 @@ export function registerHuntRoutes(app: Express) {
           sql`${huntEggs.hatchedAt} IS NULL`,
         ))
         .orderBy(desc(huntEggs.foundAt));
+      
+      console.log(`[Eggs] Found ${eggs.length} eggs for userId: ${walletAddress}`);
 
       const incubators = await db.select().from(huntIncubators)
         .where(eq(huntIncubators.userId, walletAddress));
