@@ -1,11 +1,11 @@
 {
-  "id": "603234a2-bcd5-449c-9ae6-0c2712b1e9fc",
-  "createdAt": "2026-01-19T06:58:00.509Z",
+  "id": "e02a0b51-6701-49d1-a914-7c0726b5945f",
+  "createdAt": "2026-01-21T05:54:58.157Z",
   "runtimeVersion": "1.0.0",
   "launchAsset": {
-    "key": "bundle-1768805880509-6676",
+    "key": "bundle-1768974898157-12071",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1768805880509-6676/_expo/static/js/ios/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1768974898157-12071/_expo/static/js/ios/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -217,6 +217,6 @@
     "expoGo": {
       "__flipperHack": "React Native packager is running"
     },
-    "scopeKey": "@anonymous/roachy-games-cec27fd1-4283-4a30-ab5d-8e6d40680016"
+    "scopeKey": "@anonymous/roachy-games-2bd49b11-871e-4b2e-aed7-2fe27ca5e3c1"
   }
 }
