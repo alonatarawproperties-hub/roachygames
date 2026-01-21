@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Image, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, Image, Pressable, Dimensions, ImageBackground, ImageSourcePropType } from "react-native";
+
+const EGG_REVEAL_BG_COMMON = require("@/assets/egg-reveal-common.png");
+const EGG_REVEAL_BG_RARE = require("@/assets/egg-reveal-rare.png");
+const EGG_REVEAL_BG_EPIC = require("@/assets/egg-reveal-epic.png");
+const EGG_REVEAL_BG_LEGENDARY = require("@/assets/egg-reveal-legendary.png");
+
+const RARITY_BACKGROUNDS: Record<string, ImageSourcePropType> = {
+  common: EGG_REVEAL_BG_COMMON,
+  rare: EGG_REVEAL_BG_RARE,
+  epic: EGG_REVEAL_BG_EPIC,
+  legendary: EGG_REVEAL_BG_LEGENDARY,
+};
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -195,9 +207,10 @@ export function EggReveal({ creature, catchQuality, onComplete }: EggRevealProps
 
   const creatureImage = ROACHY_IMAGES[creature.templateId];
   const classIcon = CLASS_ICONS[creature.creatureClass] || "star";
+  const backgroundImage = RARITY_BACKGROUNDS[creature.rarity] || RARITY_BACKGROUNDS.common;
 
   return (
-    <View style={styles.container}>
+    <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
       {(creature.rarity === "legendary" || creature.rarity === "epic") && (
         <View style={styles.particleContainer}>
           {[...Array(15)].map((_, i) => (
@@ -353,7 +366,7 @@ export function EggReveal({ creature, catchQuality, onComplete }: EggRevealProps
           )}
         </View>
       )}
-    </View>
+    </ImageBackground>
   );
 }
 
