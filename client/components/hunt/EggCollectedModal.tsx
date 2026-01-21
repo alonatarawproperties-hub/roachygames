@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Pressable, Modal, Dimensions, Image, ScrollView } from "react-native";
+import { View, StyleSheet, Pressable, Modal, Dimensions, Image, ScrollView, ImageBackground } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -32,6 +32,18 @@ const EGG_IMAGES: Record<string, any> = {
   rare: EggRare,
   epic: EggEpic,
   legendary: EggLegendary,
+};
+
+const EggCatchBgCommon = require("@/assets/egg-catch-bg-common.jpg");
+const EggCatchBgRare = require("@/assets/egg-catch-bg-rare.jpg");
+const EggCatchBgEpic = require("@/assets/egg-catch-bg-epic.jpg");
+const EggCatchBgLegendary = require("@/assets/egg-catch-bg-legendary.jpg");
+
+const EGG_CATCH_BACKGROUNDS: Record<string, any> = {
+  common: EggCatchBgCommon,
+  rare: EggCatchBgRare,
+  epic: EggCatchBgEpic,
+  legendary: EggCatchBgLegendary,
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -230,14 +242,11 @@ export function EggCollectedModal({
   const isSmallScreen = SCREEN_HEIGHT < 700;
   const eggSize = isSmallScreen ? { width: 140, height: 170 } : { width: 180, height: 220 };
 
+  const backgroundImage = EGG_CATCH_BACKGROUNDS[eggRarity] || EggCatchBgCommon;
+
   return (
     <Modal visible={visible} transparent={false} animationType="fade">
-      <View style={styles.container}>
-        <LinearGradient
-          colors={["#0a0a0f", "#111118", "#0a0a0f"]}
-          style={StyleSheet.absoluteFill}
-        />
-
+      <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={[
@@ -416,7 +425,7 @@ export function EggCollectedModal({
             <Feather name="x" size={20} color="#fff" />
           </BlurView>
         </Pressable>
-      </View>
+      </ImageBackground>
     </Modal>
   );
 }
