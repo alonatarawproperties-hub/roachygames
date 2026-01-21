@@ -113,7 +113,8 @@ export const huntHotspotPlayerState = pgTable("hunt_hotspot_player_state", {
 
 export const huntCaughtCreatures = pgTable("hunt_caught_creatures", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  walletAddress: text("wallet_address").notNull(),
+  userId: varchar("user_id").notNull(),
+  walletAddress: text("wallet_address"),
   templateId: text("template_id").notNull(),
   name: text("name").notNull(),
   creatureClass: text("creature_class").notNull(),
@@ -202,7 +203,8 @@ export const huntEconomyStats = pgTable("hunt_economy_stats", {
 
 export const huntEggs = pgTable("hunt_eggs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  walletAddress: text("wallet_address").notNull(),
+  userId: varchar("user_id").notNull(),
+  walletAddress: text("wallet_address"),
   rarity: text("rarity").notNull().default('common'),
   requiredDistance: integer("required_distance").notNull().default(2000),
   walkedDistance: integer("walked_distance").notNull().default(0),
@@ -217,7 +219,8 @@ export const huntEggs = pgTable("hunt_eggs", {
 
 export const huntIncubators = pgTable("hunt_incubators", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  walletAddress: text("wallet_address").notNull(),
+  userId: varchar("user_id").notNull(),
+  walletAddress: text("wallet_address"),
   incubatorType: text("incubator_type").notNull().default('basic'),
   speedMultiplier: real("speed_multiplier").notNull().default(1.0),
   currentEggId: varchar("current_egg_id"),

@@ -431,12 +431,12 @@ export function registerHuntRoutes(app: Express) {
         }
 
         const existingIncubator = await db.select().from(huntIncubators)
-          .where(eq(huntIncubators.walletAddress, walletAddress))
+          .where(eq(huntIncubators.userId, walletAddress))
           .limit(1);
         
         if (existingIncubator.length === 0) {
           await db.insert(huntIncubators).values({
-            walletAddress,
+            userId: walletAddress,
             incubatorType: 'basic',
             slotNumber: 1,
           });
@@ -1660,7 +1660,7 @@ export function registerHuntRoutes(app: Express) {
       const xpGain = catchQuality === 'perfect' ? 150 : catchQuality === 'great' ? 75 : 30;
 
       const [caughtCreature] = await db.insert(huntCaughtCreatures).values({
-        walletAddress,
+        userId: walletAddress,
         templateId: creatureTemplateId,
         name: creatureName,
         creatureClass: spawn.creatureClass,
@@ -1861,7 +1861,7 @@ export function registerHuntRoutes(app: Express) {
       const ivs = generateIVs();
 
       const [hatchedCreature] = await db.insert(huntCaughtCreatures).values({
-        walletAddress,
+        userId: walletAddress,
         templateId: template.id,
         name: template.name,
         creatureClass: template.roachyClass,
@@ -2011,7 +2011,7 @@ export function registerHuntRoutes(app: Express) {
       const walletAddress = playerId;
 
       const creatures = await db.select().from(huntCaughtCreatures)
-        .where(eq(huntCaughtCreatures.walletAddress, walletAddress))
+        .where(eq(huntCaughtCreatures.userId, walletAddress))
         .orderBy(desc(huntCaughtCreatures.caughtAt));
 
       console.log(`[HUNT][COLLECTION] OK`, { requestId, playerId: walletAddress.slice(-8), count: creatures.length });
@@ -2045,13 +2045,13 @@ export function registerHuntRoutes(app: Express) {
 
       const eggs = await db.select().from(huntEggs)
         .where(and(
-          eq(huntEggs.walletAddress, walletAddress),
+          eq(huntEggs.userId, walletAddress),
           sql`${huntEggs.hatchedAt} IS NULL`,
         ))
         .orderBy(desc(huntEggs.foundAt));
 
       const incubators = await db.select().from(huntIncubators)
-        .where(eq(huntIncubators.walletAddress, walletAddress));
+        .where(eq(huntIncubators.userId, walletAddress));
 
       res.json({ eggs, incubators });
     } catch (error) {
@@ -2114,7 +2114,7 @@ export function registerHuntRoutes(app: Express) {
         const ivs = generateIVs();
 
         const [hatchedCreature] = await db.insert(huntCaughtCreatures).values({
-          walletAddress,
+          userId: walletAddress,
           templateId: template.id,
           name: template.name,
           creatureClass: template.roachyClass,
@@ -2297,7 +2297,7 @@ export function registerHuntRoutes(app: Express) {
 
         if (rewards.guaranteedEgg) {
           await db.insert(huntEggs).values({
-            walletAddress,
+            userId: walletAddress,
             rarity: raid.rarity,
             requiredDistance: EGG_DISTANCES[raid.rarity] || 5000,
           });
