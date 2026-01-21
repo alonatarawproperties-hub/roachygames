@@ -304,44 +304,51 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const SPAWN_DEBOUNCE_MS = 700;
     const SUPPRESS_MAP_PRESS_MS = 350;
     
-    // Cleanup timer on unmount
+    // Cleanup timer and release lock on unmount
     useEffect(() => {
       return () => {
         if (tapUnlockTimerRef.current) clearTimeout(tapUnlockTimerRef.current);
+        spawnTapLockRef.current = false;
       };
     }, []);
     
     // Safe spawn tap wrapper v3 - ALWAYS releases lock even if onSpawnTap throws
     const safeOnSpawnTap = useCallback((spawn: Spawn, source: "marker" | "map") => {
-      console.log(`[safeOnSpawnTap] v3 source=${source} spawn=${spawn?.id} locked=${spawnTapLockRef.current}`);
-      
+      console.log(`[safeOnSpawnTap] v4 source=${source} spawn=${spawn?.id} locked=${spawnTapLockRef.current}`);
+
       if (spawnTapLockRef.current) {
         console.log("[safeOnSpawnTap] BLOCKED: tap lock active");
         return;
       }
-      
+
       spawnTapLockRef.current = true;
       lastSpawnTapRef.current = spawn.id;
       lastMarkerEventTsRef.current = Date.now();
-      
-      // Schedule unlock FIRST so it runs even if onSpawnTap throws
-      if (tapUnlockTimerRef.current) clearTimeout(tapUnlockTimerRef.current);
-      tapUnlockTimerRef.current = setTimeout(() => {
-        spawnTapLockRef.current = false;
-        tapUnlockTimerRef.current = null;
-        console.log("[safeOnSpawnTap] Lock released after debounce");
-      }, SPAWN_DEBOUNCE_MS);
-      
-      try {
-        console.log("[safeOnSpawnTap] Lock acquired, calling onSpawnTap");
-        onSpawnTap(spawn);
-      } catch (err) {
-        console.error("[safeOnSpawnTap] onSpawnTap threw", err);
+
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
         spawnTapLockRef.current = false;
         if (tapUnlockTimerRef.current) {
           clearTimeout(tapUnlockTimerRef.current);
           tapUnlockTimerRef.current = null;
         }
+        console.log("[safeOnSpawnTap] Lock released");
+      };
+
+      // IMPORTANT: schedule release BEFORE calling onSpawnTap so a throw cannot keep lock forever
+      tapUnlockTimerRef.current = setTimeout(() => {
+        console.log("[safeOnSpawnTap] Lock released after debounce");
+        release();
+      }, SPAWN_DEBOUNCE_MS);
+
+      try {
+        console.log("[safeOnSpawnTap] Lock acquired, calling onSpawnTap");
+        onSpawnTap(spawn);
+      } catch (err) {
+        console.error("[safeOnSpawnTap] ERROR inside onSpawnTap:", err);
+        release();
       }
     }, [onSpawnTap]);
     

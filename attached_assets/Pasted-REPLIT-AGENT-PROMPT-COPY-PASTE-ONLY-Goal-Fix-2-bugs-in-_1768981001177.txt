@@ -1,0 +1,173 @@
+REPLIT AGENT PROMPT (COPY/PASTE ONLY)
+
+Goal: Fix 2 bugs in Roachy Hunt (React Native Expo):
+A) Map sometimes “freezes” after tapping a spawn (taps stop working until restart)
+B) Catching gets stuck on “CATCHING…” and the “You caught a ____ egg” reveal never shows even though API returns success.
+
+========================
+BUG A — MAP FREEZE (tap lock gets stuck)
+Root cause: safeOnSpawnTap() sets tapLockRef=true then calls onSpawnTap(spawn). If onSpawnTap throws, the unlock setTimeout never runs, leaving tapLockRef stuck forever.
+
+FIX: Make safeOnSpawnTap exception-safe: schedule release BEFORE calling onSpawnTap and always release lock (catch/finally). Add unmount cleanup.
+
+FILE 1: client/components/MapViewWrapper.tsx
+
+1) Find the existing safeOnSpawnTap useCallback and REPLACE ENTIRE FUNCTION with this:
+
+const safeOnSpawnTap = useCallback((spawn: Spawn, source: string) => {
+  console.log(
+    `[safeOnSpawnTap] v3 source=${source} spawn=${spawn?.id} locked=${tapLockRef.current}`
+  );
+
+  if (tapLockRef.current) {
+    console.log("[safeOnSpawnTap] BLOCKED: tap lock active");
+    return;
+  }
+
+  tapLockRef.current = true;
+  lastMarkerEventTsRef.current = Date.now();
+
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    tapLockRef.current = false;
+    console.log("[safeOnSpawnTap] Lock released");
+  };
+
+  // IMPORTANT: schedule release BEFORE calling onSpawnTap so a throw cannot keep lock forever
+  const t = setTimeout(() => {
+    console.log("[safeOnSpawnTap] Lock released after debounce");
+    release();
+  }, TAP_DEBOUNCE_MS);
+
+  try {
+    console.log("[safeOnSpawnTap] Lock acquired, calling onSpawnTap");
+    onSpawnTap?.(spawn);
+  } catch (err) {
+    console.error("[safeOnSpawnTap] ERROR inside onSpawnTap:", err);
+    clearTimeout(t);
+    release();
+  }
+}, [onSpawnTap]);
+
+2) Add this cleanup effect once in the same component (near refs is fine):
+
+useEffect(() => {
+  return () => {
+    tapLockRef.current = false;
+  };
+}, []);
+
+Do NOT change marker or map onPress logic beyond this.
+
+========================
+BUG B — CATCH STUCK ON “CATCHING…” / REVEAL NOT SHOWING
+Root cause: On success you close/reset encounter state first (setShowCameraEncounter(false), setSelectedSpawn(null), etc) then setCollectedEggInfo later via setTimeout. Any reset/unmount/effect can prevent the reveal from firing → stuck UI even though API returned success.
+
+FIX: On success: setCollectedEggInfo FIRST (synchronously), then close encounter on next tick. Also ensure stale/early-return paths always clear isCollecting and close encounter so “CATCHING…” can’t remain.
+
+FILE 2: client/screens/HuntScreen.tsx
+
+Edit handleStartCatch exactly:
+
+1) Inside handleStartCatch, right after the first console.log (top of function), ADD this helper:
+
+const cleanupEncounter = () => {
+  setIsCollecting(false);
+  setShowCameraEncounter(false);
+  setSelectedSpawn(null);
+  activeSpawnRef.current = null;
+};
+
+2) In the “if (!spawn)” block, replace manual resets with:
+
+cleanupEncounter();
+Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+return;
+
+3) After:
+const result = await claimNode(...)
+
+Update the stale response guard so it NEVER leaves UI stuck:
+
+if (thisAttempt !== catchSeqRef.current) {
+  console.log("[handleStartCatch] v11 Ignoring stale response");
+  cleanupEncounter();
+  return;
+}
+
+4) Replace your SUCCESS block (result.eggRarity) with this EXACT ordering (NO setTimeout):
+
+if (result && result.eggRarity) {
+  const normalizedRarity =
+    (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as
+      | "common"
+      | "rare"
+      | "epic"
+      | "legendary";
+
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+  // 1) Set reveal payload FIRST (sync)
+  setCollectedEggInfo({
+    rarity: normalizedRarity,
+    xpAwarded: result.xpAwarded || 0,
+    pointsAwarded: result.pointsAwarded || 0,
+    quality: "perfect",
+    pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+  });
+
+  // 2) Close encounter AFTER payload is set (next tick)
+  requestAnimationFrame(() => {
+    cleanupEncounter();
+  });
+
+  refreshPhaseIStats();
+  return;
+}
+
+5) In the result.error branch, ensure Cancelled/Timeout ALWAYS cleans up:
+
+} else if (result && result.error) {
+  if (result.error === "Cancelled" || result.error === "Timeout") {
+    cleanupEncounter();
+    return;
+  }
+  setIsCollecting(false);
+  if (result.error !== "Cancelled") {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+  }
+} else {
+  setIsCollecting(false);
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  Alert.alert("Catch Failed", "Something went wrong", [{ text: "OK" }]);
+}
+
+6) In the catch block, ensure AbortError ALWAYS cleans up:
+
+} catch (error: any) {
+  if (error?.name === "AbortError" || error?.code === "ABORTED") {
+    cleanupEncounter();
+    return;
+  }
+  if (thisAttempt === catchSeqRef.current) {
+    setIsCollecting(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Alert.alert("Connection Error", error?.message || "Network error", [{ text: "OK" }]);
+  }
+} finally {
+  catchLockRef.current = false;
+  console.log("[handleStartCatch] v11 Lock released");
+}
+
+Do NOT add any other refactors.
+
+========================
+VERIFY
+1) Tap spawn repeatedly. Even if onSpawnTap throws, after ~700ms map must accept taps (no permanent lock).
+2) Catch egg. When API returns success:true + eggRarity, the reveal modal must show every time and “CATCHING…” must disappear.
+3) Cancel/timeout/abort must also close encounter and clear loading.
+
+END PROMPT

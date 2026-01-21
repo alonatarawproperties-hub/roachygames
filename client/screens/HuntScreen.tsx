@@ -978,11 +978,18 @@ export default function HuntScreen() {
   const [isCollecting, setIsCollecting] = useState(false);
 
   const handleStartCatch = async (passedSpawn: Spawn) => {
-    console.log("[handleStartCatch] v11 CALLED with spawn:", passedSpawn?.id, JSON.stringify(passedSpawn));
+    console.log("[handleStartCatch] v12 CALLED with spawn:", passedSpawn?.id, JSON.stringify(passedSpawn));
+    
+    const cleanupEncounter = () => {
+      setIsCollecting(false);
+      setShowCameraEncounter(false);
+      setSelectedSpawn(null);
+      activeSpawnRef.current = null;
+    };
     
     // Anti-freeze: Block if already processing a catch
     if (catchLockRef.current) {
-      console.log("[handleStartCatch] v11 BLOCKED: catchLockRef is true");
+      console.log("[handleStartCatch] v12 BLOCKED: catchLockRef is true");
       return;
     }
     
@@ -992,7 +999,7 @@ export default function HuntScreen() {
     // Guard: No spawn = can't proceed
     if (!spawn) {
       console.log("[handleStartCatch] ERROR: No spawn passed");
-      setShowCameraEncounter(false);
+      cleanupEncounter();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -1057,10 +1064,11 @@ export default function HuntScreen() {
         thisAttempt
       );
       
-      // Anti-freeze: Ignore stale responses
+      // Anti-freeze: Ignore stale responses - but ALWAYS clean up
       if (thisAttempt !== catchSeqRef.current) {
-        console.log("[handleStartCatch] v11 Ignoring stale response, attempt:", thisAttempt, "current:", catchSeqRef.current);
-        return; // Don't update UI for stale responses
+        console.log("[handleStartCatch] v12 Ignoring stale response, attempt:", thisAttempt, "current:", catchSeqRef.current);
+        cleanupEncounter();
+        return;
       }
       
       console.log("[Phase1] API result:", JSON.stringify(result));
@@ -1072,43 +1080,36 @@ export default function HuntScreen() {
       if (result && result.eggRarity) {
         // GOT AN EGG! Show the reveal
         const normalizedRarity = (result.eggRarity === "uncommon" ? "common" : result.eggRarity) as "common" | "rare" | "epic" | "legendary";
-        console.log("[Phase1] v14 GOT EGG! Rarity:", normalizedRarity);
+        console.log("[Phase1] v15 GOT EGG! Rarity:", normalizedRarity);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // Close camera and show reveal
-        setIsCollecting(false);
-        setShowCameraEncounter(false);
-        setSelectedSpawn(null);
-        activeSpawnRef.current = null;
+        // 1) Set reveal payload FIRST (sync) - prevents reveal from being lost
+        setCollectedEggInfo({
+          rarity: normalizedRarity,
+          xpAwarded: result.xpAwarded || 0,
+          pointsAwarded: result.pointsAwarded || 0,
+          quality: "perfect",
+          pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
+        });
         
-        // Small delay for modal transition
-        setTimeout(() => {
-          setCollectedEggInfo({
-            rarity: normalizedRarity,
-            xpAwarded: result.xpAwarded || 0,
-            pointsAwarded: result.pointsAwarded || 0,
-            quality: "perfect",
-            pity: result.pity || { rareIn: 20, epicIn: 60, legendaryIn: 200 },
-          });
-        }, 100);
+        // 2) Close encounter AFTER payload is set (next tick)
+        requestAnimationFrame(() => {
+          cleanupEncounter();
+        });
         
         refreshPhaseIStats();
+        return;
       } else if (result && result.error) {
         // Actual error from server
         console.log("[Phase1] Server error:", result.error);
-        setIsCollecting(false);
         
-        // Anti-freeze: Close encounter on Cancelled/Timeout so it never sticks
+        // Anti-freeze: Cancelled/Timeout ALWAYS cleans up silently
         if (result.error === "Cancelled" || result.error === "Timeout") {
-          // IMPORTANT: always clear loading state
-          if (thisAttempt === catchSeqRef.current) setIsCollecting(false);
-          
-          setShowCameraEncounter(false);
-          setSelectedSpawn(null);
-          activeSpawnRef.current = null;
+          cleanupEncounter();
           return;
         }
         
+        setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
       } else {
@@ -1121,18 +1122,15 @@ export default function HuntScreen() {
     } catch (error: any) {
       const errorMsg = error?.message || String(error) || "Network error";
       console.error("[Phase1] Network error:", errorMsg);
-      // Only update UI if this is still the current attempt
+      
+      // Anti-freeze: AbortError ALWAYS cleans up
+      if (error?.name === "AbortError" || (error as any)?.code === "ABORTED") {
+        cleanupEncounter();
+        return;
+      }
+      
+      // Only show alert if this is still the current attempt
       if (thisAttempt === catchSeqRef.current) {
-        // Anti-freeze: Close encounter on abort so it doesn't trap UI
-        if (error?.name === "AbortError" || (error as any)?.code === "ABORTED") {
-          // IMPORTANT: always clear loading state
-          if (thisAttempt === catchSeqRef.current) setIsCollecting(false);
-          
-          setShowCameraEncounter(false);
-          setSelectedSpawn(null);
-          activeSpawnRef.current = null;
-          return;
-        }
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
@@ -1140,7 +1138,7 @@ export default function HuntScreen() {
     } finally {
       // Always release the lock
       catchLockRef.current = false;
-      console.log("[handleStartCatch] v11 Lock released");
+      console.log("[handleStartCatch] v12 Lock released");
     }
   };
 
