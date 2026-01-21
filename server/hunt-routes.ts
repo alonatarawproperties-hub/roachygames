@@ -2037,7 +2037,7 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  app.get("/api/hunt/eggs/:walletAddress", async (req: Request, res: Response) => {
+  app.get("/api/hunt/eggs/:walletAddress", requireAuth, async (req: Request, res: Response) => {
     try {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       // URL param is ignored for security - identity comes from JWT only
