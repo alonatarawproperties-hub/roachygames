@@ -300,37 +300,79 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     // Compass mode state
     const [compassMode, setCompassMode] = useState(false);
     const [compassHeading, setCompassHeading] = useState(0);
-    const magnetometerSubscription = useRef<any>(null);
+    const [compassAvailable, setCompassAvailable] = useState(false);
+    const [mapIsReady, setMapIsReady] = useState(false);
     
-    // Magnetometer subscription for compass heading
+    // Check if magnetometer is available on mount
     useEffect(() => {
-      if (compassMode && Platform.OS !== "web") {
-        Magnetometer.setUpdateInterval(100);
-        magnetometerSubscription.current = Magnetometer.addListener((data) => {
-          // Calculate heading from magnetometer data
-          let heading = Math.atan2(data.y, data.x) * (180 / Math.PI);
-          heading = heading >= 0 ? heading : heading + 360;
-          // Adjust so 0 degrees is North (magnetometer gives 0 for East)
-          heading = (360 - heading + 90) % 360;
-          setCompassHeading(heading);
-        });
-      } else {
-        if (magnetometerSubscription.current) {
-          magnetometerSubscription.current.remove();
-          magnetometerSubscription.current = null;
-        }
-        setCompassHeading(0);
+      if (Platform.OS === "web") {
+        setCompassAvailable(false);
+        return;
       }
       
-      return () => {
-        if (magnetometerSubscription.current) {
-          magnetometerSubscription.current.remove();
-          magnetometerSubscription.current = null;
+      const checkAvailability = async () => {
+        try {
+          const available = await Magnetometer.isAvailableAsync();
+          setCompassAvailable(available);
+        } catch (error) {
+          console.log("[Compass] Magnetometer not available:", error);
+          setCompassAvailable(false);
         }
       };
-    }, [compassMode]);
+      
+      checkAvailability();
+    }, []);
+    
+    // Magnetometer subscription for compass heading - only when available, enabled, and map ready
+    useEffect(() => {
+      let subscription: any = null;
+      
+      const startCompass = async () => {
+        if (!compassMode || !compassAvailable || !mapIsReady || Platform.OS === "web") {
+          return;
+        }
+        
+        try {
+          Magnetometer.setUpdateInterval(100);
+          subscription = Magnetometer.addListener((data) => {
+            try {
+              // Calculate heading from magnetometer data
+              let heading = Math.atan2(data.y, data.x) * (180 / Math.PI);
+              heading = heading >= 0 ? heading : heading + 360;
+              // Adjust so 0 degrees is North (magnetometer gives 0 for East)
+              heading = (360 - heading + 90) % 360;
+              setCompassHeading(heading);
+            } catch (err) {
+              console.log("[Compass] Error processing heading:", err);
+            }
+          });
+        } catch (error) {
+          console.log("[Compass] Failed to start magnetometer:", error);
+          setCompassMode(false);
+        }
+      };
+      
+      startCompass();
+      
+      return () => {
+        if (subscription) {
+          try {
+            subscription.remove();
+          } catch (err) {
+            console.log("[Compass] Error removing subscription:", err);
+          }
+        }
+        if (!compassMode) {
+          setCompassHeading(0);
+        }
+      };
+    }, [compassMode, compassAvailable, mapIsReady]);
     
     const toggleCompassMode = () => {
+      if (!compassAvailable) {
+        console.log("[Compass] Magnetometer not available on this device");
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCompassMode(prev => !prev);
     };
@@ -468,6 +510,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     }
 
     const handleNativeMapReady = () => {
+      setMapIsReady(true);
       if (!mapReadyCalledRef.current && onMapReady) {
         mapReadyCalledRef.current = true;
         onMapReady();
@@ -851,22 +894,24 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
         {/* Map Controls - Bottom Right inside map container */}
         <View style={styles.mapControlsContainer} pointerEvents="box-none">
           <View style={styles.controlButtonsColumn} pointerEvents="box-none">
-            {/* Compass Mode Toggle */}
-            <Pressable 
-              style={[
-                styles.compassButton, 
-                compassMode && styles.compassButtonActive
-              ]}
-              onPress={toggleCompassMode}
-            >
-              <View style={compassMode ? { transform: [{ rotate: `${-compassHeading}deg` }] } : undefined}>
-                <Feather 
-                  name="compass" 
-                  size={20} 
-                  color={compassMode ? GameColors.primary : "#fff"} 
-                />
-              </View>
-            </Pressable>
+            {/* Compass Mode Toggle - Only show if magnetometer is available */}
+            {compassAvailable ? (
+              <Pressable 
+                style={[
+                  styles.compassButton, 
+                  compassMode && styles.compassButtonActive
+                ]}
+                onPress={toggleCompassMode}
+              >
+                <View style={compassMode ? { transform: [{ rotate: `${-compassHeading}deg` }] } : undefined}>
+                  <Feather 
+                    name="compass" 
+                    size={20} 
+                    color={compassMode ? GameColors.primary : "#fff"} 
+                  />
+                </View>
+              </Pressable>
+            ) : null}
             <AnimatedControlButton 
               iconName="navigation" 
               onPress={centerOnPlayerMap}
