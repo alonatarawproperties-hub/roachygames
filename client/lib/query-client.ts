@@ -88,10 +88,17 @@ function setLastApiDebug(payload: Record<string, unknown>) {
   (globalThis as any).__lastApiDebug = payload;
 }
 
+export interface ApiRequestOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  extraHeaders?: Record<string, string>;
+}
+
 export async function apiRequest(
   method: string,
   route: string,
   data?: unknown | undefined,
+  options?: ApiRequestOptions,
 ): Promise<Response> {
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
@@ -120,6 +127,13 @@ export async function apiRequest(
   if (authToken) {
     headers["Authorization"] = `Bearer ${authToken}`;
   }
+  
+  // Merge extra headers if provided
+  if (options?.extraHeaders) {
+    for (const [k, v] of Object.entries(options.extraHeaders)) {
+      headers[k] = v;
+    }
+  }
 
   // Record debug info before fetch
   setLastApiDebug({
@@ -140,13 +154,34 @@ export async function apiRequest(
   const tokenExists = hasAuthToken;
   const headerSet = !!headers["Authorization"];
 
+  // Set up abort controller: merge external signal + timeout
+  const timeoutMs = options?.timeoutMs ?? 15000;
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+  
+  // If external signal provided, listen for abort
+  const externalSignal = options?.signal;
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timeoutId);
+      const abortError = new Error("Request aborted");
+      (abortError as any).name = "AbortError";
+      (abortError as any).code = "ABORTED";
+      throw abortError;
+    }
+    externalSignal.addEventListener("abort", () => timeoutController.abort(), { once: true });
+  }
+
   try {
     const res = await fetch(url, {
       method,
       headers,
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
+      signal: timeoutController.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     const durationMs = Date.now() - startedAt;
     
@@ -196,8 +231,12 @@ export async function apiRequest(
     await throwIfResNotOk(res);
     return res;
   } catch (error: any) {
+    clearTimeout(timeoutId);
     const durationMs = Date.now() - startedAt;
-    const errorStr = String(error?.message ?? error);
+    
+    // Check if this was an abort
+    const isAbort = error?.name === "AbortError" || timeoutController.signal.aborted;
+    const errorStr = isAbort ? "ABORTED" : String(error?.message ?? error);
 
     // Push to debug history
     pushApiDebug({
@@ -222,6 +261,14 @@ export async function apiRequest(
       durationMs,
       tsIso: new Date().toISOString(),
     });
+    
+    // Re-throw with consistent shape for aborts
+    if (isAbort) {
+      const abortError = new Error("Request aborted");
+      (abortError as any).name = "AbortError";
+      (abortError as any).code = "ABORTED";
+      throw abortError;
+    }
     throw error;
   }
 }

@@ -1,0 +1,50 @@
+TASK: Apply anti-freeze fixes (tap lock + AbortController + timeout) WITHOUT breaking existing behavior.
+
+FILES TO EDIT:
+1) client/components/MapViewWrapper.tsx
+2) client/lib/query-client.ts
+3) client/context/HuntContext.tsx (or wherever claimNode is)
+4) client/screens/HuntScreen.tsx (or wherever handleStartCatch is)
+
+RULES:
+- Do NOT refactor unrelated code.
+- Only add the smallest safe changes.
+- Preserve existing logs and debug tracking.
+- Run TypeScript checks after edits.
+
+(1) MapViewWrapper.tsx
+- Add refs + safeOnSpawnTap useCallback:
+  spawnTapLockRef, lastSpawnTapRef, lastMarkerEventTsRef
+  constants SPAWN_DEBOUNCE_MS=700, SUPPRESS_MAP_PRESS_MS=350
+- Replace calls to onSpawnTap(...) in BOTH places with safeOnSpawnTap(spawn, "marker"/"map")
+- In Map onPress handler: early-return if Date.now() - lastMarkerEventTsRef.current < SUPPRESS_MAP_PRESS_MS
+
+(2) query-client.ts
+- Update apiRequest signature to:
+  apiRequest(method, route, data?, options?)
+  options: { signal?: AbortSignal; timeoutMs?: number; extraHeaders?: Record<string,string> }
+- Thread options.signal into fetch(...)
+- Add timeoutMs default 15000 using AbortController
+- Merge external signal + timeout abort
+- For aborts: throw Error with name="AbortError" and code="ABORTED"
+- Keep pushApiDebug/setLastApiDebug behavior unchanged except error string becomes "ABORTED" on aborts.
+- Also update apiRequestNoThrow similarly (optional but preferred)
+
+(3) HuntContext.tsx
+- Add claimAbortRef + claimAttemptRef
+- Update claimNode signature to accept attemptId
+- Abort previous claim using AbortController
+- Pass signal+timeoutMs to apiRequest
+- Ignore stale responses (attemptId mismatch)
+- If AbortError: return { success:false, error:"Cancelled" }
+
+(4) HuntScreen.tsx
+- Add catchLockRef + catchSeqRef
+- In handleStartCatch: block if catchLockRef.current
+- Increment attemptId, pass attemptId into claimNode
+- Ignore stale results (attemptId mismatch)
+- In finally: setIsCollecting(false) only for latest attempt, always release lock
+- If result.error === "Cancelled": do NOT show alert
+
+DELIVERABLE:
+- After changes, paste the exact final code diffs or the full updated functions for each file.

@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from "react";
+import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
 
 const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
@@ -296,6 +296,44 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const mapReadyCalledRef = useRef(false);
     const insets = useSafeAreaInsets();
     
+    // Anti-freeze: tap lock refs to prevent double-tap and out-of-order handling
+    const spawnTapLockRef = useRef(false);
+    const lastSpawnTapRef = useRef<string | null>(null);
+    const lastMarkerEventTsRef = useRef(0);
+    const SPAWN_DEBOUNCE_MS = 700;
+    const SUPPRESS_MAP_PRESS_MS = 350;
+    
+    // Safe spawn tap wrapper with debounce and lock
+    const safeOnSpawnTap = useCallback((spawn: Spawn, source: "marker" | "map") => {
+      const now = Date.now();
+      
+      // Check if we're locked (already processing a tap)
+      if (spawnTapLockRef.current) {
+        console.log(`[MapView] safeOnSpawnTap BLOCKED (locked) spawn=${spawn.id} source=${source}`);
+        return;
+      }
+      
+      // Check debounce - same spawn tapped too quickly
+      if (lastSpawnTapRef.current === spawn.id && now - lastMarkerEventTsRef.current < SPAWN_DEBOUNCE_MS) {
+        console.log(`[MapView] safeOnSpawnTap DEBOUNCED spawn=${spawn.id} source=${source}`);
+        return;
+      }
+      
+      // Lock and record
+      spawnTapLockRef.current = true;
+      lastSpawnTapRef.current = spawn.id;
+      lastMarkerEventTsRef.current = now;
+      
+      console.log(`[MapView] safeOnSpawnTap ALLOWED spawn=${spawn.id} source=${source}`);
+      
+      // Release lock after debounce period
+      setTimeout(() => {
+        spawnTapLockRef.current = false;
+      }, SPAWN_DEBOUNCE_MS);
+      
+      onSpawnTap(spawn);
+    }, [onSpawnTap]);
+    
     // Radar ping animation state - ALWAYS MOUNTED, controlled via opacity only
     const radarScale = useSharedValue(0);
     const radarOpacity = useSharedValue(0);
@@ -449,7 +487,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               }
               if (closestSpawn) {
                 console.log("[MapView] Tap hit SPAWN:", closestSpawn.id, "dist:", closestDist.toFixed(1));
-                onSpawnTap(closestSpawn);
+                safeOnSpawnTap(closestSpawn, "map");
                 return;
               }
             }
@@ -533,11 +571,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                   }}
                   onPress={() => {
                     console.log(`[MapViewWrapper] Spawn onPress: ${spawn.id}`);
-                    onSpawnTap(spawn);
+                    safeOnSpawnTap(spawn, "marker");
                   }}
                   onSelect={() => {
                     console.log(`[MapViewWrapper] Spawn onSelect (iOS): ${spawn.id}`);
-                    onSpawnTap(spawn);
+                    safeOnSpawnTap(spawn, "marker");
                   }}
                   anchor={{ x: 0.5, y: 0.5 }}
                   tracksViewChanges={false}
@@ -574,11 +612,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                   }}
                   onPress={() => {
                     console.log(`[MapViewWrapper] Quest spawn onPress: ${spawn.id}`);
-                    onSpawnTap(spawn);
+                    safeOnSpawnTap(spawn, "marker");
                   }}
                   onSelect={() => {
                     console.log(`[MapViewWrapper] Quest spawn onSelect (iOS): ${spawn.id}`);
-                    onSpawnTap(spawn);
+                    safeOnSpawnTap(spawn, "marker");
                   }}
                   anchor={{ x: 0.5, y: 0.5 }}
                   tracksViewChanges={false}

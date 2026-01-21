@@ -383,6 +383,10 @@ export default function HuntScreen() {
   const hasAutoSpawned = useRef(false);
   const activeSpawnRef = useRef<Spawn | null>(null);
   const playerLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  
+  // Anti-freeze: catch lock + sequence tracking
+  const catchLockRef = useRef(false);
+  const catchSeqRef = useRef(0);
 
   const pulseAnim = useSharedValue(1);
 
@@ -974,7 +978,13 @@ export default function HuntScreen() {
   const [isCollecting, setIsCollecting] = useState(false);
 
   const handleStartCatch = async (passedSpawn: Spawn) => {
-    console.log("[handleStartCatch] v10 CALLED with spawn:", passedSpawn?.id, JSON.stringify(passedSpawn));
+    console.log("[handleStartCatch] v11 CALLED with spawn:", passedSpawn?.id, JSON.stringify(passedSpawn));
+    
+    // Anti-freeze: Block if already processing a catch
+    if (catchLockRef.current) {
+      console.log("[handleStartCatch] v11 BLOCKED: catchLockRef is true");
+      return;
+    }
     
     // USE THE PASSED SPAWN - this is the fix!
     const spawn = passedSpawn;
@@ -986,6 +996,11 @@ export default function HuntScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
+    
+    // Anti-freeze: Lock and track this attempt
+    catchLockRef.current = true;
+    const thisAttempt = ++catchSeqRef.current;
+    console.log("[handleStartCatch] v11 Lock acquired, attempt:", thisAttempt);
     
     // CRITICAL: Show loading state FIRST, before ANY other logic
     // This ensures user sees feedback immediately
@@ -1025,20 +1040,28 @@ export default function HuntScreen() {
         console.log("[handleStartCatch] ERROR: Final coords are NaN!");
         // Don't close modal yet - show error but keep modal open for debugging
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setIsCollecting(false);
+        if (thisAttempt === catchSeqRef.current) setIsCollecting(false);
+        catchLockRef.current = false;
         return; // Stay on camera screen
       }
       
       console.log("[handleStartCatch] Final loc:", loc.latitude, loc.longitude);
       console.log("[handleStartCatch] Calling claimNode API...");
       
-      // Call the API
+      // Call the API with attemptId for stale response detection
       const result = await claimNode(
         spawn.id,
         loc.latitude,
         loc.longitude,
-        "perfect"
+        "perfect",
+        thisAttempt
       );
+      
+      // Anti-freeze: Ignore stale responses
+      if (thisAttempt !== catchSeqRef.current) {
+        console.log("[handleStartCatch] v11 Ignoring stale response, attempt:", thisAttempt, "current:", catchSeqRef.current);
+        return; // Don't update UI for stale responses
+      }
       
       console.log("[Phase1] API result:", JSON.stringify(result));
       
@@ -1074,8 +1097,11 @@ export default function HuntScreen() {
         // Actual error from server
         console.log("[Phase1] Server error:", result.error);
         setIsCollecting(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+        // Anti-freeze: Don't show alert for cancelled requests
+        if (result.error !== "Cancelled") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+        }
       } else {
         // Unknown response
         console.log("[Phase1] Unknown response:", JSON.stringify(result));
@@ -1086,9 +1112,19 @@ export default function HuntScreen() {
     } catch (error: any) {
       const errorMsg = error?.message || String(error) || "Network error";
       console.error("[Phase1] Network error:", errorMsg);
-      setIsCollecting(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
+      // Only update UI if this is still the current attempt
+      if (thisAttempt === catchSeqRef.current) {
+        setIsCollecting(false);
+        // Anti-freeze: Don't show alert for aborted requests
+        if (error?.name !== "AbortError" && (error as any)?.code !== "ABORTED") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
+        }
+      }
+    } finally {
+      // Always release the lock
+      catchLockRef.current = false;
+      console.log("[handleStartCatch] v11 Lock released");
     }
   };
 

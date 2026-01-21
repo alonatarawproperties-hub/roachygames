@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, apiRequestNoThrow, getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -216,7 +216,7 @@ interface HuntContextType {
   walkEgg: (eggId: string, distance: number) => Promise<any>;
   joinRaid: (raidId: string) => Promise<void>;
   attackRaid: (raidId: string, attackPower: number) => Promise<any>;
-  claimNode: (nodeId: string, lat: number, lon: number, quality: string) => Promise<any>;
+  claimNode: (nodeId: string, lat: number, lon: number, quality: string, attemptId?: number) => Promise<any>;
   recycleEggs: (amount: number) => Promise<any>;
   fuseEggs: (rarity: string, times: number) => Promise<any>;
   refreshSpawns: () => void;
@@ -255,6 +255,10 @@ export function HuntProvider({ children }: HuntProviderProps) {
   const [guestWalletAddress, setGuestWalletAddress] = useState<string>(() => generateTempWalletId());
   const [walletSynced, setWalletSynced] = useState(false);
   const [playerLocation, setPlayerLocation] = useState<{ latitude: number; longitude: number; heading?: number } | null>(null);
+
+  // Anti-freeze: abort controller + attempt tracking for claimNode
+  const claimAbortRef = useRef<AbortController | null>(null);
+  const claimAttemptRef = useRef(0);
 
   // User-specific storage key - ensures each logged-in user has their own hunt progress
   const userStorageKey = useMemo(() => {
@@ -818,18 +822,42 @@ export function HuntProvider({ children }: HuntProviderProps) {
     }
   }, [playerLocation, economyData, queryClient]);
 
-  const claimNode = useCallback(async (spawnId: string, lat: number, lon: number, quality: string) => {
-    console.log("[ClaimNode] v16 Starting claim:", { spawnId, lat, lon, quality });
+  const claimNode = useCallback(async (spawnId: string, lat: number, lon: number, quality: string, attemptId?: number) => {
+    console.log("[ClaimNode] v17 Starting claim:", { spawnId, lat, lon, quality, attemptId });
+    
+    // Abort any previous in-flight claim
+    if (claimAbortRef.current) {
+      console.log("[ClaimNode] v17 Aborting previous claim");
+      claimAbortRef.current.abort();
+    }
+    
+    // Create new abort controller for this attempt
+    const abortController = new AbortController();
+    claimAbortRef.current = abortController;
+    
+    // Track this attempt
+    const thisAttempt = attemptId ?? ++claimAttemptRef.current;
+    
     try {
       const response = await apiRequest("POST", "/api/hunt/phase1/claim-spawn", {
         spawnId,
         lat,
         lon,
         quality,
+      }, {
+        signal: abortController.signal,
+        timeoutMs: 15000,
       });
-      console.log("[ClaimNode] v16 Got response, parsing JSON...");
+      
+      // Check if this response is stale (a newer attempt was started)
+      if (attemptId !== undefined && claimAttemptRef.current !== thisAttempt) {
+        console.log("[ClaimNode] v17 Ignoring stale response, attempt:", thisAttempt, "current:", claimAttemptRef.current);
+        return { success: false, error: "Cancelled", stale: true };
+      }
+      
+      console.log("[ClaimNode] v17 Got response, parsing JSON...");
       const data = await response.json();
-      console.log("[ClaimNode] v16 Parsed data:", JSON.stringify(data));
+      console.log("[ClaimNode] v17 Parsed data:", JSON.stringify(data));
       if (data.success || data.eggRarity) {
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/hunt/economy"] });
@@ -839,8 +867,13 @@ export function HuntProvider({ children }: HuntProviderProps) {
       }
       return data;
     } catch (error: any) {
+      // Check for abort
+      if (error?.name === "AbortError" || (error as any)?.code === "ABORTED") {
+        console.log("[ClaimNode] v17 Request aborted/cancelled");
+        return { success: false, error: "Cancelled" };
+      }
       const errorMsg = error?.message || String(error) || "Network error";
-      console.error("[ClaimNode] v16 ERROR:", errorMsg, error);
+      console.error("[ClaimNode] v17 ERROR:", errorMsg, error);
       return { success: false, error: errorMsg };
     }
   }, [queryClient]);
