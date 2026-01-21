@@ -1,0 +1,122 @@
+Upgrade the Fusion page to look AAA (“billion-dollar” premium) and support ONLY 4 rarities: 'common' | 'rare' | 'epic' | 'legendary'. We do NOT use 'uncommon'. If rarity is 'uncommon' or anything else, treat it as 'common'. Keep the layout concept (platform + dome/field + rays + success text + reward pill + continue button), but reskin and rebuild the VFX so it’s Obsidian Bronze (not galaxy/space).
+
+FILES
+- Fusion screen/component: find the current Fusion page (FusionScreen/FusionPage/EggFusion/etc)
+- Theme tokens: client/constants/theme.ts
+
+CRITICAL ART DIRECTION (ANTI-GENERIC)
+This must feel like a premium AAA mobile game ritual/tech chamber, not a template HUD.
+Do NOT: starfield/galaxy backgrounds, flat gradients with no depth, random noisy particle spam, neon rainbow colors, thick cartoon outlines, cheap glow blobs.
+Do: 3-layer depth (background haze/vignette → stage+dome → crisp HUD+controlled glow), “designed FX” (ring pulses, rays, swirl column, shockwave), subtle material cues (matte obsidian, brushed bronze trim, smoked glass refraction shimmer), tasteful bloom only on highlights, crisp thin strokes, clean spacing. Follow the 80/20 rule: 80% obsidian+bronze base, 20% rarity accent.
+
+1) THEME TOKENS (client/constants/theme.ts)
+Add/ensure Obsidian Bronze base tokens:
+- obsidian: #0B0B0D
+- obsidianBrown: #120E0B
+- smokedGlass: rgba(20,14,11,0.55)
+- smokedGlassStrong: rgba(20,14,11,0.72)
+- bronze: #B07A3A
+- amber: #E0A15A
+- bronzeGlow: rgba(176,122,58,0.35)
+- textPrimary: rgba(255,255,255,0.92)
+- textMuted: rgba(255,255,255,0.70)
+
+Add rarity accent palettes (premium, not neon):
+- common:    main '#B07A3A', glow 'rgba(176,122,58,0.30)'   // bronze/amber
+- rare:      main '#8A5CFF', glow 'rgba(138,92,255,0.26)'   // royal violet
+- epic:      main '#21D4C2', glow 'rgba(33,212,194,0.22)'   // arc teal (controlled)
+- legendary: main '#F2B94B', glow 'rgba(242,185,75,0.34)'   // solar gold/ember
+
+Add per-rarity FX settings (subtle increments):
+- intensity: common=0.85, rare=1.05, epic=1.18, legendary=1.35
+- particleCount: 14 / 19 / 22 / 26 (keep tasteful, not spam)
+- pulseSpeedSec: 1.25 / 1.15 / 1.08 / 0.98
+
+Export helpers:
+- normalizeRarity(r: string): 'common'|'rare'|'epic'|'legendary' (maps uncommon/unknown → common)
+- getFusionTheme(rarity4) => { accentMain, accentGlow, intensity, particleCount, pulseSpeedSec }
+
+Normalization rule:
+const rarity4 = r === 'rare' || r === 'epic' || r === 'legendary' ? r : 'common';
+
+2) FUSION VISUALS (BASE CONSTANT FOR ALL RARITIES)
+Background:
+- Deep obsidian gradient (black→dark warm brown undertone), subtle depth haze, soft vignette.
+- Add minimal bronze dust motes drifting (very low opacity, low count). NO starfield.
+Stage/Platform:
+- Center platform with matte obsidian material (use layered gradients + subtle shading).
+- Thin brushed bronze trim ring (crisp).
+- Soft underglow from center (bronze/amber base; may tint slightly by rarity accent but remain warm).
+Dome/Field:
+- Smoked-glass dome/energy field above the platform with faint refraction shimmer.
+- Faint concentric rings inside the dome (SVG) and a rim highlight tinted by accentMain.
+
+3) RARITY VISUAL SPEC (ACCENT OVERLAY ONLY; 80/20 RULE)
+COMMON (bronze ritual tech):
+- Accent: bronze/amber only
+- Rays: 4–6 soft volumetric rays, low intensity
+- Pulses: 1 main ring pulse every ~pulseSpeedSec
+- Particles: few bronze motes, slow spiral upward
+- Success burst: small bronze spark shower + soft flash
+
+RARE (violet arc infusion):
+- Accent: violet tint layered over bronze (not full purple scene)
+- Dome rim: violet edge highlight + bronze core
+- Rays: +2 rays and slightly sharper beams
+- Pulses: 2 layered rings (one bronze, one violet-tinted)
+- Particles: bronze + a few violet micro-sparks (still low count)
+- Success burst: sharper “snap” pop + violet sparkle burst, then return to bronze-dominant idle
+
+EPIC (teal tech surge):
+- Accent: teal/cyan controlled
+- Dome: add VERY faint teal circuitry lines inside dome only (subtle)
+- Rays: more energetic rays + gentle swirl column
+- Pulses: triple thin ring pulses with one teal-tinted ring
+- Particles: tiny teal sparks + bronze embers, slightly faster upward drift
+- Success burst: brighter flash + short shockwave ring + sparks
+
+LEGENDARY (solar ember chamber):
+- Accent: solar gold/ember (not neon yellow)
+- Dome: stronger refraction shimmer + amber core flare
+- Rays: thicker hero rays + ember drift
+- Pulses: stronger shockwave ring + halo glow around platform rim
+- Particles: ember sparks + gold dust (highest count but still tasteful)
+- Success burst: cinematic flash + expanding shockwave + ember shower, then settle to dignified glow
+
+4) UI PANELS (PREMIUM, CRISP)
+- Title “FUSION SUCCESS” stays white; apply a faint accent glow (very subtle).
+- Reward pill: smoked-glass rounded pill with thin border tinted by accentMain.
+- Continue button: bronze/amber brand button (NOT recolored teal/purple); add only a thin accent highlight line or faint outer glow based on rarity.
+- Keep typography and spacing consistent with app.
+
+5) ANIMATION TIMELINE (AAA HIT, LIGHTWEIGHT)
+Implement an “idle loop” and a “success sequence”. Use Reanimated if available; else Animated API. Must be smooth on mid-range devices.
+
+Idle loop (continuous):
+- Ring rotation: 8–12s full rotation (slow)
+- Pulse: every pulseSpeedSec (scale 1.0→1.05 then fade)
+- Dome shimmer: subtle opacity shimmer + tiny refraction sweep
+- Particles: slow upward spiral drift (particleCount based on rarity)
+
+Success sequence (trigger on fusion success; total ~1.2s):
+t=0.00: quick flash (opacity burst 0→1→0 in 180ms) tinted by accentGlow
+t=0.10: shockwave ring expands (scale 1.0→1.8, opacity fades out over 350ms)
+t=0.15: sparks burst (short-lived 300ms), tinted by accentMain
+t=0.20: “FUSION SUCCESS” text pops (scale 0.96→1.00 + fade in, easing out)
+t=0.25: reward pill pops (same easing)
+t=0.45: platform underglow intensifies briefly then settles back by t=1.20
+After t=1.20: return to idle loop with slightly elevated glow for epic/legendary only.
+
+6) IMPLEMENTATION DETAILS
+- Use react-native-svg for rings, ticks, dashed segments, shockwave.
+- Build helper components if needed: FusionStage, DomeFX, RingPulses, ParticleField, SuccessSequence.
+- Keep particles “designed” (spiral or ring-based), not random noise.
+- Ensure responsive layout (Dimensions / percentages).
+- Wire rarity: read current fusion result rarity string, normalize via normalizeRarity, then use getFusionTheme.
+- If current code has ‘uncommon’, normalize it to ‘common’.
+
+DELIVERABLES
+- Updated Fusion page component(s)
+- Updated client/constants/theme.ts with normalizeRarity + getFusionTheme and tokens
+- Any new helper components added
+- Short comments on where to tweak: intensity, particleCount, pulseSpeedSec, glow amounts

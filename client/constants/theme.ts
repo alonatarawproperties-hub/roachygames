@@ -85,6 +85,48 @@ export const ObsidianBronzeAR = {
   },
 };
 
+export type FusionRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export function normalizeRarity(r: string): FusionRarity {
+  if (r === 'rare' || r === 'epic' || r === 'legendary') return r;
+  return 'common';
+}
+
+export const FusionRarityTheme = {
+  common: {
+    accentMain: '#B07A3A',
+    accentGlow: 'rgba(176,122,58,0.30)',
+    intensity: 0.85,
+    particleCount: 14,
+    pulseSpeedSec: 1.25,
+  },
+  rare: {
+    accentMain: '#8A5CFF',
+    accentGlow: 'rgba(138,92,255,0.26)',
+    intensity: 1.05,
+    particleCount: 19,
+    pulseSpeedSec: 1.15,
+  },
+  epic: {
+    accentMain: '#21D4C2',
+    accentGlow: 'rgba(33,212,194,0.22)',
+    intensity: 1.18,
+    particleCount: 22,
+    pulseSpeedSec: 1.08,
+  },
+  legendary: {
+    accentMain: '#F2B94B',
+    accentGlow: 'rgba(242,185,75,0.34)',
+    intensity: 1.35,
+    particleCount: 26,
+    pulseSpeedSec: 0.98,
+  },
+} as const;
+
+export function getFusionTheme(rarity: FusionRarity) {
+  return FusionRarityTheme[rarity];
+}
+
 const tintColorLight = GameColors.gold;
 const tintColorDark = GameColors.gold;
 
