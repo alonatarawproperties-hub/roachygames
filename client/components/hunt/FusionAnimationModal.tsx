@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { View, StyleSheet, Modal, Dimensions, Image, Platform, Pressable } from "react-native";
+import { View, StyleSheet, Modal, Dimensions, Image, Platform, Pressable, ImageBackground } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,11 +15,9 @@ import Animated, {
   FadeInDown,
   FadeInUp,
   ZoomIn,
-  interpolateColor,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
@@ -28,6 +26,7 @@ const EggCommon = require("@/assets/hunt/egg-common.png");
 const EggRare = require("@/assets/hunt/egg-rare.png");
 const EggEpic = require("@/assets/hunt/egg-epic.png");
 const EggLegendary = require("@/assets/hunt/egg-legendary.png");
+const CosmicBackground = require("@/assets/fusion/cosmic_space_nebula_background.png");
 
 const EGG_IMAGES: Record<string, any> = {
   common: EggCommon,
@@ -37,7 +36,8 @@ const EGG_IMAGES: Record<string, any> = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.42, 180);
+const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.38, 160);
+const PEDESTAL_WIDTH = SCREEN_WIDTH * 0.7;
 
 interface FusionAnimationModalProps {
   visible: boolean;
@@ -54,45 +54,35 @@ const RARITY_THEME: Record<string, {
   secondary: string;
   glow: string;
   accent: string;
-  gradient: [string, string, string];
-  sparkle: string;
-  bgGradient: [string, string, string, string];
+  neon: string;
 }> = {
   common: {
     primary: "#C9CED6",
     secondary: "#9CA3AF",
-    glow: "rgba(201, 206, 214, 0.5)",
+    glow: "rgba(201, 206, 214, 0.6)",
     accent: "#E6E8EC",
-    gradient: ["#D1D5DB", "#9CA3AF", "#6B7280"],
-    sparkle: "#E5E7EB",
-    bgGradient: ["#0A0A12", "#141420", "#1A1A28", "#0A0A12"],
+    neon: "#D1D5DB",
   },
   rare: {
-    primary: "#4DA3FF",
-    secondary: "#2563EB",
-    glow: "rgba(77, 163, 255, 0.6)",
-    accent: "#3B82F6",
-    gradient: ["#93C5FD", "#60A5FA", "#3B82F6"],
-    sparkle: "#BFDBFE",
-    bgGradient: ["#050510", "#0A1628", "#0F1E38", "#050510"],
+    primary: "#00D4FF",
+    secondary: "#0099CC",
+    glow: "rgba(0, 212, 255, 0.6)",
+    accent: "#66E5FF",
+    neon: "#00BFFF",
   },
   epic: {
     primary: "#B56CFF",
     secondary: "#9333EA",
     glow: "rgba(181, 108, 255, 0.6)",
-    accent: "#8B5CF6",
-    gradient: ["#E879F9", "#C084FC", "#A855F7"],
-    sparkle: "#E9D5FF",
-    bgGradient: ["#0A0510", "#1A0A28", "#280F38", "#0A0510"],
+    accent: "#D4A5FF",
+    neon: "#C084FC",
   },
   legendary: {
-    primary: "#FFCC4D",
-    secondary: "#F59E0B",
-    glow: "rgba(255, 204, 77, 0.7)",
-    accent: "#FCD34D",
-    gradient: ["#FDE68A", "#FBBF24", "#F59E0B"],
-    sparkle: "#FEF3C7",
-    bgGradient: ["#0A0A05", "#1A1508", "#28200A", "#0A0A05"],
+    primary: "#FFD700",
+    secondary: "#FFA500",
+    glow: "rgba(255, 215, 0, 0.7)",
+    accent: "#FFEC8B",
+    neon: "#FFE135",
   },
 };
 
@@ -104,71 +94,145 @@ const EGG_POSITIONS = [
   { x: 0, y: -130, delay: 200 },
 ];
 
-const AuraRing = ({ 
+const HolographicRing = ({ 
   size, 
   color, 
-  type,
-  progress,
+  thickness,
+  rotationProgress,
+  opacity = 0.8,
+  reverse = false,
 }: { 
   size: number;
   color: string;
-  type: "outer" | "mid" | "inner";
-  progress: Animated.SharedValue<number>;
+  thickness: number;
+  rotationProgress: Animated.SharedValue<number>;
+  opacity?: number;
+  reverse?: boolean;
 }) => {
   const ringStyle = useAnimatedStyle(() => {
-    if (type === "outer") {
-      const rotation = progress.value * 360;
-      return {
-        transform: [{ rotate: `${rotation}deg` }],
-        opacity: 0.4,
-      };
-    } else if (type === "mid") {
-      const shimmer = interpolate(progress.value, [0, 0.5, 1], [0.25, 0.5, 0.25]);
-      return {
-        opacity: shimmer,
-        transform: [{ rotate: `${-progress.value * 180}deg` }],
-      };
-    } else {
-      const scale = interpolate(progress.value, [0, 0.5, 1], [0.98, 1.05, 0.98]);
-      return {
-        transform: [{ scale }],
-        opacity: 0.6,
-      };
-    }
+    const rotation = reverse ? -rotationProgress.value * 360 : rotationProgress.value * 360;
+    return {
+      transform: [
+        { rotateX: '75deg' },
+        { rotateZ: `${rotation}deg` },
+      ],
+      opacity,
+    };
   });
 
   return (
     <Animated.View style={[
-      styles.auraRing,
-      { width: size, height: size, borderRadius: size / 2, borderColor: color },
-      type === "outer" && styles.auraRingOuter,
-      type === "mid" && styles.auraRingMid,
-      type === "inner" && styles.auraRingInner,
+      styles.holographicRing,
+      { 
+        width: size, 
+        height: size, 
+        borderRadius: size / 2, 
+        borderColor: color,
+        borderWidth: thickness,
+        shadowColor: color,
+        shadowOpacity: 0.8,
+        shadowRadius: 15,
+      },
       ringStyle,
     ]} />
   );
 };
 
-const SparkParticle = ({
-  angle,
-  progress,
+const NeonOrbitRing = ({
+  size,
   color,
-  delay,
+  pulseProgress,
+  rotationProgress,
+}: {
+  size: number;
+  color: string;
+  pulseProgress: Animated.SharedValue<number>;
+  rotationProgress: Animated.SharedValue<number>;
+}) => {
+  const ringStyle = useAnimatedStyle(() => {
+    const scale = interpolate(pulseProgress.value, [0, 0.5, 1], [0.98, 1.02, 0.98]);
+    const glowOpacity = interpolate(pulseProgress.value, [0, 0.5, 1], [0.6, 1, 0.6]);
+    return {
+      transform: [
+        { scale },
+        { rotateZ: `${rotationProgress.value * 360}deg` },
+      ],
+      opacity: glowOpacity,
+    };
+  });
+
+  return (
+    <Animated.View style={[
+      styles.neonOrbitRing,
+      { 
+        width: size, 
+        height: size, 
+        borderRadius: size / 2, 
+        borderColor: color,
+        shadowColor: color,
+      },
+      ringStyle,
+    ]} />
+  );
+};
+
+const LightRay = ({
+  angle,
+  height,
+  color,
+  pulseProgress,
 }: {
   angle: number;
-  progress: Animated.SharedValue<number>;
+  height: number;
   color: string;
+  pulseProgress: Animated.SharedValue<number>;
+}) => {
+  const rayStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(pulseProgress.value, [0, 0.5, 1], [0.2, 0.5, 0.2]);
+    const scaleY = interpolate(pulseProgress.value, [0, 0.5, 1], [0.9, 1.1, 0.9]);
+    return {
+      opacity,
+      transform: [
+        { rotate: `${angle}deg` },
+        { scaleY },
+      ],
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.lightRay, { height }, rayStyle]}>
+      <LinearGradient
+        colors={[color, 'transparent']}
+        style={styles.lightRayGradient}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
+    </Animated.View>
+  );
+};
+
+const FloatingSparkle = ({
+  startX,
+  startY,
+  size,
+  color,
+  progress,
+  delay,
+}: {
+  startX: number;
+  startY: number;
+  size: number;
+  color: string;
+  progress: Animated.SharedValue<number>;
   delay: number;
 }) => {
-  const particleStyle = useAnimatedStyle(() => {
-    const radians = (angle * Math.PI) / 180;
-    const baseDistance = 80;
-    const dist = interpolate(progress.value, [0, 1], [20, baseDistance + Math.random() * 40]);
-    const x = Math.cos(radians) * dist;
-    const y = Math.sin(radians) * dist;
-    const opacity = interpolate(progress.value, [0, 0.2, 0.8, 1], [0, 1, 0.6, 0]);
-    const scale = interpolate(progress.value, [0, 0.3, 1], [0.5, 1, 0.3]);
-
+  const sparkleStyle = useAnimatedStyle(() => {
+    const adjustedProgress = (progress.value + delay) % 1;
+    const y = startY + interpolate(adjustedProgress, [0, 1], [0, -150]);
+    const x = startX + Math.sin(adjustedProgress * Math.PI * 3) * 20;
+    const opacity = interpolate(adjustedProgress, [0, 0.1, 0.7, 1], [0, 1, 0.8, 0]);
+    const scale = interpolate(adjustedProgress, [0, 0.3, 1], [0.5, 1, 0.3]);
+    
     return {
       transform: [
         { translateX: x },
@@ -180,21 +244,22 @@ const SparkParticle = ({
   });
 
   return (
-    <Animated.View style={[styles.sparkParticle, particleStyle]}>
-      <View style={[styles.sparkParticleCore, { backgroundColor: color, shadowColor: color }]} />
+    <Animated.View style={[styles.floatingSparkle, sparkleStyle]}>
+      <View style={[styles.sparkleCore, { 
+        width: size, 
+        height: size, 
+        backgroundColor: color,
+        shadowColor: color,
+      }]} />
     </Animated.View>
   );
 };
 
 const EnergyRing = ({ 
-  delay, 
-  duration, 
   color, 
   progress,
   maxScale = 3,
 }: { 
-  delay: number; 
-  duration: number; 
   color: string;
   progress: Animated.SharedValue<number>;
   maxScale?: number;
@@ -214,145 +279,12 @@ const EnergyRing = ({
   );
 };
 
-const Sparkle = ({ 
-  angle, 
-  distance, 
-  size, 
-  delay,
-  color,
-  progress,
-}: { 
-  angle: number; 
-  distance: number; 
-  size: number;
-  delay: number;
-  color: string;
-  progress: Animated.SharedValue<number>;
-}) => {
-  const sparkleStyle = useAnimatedStyle(() => {
-    const radians = (angle * Math.PI) / 180;
-    const dist = interpolate(progress.value, [0, 0.5, 1], [0, distance * 0.8, distance]);
-    const x = Math.cos(radians) * dist;
-    const y = Math.sin(radians) * dist;
-    const scale = interpolate(progress.value, [0, 0.3, 0.7, 1], [0, 1.2, 1, 0]);
-    const opacity = interpolate(progress.value, [0, 0.2, 0.8, 1], [0, 1, 0.8, 0]);
-    const rotation = interpolate(progress.value, [0, 1], [0, 180]);
-
-    return {
-      transform: [
-        { translateX: x },
-        { translateY: y },
-        { scale },
-        { rotate: `${rotation}deg` },
-      ],
-      opacity,
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.sparkle, sparkleStyle]}>
-      <View style={[styles.sparkleCore, { backgroundColor: color, width: size, height: size }]}>
-        <View style={[styles.sparkleGlow, { backgroundColor: color, shadowColor: color }]} />
-      </View>
-      <View style={[styles.sparkleArm, styles.sparkleArmHorizontal, { backgroundColor: color }]} />
-      <View style={[styles.sparkleArm, styles.sparkleArmVertical, { backgroundColor: color }]} />
-    </Animated.View>
-  );
-};
-
-const OrbitalParticle = ({
-  radius,
-  startAngle,
-  speed,
-  size,
-  color,
-  progress,
-}: {
-  radius: number;
-  startAngle: number;
-  speed: number;
-  size: number;
-  color: string;
-  progress: Animated.SharedValue<number>;
-}) => {
-  const particleStyle = useAnimatedStyle(() => {
-    const angle = startAngle + progress.value * 360 * speed;
-    const radians = (angle * Math.PI) / 180;
-    const x = Math.cos(radians) * radius;
-    const y = Math.sin(radians) * radius;
-    const scale = interpolate(progress.value, [0, 0.1, 0.9, 1], [0, 1, 1, 0]);
-    
-    return {
-      transform: [
-        { translateX: x },
-        { translateY: y },
-        { scale },
-      ],
-      opacity: scale,
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.orbitalParticle, particleStyle]}>
-      <View style={[styles.orbitalCore, { 
-        width: size, 
-        height: size, 
-        backgroundColor: color,
-        shadowColor: color,
-      }]} />
-    </Animated.View>
-  );
-};
-
-const FloatingMote = ({
-  startX,
-  startY,
-  color,
-  size,
-  progress,
-}: {
-  startX: number;
-  startY: number;
-  color: string;
-  size: number;
-  progress: Animated.SharedValue<number>;
-}) => {
-  const moteStyle = useAnimatedStyle(() => {
-    const y = startY + interpolate(progress.value, [0, 1], [0, -80]);
-    const x = startX + Math.sin(progress.value * Math.PI * 4) * 15;
-    const scale = interpolate(progress.value, [0, 0.2, 0.8, 1], [0, 1, 0.8, 0]);
-    const opacity = interpolate(progress.value, [0, 0.1, 0.9, 1], [0, 0.9, 0.6, 0]);
-    
-    return {
-      transform: [
-        { translateX: x },
-        { translateY: y },
-        { scale },
-      ],
-      opacity,
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.floatingMote, moteStyle]}>
-      <View style={[styles.moteCore, { 
-        width: size, 
-        height: size, 
-        backgroundColor: color,
-        shadowColor: color,
-      }]} />
-    </Animated.View>
-  );
-};
-
 const PulseRing = ({
   progress,
   color,
-  delay = 0,
 }: {
   progress: Animated.SharedValue<number>;
   color: string;
-  delay?: number;
 }) => {
   const ringStyle = useAnimatedStyle(() => {
     const scale = interpolate(progress.value, [0, 1], [0.8, 2.5]);
@@ -366,62 +298,6 @@ const PulseRing = ({
   });
 
   return <Animated.View style={[styles.pulseRing, ringStyle]} />;
-};
-
-const FloatingEgg = ({
-  imageSource,
-  floatProgress,
-  glowColor,
-}: {
-  imageSource: any;
-  floatProgress: Animated.SharedValue<number>;
-  glowColor: string;
-}) => {
-  const floatStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(floatProgress.value, [0, 0.5, 1], [0, -8, 0]);
-    return {
-      transform: [{ translateY }],
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.floatingEggContainer, floatStyle]}>
-      <View style={[styles.eggSpotlight, { backgroundColor: glowColor }]} />
-      <Image 
-        source={imageSource} 
-        style={styles.heroEggImage} 
-        resizeMode="contain" 
-      />
-    </Animated.View>
-  );
-};
-
-const GlassPillBadge = ({
-  count,
-  rarity,
-  theme,
-}: {
-  count: number;
-  rarity: string;
-  theme: typeof RARITY_THEME["rare"];
-}) => {
-  return (
-    <View style={styles.glassPillContainer}>
-      <LinearGradient
-        colors={["rgba(255,255,255,0.15)", "rgba(255,255,255,0.05)"]}
-        style={styles.glassPillGradient}
-      >
-        <View style={styles.glassPillContent}>
-          <ThemedText style={[styles.glassPillPlus, { color: theme.primary }]}>+</ThemedText>
-          <ThemedText style={styles.glassPillCount}>{count}</ThemedText>
-          <ThemedText style={[styles.glassPillRarity, { color: theme.accent }]}>
-            {rarity.toUpperCase()} EGG{count > 1 ? "S" : ""}
-          </ThemedText>
-        </View>
-      </LinearGradient>
-      <View style={[styles.glassPillBorder, { borderColor: theme.primary + "40" }]} />
-    </View>
-  );
 };
 
 export function FusionAnimationModal({
@@ -444,51 +320,30 @@ export function FusionAnimationModal({
   const vortexRotation = useSharedValue(0);
   const vortexScale = useSharedValue(0);
   const resultScale = useSharedValue(0);
-  const resultGlow = useSharedValue(0);
   const shakeX = useSharedValue(0);
-  const particleProgress = useSharedValue(0);
-  const orbitalProgress = useSharedValue(0);
   const ringPulse1 = useSharedValue(0);
   const ringPulse2 = useSharedValue(0);
   const ringPulse3 = useSharedValue(0);
   const energyBurst = useSharedValue(0);
-  const moteProgress = useSharedValue(0);
-  const glowPulse = useSharedValue(0);
   const innerGlow = useSharedValue(0);
-  const auraProgress = useSharedValue(0);
   const floatProgress = useSharedValue(0);
-  const sparkProgress = useSharedValue(0);
+  const ringRotation = useSharedValue(0);
+  const glowPulse = useSharedValue(0);
+  const sparkleProgress = useSharedValue(0);
 
   const sparkles = useMemo(() => {
-    return Array.from({ length: 24 }).map((_, i) => ({
-      angle: i * 15 + Math.random() * 10,
-      distance: 100 + Math.random() * 60,
-      size: 4 + Math.random() * 6,
-      delay: i * 20,
-    }));
-  }, []);
-
-  const orbitals = useMemo(() => {
-    return Array.from({ length: 16 }).map((_, i) => ({
-      radius: 60 + (i % 3) * 25,
-      startAngle: (i * 360) / 16,
-      speed: 1 + (i % 3) * 0.3,
-      size: 3 + Math.random() * 4,
-    }));
-  }, []);
-
-  const motes = useMemo(() => {
-    return Array.from({ length: 20 }).map((_, i) => ({
-      startX: (Math.random() - 0.5) * 200,
-      startY: 50 + Math.random() * 100,
+    return Array.from({ length: 30 }).map((_, i) => ({
+      startX: (Math.random() - 0.5) * SCREEN_WIDTH * 0.8,
+      startY: SCREEN_HEIGHT * 0.1 + Math.random() * SCREEN_HEIGHT * 0.4,
       size: 2 + Math.random() * 4,
+      delay: Math.random(),
     }));
   }, []);
 
-  const sparkParticles = useMemo(() => {
-    return Array.from({ length: 16 }).map((_, i) => ({
-      angle: (i * 360) / 16 + Math.random() * 15,
-      delay: i * 50,
+  const lightRays = useMemo(() => {
+    return Array.from({ length: 12 }).map((_, i) => ({
+      angle: (i * 30) - 165,
+      height: 80 + Math.random() * 60,
     }));
   }, []);
 
@@ -500,29 +355,20 @@ export function FusionAnimationModal({
       vortexRotation.value = 0;
       vortexScale.value = 0;
       resultScale.value = 0;
-      resultGlow.value = 0;
       shakeX.value = 0;
-      particleProgress.value = 0;
-      orbitalProgress.value = 0;
       ringPulse1.value = 0;
       ringPulse2.value = 0;
       ringPulse3.value = 0;
       energyBurst.value = 0;
-      moteProgress.value = 0;
-      glowPulse.value = 0;
       innerGlow.value = 0;
-      auraProgress.value = 0;
       floatProgress.value = 0;
-      sparkProgress.value = 0;
+      ringRotation.value = 0;
+      glowPulse.value = 0;
+      sparkleProgress.value = 0;
       return;
     }
 
     gatherProgress.value = withTiming(1, { duration: 1600, easing: Easing.bezier(0.4, 0, 0.2, 1) });
-    orbitalProgress.value = withRepeat(
-      withTiming(1, { duration: 2000, easing: Easing.linear }),
-      -1,
-      false
-    );
 
     const gatherTimeout = setTimeout(() => {
       runOnJS(setPhase)("merge");
@@ -564,12 +410,6 @@ export function FusionAnimationModal({
       
       ringPulse2.value = withDelay(200, withTiming(1, { duration: 800 }));
       ringPulse3.value = withDelay(400, withTiming(1, { duration: 800 }));
-      
-      moteProgress.value = withRepeat(
-        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        false
-      );
     }, 2200);
 
     const revealTimeout = setTimeout(() => {
@@ -588,37 +428,27 @@ export function FusionAnimationModal({
         withSpring(1.15, { damping: 6, stiffness: 150 }),
         withSpring(1, { damping: 10, stiffness: 100 })
       );
-      
-      resultGlow.value = withSequence(
-        withTiming(2, { duration: 300 }),
-        withTiming(1, { duration: 500 })
-      );
-      
-      particleProgress.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.cubic) });
-      
-      glowPulse.value = withRepeat(
-        withSequence(
-          withTiming(1.2, { duration: 800 }),
-          withTiming(0.9, { duration: 800 })
-        ),
+
+      floatProgress.value = withRepeat(
+        withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
       );
 
-      auraProgress.value = withRepeat(
-        withTiming(1, { duration: 12000, easing: Easing.linear }),
+      ringRotation.value = withRepeat(
+        withTiming(1, { duration: 8000, easing: Easing.linear }),
         -1,
         false
       );
 
-      floatProgress.value = withRepeat(
+      glowPulse.value = withRepeat(
         withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
       );
 
-      sparkProgress.value = withRepeat(
-        withTiming(1, { duration: 3000, easing: Easing.linear }),
+      sparkleProgress.value = withRepeat(
+        withTiming(1, { duration: 4000, easing: Easing.linear }),
         -1,
         false
       );
@@ -657,17 +487,20 @@ export function FusionAnimationModal({
     transform: [{ scale: 1 + innerGlow.value * 0.2 }],
   }));
 
-  const resultEggStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: resultScale.value }],
-    opacity: resultScale.value,
-  }));
-
-  const resultGlowStyle = useAnimatedStyle(() => {
-    const scale = resultGlow.value * glowPulse.value;
+  const resultEggStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(floatProgress.value, [0, 1], [0, -12]);
     return {
-      transform: [{ scale: scale || 1 }],
-      opacity: interpolate(resultGlow.value, [0, 1, 2], [0, 0.9, 1]),
+      transform: [
+        { scale: resultScale.value },
+        { translateY },
+      ],
+      opacity: resultScale.value,
     };
+  });
+
+  const pedestalGlowStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(glowPulse.value, [0, 1], [0.6, 1]);
+    return { opacity };
   });
 
   const InputEgg = ({ index, startX, startY, delay }: { index: number; startX: number; startY: number; delay: number }) => {
@@ -729,250 +562,257 @@ export function FusionAnimationModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <Animated.View style={[styles.container, containerStyle]}>
-        <LinearGradient
-          colors={revealConfig.bgGradient}
-          locations={[0, 0.35, 0.65, 1]}
-          style={StyleSheet.absoluteFill}
-        />
+      <ImageBackground 
+        source={CosmicBackground} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <Animated.View style={[styles.container, containerStyle]}>
+          <View style={styles.ambientGlow}>
+            <Animated.View style={[styles.ambientRing, innerGlowStyle, { backgroundColor: inputConfig.glow }]} />
+          </View>
 
-        <View style={styles.noiseOverlay} />
+          <View style={styles.centerArea}>
+            {phase === "gather" && eggPositions.map((pos, i) => (
+              <InputEgg key={i} index={i} startX={pos.x} startY={pos.y} delay={pos.delay} />
+            ))}
 
-        <View style={styles.ambientGlow}>
-          <Animated.View style={[styles.ambientRing, innerGlowStyle, { backgroundColor: inputConfig.glow }]} />
-        </View>
+            {(phase === "merge" || phase === "transform") && (
+              <>
+                <PulseRing progress={ringPulse1} color={inputConfig.primary} />
+                <PulseRing progress={ringPulse2} color={outputConfig.primary} />
+                <PulseRing progress={ringPulse3} color={outputConfig.secondary} />
+              </>
+            )}
 
-        <View style={styles.centerArea}>
-          {phase === "gather" && eggPositions.map((pos, i) => (
-            <InputEgg key={i} index={i} startX={pos.x} startY={pos.y} delay={pos.delay} />
-          ))}
-
-          {(phase === "merge" || phase === "transform") && (
-            <>
-              <PulseRing progress={ringPulse1} color={inputConfig.primary} />
-              <PulseRing progress={ringPulse2} color={outputConfig.primary} />
-              <PulseRing progress={ringPulse3} color={outputConfig.secondary} />
-            </>
-          )}
-
-          {phase === "transform" && orbitals.map((orbital, i) => (
-            <OrbitalParticle
-              key={i}
-              {...orbital}
-              color={i % 2 === 0 ? inputConfig.sparkle : outputConfig.sparkle}
-              progress={orbitalProgress}
-            />
-          ))}
-
-          {phase === "transform" && motes.slice(0, 10).map((mote, i) => (
-            <FloatingMote
-              key={i}
-              {...mote}
-              color={outputConfig.sparkle}
-              progress={moteProgress}
-            />
-          ))}
-
-          <Animated.View style={[styles.flash, flashStyle]}>
-            <LinearGradient
-              colors={["transparent", inputConfig.primary, outputConfig.primary, "transparent"]}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          </Animated.View>
-
-          <Animated.View style={[styles.vortex, vortexStyle]}>
-            <LinearGradient
-              colors={[
-                inputConfig.primary + "10",
-                inputConfig.primary + "80",
-                outputConfig.primary + "90",
-                outputConfig.secondary + "60",
-                outputConfig.primary + "10",
-              ]}
-              style={styles.vortexGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <View style={[styles.vortexInner, { borderColor: outputConfig.primary }]} />
-          </Animated.View>
-
-          {(phase === "reveal" || phase === "done") && (
-            <>
-              <AuraRing size={EGG_SIZE * 1.8} color={revealConfig.primary} type="outer" progress={auraProgress} />
-              <AuraRing size={EGG_SIZE * 1.5} color={revealConfig.accent} type="mid" progress={auraProgress} />
-              <AuraRing size={EGG_SIZE * 1.25} color={revealConfig.sparkle} type="inner" progress={auraProgress} />
-
-              {sparkParticles.map((spark, i) => (
-                <SparkParticle
-                  key={i}
-                  angle={spark.angle}
-                  delay={spark.delay}
-                  color={i % 2 === 0 ? revealConfig.sparkle : revealConfig.primary}
-                  progress={sparkProgress}
-                />
-              ))}
-
-              <EnergyRing 
-                delay={0} 
-                duration={800} 
-                color={revealConfig.primary} 
-                progress={energyBurst}
-                maxScale={2.5}
+            <Animated.View style={[styles.flash, flashStyle]}>
+              <LinearGradient
+                colors={["transparent", inputConfig.primary, outputConfig.primary, "transparent"]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               />
-              <EnergyRing 
-                delay={100} 
-                duration={800} 
-                color={revealConfig.secondary} 
-                progress={energyBurst}
-                maxScale={3}
+            </Animated.View>
+
+            <Animated.View style={[styles.vortex, vortexStyle]}>
+              <LinearGradient
+                colors={[
+                  inputConfig.primary + "10",
+                  inputConfig.primary + "80",
+                  outputConfig.primary + "90",
+                  outputConfig.secondary + "60",
+                  outputConfig.primary + "10",
+                ]}
+                style={styles.vortexGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               />
-              <EnergyRing 
-                delay={200} 
-                duration={800} 
-                color={revealConfig.sparkle} 
-                progress={energyBurst}
-                maxScale={3.5}
-              />
+              <View style={[styles.vortexInner, { borderColor: outputConfig.primary }]} />
+            </Animated.View>
 
-              {sparkles.map((sparkle, i) => (
-                <Sparkle
-                  key={i}
-                  {...sparkle}
-                  color={i % 3 === 0 ? revealConfig.primary : i % 3 === 1 ? revealConfig.sparkle : "#FFFFFF"}
-                  progress={particleProgress}
+            {(phase === "reveal" || phase === "done") && (
+              <>
+                {sparkles.map((sparkle, i) => (
+                  <FloatingSparkle
+                    key={i}
+                    {...sparkle}
+                    color={i % 2 === 0 ? revealConfig.accent : "#FFFFFF"}
+                    progress={sparkleProgress}
+                  />
+                ))}
+
+                <HolographicRing 
+                  size={EGG_SIZE * 2.8} 
+                  color={revealConfig.primary} 
+                  thickness={2}
+                  rotationProgress={ringRotation}
+                  opacity={0.5}
                 />
-              ))}
-
-              <Animated.View style={[styles.resultGlow, resultGlowStyle]}>
-                <LinearGradient
-                  colors={[
-                    revealConfig.glow,
-                    revealConfig.primary + "40",
-                    "transparent",
-                  ]}
-                  style={styles.glowGradient}
-                  start={{ x: 0.5, y: 0.5 }}
-                  end={{ x: 1, y: 1 }}
+                <HolographicRing 
+                  size={EGG_SIZE * 2.4} 
+                  color={revealConfig.accent} 
+                  thickness={1.5}
+                  rotationProgress={ringRotation}
+                  opacity={0.7}
+                  reverse
                 />
-              </Animated.View>
-
-              <Animated.View style={[styles.resultEggContainer, resultEggStyle]}>
-                <View style={[styles.eggGlowRing, { 
-                  shadowColor: revealConfig.primary,
-                  borderColor: revealConfig.primary + "40",
-                }]} />
-                <FloatingEgg
-                  imageSource={isSuccess ? EGG_IMAGES[outputRarity] : EGG_IMAGES[inputRarity]}
-                  floatProgress={floatProgress}
-                  glowColor={revealConfig.glow}
+                <HolographicRing 
+                  size={EGG_SIZE * 2} 
+                  color={revealConfig.neon} 
+                  thickness={2}
+                  rotationProgress={ringRotation}
+                  opacity={0.9}
                 />
-              </Animated.View>
-            </>
-          )}
-        </View>
 
-        {phase === "gather" && (
-          <Animated.View entering={FadeIn.duration(600)} style={styles.statusContainer}>
-            <View style={styles.statusGlow}>
-              <ThemedText style={[styles.statusText, { color: inputConfig.sparkle }]}>
+                <NeonOrbitRing
+                  size={EGG_SIZE * 1.6}
+                  color={revealConfig.primary}
+                  pulseProgress={glowPulse}
+                  rotationProgress={ringRotation}
+                />
+
+                <EnergyRing 
+                  color={revealConfig.primary} 
+                  progress={energyBurst}
+                  maxScale={2.5}
+                />
+                <EnergyRing 
+                  color={revealConfig.secondary} 
+                  progress={energyBurst}
+                  maxScale={3}
+                />
+
+                <View style={styles.pedestalContainer}>
+                  <Animated.View style={[styles.lightRaysContainer, pedestalGlowStyle]}>
+                    {lightRays.map((ray, i) => (
+                      <LightRay
+                        key={i}
+                        angle={ray.angle}
+                        height={ray.height}
+                        color={revealConfig.glow}
+                        pulseProgress={glowPulse}
+                      />
+                    ))}
+                  </Animated.View>
+
+                  <Animated.View style={[styles.pedestalGlow, pedestalGlowStyle]}>
+                    <LinearGradient
+                      colors={[revealConfig.glow, revealConfig.primary + "40", "transparent"]}
+                      style={styles.pedestalGradient}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                    />
+                  </Animated.View>
+
+                  <View style={styles.pedestalBase}>
+                    <LinearGradient
+                      colors={[revealConfig.primary + "60", revealConfig.primary + "20", "transparent"]}
+                      style={styles.pedestalBaseGradient}
+                    />
+                    <View style={[styles.pedestalRing, { borderColor: revealConfig.primary }]} />
+                    <View style={[styles.pedestalRingInner, { borderColor: revealConfig.accent }]} />
+                  </View>
+                </View>
+
+                <Animated.View style={[styles.resultEggContainer, resultEggStyle]}>
+                  <View style={[styles.eggGlowHalo, { backgroundColor: revealConfig.glow }]} />
+                  <Image 
+                    source={isSuccess ? EGG_IMAGES[outputRarity] : EGG_IMAGES[inputRarity]} 
+                    style={styles.heroEggImage} 
+                    resizeMode="contain" 
+                  />
+                </Animated.View>
+              </>
+            )}
+          </View>
+
+          {phase === "gather" && (
+            <Animated.View entering={FadeIn.duration(600)} style={styles.statusContainer}>
+              <ThemedText style={[styles.statusText, { color: inputConfig.accent }]}>
                 CHANNELING ENERGY
               </ThemedText>
               <View style={styles.statusDots}>
-                <Animated.View style={[styles.statusDot, { backgroundColor: inputConfig.primary }]} />
-                <Animated.View style={[styles.statusDot, { backgroundColor: inputConfig.primary, opacity: 0.7 }]} />
-                <Animated.View style={[styles.statusDot, { backgroundColor: inputConfig.primary, opacity: 0.4 }]} />
+                <View style={[styles.statusDot, { backgroundColor: inputConfig.primary }]} />
+                <View style={[styles.statusDot, { backgroundColor: inputConfig.primary, opacity: 0.7 }]} />
+                <View style={[styles.statusDot, { backgroundColor: inputConfig.primary, opacity: 0.4 }]} />
               </View>
-            </View>
-          </Animated.View>
-        )}
+            </Animated.View>
+          )}
 
-        {phase === "merge" && (
-          <Animated.View entering={ZoomIn.duration(200)} style={styles.statusContainer}>
-            <ThemedText style={[styles.statusTextLarge, { color: inputConfig.primary }]}>
-              FUSION!
-            </ThemedText>
-          </Animated.View>
-        )}
+          {phase === "merge" && (
+            <Animated.View entering={ZoomIn.duration(200)} style={styles.statusContainer}>
+              <ThemedText style={[styles.statusTextLarge, { color: inputConfig.primary }]}>
+                FUSION!
+              </ThemedText>
+            </Animated.View>
+          )}
 
-        {phase === "transform" && (
-          <Animated.View entering={FadeIn.duration(400)} style={styles.statusContainer}>
-            <ThemedText style={[styles.statusText, { color: outputConfig.primary }]}>
-              TRANSMUTING
-            </ThemedText>
-          </Animated.View>
-        )}
+          {phase === "transform" && (
+            <Animated.View entering={FadeIn.duration(400)} style={styles.statusContainer}>
+              <ThemedText style={[styles.statusText, { color: outputConfig.primary }]}>
+                TRANSMUTING
+              </ThemedText>
+            </Animated.View>
+          )}
 
-        {(phase === "reveal" || phase === "done") && (
-          <Animated.View entering={FadeInDown.springify().damping(12)} style={styles.resultContainer}>
-            <View style={styles.resultTitleContainer}>
+          {(phase === "reveal" || phase === "done") && (
+            <Animated.View entering={FadeInDown.springify().damping(12)} style={styles.resultContainer}>
               <ThemedText style={[
                 styles.resultTitle,
                 { 
-                  color: isSuccess ? revealConfig.primary : "#EF4444",
+                  color: isSuccess ? "#FFFFFF" : "#EF4444",
                   textShadowColor: isSuccess ? revealConfig.glow : "rgba(239, 68, 68, 0.5)",
                 }
               ]}>
                 {isSuccess ? "FUSION SUCCESS" : "FUSION FAILED"}
               </ThemedText>
-            </View>
-            
-            {isSuccess ? (
-              <GlassPillBadge 
-                count={successCount} 
-                rarity={outputRarity} 
-                theme={outputConfig} 
-              />
-            ) : (
-              <ThemedText style={styles.resultFailText}>
-                Better luck next time
-              </ThemedText>
-            )}
-            
-            {failCount > 0 && successCount > 0 && (
-              <ThemedText style={styles.failNote}>
-                ({failCount} fusion{failCount > 1 ? "s" : ""} failed)
-              </ThemedText>
-            )}
-          </Animated.View>
-        )}
+              
+              {isSuccess ? (
+                <View style={styles.rarityBadge}>
+                  <LinearGradient
+                    colors={[revealConfig.primary + "30", revealConfig.primary + "10"]}
+                    style={styles.rarityBadgeGradient}
+                  >
+                    <View style={[styles.rarityBadgeBorder, { borderColor: revealConfig.primary + "60" }]}>
+                      <ThemedText style={[styles.rarityPlus, { color: revealConfig.primary }]}>+</ThemedText>
+                      <ThemedText style={styles.rarityCount}>{successCount}</ThemedText>
+                      <ThemedText style={[styles.rarityText, { color: revealConfig.accent }]}>
+                        {outputRarity.toUpperCase()} EGG{successCount > 1 ? "S" : ""}
+                      </ThemedText>
+                    </View>
+                  </LinearGradient>
+                </View>
+              ) : (
+                <ThemedText style={styles.resultFailText}>
+                  Better luck next time
+                </ThemedText>
+              )}
+              
+              {failCount > 0 && successCount > 0 && (
+                <ThemedText style={styles.failNote}>
+                  ({failCount} fusion{failCount > 1 ? "s" : ""} failed)
+                </ThemedText>
+              )}
+            </Animated.View>
+          )}
 
-        {phase === "done" && (
-          <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.buttonContainer}>
-            <Pressable
-              onPress={handleContinue}
-              style={({ pressed }) => [
-                styles.continueButton,
-                pressed && styles.continueButtonPressed,
-              ]}
-            >
-              <LinearGradient
-                colors={[revealConfig.primary, revealConfig.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.continueButtonGradient}
+          {phase === "done" && (
+            <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.buttonContainer}>
+              <Pressable
+                onPress={handleContinue}
+                style={({ pressed }) => [
+                  styles.continueButton,
+                  pressed && styles.continueButtonPressed,
+                ]}
               >
-                <ThemedText style={styles.continueButtonText}>CONTINUE</ThemedText>
-                <Feather name="arrow-right" size={18} color="#fff" />
-              </LinearGradient>
-            </Pressable>
-          </Animated.View>
-        )}
-      </Animated.View>
+                <LinearGradient
+                  colors={[revealConfig.primary, revealConfig.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.continueButtonGradient}
+                >
+                  <ThemedText style={styles.continueButtonText}>CONTINUE</ThemedText>
+                  <Feather name="arrow-right" size={18} color="#fff" />
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          )}
+        </Animated.View>
+      </ImageBackground>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
   container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  noiseOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.01)",
   },
   ambientGlow: {
     ...StyleSheet.absoluteFillObject,
@@ -986,10 +826,11 @@ const styles = StyleSheet.create({
     opacity: 0.15,
   },
   centerArea: {
-    width: 320,
-    height: 320,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.5,
     justifyContent: "center",
     alignItems: "center",
+    marginTop: -SCREEN_HEIGHT * 0.08,
   },
   inputEgg: {
     position: "absolute",
@@ -1035,69 +876,108 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.6,
   },
-  auraRing: {
+  holographicRing: {
     position: "absolute",
-    borderWidth: 2,
+    borderStyle: "solid",
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
   },
-  auraRingOuter: {
-    borderStyle: "dashed",
-  },
-  auraRingMid: {
-    borderWidth: 1.5,
-  },
-  auraRingInner: {
-    borderWidth: 1,
-  },
-  sparkParticle: {
+  neonOrbitRing: {
     position: "absolute",
-  },
-  sparkParticleCore: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    borderWidth: 3,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 20,
+    elevation: 15,
   },
-  resultGlow: {
+  floatingSparkle: {
     position: "absolute",
-    width: 280,
-    height: 280,
+  },
+  sparkleCore: {
+    borderRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  pedestalContainer: {
+    position: "absolute",
+    bottom: -20,
+    alignItems: "center",
     justifyContent: "center",
+    width: PEDESTAL_WIDTH,
+    height: 120,
+  },
+  lightRaysContainer: {
+    position: "absolute",
+    bottom: 40,
+    width: 10,
+    height: 100,
     alignItems: "center",
   },
-  glowGradient: {
+  lightRay: {
+    position: "absolute",
+    width: 4,
+    bottom: 0,
+    transformOrigin: "bottom",
+  },
+  lightRayGradient: {
+    flex: 1,
+    width: "100%",
+    borderRadius: 2,
+  },
+  pedestalGlow: {
+    position: "absolute",
+    bottom: 20,
+    width: PEDESTAL_WIDTH * 0.8,
+    height: 80,
+  },
+  pedestalGradient: {
+    flex: 1,
+    borderRadius: 100,
+  },
+  pedestalBase: {
+    position: "absolute",
+    bottom: 0,
+    width: PEDESTAL_WIDTH,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pedestalBaseGradient: {
+    position: "absolute",
     width: "100%",
     height: "100%",
-    borderRadius: 140,
+    borderRadius: 100,
+    transform: [{ scaleY: 0.3 }],
+  },
+  pedestalRing: {
+    position: "absolute",
+    width: PEDESTAL_WIDTH * 0.9,
+    height: 40,
+    borderRadius: 100,
+    borderWidth: 2,
+    transform: [{ scaleY: 0.25 }],
+  },
+  pedestalRingInner: {
+    position: "absolute",
+    width: PEDESTAL_WIDTH * 0.7,
+    height: 30,
+    borderRadius: 100,
+    borderWidth: 1,
+    transform: [{ scaleY: 0.3 }],
   },
   resultEggContainer: {
     position: "absolute",
     justifyContent: "center",
     alignItems: "center",
   },
-  eggGlowRing: {
+  eggGlowHalo: {
     position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 30,
-    elevation: 20,
-  },
-  floatingEggContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  eggSpotlight: {
-    position: "absolute",
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    opacity: 0.3,
+    width: EGG_SIZE * 1.5,
+    height: EGG_SIZE * 1.5,
+    borderRadius: EGG_SIZE * 0.75,
+    opacity: 0.4,
   },
   heroEggImage: {
     width: EGG_SIZE,
@@ -1118,67 +998,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.5,
   },
-  sparkle: {
-    position: "absolute",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  sparkleCore: {
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  sparkleGlow: {
-    position: "absolute",
-    width: "200%",
-    height: "200%",
-    borderRadius: 20,
-    opacity: 0.5,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  sparkleArm: {
-    position: "absolute",
-    opacity: 0.8,
-  },
-  sparkleArmHorizontal: {
-    width: 16,
-    height: 2,
-    borderRadius: 1,
-  },
-  sparkleArmVertical: {
-    width: 2,
-    height: 16,
-    borderRadius: 1,
-  },
-  orbitalParticle: {
-    position: "absolute",
-  },
-  orbitalCore: {
-    borderRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  floatingMote: {
-    position: "absolute",
-  },
-  moteCore: {
-    borderRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    elevation: 2,
-  },
   statusContainer: {
     position: "absolute",
-    bottom: SCREEN_HEIGHT * 0.22,
-    alignItems: "center",
-  },
-  statusGlow: {
+    bottom: SCREEN_HEIGHT * 0.28,
     alignItems: "center",
   },
   statusText: {
@@ -1210,54 +1032,44 @@ const styles = StyleSheet.create({
     bottom: SCREEN_HEIGHT * 0.18,
     alignItems: "center",
   },
-  resultTitleContainer: {
+  resultTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 3,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
     marginBottom: 16,
   },
-  resultTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    letterSpacing: 4,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
-  },
-  glassPillContainer: {
-    position: "relative",
+  rarityBadge: {
     borderRadius: 30,
     overflow: "hidden",
   },
-  glassPillGradient: {
+  rarityBadgeGradient: {
+    borderRadius: 30,
+  },
+  rarityBadgeBorder: {
+    flexDirection: "row",
+    alignItems: "baseline",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 30,
-  },
-  glassPillContent: {
-    flexDirection: "row",
-    alignItems: "baseline",
+    borderWidth: 1,
     gap: 6,
   },
-  glassPillPlus: {
+  rarityPlus: {
     fontSize: 24,
     fontWeight: "800",
   },
-  glassPillCount: {
+  rarityCount: {
     fontSize: 32,
     fontWeight: "900",
     color: "#FFFFFF",
   },
-  glassPillRarity: {
+  rarityText: {
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 2,
     marginLeft: 4,
-  },
-  glassPillBorder: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 30,
-    borderWidth: 1,
   },
   resultFailText: {
     fontSize: 16,
@@ -1273,10 +1085,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: SCREEN_HEIGHT * 0.06,
     width: "100%",
-    paddingHorizontal: 40,
+    paddingHorizontal: 50,
   },
   continueButton: {
-    borderRadius: 16,
+    borderRadius: 30,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
