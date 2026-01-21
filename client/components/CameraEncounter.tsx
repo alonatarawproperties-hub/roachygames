@@ -35,7 +35,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { CatchingHUDOverlay } from "@/components/CatchingHUDOverlay";
-import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
+import { ARVFXLayer } from "@/components/ARVFXLayer";
+import { GameColors, Spacing, BorderRadius, ObsidianBronzeAR } from "@/constants/theme";
 import { getRarityColor, getClassIcon, getClassColor } from "@/constants/creatures";
 import { Spawn } from "@/context/HuntContext";
 import { pushApiDebug, genDebugId } from "@/lib/api-debug";
@@ -562,6 +563,9 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
         pointerEvents="none"
       />
 
+      {/* AAA VFX Layer - particles, scan sweep, catch zone */}
+      <ARVFXLayer />
+
       {/* Gamey Bronze HUD Overlay */}
       <CatchingHUDOverlay
         title={isMysteryEgg ? "Mystery Egg" : spawn.name}
@@ -676,10 +680,12 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
               entering={FadeInUp.duration(400).springify()}
               style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
             >
-              <View style={styles.hintCapsule}>
-                <BlurView intensity={40} tint="dark" style={styles.hintBlur}>
-                  <Feather name="target" size={16} color="#FFD700" />
-                  <ThemedText style={styles.hintText}>Tap the egg to catch!</ThemedText>
+              <View style={styles.ctaPanel}>
+                <BlurView intensity={60} tint="dark" style={styles.ctaBlur}>
+                  <View style={styles.ctaIconContainer}>
+                    <Feather name="target" size={18} color={ObsidianBronzeAR.amber} />
+                  </View>
+                  <ThemedText style={styles.ctaText}>Tap the egg to catch!</ThemedText>
                 </BlurView>
               </View>
             </Animated.View>
@@ -1129,5 +1135,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#FFD700",
+  },
+  ctaPanel: {
+    borderRadius: ObsidianBronzeAR.radii.lg,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(176,122,58,0.4)",
+    ...ObsidianBronzeAR.shadows.glow,
+  },
+  ctaBlur: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    overflow: "hidden",
+    gap: Spacing.sm,
+    backgroundColor: ObsidianBronzeAR.smokedGlassStrong,
+  },
+  ctaIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(176,122,58,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ctaText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: ObsidianBronzeAR.textPrimary,
+    letterSpacing: 0.5,
   },
 });
