@@ -1,0 +1,33 @@
+PROMPT (AR Catching Screen Overlay ONLY | Gamey HUD, Obsidian Bronze AR):
+“Design a 9:16 vertical AR catching screen overlay UI for a Pokémon GO–inspired mobile game in the Obsidian Bronze AR theme. Overlay only — do NOT include any egg/creature/target object. Assume a real-world camera feed is behind it. Make it feel more gamey with a richer HUD while staying clean and AAA.
+
+Theme / materials: smoked obsidian glass (dark charcoal with warm brown undertones), burnished bronze/amber accents (warm metallic bronze, not yellow gold), subtle brushed bronze highlights, cinematic soft bloom, crisp edges, micro-grain only.
+
+Top HUD (premium, gamey):
+	•	Top-left: close (X) button in a smoked-glass circle/pill.
+	•	Top-center: a smoked-glass title bar with a small bronze icon + title placeholder area (minimal text space).
+	•	Top-right: distance pill with navigation arrow icon + number placeholder, plus a tiny signal/compass micro-icon.
+
+Center HUD (gamey reticle + feedback):
+	•	Build a multi-layer targeting reticle: 3–4 concentric rings with thin bronze strokes, dashed segments, micro tick marks, and tiny numeric/hash markers (very subtle).
+	•	Add a lock-on arc that can animate (in still image show as partial highlighted arc segment).
+	•	Add a radial dot orbit ring (small bronze dots) suggesting scan/lock progress.
+	•	Add faint corner framing brackets (4 minimal HUD corners) around the central play area.
+	•	Include subtle “scan sweep” feel: light gradient sweep across the rings (very faint), and micro particles drifting.
+
+VFX (premium, not noisy):
+	•	Gentle ring pulses expanding outward.
+	•	Thin energy lasso traces that arc around the center (bronze/amber), like a loop forming—tasteful and clean.
+	•	Tiny dust motes + a few sparkle specks near the reticle edges only.
+
+Bottom HUD (status + progress):
+	•	Bottom-center smoked-glass rounded panel with bronze glow.
+	•	A premium segmented progress arc/spinner above the label.
+	•	Text: ‘CATCHING…’ only (no other text).
+	•	Optional: small bronze micro-ticks on the panel edges for “device” feel.
+
+Overall rules:
+High readability on mobile, strong hierarchy, minimal clutter, consistent bronze accents, modern AAA game HUD over AR. Output is only the overlay UI elements (no creature/egg). No watermark.”
+
+NEGATIVE / CONSTRAINTS:
+“no target/egg/creature, no hands, no extra buttons beyond described HUD, no bright yellow gold, no neon rainbow, no thick cartoon outlines, no heavy scanlines, no gritty noise, no messy particle storms, no logos, no watermark, no extra text besides ‘CATCHING…’.”
