@@ -1100,6 +1100,9 @@ export default function HuntScreen() {
         
         // Anti-freeze: Close encounter on Cancelled/Timeout so it never sticks
         if (result.error === "Cancelled" || result.error === "Timeout") {
+          // IMPORTANT: always clear loading state
+          if (thisAttempt === catchSeqRef.current) setIsCollecting(false);
+          
           setShowCameraEncounter(false);
           setSelectedSpawn(null);
           activeSpawnRef.current = null;
@@ -1120,14 +1123,17 @@ export default function HuntScreen() {
       console.error("[Phase1] Network error:", errorMsg);
       // Only update UI if this is still the current attempt
       if (thisAttempt === catchSeqRef.current) {
-        setIsCollecting(false);
         // Anti-freeze: Close encounter on abort so it doesn't trap UI
         if (error?.name === "AbortError" || (error as any)?.code === "ABORTED") {
+          // IMPORTANT: always clear loading state
+          if (thisAttempt === catchSeqRef.current) setIsCollecting(false);
+          
           setShowCameraEncounter(false);
           setSelectedSpawn(null);
           activeSpawnRef.current = null;
           return;
         }
+        setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
       }
