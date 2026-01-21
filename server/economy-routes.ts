@@ -142,7 +142,7 @@ export function registerEconomyRoutes(app: Express) {
       const { walletAddress, deviceFingerprint, userId } = req.body;
       
       if (!walletAddress) {
-        return res.status(400).json({ error: "Wallet address required" });
+        return res.status(401).json({ error: "UNAUTHORIZED" });
       }
       
       const clientIp = getClientIp(req);

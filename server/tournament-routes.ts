@@ -429,7 +429,7 @@ export function registerTournamentRoutes(app: Express) {
       const { walletAddress, userId } = req.body;
       
       if (!walletAddress) {
-        return res.status(400).json({ success: false, error: "Wallet address required" });
+        return res.status(401).json({ error: "UNAUTHORIZED" });
       }
       
       // Extract auth from Authorization header, not from body (prevents token replay attacks)
@@ -870,7 +870,7 @@ export function registerTournamentRoutes(app: Express) {
       const { walletAddress } = req.query;
       
       if (!walletAddress) {
-        return res.status(400).json({ success: false, error: "Wallet address required" });
+        return res.status(401).json({ error: "UNAUTHORIZED" });
       }
       
       const matches = await db.select()
@@ -1058,7 +1058,7 @@ export function registerTournamentRoutes(app: Express) {
       const { walletAddress } = req.body;
 
       if (!walletAddress) {
-        return res.status(400).json({ success: false, error: "Wallet address required" });
+        return res.status(401).json({ error: "UNAUTHORIZED" });
       }
 
       const tournaments = await db.select()
