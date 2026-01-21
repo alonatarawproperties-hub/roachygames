@@ -34,6 +34,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { CatchingHUDOverlay } from "@/components/CatchingHUDOverlay";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getRarityColor, getClassIcon, getClassColor } from "@/constants/creatures";
 import { Spawn } from "@/context/HuntContext";
@@ -561,48 +562,15 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
         pointerEvents="none"
       />
 
-      <Animated.View 
-        entering={FadeInDown.duration(300).springify()}
-        style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}
-      >
-        <Pressable style={styles.closeButton} onPress={handleCancel}>
-          <BlurView intensity={40} tint="dark" style={styles.blurButton}>
-            <Feather name="x" size={20} color="#fff" />
-          </BlurView>
-        </Pressable>
-        
-        <View style={styles.statRibbon}>
-          <BlurView intensity={50} tint="dark" style={styles.ribbonBlur}>
-            {/* Phase I: Hide rarity for mystery eggs - only show after catching */}
-            {!isMysteryEgg && (
-              <View style={[styles.rarityPill, { backgroundColor: rarityColor + "30" }]}>
-                <View style={[styles.rarityDot, { backgroundColor: rarityColor }]} />
-                <ThemedText style={[styles.rarityText, { color: rarityColor }]}>
-                  {spawn.rarity.toUpperCase()}
-                </ThemedText>
-              </View>
-            )}
-            <ThemedText style={styles.creatureName} numberOfLines={1}>
-              {isMysteryEgg ? "Mystery Egg" : spawn.name}
-            </ThemedText>
-            {/* Phase I: Hide class icon for mystery eggs */}
-            {!isMysteryEgg && (
-              <View style={[styles.classPill, { backgroundColor: classColor + "30" }]}>
-                <Feather name={classIcon as any} size={12} color={classColor} />
-              </View>
-            )}
-          </BlurView>
-        </View>
-
-        <View style={styles.distanceBadge}>
-          <BlurView intensity={40} tint="dark" style={styles.distanceBlur}>
-            <Feather name="navigation" size={12} color={GameColors.primary} />
-            <ThemedText style={styles.distanceText}>
-              {spawn.distance ? `${spawn.distance}m` : "Near"}
-            </ThemedText>
-          </BlurView>
-        </View>
-      </Animated.View>
+      {/* Gamey Bronze HUD Overlay */}
+      <CatchingHUDOverlay
+        title={isMysteryEgg ? "Mystery Egg" : spawn.name}
+        distanceText={spawn.distance ? `${spawn.distance}m` : "Near"}
+        statusText={isCatching ? "CATCHING..." : "COLLECTING..."}
+        onClose={handleCancel}
+        visible={true}
+        isCatching={isCatching || isCollecting}
+      />
 
       <GestureDetector gesture={tapGesture}>
         <View style={StyleSheet.absoluteFill}>
@@ -687,22 +655,6 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
             <Animated.View style={shockwaveAnimatedStyle} pointerEvents="none" />
           </View>
 
-          {/* Status indicator - only show when catching/collecting */}
-          {(isCollecting || isCatching) && (
-            <Animated.View 
-              entering={FadeInUp.duration(400).springify()}
-              style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
-            >
-              <View style={styles.actionCapsule}>
-                <BlurView intensity={60} tint="dark" style={styles.capsuleBlur}>
-                  <ActivityIndicator size="large" color={GameColors.primary} />
-                  <ThemedText style={[styles.catchLabel, { marginTop: Spacing.sm }]}>
-                    {isCatching ? "CATCHING..." : "COLLECTING..."}
-                  </ThemedText>
-                </BlurView>
-              </View>
-            </Animated.View>
-          )}
 
           {/* Missed banner */}
           {showMissed && (
