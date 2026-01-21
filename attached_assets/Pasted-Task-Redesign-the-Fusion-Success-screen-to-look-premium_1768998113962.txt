@@ -1,0 +1,92 @@
+Task: Redesign the “Fusion Success” screen to look premium + gameified (not generic). Add background, aura FX, particles, rarity visuals, and better layout. Keep code clean, performant, and consistent with our Roachy Hunt UI style.
+
+CONTEXT
+We have a screen that currently shows:
+- Egg image in center
+- “FUSION SUCCESS”
+- “+1 RARE EGG”
+But it looks like generic placeholder (flat rings, bland background).
+
+GOAL (VISUAL)
+Make it feel like a real game reward screen:
+1) Background:
+   - Deep space gradient (dark navy -> purple/blue)
+   - Subtle animated vignette glow behind the egg
+   - Soft noise/grain overlay (very subtle)
+2) Center reward pedestal:
+   - Egg floats (gentle up/down)
+   - Behind it: 3 aura rings (outer ring slow rotate, inner ring pulse, mid ring shimmer)
+   - Add “spark” particles that drift outward from the egg (10–20 particles)
+   - Add a soft spotlight cone behind egg (radial gradient)
+3) Reward text:
+   - Title: “FUSION SUCCESS” with glow + slight letter spacing
+   - Subtext: “+1 RARE EGG” inside a glass pill badge
+   - Rarity color mapping:
+       common: gray/white
+       rare: blue
+       epic: purple
+       legendary: gold
+   - The aura + title glow should match rarity color
+4) Buttons:
+   - Primary: “CONTINUE” (or “Back to Eggs” whichever exists)
+   - Secondary: “View Inventory”
+   - Use premium gradients, rounded corners, and subtle press animation
+5) Performance:
+   - Use react-native-reanimated for float/pulse/rotate
+   - Keep particles lightweight (no heavy libs)
+   - Avoid excessive re-renders
+
+IMPLEMENTATION
+1) Find the Fusion success screen component. Likely file names: 
+   - client/screens/FusionSuccessScreen.tsx
+   - client/screens/FusionResultScreen.tsx
+   - client/components/FusionSuccessModal.tsx
+Search for text “FUSION SUCCESS” or “Fusion success”.
+2) Refactor into a structured layout:
+   <View style={styles.container}>
+     <AnimatedBackground ... />
+     <RewardStage rarity="rare">
+        <EggHero rarity="rare" eggImage={...} />
+     </RewardStage>
+     <RewardText ... />
+     <Actions ... />
+   </View>
+
+3) Create small components (same file or /client/components/):
+   - EggHero.tsx: floating egg + glow + aura rings
+   - ParticleBurst.tsx: lightweight particles using reanimated + random positions
+   - RewardBackdrop.tsx: gradient + vignette + noise overlay
+
+4) Add a “rarityTheme” helper:
+   const rarityTheme = {
+     common: { glow:"#C9CED6", accent:"#E6E8EC" },
+     rare: { glow:"#4DA3FF", accent:"#3B82F6" },
+     epic: { glow:"#B56CFF", accent:"#8B5CF6" },
+     legendary: { glow:"#FFCC4D", accent:"#F59E0B" },
+   }
+
+5) Make the aura rings:
+   - Outer ring: rotate infinite (duration 10–14s)
+   - Mid ring: shimmer pulse opacity (0.25 -> 0.5)
+   - Inner ring: scale pulse (0.98 -> 1.05)
+Use reanimated shared values + withRepeat(withTiming()).
+
+6) Background:
+   - Use LinearGradient (expo-linear-gradient)
+   - Add a large radial “glow” behind egg using a View with big borderRadius and opacity.
+   - Add subtle noise: a semi-transparent PNG if we already have one; if none, create a soft dotted overlay using tiny repeating pattern OR skip noise if no asset exists.
+
+7) Make it responsive:
+   - Center stage should scale on small screens
+   - Use Dimensions width to compute egg size (ex: 160–220)
+   - Ensure safe-area padding
+
+8) Provide final output:
+   - Show me the updated file(s)
+   - Confirm where to tweak rarity and text values
+   - Ensure no TypeScript errors
+
+IMPORTANT
+- Do NOT change business logic for fusion result; only UI/animation.
+- Keep it consistent with the rest of the app’s typography/components (ThemedText etc if we use it).
+- If the current egg image is static, keep it. Just make the visuals around it premium.

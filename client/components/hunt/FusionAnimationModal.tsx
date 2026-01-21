@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { View, StyleSheet, Modal, Dimensions, Image, Platform } from "react-native";
+import { View, StyleSheet, Modal, Dimensions, Image, Platform, Pressable } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,12 +13,14 @@ import Animated, {
   interpolate,
   FadeIn,
   FadeInDown,
+  FadeInUp,
   ZoomIn,
   interpolateColor,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -35,6 +37,7 @@ const EGG_IMAGES: Record<string, any> = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.42, 180);
 
 interface FusionAnimationModalProps {
   visible: boolean;
@@ -46,40 +49,50 @@ interface FusionAnimationModalProps {
   onComplete: () => void;
 }
 
-const RARITY_CONFIG: Record<string, {
+const RARITY_THEME: Record<string, {
   primary: string;
   secondary: string;
   glow: string;
+  accent: string;
   gradient: [string, string, string];
   sparkle: string;
+  bgGradient: [string, string, string, string];
 }> = {
   common: {
-    primary: "#9CA3AF",
-    secondary: "#6B7280",
-    glow: "rgba(156, 163, 175, 0.6)",
+    primary: "#C9CED6",
+    secondary: "#9CA3AF",
+    glow: "rgba(201, 206, 214, 0.5)",
+    accent: "#E6E8EC",
     gradient: ["#D1D5DB", "#9CA3AF", "#6B7280"],
     sparkle: "#E5E7EB",
+    bgGradient: ["#0A0A12", "#141420", "#1A1A28", "#0A0A12"],
   },
   rare: {
-    primary: "#60A5FA",
+    primary: "#4DA3FF",
     secondary: "#2563EB",
-    glow: "rgba(59, 130, 246, 0.7)",
+    glow: "rgba(77, 163, 255, 0.6)",
+    accent: "#3B82F6",
     gradient: ["#93C5FD", "#60A5FA", "#3B82F6"],
     sparkle: "#BFDBFE",
+    bgGradient: ["#050510", "#0A1628", "#0F1E38", "#050510"],
   },
   epic: {
-    primary: "#C084FC",
+    primary: "#B56CFF",
     secondary: "#9333EA",
-    glow: "rgba(168, 85, 247, 0.7)",
+    glow: "rgba(181, 108, 255, 0.6)",
+    accent: "#8B5CF6",
     gradient: ["#E879F9", "#C084FC", "#A855F7"],
     sparkle: "#E9D5FF",
+    bgGradient: ["#0A0510", "#1A0A28", "#280F38", "#0A0510"],
   },
   legendary: {
-    primary: "#FBBF24",
-    secondary: "#D97706",
-    glow: "rgba(251, 191, 36, 0.8)",
+    primary: "#FFCC4D",
+    secondary: "#F59E0B",
+    glow: "rgba(255, 204, 77, 0.7)",
+    accent: "#FCD34D",
     gradient: ["#FDE68A", "#FBBF24", "#F59E0B"],
     sparkle: "#FEF3C7",
+    bgGradient: ["#0A0A05", "#1A1508", "#28200A", "#0A0A05"],
   },
 };
 
@@ -90,6 +103,88 @@ const EGG_POSITIONS = [
   { x: 80, y: 50, delay: 150 },
   { x: 0, y: -130, delay: 200 },
 ];
+
+const AuraRing = ({ 
+  size, 
+  color, 
+  type,
+  progress,
+}: { 
+  size: number;
+  color: string;
+  type: "outer" | "mid" | "inner";
+  progress: Animated.SharedValue<number>;
+}) => {
+  const ringStyle = useAnimatedStyle(() => {
+    if (type === "outer") {
+      const rotation = progress.value * 360;
+      return {
+        transform: [{ rotate: `${rotation}deg` }],
+        opacity: 0.4,
+      };
+    } else if (type === "mid") {
+      const shimmer = interpolate(progress.value, [0, 0.5, 1], [0.25, 0.5, 0.25]);
+      return {
+        opacity: shimmer,
+        transform: [{ rotate: `${-progress.value * 180}deg` }],
+      };
+    } else {
+      const scale = interpolate(progress.value, [0, 0.5, 1], [0.98, 1.05, 0.98]);
+      return {
+        transform: [{ scale }],
+        opacity: 0.6,
+      };
+    }
+  });
+
+  return (
+    <Animated.View style={[
+      styles.auraRing,
+      { width: size, height: size, borderRadius: size / 2, borderColor: color },
+      type === "outer" && styles.auraRingOuter,
+      type === "mid" && styles.auraRingMid,
+      type === "inner" && styles.auraRingInner,
+      ringStyle,
+    ]} />
+  );
+};
+
+const SparkParticle = ({
+  angle,
+  progress,
+  color,
+  delay,
+}: {
+  angle: number;
+  progress: Animated.SharedValue<number>;
+  color: string;
+  delay: number;
+}) => {
+  const particleStyle = useAnimatedStyle(() => {
+    const radians = (angle * Math.PI) / 180;
+    const baseDistance = 80;
+    const dist = interpolate(progress.value, [0, 1], [20, baseDistance + Math.random() * 40]);
+    const x = Math.cos(radians) * dist;
+    const y = Math.sin(radians) * dist;
+    const opacity = interpolate(progress.value, [0, 0.2, 0.8, 1], [0, 1, 0.6, 0]);
+    const scale = interpolate(progress.value, [0, 0.3, 1], [0.5, 1, 0.3]);
+
+    return {
+      transform: [
+        { translateX: x },
+        { translateY: y },
+        { scale },
+      ],
+      opacity,
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.sparkParticle, particleStyle]}>
+      <View style={[styles.sparkParticleCore, { backgroundColor: color, shadowColor: color }]} />
+    </Animated.View>
+  );
+};
 
 const EnergyRing = ({ 
   delay, 
@@ -273,6 +368,62 @@ const PulseRing = ({
   return <Animated.View style={[styles.pulseRing, ringStyle]} />;
 };
 
+const FloatingEgg = ({
+  imageSource,
+  floatProgress,
+  glowColor,
+}: {
+  imageSource: any;
+  floatProgress: Animated.SharedValue<number>;
+  glowColor: string;
+}) => {
+  const floatStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(floatProgress.value, [0, 0.5, 1], [0, -8, 0]);
+    return {
+      transform: [{ translateY }],
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.floatingEggContainer, floatStyle]}>
+      <View style={[styles.eggSpotlight, { backgroundColor: glowColor }]} />
+      <Image 
+        source={imageSource} 
+        style={styles.heroEggImage} 
+        resizeMode="contain" 
+      />
+    </Animated.View>
+  );
+};
+
+const GlassPillBadge = ({
+  count,
+  rarity,
+  theme,
+}: {
+  count: number;
+  rarity: string;
+  theme: typeof RARITY_THEME["rare"];
+}) => {
+  return (
+    <View style={styles.glassPillContainer}>
+      <LinearGradient
+        colors={["rgba(255,255,255,0.15)", "rgba(255,255,255,0.05)"]}
+        style={styles.glassPillGradient}
+      >
+        <View style={styles.glassPillContent}>
+          <ThemedText style={[styles.glassPillPlus, { color: theme.primary }]}>+</ThemedText>
+          <ThemedText style={styles.glassPillCount}>{count}</ThemedText>
+          <ThemedText style={[styles.glassPillRarity, { color: theme.accent }]}>
+            {rarity.toUpperCase()} EGG{count > 1 ? "S" : ""}
+          </ThemedText>
+        </View>
+      </LinearGradient>
+      <View style={[styles.glassPillBorder, { borderColor: theme.primary + "40" }]} />
+    </View>
+  );
+};
+
 export function FusionAnimationModal({
   visible,
   inputRarity,
@@ -283,8 +434,8 @@ export function FusionAnimationModal({
   onComplete,
 }: FusionAnimationModalProps) {
   const [phase, setPhase] = useState<"gather" | "merge" | "transform" | "reveal" | "done">("gather");
-  const inputConfig = RARITY_CONFIG[inputRarity];
-  const outputConfig = RARITY_CONFIG[outputRarity];
+  const inputConfig = RARITY_THEME[inputRarity];
+  const outputConfig = RARITY_THEME[outputRarity];
 
   const eggPositions = EGG_POSITIONS.slice(0, Math.min(inputCount, 5));
 
@@ -304,6 +455,9 @@ export function FusionAnimationModal({
   const moteProgress = useSharedValue(0);
   const glowPulse = useSharedValue(0);
   const innerGlow = useSharedValue(0);
+  const auraProgress = useSharedValue(0);
+  const floatProgress = useSharedValue(0);
+  const sparkProgress = useSharedValue(0);
 
   const sparkles = useMemo(() => {
     return Array.from({ length: 24 }).map((_, i) => ({
@@ -331,6 +485,13 @@ export function FusionAnimationModal({
     }));
   }, []);
 
+  const sparkParticles = useMemo(() => {
+    return Array.from({ length: 16 }).map((_, i) => ({
+      angle: (i * 360) / 16 + Math.random() * 15,
+      delay: i * 50,
+    }));
+  }, []);
+
   useEffect(() => {
     if (!visible) {
       setPhase("gather");
@@ -350,6 +511,9 @@ export function FusionAnimationModal({
       moteProgress.value = 0;
       glowPulse.value = 0;
       innerGlow.value = 0;
+      auraProgress.value = 0;
+      floatProgress.value = 0;
+      sparkProgress.value = 0;
       return;
     }
 
@@ -440,22 +604,35 @@ export function FusionAnimationModal({
         -1,
         true
       );
+
+      auraProgress.value = withRepeat(
+        withTiming(1, { duration: 12000, easing: Easing.linear }),
+        -1,
+        false
+      );
+
+      floatProgress.value = withRepeat(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true
+      );
+
+      sparkProgress.value = withRepeat(
+        withTiming(1, { duration: 3000, easing: Easing.linear }),
+        -1,
+        false
+      );
     }, 4000);
 
     const doneTimeout = setTimeout(() => {
       runOnJS(setPhase)("done");
     }, 5500);
 
-    const completeTimeout = setTimeout(() => {
-      onComplete();
-    }, 6200);
-
     return () => {
       clearTimeout(gatherTimeout);
       clearTimeout(transformTimeout);
       clearTimeout(revealTimeout);
       clearTimeout(doneTimeout);
-      clearTimeout(completeTimeout);
     };
   }, [visible]);
 
@@ -543,15 +720,23 @@ export function FusionAnimationModal({
 
   const isSuccess = successCount > 0;
   const revealConfig = isSuccess ? outputConfig : inputConfig;
+  const revealRarity = isSuccess ? outputRarity : inputRarity;
+
+  const handleContinue = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onComplete();
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade">
       <Animated.View style={[styles.container, containerStyle]}>
         <LinearGradient
-          colors={["#050508", "#0a0a12", "#080810", "#050508"]}
-          locations={[0, 0.3, 0.7, 1]}
+          colors={revealConfig.bgGradient}
+          locations={[0, 0.35, 0.65, 1]}
           style={StyleSheet.absoluteFill}
         />
+
+        <View style={styles.noiseOverlay} />
 
         <View style={styles.ambientGlow}>
           <Animated.View style={[styles.ambientRing, innerGlowStyle, { backgroundColor: inputConfig.glow }]} />
@@ -615,6 +800,20 @@ export function FusionAnimationModal({
 
           {(phase === "reveal" || phase === "done") && (
             <>
+              <AuraRing size={EGG_SIZE * 1.8} color={revealConfig.primary} type="outer" progress={auraProgress} />
+              <AuraRing size={EGG_SIZE * 1.5} color={revealConfig.accent} type="mid" progress={auraProgress} />
+              <AuraRing size={EGG_SIZE * 1.25} color={revealConfig.sparkle} type="inner" progress={auraProgress} />
+
+              {sparkParticles.map((spark, i) => (
+                <SparkParticle
+                  key={i}
+                  angle={spark.angle}
+                  delay={spark.delay}
+                  color={i % 2 === 0 ? revealConfig.sparkle : revealConfig.primary}
+                  progress={sparkProgress}
+                />
+              ))}
+
               <EnergyRing 
                 delay={0} 
                 duration={800} 
@@ -664,10 +863,10 @@ export function FusionAnimationModal({
                   shadowColor: revealConfig.primary,
                   borderColor: revealConfig.primary + "40",
                 }]} />
-                <Image 
-                  source={isSuccess ? EGG_IMAGES[outputRarity] : EGG_IMAGES[inputRarity]} 
-                  style={styles.largeEggImage} 
-                  resizeMode="contain" 
+                <FloatingEgg
+                  imageSource={isSuccess ? EGG_IMAGES[outputRarity] : EGG_IMAGES[inputRarity]}
+                  floatProgress={floatProgress}
+                  glowColor={revealConfig.glow}
                 />
               </Animated.View>
             </>
@@ -707,25 +906,24 @@ export function FusionAnimationModal({
 
         {(phase === "reveal" || phase === "done") && (
           <Animated.View entering={FadeInDown.springify().damping(12)} style={styles.resultContainer}>
-            <LinearGradient
-              colors={isSuccess ? [outputConfig.primary, outputConfig.secondary] : ["#EF4444", "#B91C1C"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.resultLabelGradient}
-            >
-              <ThemedText style={styles.resultLabel}>
+            <View style={styles.resultTitleContainer}>
+              <ThemedText style={[
+                styles.resultTitle,
+                { 
+                  color: isSuccess ? revealConfig.primary : "#EF4444",
+                  textShadowColor: isSuccess ? revealConfig.glow : "rgba(239, 68, 68, 0.5)",
+                }
+              ]}>
                 {isSuccess ? "FUSION SUCCESS" : "FUSION FAILED"}
               </ThemedText>
-            </LinearGradient>
+            </View>
             
             {isSuccess ? (
-              <View style={styles.resultDetailsContainer}>
-                <ThemedText style={[styles.resultPlus, { color: outputConfig.primary }]}>+</ThemedText>
-                <ThemedText style={styles.resultCount}>{successCount}</ThemedText>
-                <ThemedText style={[styles.resultRarity, { color: outputConfig.sparkle }]}>
-                  {outputRarity.toUpperCase()} EGG{successCount > 1 ? "S" : ""}
-                </ThemedText>
-              </View>
+              <GlassPillBadge 
+                count={successCount} 
+                rarity={outputRarity} 
+                theme={outputConfig} 
+              />
             ) : (
               <ThemedText style={styles.resultFailText}>
                 Better luck next time
@@ -739,6 +937,28 @@ export function FusionAnimationModal({
             )}
           </Animated.View>
         )}
+
+        {phase === "done" && (
+          <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.buttonContainer}>
+            <Pressable
+              onPress={handleContinue}
+              style={({ pressed }) => [
+                styles.continueButton,
+                pressed && styles.continueButtonPressed,
+              ]}
+            >
+              <LinearGradient
+                colors={[revealConfig.primary, revealConfig.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.continueButtonGradient}
+              >
+                <ThemedText style={styles.continueButtonText}>CONTINUE</ThemedText>
+                <Feather name="arrow-right" size={18} color="#fff" />
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+        )}
       </Animated.View>
     </Modal>
   );
@@ -749,6 +969,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  noiseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.01)",
   },
   ambientGlow: {
     ...StyleSheet.absoluteFillObject,
@@ -811,6 +1035,31 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.6,
   },
+  auraRing: {
+    position: "absolute",
+    borderWidth: 2,
+  },
+  auraRingOuter: {
+    borderStyle: "dashed",
+  },
+  auraRingMid: {
+    borderWidth: 1.5,
+  },
+  auraRingInner: {
+    borderWidth: 1,
+  },
+  sparkParticle: {
+    position: "absolute",
+  },
+  sparkParticleCore: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   resultGlow: {
     position: "absolute",
     width: 280,
@@ -839,9 +1088,20 @@ const styles = StyleSheet.create({
     shadowRadius: 30,
     elevation: 20,
   },
-  largeEggImage: {
-    width: 130,
-    height: 165,
+  floatingEggContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eggSpotlight: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    opacity: 0.3,
+  },
+  heroEggImage: {
+    width: EGG_SIZE,
+    height: EGG_SIZE * 1.27,
   },
   energyRing: {
     position: "absolute",
@@ -947,43 +1207,57 @@ const styles = StyleSheet.create({
   },
   resultContainer: {
     position: "absolute",
-    bottom: SCREEN_HEIGHT * 0.15,
+    bottom: SCREEN_HEIGHT * 0.18,
     alignItems: "center",
   },
-  resultLabelGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 25,
-    marginBottom: 12,
+  resultTitleContainer: {
+    marginBottom: 16,
   },
-  resultLabel: {
-    fontSize: 22,
+  resultTitle: {
+    fontSize: 26,
     fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 3,
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    letterSpacing: 4,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
   },
-  resultDetailsContainer: {
+  glassPillContainer: {
+    position: "relative",
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  glassPillGradient: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 30,
+  },
+  glassPillContent: {
     flexDirection: "row",
     alignItems: "baseline",
     gap: 6,
   },
-  resultPlus: {
-    fontSize: 28,
+  glassPillPlus: {
+    fontSize: 24,
     fontWeight: "800",
   },
-  resultCount: {
-    fontSize: 36,
+  glassPillCount: {
+    fontSize: 32,
     fontWeight: "900",
     color: "#FFFFFF",
   },
-  resultRarity: {
-    fontSize: 20,
+  glassPillRarity: {
+    fontSize: 18,
     fontWeight: "700",
     letterSpacing: 2,
     marginLeft: 4,
+  },
+  glassPillBorder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 30,
+    borderWidth: 1,
   },
   resultFailText: {
     fontSize: 16,
@@ -994,5 +1268,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#6B7280",
     marginTop: 8,
+  },
+  buttonContainer: {
+    position: "absolute",
+    bottom: SCREEN_HEIGHT * 0.06,
+    width: "100%",
+    paddingHorizontal: 40,
+  },
+  continueButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  continueButtonPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+  },
+  continueButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    gap: 10,
+  },
+  continueButtonText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 2,
   },
 });
