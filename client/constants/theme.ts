@@ -57,6 +57,34 @@ export const GameColors = {
   },
 };
 
+export const ObsidianBronzeAR = {
+  obsidian: "#0B0B0D",
+  obsidianBrown: "#120E0B",
+  smokedGlass: "rgba(20,14,11,0.55)",
+  smokedGlassStrong: "rgba(20,14,11,0.72)",
+  bronze: "#B07A3A",
+  amber: "#E0A15A",
+  bronzeGlow: "rgba(176,122,58,0.35)",
+  textPrimary: "rgba(255,255,255,0.92)",
+  textMuted: "rgba(255,255,255,0.70)",
+  radii: { sm: 14, md: 18, lg: 24 },
+  strokeWidth: { thin: 1, medium: 1.5 },
+  shadows: {
+    soft: {
+      shadowColor: "#B07A3A",
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    glow: {
+      shadowColor: "#E0A15A",
+      shadowOpacity: 0.4,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 0 },
+    },
+  },
+};
+
 const tintColorLight = GameColors.gold;
 const tintColorDark = GameColors.gold;
 

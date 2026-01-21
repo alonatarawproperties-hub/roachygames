@@ -1,0 +1,85 @@
+Yes, integrate the bronze overlay into `client/components/CameraEncounter.tsx`.
+
+TASK
+Upgrade the AR catching UI overlay to a more “gamey” premium HUD that matches our app theme: smoked obsidian glass + burnished bronze/amber accents. Overlay only (do NOT change the egg/target rendering logic). Implement as a reusable component inside CameraEncounter or extracted to a new component file if cleaner.
+
+FILES
+- AR catching screen: `client/components/CameraEncounter.tsx`
+- Theme tokens: `client/constants/theme.ts`
+
+1) THEME: add Obsidian Bronze AR tokens to `client/constants/theme.ts`
+Add/extend a theme section (exported constants) for:
+- Colors:
+  obsidian: #0B0B0D
+  obsidianBrown: #120E0B
+  smokedGlass: rgba(20,14,11,0.55)
+  smokedGlassStrong: rgba(20,14,11,0.72)
+  bronze: #B07A3A
+  amber: #E0A15A
+  bronzeGlow: rgba(176,122,58,0.35)
+  textPrimary: rgba(255,255,255,0.92)
+  textMuted: rgba(255,255,255,0.70)
+- Radii: 14, 18, 24
+- Stroke widths: 1, 1.5
+- Shadows: soft warm shadow presets (no harsh black)
+Keep naming consistent with existing theme.ts conventions.
+
+2) COMPONENT: implement a “gamey HUD overlay” for catching
+Create a component `CatchingHUDOverlay` (inline in CameraEncounter.tsx or new file `client/components/CatchingHUDOverlay.tsx` if preferred).
+Props:
+- title: string (e.g., “Mystery Egg”)
+- distanceText: string (e.g., “21m”)
+- statusText?: string default “CATCHING…”
+- onClose: () => void
+- visible?: boolean default true
+
+Overlay layout (9:16, safe-area aware):
+TOP HUD ROW
+- Top-left: close (X) button in smoked-glass pill/circle (hit area >= 44x44)
+- Top-center: title pill (smoked glass) with small bronze icon + title text
+- Top-right: distance pill with nav/arrow icon + distanceText
+
+CENTER HUD (MORE GAMEY TARGET SYSTEM)
+Use `react-native-svg` to draw:
+- 3–4 concentric rings (thin bronze strokes) with dashed segments
+- micro tick marks around ring edges
+- a partial highlighted “lock arc” segment
+- a small orbit ring of bronze dots implying scan progress
+- subtle corner brackets (4 corners) framing the central area
+All lines thin, crisp, bronze/amber, minimal bloom. The center must remain open for the egg/target.
+
+BOTTOM HUD
+- Bottom-center smoked-glass rounded panel
+- a premium segmented spinner/progress arc above the label
+- text exactly: “CATCHING…” (only text here)
+Bronze glow, readable, minimal bloom.
+
+IMPORTANT: Set overlay elements to `pointerEvents="none"` except the close button (so it doesn’t block camera gestures if any).
+
+3) ANIMATION (AAA but lightweight)
+Prefer Reanimated if already in project; otherwise Animated API (useNativeDriver where possible).
+- Reticle pulse: outward pulse (scale + opacity) every ~1.2s
+- Orbit dots: slow rotation 8–12s per full rotation
+- Lock arc shimmer: subtle sweep highlight every ~2s (opacity gradient or moving dash offset)
+- Dust motes: subtle drifting particles (very low count, not noisy; can be a few Animated Views)
+- Status spinner: continuous rotation
+Must run smoothly on mid-range devices.
+
+4) INTEGRATION into `CameraEncounter.tsx`
+- Keep existing camera + egg/target rendering intact.
+- Mount `<CatchingHUDOverlay />` above the camera/target layers.
+- Wire `onClose` to existing close/back handler.
+- Pass real title/distance if available; otherwise use placeholders but keep prop structure.
+
+5) ACCEPTANCE
+- Looks more “gamey” and premium than current overlay
+- Bronze/obsidian matches rest of app
+- No notch overlap (use safe-area insets)
+- No egg/target changes
+- Animations smooth, no heavy CPU/GPU load
+
+Return:
+- Updated `theme.ts`
+- Updated `CameraEncounter.tsx`
+- Any new component file if created
+- Short notes on where to tweak sizes (reticle radius, stroke width, glow intensity)
