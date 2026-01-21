@@ -300,38 +300,49 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     const spawnTapLockRef = useRef(false);
     const lastSpawnTapRef = useRef<string | null>(null);
     const lastMarkerEventTsRef = useRef(0);
+    const tapUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const SPAWN_DEBOUNCE_MS = 700;
     const SUPPRESS_MAP_PRESS_MS = 350;
     
-    // Safe spawn tap wrapper with debounce and lock
+    // Cleanup timer on unmount
+    useEffect(() => {
+      return () => {
+        if (tapUnlockTimerRef.current) clearTimeout(tapUnlockTimerRef.current);
+      };
+    }, []);
+    
+    // Safe spawn tap wrapper v3 - ALWAYS releases lock even if onSpawnTap throws
     const safeOnSpawnTap = useCallback((spawn: Spawn, source: "marker" | "map") => {
-      const now = Date.now();
+      console.log(`[safeOnSpawnTap] v3 source=${source} spawn=${spawn?.id} locked=${spawnTapLockRef.current}`);
       
-      // Check if we're locked (already processing a tap)
       if (spawnTapLockRef.current) {
-        console.log(`[MapView] safeOnSpawnTap BLOCKED (locked) spawn=${spawn.id} source=${source}`);
+        console.log("[safeOnSpawnTap] BLOCKED: tap lock active");
         return;
       }
       
-      // Check debounce - same spawn tapped too quickly
-      if (lastSpawnTapRef.current === spawn.id && now - lastMarkerEventTsRef.current < SPAWN_DEBOUNCE_MS) {
-        console.log(`[MapView] safeOnSpawnTap DEBOUNCED spawn=${spawn.id} source=${source}`);
-        return;
-      }
-      
-      // Lock and record
       spawnTapLockRef.current = true;
       lastSpawnTapRef.current = spawn.id;
-      lastMarkerEventTsRef.current = now;
+      lastMarkerEventTsRef.current = Date.now();
       
-      console.log(`[MapView] safeOnSpawnTap ALLOWED spawn=${spawn.id} source=${source}`);
-      
-      // Release lock after debounce period
-      setTimeout(() => {
+      // Schedule unlock FIRST so it runs even if onSpawnTap throws
+      if (tapUnlockTimerRef.current) clearTimeout(tapUnlockTimerRef.current);
+      tapUnlockTimerRef.current = setTimeout(() => {
         spawnTapLockRef.current = false;
+        tapUnlockTimerRef.current = null;
+        console.log("[safeOnSpawnTap] Lock released after debounce");
       }, SPAWN_DEBOUNCE_MS);
       
-      onSpawnTap(spawn);
+      try {
+        console.log("[safeOnSpawnTap] Lock acquired, calling onSpawnTap");
+        onSpawnTap(spawn);
+      } catch (err) {
+        console.error("[safeOnSpawnTap] onSpawnTap threw", err);
+        spawnTapLockRef.current = false;
+        if (tapUnlockTimerRef.current) {
+          clearTimeout(tapUnlockTimerRef.current);
+          tapUnlockTimerRef.current = null;
+        }
+      }
     }, [onSpawnTap]);
     
     // Radar ping animation state - ALWAYS MOUNTED, controlled via opacity only

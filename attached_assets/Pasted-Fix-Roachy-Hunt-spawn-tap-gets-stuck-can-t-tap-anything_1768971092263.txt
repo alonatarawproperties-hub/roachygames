@@ -1,0 +1,60 @@
+Fix Roachy Hunt “spawn tap gets stuck / can’t tap anything” caused by tapLock never releasing when onSpawnTap throws.
+
+File: client/components/MapViewWrapper.tsx
+
+1) In the “Anti-freeze: refs for tap debounce” section, add a timer ref:
+- add: const tapUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+2) Replace safeOnSpawnTap with a version that ALWAYS releases the lock even if onSpawnTap throws:
+- Schedule the unlock timeout BEFORE calling onSpawnTap
+- Wrap onSpawnTap in try/catch
+- If error happens, clear timeout + release lock immediately
+- Keep existing logs but bump version tag to v3
+
+Use this exact code:
+
+const tapUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+const safeOnSpawnTap = useCallback((spawn: Spawn, source: string) => {
+  console.log(`[safeOnSpawnTap] v3 source=${source} spawn=${spawn?.id} locked=${tapLockRef.current}`);
+  if (tapLockRef.current) {
+    console.log("[safeOnSpawnTap] BLOCKED: tap lock active");
+    return;
+  }
+
+  tapLockRef.current = true;
+  lastMarkerEventTsRef.current = Date.now();
+
+  // schedule unlock FIRST so it runs even if onSpawnTap throws
+  if (tapUnlockTimerRef.current) clearTimeout(tapUnlockTimerRef.current);
+  tapUnlockTimerRef.current = setTimeout(() => {
+    tapLockRef.current = false;
+    tapUnlockTimerRef.current = null;
+    console.log("[safeOnSpawnTap] Lock released after debounce");
+  }, TAP_DEBOUNCE_MS);
+
+  try {
+    console.log("[safeOnSpawnTap] Lock acquired, calling onSpawnTap");
+    onSpawnTap?.(spawn);
+  } catch (err) {
+    console.error("[safeOnSpawnTap] onSpawnTap threw", err);
+    tapLockRef.current = false;
+    if (tapUnlockTimerRef.current) {
+      clearTimeout(tapUnlockTimerRef.current);
+      tapUnlockTimerRef.current = null;
+    }
+  }
+}, [onSpawnTap]);
+
+3) Add unmount cleanup (below refs, anywhere in component body):
+useEffect(() => {
+  return () => {
+    if (tapUnlockTimerRef.current) clearTimeout(tapUnlockTimerRef.current);
+  };
+}, []);
+
+4) Do NOT change any map/node logic. Only fix the tap lock bug above.
+
+After patch, test:
+- tap spawn repeatedly fast
+- force an error in onSpawnTap once (or simulate) and confirm next taps still work
