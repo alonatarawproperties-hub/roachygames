@@ -145,12 +145,37 @@ export async function apiRequest(
     });
 
     const durationMs = Date.now() - startedAt;
-    setLastApiDebug({
-      ...((globalThis as any).__lastApiDebug || {}),
-      status: res.status,
-      durationMs,
-      tsIso: new Date().toISOString(),
-    });
+    
+    // Capture response preview (first 160 chars) for debugging
+    let responsePreview: string | null = null;
+    try {
+      const cloned = res.clone();
+      const text = await cloned.text();
+      responsePreview = text.slice(0, 160);
+    } catch {
+      responsePreview = "[unable to read]";
+    }
+
+    // On success, clear any stale error; on failure, store error
+    if (res.ok) {
+      setLastApiDebug({
+        ...((globalThis as any).__lastApiDebug || {}),
+        status: res.status,
+        durationMs,
+        tsIso: new Date().toISOString(),
+        error: null, // Clear stale errors
+        responsePreview,
+      });
+    } else {
+      setLastApiDebug({
+        ...((globalThis as any).__lastApiDebug || {}),
+        status: res.status,
+        durationMs,
+        tsIso: new Date().toISOString(),
+        error: `HTTP ${res.status}`,
+        responsePreview,
+      });
+    }
 
     await throwIfResNotOk(res);
     return res;

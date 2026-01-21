@@ -26,6 +26,7 @@ interface ApiDebugInfo {
   status?: number | null;
   durationMs?: number | null;
   error?: string | null;
+  responsePreview?: string | null;
 }
 
 export function HuntDebugOverlay({
@@ -61,14 +62,13 @@ export function HuntDebugOverlay({
         {serverError && <Text style={[styles.text, styles.error]}>{serverError}</Text>}
 
         <Text style={styles.sectionHeader}>Last API Call</Text>
-        <Text style={styles.text}>Base: {last.baseUrl || "?"}</Text>
-        <Text style={styles.text}>Token Exists: {last.hasAuthToken ? "YES" : "NO"} | Header Set: {last.authHeaderSet ? "YES" : "NO"}</Text>
-        <Text style={styles.textSmall}>Preview: {last.authHeaderPreview || "-"}</Text>
-        <Text style={styles.text}>Method: {last.method || "-"} {last.path || "-"}</Text>
-        <Text style={styles.textSmall} numberOfLines={2}>URL: {last.fullUrl || "-"}</Text>
         <Text style={styles.text}>Status: {last.status ?? "-"} | {last.durationMs ?? "-"}ms</Text>
         {last.error && <Text style={[styles.text, styles.error]}>Err: {last.error}</Text>}
-        <Text style={styles.textSmall}>@ {last.tsIso || "-"}</Text>
+        <Text style={styles.text}>Token: {last.hasAuthToken ? "YES" : "NO"} | Hdr: {last.authHeaderSet ? "YES" : "NO"}</Text>
+        <Text style={styles.text}>{last.method || "-"} {last.path || "-"}</Text>
+        {last.responsePreview && (
+          <Text style={styles.textSmall} numberOfLines={3}>Resp: {last.responsePreview}</Text>
+        )}
       </ScrollView>
     </View>
   );
