@@ -474,22 +474,19 @@ export function registerHuntRoutes(app: Express) {
       // 3) Get home bounds for nearby spawns
       const homeBounds = getCellBounds(homeCenter.lat, homeCenter.lng, HUNT_CONFIG.HOME_RADIUS_M);
       
-      // 4) Fetch active uncaught spawns in home radius
+      // 4) Fetch active uncaught HOME spawns owned by this player
       let homeSpawns = await db.select().from(wildCreatureSpawns)
         .where(and(
           eq(wildCreatureSpawns.isActive, true),
           isNull(wildCreatureSpawns.caughtByWallet),
-          gte(wildCreatureSpawns.latitude, homeBounds.minLat.toString()),
-          lte(wildCreatureSpawns.latitude, homeBounds.maxLat.toString()),
-          gte(wildCreatureSpawns.longitude, homeBounds.minLng.toString()),
-          lte(wildCreatureSpawns.longitude, homeBounds.maxLng.toString()),
+          eq(wildCreatureSpawns.sourceType, 'HOME'),
+          eq(wildCreatureSpawns.sourceKey, walletAddress),
           gte(wildCreatureSpawns.expiresAt, now),
         ))
         .limit(20);
 
-      const activeHomeCount = homeSpawns.filter(s => 
-        s.templateId === 'wild_egg_home' || s.templateId === 'wild_egg' || s.templateId === 'wild_egg_explore'
-      ).length;
+      const activeHomeCount = homeSpawns.length;
+      console.log(`[SPAWNS] playerId=${walletAddress} homeCount=${activeHomeCount}`);
       
       // ===== DRIP LOGIC =====
       let nextDripInSec: number | null = null;
@@ -524,6 +521,8 @@ export function registerHuntRoutes(app: Express) {
               baseSpd: 0,
               containedTemplateId: null,
               expiresAt,
+              sourceType: 'HOME',
+              sourceKey: walletAddress,
             });
             dripCreated++;
           }
@@ -579,6 +578,8 @@ export function registerHuntRoutes(app: Express) {
               baseSpd: 0,
               containedTemplateId: null,
               expiresAt,
+              sourceType: 'HOME',
+              sourceKey: walletAddress,
             });
             exploreCreated++;
           }
@@ -1737,7 +1738,6 @@ export function registerHuntRoutes(app: Express) {
   // Miss endpoint - player failed to tap the egg, spawn is removed
   app.post("/api/hunt/miss", async (req: Request, res: Response) => {
     const rid = (req.headers["x-hunt-rid"] as string) || "no_rid";
-    console.log("[Hunt] MISS endpoint hit", { rid, body: req.body });
 
     try {
       const { spawnId } = req.body;
@@ -1746,36 +1746,56 @@ export function registerHuntRoutes(app: Express) {
       if (!userId) {
         return res.status(401).json({ error: "AUTH_REQUIRED" });
       }
-      const walletAddress = `u_${userId}`;
-
-      console.log("[Hunt] MISS for user:", { rid, walletAddress, spawnId });
+      const playerId = getPlayerId(req);
 
       if (!spawnId) {
         return res.status(400).json({ error: "Missing spawnId" });
       }
 
       // Rate limiting
-      const key = walletAddress;
-      const rl = rateLimit({ route: "miss", key, limit: 20, windowMs: 60_000 });
+      const rl = rateLimit({ route: "miss", key: playerId, limit: 20, windowMs: 60_000 });
       if (!rl.allowed) {
         return res.status(429).json({ error: "RATE_LIMITED", retryInSec: rl.retryInSec });
+      }
+
+      // Fetch spawn to check sourceType
+      const [spawn] = await db.select().from(wildCreatureSpawns)
+        .where(eq(wildCreatureSpawns.id, spawnId))
+        .limit(1);
+
+      if (!spawn) {
+        return res.status(404).json({ error: "SPAWN_NOT_FOUND" });
+      }
+
+      // Build WHERE parts - enforce owner for HOME spawns
+      const whereParts = [
+        eq(wildCreatureSpawns.id, spawnId),
+        eq(wildCreatureSpawns.isActive, true),
+        isNull(wildCreatureSpawns.caughtByWallet),
+      ];
+
+      if (spawn.sourceType === 'HOME') {
+        // HOME spawn - must be owned by this player
+        if (spawn.sourceKey && spawn.sourceKey !== playerId) {
+          console.log(`[MISS] FORBIDDEN playerId=${playerId} spawnId=${spawnId} owner=${spawn.sourceKey}`);
+          return res.status(403).json({ error: "FORBIDDEN" });
+        }
+        whereParts.push(eq(wildCreatureSpawns.sourceType, 'HOME'));
+        whereParts.push(eq(wildCreatureSpawns.sourceKey, playerId));
       }
 
       const missed = await db
         .update(wildCreatureSpawns)
         .set({ isActive: false })
-        .where(and(
-          eq(wildCreatureSpawns.id, spawnId),
-          eq(wildCreatureSpawns.isActive, true),
-          isNull(wildCreatureSpawns.caughtByWallet),
-        ))
+        .where(and(...whereParts))
         .returning({ id: wildCreatureSpawns.id });
 
-      if (!missed || missed.length === 0) {
+      const success = missed && missed.length > 0;
+      console.log(`[MISS] playerId=${playerId} spawnId=${spawnId} sourceType=${spawn.sourceType} success=${success}`);
+
+      if (!success) {
         return res.status(409).json({ error: "SPAWN_ALREADY_GONE" });
       }
-
-      console.log("[Hunt] spawn missed", { rid, walletAddress, spawnId });
 
       return res.json({ success: true, missed: true });
     } catch (error) {

@@ -1,0 +1,97 @@
+You are modifying a Roachy Hunt codebase (Node/Express + Drizzle). Goal: fix a critical bug where HOME eggs are shared/public because wild_creature_spawns HOME rows have sourceKey=NULL and /api/hunt/spawns only filters by geo bounds. We must make HOME/DRIP/EXPLORE spawns PERSONAL per player identity from JWT (getPlayerId(req)). Use existing columns: sourceType + sourceKey. Do NOT add a new column.
+
+STRICT RULES:
+- Make minimal changes, do not refactor unrelated code.
+- Keep quest spawns behavior working.
+- Ensure catch/miss remain atomic and safe.
+- Add console logs at key points for verification.
+- After changes, all HOME spawns must have sourceKey=playerId, and only that player can see/catch/miss them.
+
+TASKS (DO ALL):
+
+1) SERVER: Ensure HOME/DRIP/EXPLORE spawn INSERTS set owner.
+File: server/hunt-routes.ts
+Wherever a HOME/DRIP spawn is inserted (templateId 'wild_egg_home' etc), set:
+  sourceType: "HOME"
+  sourceKey: playerId
+Where playerId = getPlayerId(req) (currently variable walletAddress is used but is actually JWT userId; rename locally to playerId if easy, but not required).
+Also for EXPLORE bonus spawns, if they are intended personal, set sourceType="HOME" (or "EXPLORE" if already used) and sourceKey=playerId.
+
+2) SERVER: Fix /api/hunt/spawns HOME query to be owner-scoped.
+In the HOME spawns select query (currently filters by isActive=true, caughtByWallet is null, bounds, expiresAt), add:
+  eq(wildCreatureSpawns.sourceType, "HOME"),
+  eq(wildCreatureSpawns.sourceKey, playerId)
+This ensures you only see your own HOME eggs.
+Do NOT apply this filter to quest spawns (those may be separate query already).
+
+3) SERVER: Fix activeHomeCount to count only the player’s HOME eggs.
+Where activeHomeCount is computed (used for drip logic and top-up checks), update the count query to include:
+  sourceType="HOME" AND sourceKey=playerId AND isActive=true AND caughtByWallet is null AND expiresAt>=now
+This prevents neighbor eggs from blocking new players.
+
+4) SERVER: Fix /api/hunt/miss owner enforcement for HOME eggs.
+File: server/hunt-routes.ts miss handler.
+Keep existing atomic update, but add owner checks:
+  eq(wildCreatureSpawns.sourceType, "HOME"),
+  eq(wildCreatureSpawns.sourceKey, playerId)
+So only the owner can miss their HOME egg.
+Return 409 SPAWN_ALREADY_GONE if not updated (keep current).
+
+5) SERVER: Fix /api/hunt/catch atomic claim owner enforcement for HOME eggs.
+File: server/hunt-routes.ts catch handler.
+Current atomic claim WHERE is missing owner checks.
+Update the atomic UPDATE WHERE to enforce:
+- If spawn.sourceType === "HOME": require sourceKey === playerId.
+- If spawn is a quest/hotspot egg: keep existing logic. Do NOT block it by owner unless it already uses sourceKey differently.
+IMPLEMENTATION DETAIL:
+Because the claim UPDATE is atomic and currently doesn’t join with the previously fetched spawn row, do this safely:
+A) Keep the existing SELECT of spawn by id (already done).
+B) Build a dynamic WHERE for the atomic UPDATE:
+   const whereParts = [
+     eq(id, spawnId),
+     eq(isActive,true),
+     isNull(caughtByWallet),
+     gte(expiresAt, now)
+   ];
+   If spawn.sourceType === "HOME":
+     whereParts.push(eq(sourceType,"HOME"));
+     whereParts.push(eq(sourceKey, playerId));
+   Else if spawn.sourceType && spawn.sourceKey:
+     (do nothing extra; keep as-is)
+   Else:
+     (do nothing)
+Then use and(...whereParts) in the UPDATE where.
+
+Also update the earlier spawn fetch SELECT to optionally early-reject HOME eggs not owned by the player:
+If spawn.sourceType==="HOME" and spawn.sourceKey exists and !== playerId => return 403 {error:"FORBIDDEN"}.
+This is defense-in-depth; atomic update already protects.
+
+6) DB / MIGRATION: Disable legacy public HOME spawns with sourceKey NULL.
+Add a small one-time migration or startup patch (choose the safest):
+Option A (preferred): Create a new script scripts/disable-legacy-home-spawns.ts that runs:
+  UPDATE wild_creature_spawns SET is_active=false
+  WHERE source_type='HOME' AND source_key IS NULL AND is_active=true AND caught_by_wallet IS NULL;
+Add instructions in comments on running it once.
+Option B: If you already have a wipe script pattern, integrate into that.
+Do NOT automatically run this on server boot.
+
+7) DB INDEX: Add an index for performance.
+In schema file where wildCreatureSpawns is defined, add a Drizzle index:
+  index("wcs_owner_active_idx").on(sourceType, sourceKey, isActive, expiresAt)
+Run drizzle generate/migrate if needed in existing workflow.
+
+8) LOGGING: Add concise logs:
+- In /api/hunt/spawns log playerId and counts for HOME returned.
+- In /api/hunt/catch log playerId + spawnId + spawn.sourceType + spawn.sourceKey and whether claim succeeded.
+- In /api/hunt/miss log playerId + spawnId and whether update succeeded.
+Keep logs short.
+
+9) VERIFY: Add a quick manual test checklist in a comment at the bottom of hunt-routes.ts:
+- Two accounts same location: each should see different HOME eggs.
+- Account A cannot catch Account B HOME egg id (403 or 409).
+- Miss hides egg immediately for owner.
+- New account not blocked by others; activeHomeCount is per player.
+- Quest spawns still work.
+
+After making changes, ensure TypeScript compiles and no lint errors.
+Return with a brief summary of files changed and what changed.
