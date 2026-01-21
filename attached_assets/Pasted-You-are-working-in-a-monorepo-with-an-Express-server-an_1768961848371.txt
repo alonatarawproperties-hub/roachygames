@@ -1,0 +1,126 @@
+You are working in a monorepo with an Express server and a React Native (Expo) client.
+
+GOAL:
+1) Remove ALL legacy "wallet address required" validation across ALL hunt endpoints.
+2) Enforce auth correctly using requireAuth on every /api/hunt/* endpoint that uses player identity.
+3) Ensure ALL hunt endpoints derive playerId ONLY from JWT (req.userId via requireAuth).
+4) Ensure MISS makes a real HTTP call (POST /api/hunt/miss) and appears in the debug overlay history.
+5) Stop the app from breaking when /api/hunt/nodes fails: return a safe empty payload instead of HTTP 500.
+
+DO NOT change working logic unless needed. Make minimal, production-safe patches. Add logs that help debugging.
+
+========================================================
+A) SERVER FIXES
+========================================================
+
+1) Find all occurrences in server of these strings and fix them:
+- "Wallet address required"
+- "walletAddress required"
+- "Missing walletAddress"
+- "walletAddress" used as a required query/body field for hunt endpoints
+
+Run a repo search and list all matches first, then patch them.
+
+2) For every endpoint under /api/hunt/* that depends on player identity, add requireAuth in the route definition.
+Examples (must include at least these):
+- GET /api/hunt/spawns
+- POST /api/hunt/catch
+- POST /api/hunt/miss
+- GET /api/hunt/me
+- GET /api/hunt/economy/me
+- GET /api/hunt/eggs/me
+- GET /api/hunt/collection/me
+- POST /api/hunt/location
+- GET /api/hunt/nodes (if exists and is player-specific)
+If any endpoint is intentionally public, leave it public, but ensure it doesn't call getPlayerId().
+
+3) Make getPlayerId safe:
+- Change it to return string | null
+- It must NOT throw.
+- If req.userId missing, return null.
+
+Example:
+function getPlayerId(req: Request): string | null {
+  const uid = (req as any).userId;
+  return typeof uid === "string" && uid.length > 0 ? uid : null;
+}
+
+4) Update all hunt handlers:
+- Wherever they previously returned/used "Wallet address required", replace that flow with:
+  - const playerId = getPlayerId(req);
+  - if (!playerId) return res.status(401).json({ error: "UNAUTHORIZED" });
+
+- Absolutely do NOT accept walletAddress from query/body for auth/ownership.
+- Ownership must be checked using playerId from JWT only.
+
+5) Fix /api/hunt/nodes (or whichever endpoint is returning {error:"Failed to get nodes"}):
+- Wrap its internals in try/catch.
+- If it fails due to provider/downstream error, return HTTP 200 with a safe payload, not 500.
+  Example: res.json({ nodes: [], ok: false, error: "NODES_UNAVAILABLE" })
+- Add a server log: console.warn("[HUNT_NODES] failed", { err: String(err) });
+
+6) Ensure server logs show auth:
+- In requireAuth, keep the existing `[Auth] OK` log.
+- In /api/hunt/miss and /api/hunt/catch, log start + result:
+  [MISS] playerId=... spawnId=...
+  [CATCH] playerId=... spawnId=... success=...
+
+7) Confirm the SPAWN list route:
+- GET /api/hunt/spawns MUST be `app.get("/api/hunt/spawns", requireAuth, async ...)`
+- It must never mention walletAddress required.
+- It must return 401 UNAUTHORIZED when missing token.
+
+========================================================
+B) CLIENT FIXES (MISS MUST DO A REAL HTTP CALL)
+========================================================
+
+Issue observed: debug overlay shows EVENT: tap_miss / calling_onMiss / onMiss_resolved, but no POST /api/hunt/miss.
+This means onMiss resolves without doing HTTP.
+
+1) In the encounter component where taps are handled (CameraEncounter.tsx or equivalent):
+- Make MISS call directly, inline, using apiRequest:
+  await apiRequest("POST", "/api/hunt/miss", { spawnId: spawn.id });
+
+- Keep existing onMiss callback, but call the HTTP first (or at least ensure HTTP is executed).
+- Add debug events around it using pushApiDebug:
+  event: miss_http_start spawn=...
+  event: miss_http_done spawn=... status=...
+  event: miss_http_error spawn=... err=...
+
+2) Prevent double-sending:
+- Add a local in-memory Set or ref to prevent sending miss twice per spawnId during the same encounter.
+Example:
+const sentMissRef = useRef(new Set<string>());
+if (sentMissRef.current.has(spawn.id)) return;
+sentMissRef.current.add(spawn.id);
+
+3) Ensure your apiRequest debug always logs the responsePreview and status (already added).
+- Confirm POST calls appear in overlay history.
+
+========================================================
+C) QUICK VERIFICATION CHECKLIST (IMPLEMENT IN CODE COMMENTS)
+========================================================
+After patch:
+- Open hunt screen -> overlay shows GET /api/hunt/spawns 200 with spawns JSON.
+- Purposely miss an egg -> overlay must show:
+  EVENT tap_miss
+  EVENT miss_http_start
+  HTTP POST /api/hunt/miss 200
+  EVENT miss_http_done
+- Server logs must show [MISS] for that playerId/spawnId.
+
+========================================================
+D) DO NOT BREAK EXISTING AUTH STORAGE
+========================================================
+- Client gets token from SecureStore key "roachy_auth_token"
+- apiRequest sends Authorization: Bearer <token>
+Do not change that.
+
+========================================================
+DELIVERABLE
+========================================================
+1) Show the exact files changed and the key diff hunks.
+2) Run TypeScript compile/lint if available.
+3) Provide a short "How to test" section.
+
+Proceed now.

@@ -38,6 +38,7 @@ import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getRarityColor, getClassIcon, getClassColor } from "@/constants/creatures";
 import { Spawn } from "@/context/HuntContext";
 import { pushApiDebug, genDebugId } from "@/lib/api-debug";
+import { apiRequest } from "@/lib/query-client";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -57,6 +58,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   const [showMissed, setShowMissed] = useState(false);
   const apiCalledRef = useRef(false);
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const sentMissRef = useRef(new Set<string>());
 
   // Reset state when spawn changes
   useEffect(() => {
@@ -324,17 +326,30 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setShowMissed(true);
       
-      // Call miss API and wait for it to complete before closing
-      console.log("[TapDetect] Calling onMiss for spawn:", spawn.id);
-      pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `calling_onMiss spawn=${spawn.id}` });
+      // Prevent double-sending miss for same spawn
+      if (sentMissRef.current.has(spawn.id)) {
+        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `miss_already_sent spawn=${spawn.id}` });
+        setTimeout(() => onCancel(), 1200);
+        return;
+      }
+      sentMissRef.current.add(spawn.id);
+      
+      // Direct HTTP call for miss - do NOT rely on onMiss callback
+      console.log("[TapDetect] Making direct HTTP miss call for spawn:", spawn.id);
+      pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `miss_http_start spawn=${spawn.id}` });
+      try {
+        const res = await apiRequest("POST", "/api/hunt/miss", { spawnId: spawn.id });
+        console.log("[TapDetect] miss HTTP done, status:", res.status);
+        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `miss_http_done spawn=${spawn.id} status=${res.status}` });
+      } catch (err) {
+        console.log("[TapDetect] miss HTTP error:", err);
+        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `miss_http_error spawn=${spawn.id} err=${String(err)}` });
+      }
+      
+      // Also call onMiss callback for local state update (optimistic removal)
       try {
         await onMiss(spawn);
-        console.log("[TapDetect] onMiss completed successfully");
-        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `onMiss_resolved spawn=${spawn.id}` });
-      } catch (err) {
-        console.log("[TapDetect] onMiss error:", err);
-        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `onMiss_error spawn=${spawn.id} err=${String(err)}` });
-      }
+      } catch {}
       
       setTimeout(() => {
         onCancel();

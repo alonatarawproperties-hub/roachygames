@@ -2332,11 +2332,13 @@ export function registerHuntRoutes(app: Express) {
 
   // ==================== PHASE I ENDPOINTS ====================
 
-  app.get("/api/hunt/nodes", async (req: Request, res: Response) => {
+  app.get("/api/hunt/nodes", requireAuth, async (req: Request, res: Response) => {
     try {
       const { latitude, longitude } = req.query;
-      // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = requirePlayerId(req);
+      const playerId = getPlayerId(req);
+      if (!playerId) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+      }
       
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
@@ -2351,7 +2353,7 @@ export function registerHuntRoutes(app: Express) {
       const claims = await db.select({ nodeId: huntClaims.nodeId })
         .from(huntClaims)
         .where(and(
-          eq(huntClaims.walletAddress, walletAddress),
+          eq(huntClaims.walletAddress, playerId),
           eq(huntClaims.dayKey, dayKey)
         ));
       const claimedNodeIds = claims.map(c => c.nodeId);
@@ -2368,8 +2370,9 @@ export function registerHuntRoutes(app: Express) {
         claimedCount: claimedNodeIds.length,
       });
     } catch (error) {
-      console.error("Nodes fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch nodes" });
+      console.warn("[HUNT_NODES] failed", { err: String(error) });
+      // Return safe empty payload instead of 500
+      res.json({ nodes: [], ok: false, error: "NODES_UNAVAILABLE", dayKey: getManilaDate(), totalNodes: 0, claimedCount: 0 });
     }
   });
 
@@ -3117,10 +3120,13 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  app.get("/api/hunt/me", async (req: Request, res: Response) => {
+  app.get("/api/hunt/me", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      const walletAddress = requirePlayerId(req);
+      const playerId = getPlayerId(req);
+      if (!playerId) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+      }
+      const walletAddress = playerId;
 
       let [economy] = await db.select().from(huntEconomyStats)
         .where(eq(huntEconomyStats.walletAddress, walletAddress))
