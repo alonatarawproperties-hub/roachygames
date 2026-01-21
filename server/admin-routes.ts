@@ -1116,6 +1116,59 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // Debug endpoint to check JWT user identity
+  app.get("/api/admin/debug/jwt-user", async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "No Bearer token" });
+      }
+
+      const token = authHeader.substring(7);
+      const jwt = require("jsonwebtoken");
+      const JWT_SECRET = process.env.JWT_SECRET;
+      
+      if (!JWT_SECRET) {
+        return res.status(500).json({ error: "JWT_SECRET not configured" });
+      }
+
+      try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        
+        // Also lookup user in database
+        const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+        
+        // Get egg counts for this user
+        const eggCounts = await db.select({
+          rarity: huntEggs.rarity,
+          count: sql<number>`count(*)::int`,
+        })
+          .from(huntEggs)
+          .where(and(
+            eq(huntEggs.userId, payload.userId),
+            sql`${huntEggs.hatchedAt} IS NULL`
+          ))
+          .groupBy(huntEggs.rarity);
+
+        res.json({
+          jwtPayload: payload,
+          userFound: !!user,
+          user: user ? {
+            id: user.id,
+            email: user.email,
+            googleId: user.googleId,
+          } : null,
+          eggCounts,
+        });
+      } catch (jwtError: any) {
+        return res.status(401).json({ error: "Invalid JWT", details: jwtError.message });
+      }
+    } catch (error) {
+      console.error("[Admin] Debug JWT error:", error);
+      res.status(500).json({ error: "Failed to debug JWT" });
+    }
+  });
+
   // Admin endpoint to check user eggs
   app.get("/api/admin/hunt/user-eggs", adminAuth, async (req: Request, res: Response) => {
     try {
