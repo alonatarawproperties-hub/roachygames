@@ -466,6 +466,12 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             const coord = e?.nativeEvent?.coordinate;
             console.log("[MapView] onPress coord:", coord?.latitude, coord?.longitude);
             
+            // Anti-freeze: Suppress map press if a marker was just tapped (prevents double-fire)
+            if (Date.now() - lastMarkerEventTsRef.current < SUPPRESS_MAP_PRESS_MS) {
+              console.log("[MapView] onPress SUPPRESSED: marker tap too recent");
+              return;
+            }
+            
             const TAP_THRESHOLD_M = 50; // 50m tap radius for better touch detection
             
             // Check spawns first (egg markers)
