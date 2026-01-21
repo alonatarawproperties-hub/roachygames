@@ -1457,6 +1457,12 @@ export function registerHuntRoutes(app: Express) {
         return res.status(404).json({ error: "Spawn not found" });
       }
 
+      // Early reject: HOME spawns not owned by this player
+      if (spawn.sourceType === 'HOME' && spawn.sourceKey && spawn.sourceKey !== walletAddress) {
+        console.log(`[CATCH] FORBIDDEN playerId=${walletAddress} spawnId=${spawnId} owner=${spawn.sourceKey}`);
+        return res.status(403).json({ error: "FORBIDDEN" });
+      }
+
       const [economy] = await db.select().from(huntEconomyStats)
         .where(eq(huntEconomyStats.walletAddress, walletAddress))
         .limit(1);
@@ -1475,6 +1481,19 @@ export function registerHuntRoutes(app: Express) {
 
       const now = new Date();
 
+      // Build WHERE parts for atomic claim - enforce owner for HOME spawns
+      const claimWhereParts = [
+        eq(wildCreatureSpawns.id, spawnId),
+        eq(wildCreatureSpawns.isActive, true),
+        isNull(wildCreatureSpawns.caughtByWallet),
+        gte(wildCreatureSpawns.expiresAt, now),
+      ];
+
+      if (spawn.sourceType === 'HOME') {
+        claimWhereParts.push(eq(wildCreatureSpawns.sourceType, 'HOME'));
+        claimWhereParts.push(eq(wildCreatureSpawns.sourceKey, walletAddress));
+      }
+
       const claimed = await db
         .update(wildCreatureSpawns)
         .set({
@@ -1482,16 +1501,13 @@ export function registerHuntRoutes(app: Express) {
           caughtByWallet: walletAddress,
           caughtAt: now,
         })
-        .where(and(
-          eq(wildCreatureSpawns.id, spawnId),
-          eq(wildCreatureSpawns.isActive, true),
-          isNull(wildCreatureSpawns.caughtByWallet),
-          gte(wildCreatureSpawns.expiresAt, now),
-        ))
+        .where(and(...claimWhereParts))
         .returning({ id: wildCreatureSpawns.id });
 
-      if (!claimed || claimed.length === 0) {
-        console.log("[Hunt] catch rejected - already claimed/expired", { walletAddress, spawnId });
+      const claimSuccess = claimed && claimed.length > 0;
+      console.log(`[CATCH] playerId=${walletAddress} spawnId=${spawnId} sourceType=${spawn.sourceType} sourceKey=${spawn.sourceKey} success=${claimSuccess}`);
+
+      if (!claimSuccess) {
         return res.status(409).json({ error: "SPAWN_ALREADY_CLAIMED_OR_EXPIRED" });
       }
 
@@ -3269,3 +3285,33 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 }
+
+/**
+ * ===== PERSONAL HOME SPAWNS - VERIFICATION CHECKLIST =====
+ * 
+ * After deploying owner-based HOME spawns, verify the following:
+ * 
+ * 1. TWO ACCOUNTS SAME LOCATION:
+ *    - Each account should see different HOME eggs (their own only)
+ *    - Check [SPAWNS] logs: playerId should match and homeCount should differ
+ * 
+ * 2. ACCOUNT A CANNOT CATCH ACCOUNT B's HOME EGG:
+ *    - If Account A knows the spawnId of Account B's egg, attempting to catch should return 403 FORBIDDEN
+ *    - Check [CATCH] FORBIDDEN logs
+ * 
+ * 3. MISS HIDES EGG IMMEDIATELY FOR OWNER:
+ *    - When owner misses their egg, it becomes inactive
+ *    - Other players (if they somehow had the ID) cannot miss it - returns 403 FORBIDDEN
+ * 
+ * 4. NEW ACCOUNT NOT BLOCKED BY OTHERS:
+ *    - activeHomeCount is computed only from spawns with sourceType='HOME' AND sourceKey=playerId
+ *    - New player should get their own drip spawns immediately regardless of neighbor spawns
+ * 
+ * 5. QUEST SPAWNS STILL WORK:
+ *    - MICRO_HOTSPOT, HOT_DROP, LEGENDARY_BEACON spawns use different sourceType
+ *    - These should NOT be blocked by owner checks (only HOME spawns have owner enforcement)
+ * 
+ * 6. LEGACY CLEANUP:
+ *    - Run once: npx tsx scripts/disable-legacy-home-spawns.ts
+ *    - This disables old PUBLIC HOME spawns (sourceKey=NULL)
+ */

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, decimal, real, unique, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, decimal, real, unique, numeric, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -83,7 +83,9 @@ export const wildCreatureSpawns = pgTable("wild_creature_spawns", {
   spawnedAt: timestamp("spawned_at").notNull().default(sql`now()`),
   sourceType: text("source_type").default("HOME"),
   sourceKey: text("source_key"),
-});
+}, (table) => ({
+  ownerActiveIdx: index("wcs_owner_active_idx").on(table.sourceType, table.sourceKey, table.isActive, table.expiresAt),
+}));
 
 export const HOTSPOT_QUEST_TYPES = ['MICRO_HOTSPOT', 'HOT_DROP', 'LEGENDARY_BEACON'] as const;
 export type HotspotQuestType = typeof HOTSPOT_QUEST_TYPES[number];
