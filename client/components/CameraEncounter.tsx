@@ -37,6 +37,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import { getRarityColor, getClassIcon, getClassColor } from "@/constants/creatures";
 import { Spawn } from "@/context/HuntContext";
+import { pushApiDebug, genDebugId } from "@/lib/api-debug";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -312,20 +313,27 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     console.log("[TapDetect] tap at:", tapX, tapY, "hitbox:", hitboxLeft, hitboxRight, hitboxTop, hitboxBottom, "isHit:", isHit);
     
     if (isHit) {
+      // Debug event: tap hit
+      pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `tap_hit spawn=${spawn.id}` });
       // Successful tap on egg!
       startCatchAnimation();
     } else {
+      // Debug event: tap miss
+      pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `tap_miss spawn=${spawn.id}` });
       // Missed - tapped outside egg
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setShowMissed(true);
       
       // Call miss API and wait for it to complete before closing
       console.log("[TapDetect] Calling onMiss for spawn:", spawn.id);
+      pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `calling_onMiss spawn=${spawn.id}` });
       try {
         await onMiss(spawn);
         console.log("[TapDetect] onMiss completed successfully");
+        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `onMiss_resolved spawn=${spawn.id}` });
       } catch (err) {
         console.log("[TapDetect] onMiss error:", err);
+        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `onMiss_error spawn=${spawn.id} err=${String(err)}` });
       }
       
       setTimeout(() => {

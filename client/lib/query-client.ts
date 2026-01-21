@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { pushApiDebug, genDebugId } from "./api-debug";
 
 const AUTH_TOKEN_KEY = "roachy_auth_token";
 
@@ -136,6 +137,9 @@ export async function apiRequest(
     error: null,
   });
 
+  const tokenExists = hasAuthToken;
+  const headerSet = !!headers["Authorization"];
+
   try {
     const res = await fetch(url, {
       method,
@@ -146,44 +150,71 @@ export async function apiRequest(
 
     const durationMs = Date.now() - startedAt;
     
-    // Capture response preview (first 160 chars) for debugging
+    // Capture response preview (first 200 chars) for debugging
     let responsePreview: string | null = null;
     try {
       const cloned = res.clone();
       const text = await cloned.text();
-      responsePreview = text.slice(0, 160);
+      responsePreview = text.slice(0, 200);
     } catch {
       responsePreview = "[unable to read]";
     }
 
-    // On success, clear any stale error; on failure, store error
-    if (res.ok) {
-      setLastApiDebug({
-        ...((globalThis as any).__lastApiDebug || {}),
-        status: res.status,
-        durationMs,
-        tsIso: new Date().toISOString(),
-        error: null, // Clear stale errors
-        responsePreview,
-      });
-    } else {
-      setLastApiDebug({
-        ...((globalThis as any).__lastApiDebug || {}),
-        status: res.status,
-        durationMs,
-        tsIso: new Date().toISOString(),
-        error: `HTTP ${res.status}`,
-        responsePreview,
-      });
-    }
+    const errorVal = res.ok ? null : `HTTP ${res.status}`;
+
+    // Push to debug history
+    pushApiDebug({
+      id: genDebugId(),
+      ts: Date.now(),
+      kind: "http",
+      baseUrl,
+      url: fullUrl,
+      path: route,
+      method,
+      status: res.status,
+      durationMs,
+      tokenExists,
+      headerSet,
+      error: errorVal,
+      responsePreview,
+    });
+
+    // Also update legacy single-entry debug
+    setLastApiDebug({
+      ...((globalThis as any).__lastApiDebug || {}),
+      status: res.status,
+      durationMs,
+      tsIso: new Date().toISOString(),
+      error: errorVal,
+      responsePreview,
+    });
 
     await throwIfResNotOk(res);
     return res;
   } catch (error: any) {
     const durationMs = Date.now() - startedAt;
+    const errorStr = String(error?.message ?? error);
+
+    // Push to debug history
+    pushApiDebug({
+      id: genDebugId(),
+      ts: Date.now(),
+      kind: "http",
+      baseUrl,
+      url: fullUrl,
+      path: route,
+      method,
+      status: undefined,
+      durationMs,
+      tokenExists,
+      headerSet,
+      error: errorStr,
+      responsePreview: null,
+    });
+
     setLastApiDebug({
       ...((globalThis as any).__lastApiDebug || {}),
-      error: String(error?.message ?? error),
+      error: errorStr,
       durationMs,
       tsIso: new Date().toISOString(),
     });

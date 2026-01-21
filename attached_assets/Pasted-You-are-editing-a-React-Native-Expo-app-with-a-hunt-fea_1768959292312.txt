@@ -1,0 +1,107 @@
+You are editing a React Native (Expo) app with a hunt feature. I need a surgical debug upgrade to prove whether POST /api/hunt/miss and POST /api/hunt/catch are truly firing from TestFlight builds, and what the server responds. Do NOT refactor architecture. Only add minimal debug plumbing + UI.
+
+GOAL:
+1) Store a rolling history (last 10) of API calls made via apiRequest(), including method, route/path, status, durationMs, error, and a 200-char response preview (when possible).
+2) Show this history in HuntDebugOverlay (scrollable) so I can see GET/POST calls including /api/hunt/miss and /api/hunt/catch.
+3) Add explicit instrumentation inside CameraEncounter.handleTapAtPosition for BOTH hit/miss branches: log and also push a “local event” into the same debug history so we can tell if the tap branch executed even if network doesn’t.
+4) Ensure the overlay clearly shows:
+   - Token exists? header set?
+   - Base URL
+   - Each request row: time, method, short path, status, ms, and preview/error
+5) NO gameplay behavior changes aside from debug. No UI redesign. No breaking types.
+
+FILES YOU WILL EDIT (exact):
+- client/lib/query-client.ts (apiRequest lives here per user)
+- client/components/hunt/HuntDebugOverlay.tsx
+- client/components/CameraEncounter.tsx
+Optionally: create ONE tiny helper in client/lib/api-debug.ts if needed.
+
+IMPLEMENTATION DETAILS:
+
+A) Add a global debug store (simple, no state libs):
+- Create a module: client/lib/api-debug.ts (or put in query-client.ts if you insist)
+- Export types:
+  type ApiDebugEntry = {
+    id: string;
+    ts: number; // Date.now()
+    kind: "http" | "event";
+    baseUrl?: string;
+    url?: string;
+    path?: string;
+    method?: string;
+    status?: number;
+    durationMs?: number;
+    tokenExists?: boolean;
+    headerSet?: boolean;
+    error?: string | null;
+    responsePreview?: string | null;
+    extra?: string | null;
+  };
+- Maintain:
+  let entries: ApiDebugEntry[] = [];
+  let listeners: Set<(e: ApiDebugEntry[]) => void> = new Set();
+- Export:
+  pushApiDebug(entry: ApiDebugEntry): void  // pushes, trims to last 10, notifies listeners
+  subscribeApiDebug(cb): () => void         // immediately calls cb(entries), returns unsubscribe
+  getApiDebug(): ApiDebugEntry[]            // returns entries
+  clearApiDebug(): void                     // empties + notifies
+
+B) Update apiRequest() to push an entry on EVERY call:
+- Capture:
+  startedAt, baseUrl, fullUrl, route (path)
+  tokenExists = !!authToken
+  headerSet = !!headers["Authorization"]
+- After fetch:
+  status = res.status
+  durationMs = Date.now() - startedAt
+  responsePreview:
+    - try clone + text() and slice(0, 200)
+    - BUT do not crash if body already consumed elsewhere; use try/catch.
+- error field:
+  - null if res.ok
+  - else `HTTP ${res.status}`
+- pushApiDebug({ kind:"http", ts:Date.now(), id:..., baseUrl, url:fullUrl, path:route, method, status, durationMs, tokenExists, headerSet, error, responsePreview })
+- On fetch throw, push with status undefined, error=String(err)
+IMPORTANT: do NOT change existing return behavior: apiRequest must still return Response or throw like before. If apiRequest currently returns Response even on non-2xx, keep that.
+
+C) Update HuntDebugOverlay UI to show HISTORY:
+- Add subscription via useEffect to subscribeApiDebug and store in local state.
+- Render:
+  Header area: GPS age/acc (existing), spawn count (existing), location (existing)
+  Then a section: "API History (last 10)" with a small "Clear" button calling clearApiDebug()
+  Then a ScrollView listing newest first.
+- Each row show:
+  - time (HH:MM:SS) local
+  - kind (HTTP/EVENT)
+  - for HTTP: `${method} ${shortPath}` (shortPath = path or parsed from url; keep it readable)
+  - status + ms
+  - Token: YES/NO and Hdr: YES/NO
+  - If error: show in red
+  - Preview: show 1-2 lines max (truncate)
+- Make sure overlay stays readable (monospace optional) and doesn’t overflow. Use small font.
+
+D) Add CameraEncounter instrumentation (NO behavior changes):
+- In handleTapAtPosition:
+  1) Right before calling onCatch or whatever success path: pushApiDebug kind:"event" extra:`tap_hit spawn=${spawn.id}`
+  2) In miss branch (tapped outside): pushApiDebug kind:"event" extra:`tap_miss spawn=${spawn.id}`
+  3) Immediately before awaiting onMiss(spawn): pushApiDebug kind:"event" extra:`calling_onMiss spawn=${spawn.id}`
+  4) In try success: pushApiDebug kind:"event" extra:`onMiss_resolved spawn=${spawn.id}`
+  5) In catch: pushApiDebug kind:"event" extra:`onMiss_error spawn=${spawn.id} err=${String(err)}`
+- DO NOT change timers/dismiss logic except adding debug pushes.
+- Ensure import path correct for pushApiDebug.
+
+E) Keep types/build clean:
+- Ensure TypeScript compiles.
+- Ensure no circular imports.
+- Ensure overlay updates in real time as entries are pushed.
+
+F) Validation:
+After implementation, I should be able to:
+- Miss an egg and see:
+  EVENT tap_miss
+  EVENT calling_onMiss
+  HTTP POST /api/hunt/miss status 200 preview {"success":true...} (or 401/403/409 with preview)
+- Catch an egg and see HTTP POST /api/hunt/catch similarly.
+If those HTTP rows never appear, it means network call not fired; if they appear but server logs don’t, baseUrl mismatch.
+
+DO IT NOW. Provide the exact code edits in those files. No placeholders. No “TODO”. No breaking existing UI. Keep it minimal.
