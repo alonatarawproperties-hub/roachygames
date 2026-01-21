@@ -1,0 +1,128 @@
+TASK: Add an in-app Debug Overlay that works in TestFlight (no Mac needed) to show last API request/response + base URL + JWT presence. Keep changes minimal, no gameplay logic changes.
+
+GOALS:
+1) Track last API request in a global debug object:
+   - method, path, fullUrl
+   - status (if response)
+   - durationMs
+   - error (if thrown)
+   - timestamp
+2) Display it in HuntDebugOverlay and allow enabling it in non-dev builds via a hidden toggle:
+   - Add a small “Debug” toggle button OR 5-tap gesture on the GPS badge to show/hide overlay.
+   - Default OFF.
+3) Also show:
+   - API_BASE_URL actually being used
+   - hasAuthToken true/false (JWT)
+   - last /miss and /catch status specifically (just from last API record)
+
+IMPLEMENTATION STEPS:
+
+A) Find apiRequest implementation (search for `function apiRequest` or `export async function apiRequest`).
+   Common locations: client/lib/api.ts or client/lib/apiRequest.ts
+
+B) Modify apiRequest to record debug info on every call.
+   Add this near the top of apiRequest (outside try/catch ok):
+
+   - Determine base URL used:
+     const baseUrl = (globalThis as any).__API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL ?? "";
+     (If you already compute base URL inside apiRequest, reuse your existing value—don’t create a second base.)
+
+   - Add helper:
+     const setLastApiDebug = (payload: any) => { (globalThis as any).__lastApiDebug = payload; };
+
+   BEFORE fetch:
+     const startedAt = Date.now();
+     setLastApiDebug({
+       startedAt,
+       tsIso: new Date().toISOString(),
+       method,
+       path,
+       fullUrl,         // computed url string
+       baseUrl,
+       status: null,
+       durationMs: null,
+       error: null,
+     });
+
+   AFTER fetch:
+     const durationMs = Date.now() - startedAt;
+     setLastApiDebug({
+       ...(globalThis as any).__lastApiDebug,
+       status: response.status,
+       durationMs,
+       tsIso: new Date().toISOString(),
+     });
+
+   IN catch(error):
+     const durationMs = Date.now() - startedAt;
+     setLastApiDebug({
+       ...(globalThis as any).__lastApiDebug,
+       error: String(error?.message ?? error),
+       durationMs,
+       tsIso: new Date().toISOString(),
+     });
+
+   IMPORTANT: do NOT break existing return type. Keep returning the fetch Response as before.
+
+C) Track JWT presence in the same debug object.
+   Wherever you attach Authorization header (Bearer token), also set:
+     const hasAuthToken = !!token;
+   Include that field in setLastApiDebug payload.
+
+   Example:
+     setLastApiDebug({ ..., hasAuthToken });
+
+D) Update HuntDebugOverlay UI to show last API info.
+   Find client/components/HuntDebugOverlay.tsx (or wherever it lives).
+   Add new section:
+
+   - Read:
+     const last = (globalThis as any).__lastApiDebug;
+
+   - Render:
+     API Base: {last?.baseUrl || "?"}
+     Auth Token: {last?.hasAuthToken ? "YES" : "NO"}
+     Last API: {last?.method} {last?.path}
+     Full URL: {last?.fullUrl}
+     Status: {last?.status ?? "-"}
+     Duration: {last?.durationMs ?? "-"}ms
+     Error: {last?.error ?? "-"}
+
+   - Add a “Copy” button (optional) that copies a formatted string using Clipboard:
+     expo-clipboard if already installed; if not, skip button.
+
+E) Add an in-app toggle to show overlay in TestFlight.
+   In HuntScreen.tsx:
+   - Add state: const [showDebugOverlay, setShowDebugOverlay] = useState(false);
+
+   - Easiest toggle: Long-press the GPS badge area in MapViewWrapper.
+     1) Add prop to MapViewWrapper: onToggleDebug?: () => void
+     2) Wrap GPS badge container in a Pressable with onLongPress calling onToggleDebug.
+
+   In HuntScreen render:
+     <MapViewWrapper ... onToggleDebug={() => setShowDebugOverlay(v => !v)} />
+
+   Then only render overlay when showDebugOverlay is true:
+     {showDebugOverlay && (
+       <HuntDebugOverlay
+         ...existingProps
+       />
+     )}
+
+   Make sure this does NOT depend on __DEV__ so it works in TestFlight, but it must be hidden behind the long-press so normal users won’t see it.
+
+F) Smoke test:
+   - Open hunt screen
+   - Long-press GPS badge to show overlay
+   - Trigger MISS and CATCH
+   - Overlay should immediately show POST /api/hunt/miss or /api/hunt/catch with status or error.
+   - Confirm fullUrl points to the correct server.
+
+OUTPUT REQUIRED:
+- Provide exact diffs for:
+  1) apiRequest file
+  2) HuntDebugOverlay.tsx
+  3) MapViewWrapper.tsx (long-press)
+  4) HuntScreen.tsx (state + prop wiring)
+- Ensure TypeScript builds.
+- Do not change gameplay logic.

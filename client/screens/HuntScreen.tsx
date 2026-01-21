@@ -239,6 +239,7 @@ export default function HuntScreen() {
   const [showHelpSheet, setShowHelpSheet] = useState(false);
   const [showFaq, setShowFaq] = useState(false);
   const [tipMessage, setTipMessage] = useState<string | null>(null);
+  const [showDebugOverlay, setShowDebugOverlay] = useState(false);
   const tipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [coachTipDismissed, setCoachTipDismissed] = useState(true);
 
@@ -1563,6 +1564,7 @@ export default function HuntScreen() {
           onMapReady={() => setMapReady(true)}
           onHelpPress={() => setShowHelpSheet(true)}
           onFaqPress={() => setShowFaq(true)}
+          onToggleDebug={() => setShowDebugOverlay(v => !v)}
         />
         {/* Quest hint toast */}
         {!coachTipDismissed && !showHelpSheet && !showFaq && (
@@ -2315,7 +2317,7 @@ export default function HuntScreen() {
         <FaqContent />
       </WhatNextSheet>
 
-      {/* Dev debug overlay */}
+      {/* Dev debug overlay - long-press GPS badge to toggle in TestFlight */}
       <HuntDebugOverlay
         gpsAgeMs={lastRawGpsTs ? Date.now() - lastRawGpsTs : null}
         gpsAccuracy={gpsAccuracy}
@@ -2326,6 +2328,7 @@ export default function HuntScreen() {
         playerLat={playerLocation?.latitude ?? null}
         playerLng={playerLocation?.longitude ?? null}
         serverError={spawnsServerStatus.error}
+        forceShow={showDebugOverlay}
       />
 
     </View>

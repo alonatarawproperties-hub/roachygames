@@ -83,6 +83,10 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+function setLastApiDebug(payload: Record<string, unknown>) {
+  (globalThis as any).__lastApiDebug = payload;
+}
+
 export async function apiRequest(
   method: string,
   route: string,
@@ -90,10 +94,12 @@ export async function apiRequest(
 ): Promise<Response> {
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
+  const fullUrl = url.toString();
+  const startedAt = Date.now();
   
   // Debug: Log the API URL being used (helps diagnose production vs dev issues)
   if (route.includes('/fuse') || route.includes('/hunt')) {
-    console.log(`[API] ${method} ${url.toString()} (base: ${baseUrl})`);
+    console.log(`[API] ${method} ${fullUrl} (base: ${baseUrl})`);
   }
 
   const headers: Record<string, string> = {};
@@ -109,19 +115,53 @@ export async function apiRequest(
   
   // Add JWT auth token if available
   const authToken = await getAuthToken();
+  const hasAuthToken = !!authToken;
   if (authToken) {
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(url, {
+  // Record debug info before fetch
+  setLastApiDebug({
+    startedAt,
+    tsIso: new Date().toISOString(),
     method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    path: route,
+    fullUrl,
+    baseUrl,
+    hasAuthToken,
+    status: null,
+    durationMs: null,
+    error: null,
   });
 
-  await throwIfResNotOk(res);
-  return res;
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
+
+    const durationMs = Date.now() - startedAt;
+    setLastApiDebug({
+      ...((globalThis as any).__lastApiDebug || {}),
+      status: res.status,
+      durationMs,
+      tsIso: new Date().toISOString(),
+    });
+
+    await throwIfResNotOk(res);
+    return res;
+  } catch (error: any) {
+    const durationMs = Date.now() - startedAt;
+    setLastApiDebug({
+      ...((globalThis as any).__lastApiDebug || {}),
+      error: String(error?.message ?? error),
+      durationMs,
+      tsIso: new Date().toISOString(),
+    });
+    throw error;
+  }
 }
 
 export async function apiRequestNoThrow(

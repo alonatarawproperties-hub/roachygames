@@ -75,6 +75,7 @@ interface MapViewWrapperProps {
   onMapReady?: () => void;
   onHelpPress?: () => void;
   onFaqPress?: () => void;
+  onToggleDebug?: () => void;
 }
 
 export interface MapViewWrapperRef {
@@ -288,7 +289,7 @@ const isActiveReserved = (n: MapNode) => {
 };
 
 export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>(
-  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, gpsNoSignal, gpsWeak, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady, onHelpPress, onFaqPress }, ref) => {
+  ({ playerLocation, spawns, questSpawns, raids, mapNodes, nearbyPlayers, questMarker, gpsAccuracy, gpsNoSignal, gpsWeak, isVisible = true, reservedByMe = {}, onToggleVisibility, onSpawnTap, onRaidTap, onNodeTap, onQuestMarkerTap, onMapPress, onRefresh, onMapReady, onHelpPress, onFaqPress, onToggleDebug }, ref) => {
     const nativeMapRef = useRef<any>(null);
     const leafletMapRef = useRef<LeafletMapViewRef>(null);
     const [nativeMapFailed, setNativeMapFailed] = useState(false);
@@ -710,7 +711,11 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
         </MapViewComponent>
 
         {/* GPS Signal Indicator - Top Left below status bar area */}
-        <View style={styles.gpsIndicator}>
+        <Pressable 
+          style={styles.gpsIndicator}
+          onLongPress={onToggleDebug}
+          delayLongPress={500}
+        >
           <View style={styles.gpsIndicatorRow}>
             <View style={[styles.gpsIndicatorDot, { backgroundColor: gpsStatus.color }]} />
             <ThemedText style={[styles.gpsIndicatorText, { color: gpsStatus.color }]}>
@@ -727,7 +732,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               Weak GPS — step outside / avoid indoors
             </ThemedText>
           ) : null}
-        </View>
+        </Pressable>
 
         {/* Map Controls - Bottom Right inside map container */}
         <View style={styles.mapControlsContainer} pointerEvents="box-none">
