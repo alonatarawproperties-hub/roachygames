@@ -1116,5 +1116,73 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // Admin endpoint to grant eggs to a user
+  app.post("/api/admin/hunt/grant-eggs", adminAuth, async (req: Request, res: Response) => {
+    try {
+      const { userId, common = 0, rare = 0, epic = 0, legendary = 0 } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+
+      const eggsToInsert: Array<{
+        id: string;
+        userId: string;
+        rarity: string;
+        foundAt: Date;
+        latitude: number;
+        longitude: number;
+      }> = [];
+
+      const now = new Date();
+      const rarities = [
+        { name: 'common', count: common },
+        { name: 'rare', count: rare },
+        { name: 'epic', count: epic },
+        { name: 'legendary', count: legendary },
+      ];
+
+      for (const { name, count } of rarities) {
+        for (let i = 0; i < count; i++) {
+          eggsToInsert.push({
+            id: crypto.randomUUID(),
+            userId,
+            rarity: name,
+            foundAt: now,
+            latitude: 0,
+            longitude: 0,
+          });
+        }
+      }
+
+      if (eggsToInsert.length > 0) {
+        await db.insert(huntEggs).values(eggsToInsert);
+      }
+
+      await safeAudit(req, "admin_grant_eggs", "info", {
+        userId,
+        common,
+        rare,
+        epic,
+        legendary,
+        totalGranted: eggsToInsert.length,
+      });
+
+      res.json({
+        success: true,
+        granted: {
+          common,
+          rare,
+          epic,
+          legendary,
+          total: eggsToInsert.length,
+        },
+      });
+    } catch (error) {
+      console.error("[Admin] Grant eggs error:", error);
+      res.status(500).json({ error: "Failed to grant eggs" });
+    }
+  });
+
   console.log("[Admin] Admin routes registered (including security monitoring)");
 }
