@@ -26,7 +26,7 @@ const EggCommon = require("@/assets/hunt/egg-common.png");
 const EggRare = require("@/assets/hunt/egg-rare.png");
 const EggEpic = require("@/assets/hunt/egg-epic.png");
 const EggLegendary = require("@/assets/hunt/egg-legendary.png");
-const CosmicBackground = require("@/assets/fusion/cosmic_space_nebula_background.png");
+const HolographicBackground = require("@/assets/fusion/holographic_portal_background.png");
 
 const EGG_IMAGES: Record<string, any> = {
   common: EggCommon,
@@ -36,8 +36,7 @@ const EGG_IMAGES: Record<string, any> = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.38, 160);
-const PEDESTAL_WIDTH = SCREEN_WIDTH * 0.7;
+const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.4, 170);
 
 interface FusionAnimationModalProps {
   visible: boolean;
@@ -54,35 +53,30 @@ const RARITY_THEME: Record<string, {
   secondary: string;
   glow: string;
   accent: string;
-  neon: string;
 }> = {
   common: {
     primary: "#C9CED6",
     secondary: "#9CA3AF",
     glow: "rgba(201, 206, 214, 0.6)",
     accent: "#E6E8EC",
-    neon: "#D1D5DB",
   },
   rare: {
     primary: "#00D4FF",
     secondary: "#0099CC",
     glow: "rgba(0, 212, 255, 0.6)",
     accent: "#66E5FF",
-    neon: "#00BFFF",
   },
   epic: {
     primary: "#B56CFF",
     secondary: "#9333EA",
     glow: "rgba(181, 108, 255, 0.6)",
     accent: "#D4A5FF",
-    neon: "#C084FC",
   },
   legendary: {
     primary: "#FFD700",
     secondary: "#FFA500",
     glow: "rgba(255, 215, 0, 0.7)",
     accent: "#FFEC8B",
-    neon: "#FFE135",
   },
 };
 
@@ -93,191 +87,6 @@ const EGG_POSITIONS = [
   { x: 80, y: 50, delay: 150 },
   { x: 0, y: -130, delay: 200 },
 ];
-
-const HolographicRing = ({ 
-  size, 
-  color, 
-  thickness,
-  rotationProgress,
-  opacity = 0.8,
-  reverse = false,
-}: { 
-  size: number;
-  color: string;
-  thickness: number;
-  rotationProgress: Animated.SharedValue<number>;
-  opacity?: number;
-  reverse?: boolean;
-}) => {
-  const ringStyle = useAnimatedStyle(() => {
-    const rotation = reverse ? -rotationProgress.value * 360 : rotationProgress.value * 360;
-    return {
-      transform: [
-        { rotateX: '75deg' },
-        { rotateZ: `${rotation}deg` },
-      ],
-      opacity,
-    };
-  });
-
-  return (
-    <Animated.View style={[
-      styles.holographicRing,
-      { 
-        width: size, 
-        height: size, 
-        borderRadius: size / 2, 
-        borderColor: color,
-        borderWidth: thickness,
-        shadowColor: color,
-        shadowOpacity: 0.8,
-        shadowRadius: 15,
-      },
-      ringStyle,
-    ]} />
-  );
-};
-
-const NeonOrbitRing = ({
-  size,
-  color,
-  pulseProgress,
-  rotationProgress,
-}: {
-  size: number;
-  color: string;
-  pulseProgress: Animated.SharedValue<number>;
-  rotationProgress: Animated.SharedValue<number>;
-}) => {
-  const ringStyle = useAnimatedStyle(() => {
-    const scale = interpolate(pulseProgress.value, [0, 0.5, 1], [0.98, 1.02, 0.98]);
-    const glowOpacity = interpolate(pulseProgress.value, [0, 0.5, 1], [0.6, 1, 0.6]);
-    return {
-      transform: [
-        { scale },
-        { rotateZ: `${rotationProgress.value * 360}deg` },
-      ],
-      opacity: glowOpacity,
-    };
-  });
-
-  return (
-    <Animated.View style={[
-      styles.neonOrbitRing,
-      { 
-        width: size, 
-        height: size, 
-        borderRadius: size / 2, 
-        borderColor: color,
-        shadowColor: color,
-      },
-      ringStyle,
-    ]} />
-  );
-};
-
-const LightRay = ({
-  angle,
-  height,
-  color,
-  pulseProgress,
-}: {
-  angle: number;
-  height: number;
-  color: string;
-  pulseProgress: Animated.SharedValue<number>;
-}) => {
-  const rayStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(pulseProgress.value, [0, 0.5, 1], [0.2, 0.5, 0.2]);
-    const scaleY = interpolate(pulseProgress.value, [0, 0.5, 1], [0.9, 1.1, 0.9]);
-    return {
-      opacity,
-      transform: [
-        { rotate: `${angle}deg` },
-        { scaleY },
-      ],
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.lightRay, { height }, rayStyle]}>
-      <LinearGradient
-        colors={[color, 'transparent']}
-        style={styles.lightRayGradient}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-      />
-    </Animated.View>
-  );
-};
-
-const FloatingSparkle = ({
-  startX,
-  startY,
-  size,
-  color,
-  progress,
-  delay,
-}: {
-  startX: number;
-  startY: number;
-  size: number;
-  color: string;
-  progress: Animated.SharedValue<number>;
-  delay: number;
-}) => {
-  const sparkleStyle = useAnimatedStyle(() => {
-    const adjustedProgress = (progress.value + delay) % 1;
-    const y = startY + interpolate(adjustedProgress, [0, 1], [0, -150]);
-    const x = startX + Math.sin(adjustedProgress * Math.PI * 3) * 20;
-    const opacity = interpolate(adjustedProgress, [0, 0.1, 0.7, 1], [0, 1, 0.8, 0]);
-    const scale = interpolate(adjustedProgress, [0, 0.3, 1], [0.5, 1, 0.3]);
-    
-    return {
-      transform: [
-        { translateX: x },
-        { translateY: y },
-        { scale },
-      ],
-      opacity,
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.floatingSparkle, sparkleStyle]}>
-      <View style={[styles.sparkleCore, { 
-        width: size, 
-        height: size, 
-        backgroundColor: color,
-        shadowColor: color,
-      }]} />
-    </Animated.View>
-  );
-};
-
-const EnergyRing = ({ 
-  color, 
-  progress,
-  maxScale = 3,
-}: { 
-  color: string;
-  progress: Animated.SharedValue<number>;
-  maxScale?: number;
-}) => {
-  const ringStyle = useAnimatedStyle(() => {
-    const scale = interpolate(progress.value, [0, 1], [0.3, maxScale]);
-    const opacity = interpolate(progress.value, [0, 0.3, 0.7, 1], [0, 0.8, 0.4, 0]);
-    return {
-      transform: [{ scale }],
-      opacity,
-      borderColor: color,
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.energyRing, ringStyle]} />
-  );
-};
 
 const PulseRing = ({
   progress,
@@ -324,28 +133,8 @@ export function FusionAnimationModal({
   const ringPulse1 = useSharedValue(0);
   const ringPulse2 = useSharedValue(0);
   const ringPulse3 = useSharedValue(0);
-  const energyBurst = useSharedValue(0);
   const innerGlow = useSharedValue(0);
   const floatProgress = useSharedValue(0);
-  const ringRotation = useSharedValue(0);
-  const glowPulse = useSharedValue(0);
-  const sparkleProgress = useSharedValue(0);
-
-  const sparkles = useMemo(() => {
-    return Array.from({ length: 30 }).map((_, i) => ({
-      startX: (Math.random() - 0.5) * SCREEN_WIDTH * 0.8,
-      startY: SCREEN_HEIGHT * 0.1 + Math.random() * SCREEN_HEIGHT * 0.4,
-      size: 2 + Math.random() * 4,
-      delay: Math.random(),
-    }));
-  }, []);
-
-  const lightRays = useMemo(() => {
-    return Array.from({ length: 12 }).map((_, i) => ({
-      angle: (i * 30) - 165,
-      height: 80 + Math.random() * 60,
-    }));
-  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -359,12 +148,8 @@ export function FusionAnimationModal({
       ringPulse1.value = 0;
       ringPulse2.value = 0;
       ringPulse3.value = 0;
-      energyBurst.value = 0;
       innerGlow.value = 0;
       floatProgress.value = 0;
-      ringRotation.value = 0;
-      glowPulse.value = 0;
-      sparkleProgress.value = 0;
       return;
     }
 
@@ -422,8 +207,6 @@ export function FusionAnimationModal({
       
       vortexScale.value = withTiming(0, { duration: 250 });
       
-      energyBurst.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
-      
       resultScale.value = withSequence(
         withSpring(1.15, { damping: 6, stiffness: 150 }),
         withSpring(1, { damping: 10, stiffness: 100 })
@@ -433,24 +216,6 @@ export function FusionAnimationModal({
         withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
-      );
-
-      ringRotation.value = withRepeat(
-        withTiming(1, { duration: 8000, easing: Easing.linear }),
-        -1,
-        false
-      );
-
-      glowPulse.value = withRepeat(
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true
-      );
-
-      sparkleProgress.value = withRepeat(
-        withTiming(1, { duration: 4000, easing: Easing.linear }),
-        -1,
-        false
       );
     }, 4000);
 
@@ -496,11 +261,6 @@ export function FusionAnimationModal({
       ],
       opacity: resultScale.value,
     };
-  });
-
-  const pedestalGlowStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(glowPulse.value, [0, 1], [0.6, 1]);
-    return { opacity };
   });
 
   const InputEgg = ({ index, startX, startY, delay }: { index: number; startX: number; startY: number; delay: number }) => {
@@ -553,7 +313,6 @@ export function FusionAnimationModal({
 
   const isSuccess = successCount > 0;
   const revealConfig = isSuccess ? outputConfig : inputConfig;
-  const revealRarity = isSuccess ? outputRarity : inputRarity;
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -563,7 +322,7 @@ export function FusionAnimationModal({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <ImageBackground 
-        source={CosmicBackground} 
+        source={HolographicBackground} 
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -611,98 +370,13 @@ export function FusionAnimationModal({
             </Animated.View>
 
             {(phase === "reveal" || phase === "done") && (
-              <>
-                {sparkles.map((sparkle, i) => (
-                  <FloatingSparkle
-                    key={i}
-                    {...sparkle}
-                    color={i % 2 === 0 ? revealConfig.accent : "#FFFFFF"}
-                    progress={sparkleProgress}
-                  />
-                ))}
-
-                <HolographicRing 
-                  size={EGG_SIZE * 2.8} 
-                  color={revealConfig.primary} 
-                  thickness={2}
-                  rotationProgress={ringRotation}
-                  opacity={0.5}
+              <Animated.View style={[styles.resultEggContainer, resultEggStyle]}>
+                <Image 
+                  source={isSuccess ? EGG_IMAGES[outputRarity] : EGG_IMAGES[inputRarity]} 
+                  style={styles.heroEggImage} 
+                  resizeMode="contain" 
                 />
-                <HolographicRing 
-                  size={EGG_SIZE * 2.4} 
-                  color={revealConfig.accent} 
-                  thickness={1.5}
-                  rotationProgress={ringRotation}
-                  opacity={0.7}
-                  reverse
-                />
-                <HolographicRing 
-                  size={EGG_SIZE * 2} 
-                  color={revealConfig.neon} 
-                  thickness={2}
-                  rotationProgress={ringRotation}
-                  opacity={0.9}
-                />
-
-                <NeonOrbitRing
-                  size={EGG_SIZE * 1.6}
-                  color={revealConfig.primary}
-                  pulseProgress={glowPulse}
-                  rotationProgress={ringRotation}
-                />
-
-                <EnergyRing 
-                  color={revealConfig.primary} 
-                  progress={energyBurst}
-                  maxScale={2.5}
-                />
-                <EnergyRing 
-                  color={revealConfig.secondary} 
-                  progress={energyBurst}
-                  maxScale={3}
-                />
-
-                <View style={styles.pedestalContainer}>
-                  <Animated.View style={[styles.lightRaysContainer, pedestalGlowStyle]}>
-                    {lightRays.map((ray, i) => (
-                      <LightRay
-                        key={i}
-                        angle={ray.angle}
-                        height={ray.height}
-                        color={revealConfig.glow}
-                        pulseProgress={glowPulse}
-                      />
-                    ))}
-                  </Animated.View>
-
-                  <Animated.View style={[styles.pedestalGlow, pedestalGlowStyle]}>
-                    <LinearGradient
-                      colors={[revealConfig.glow, revealConfig.primary + "40", "transparent"]}
-                      style={styles.pedestalGradient}
-                      start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 1 }}
-                    />
-                  </Animated.View>
-
-                  <View style={styles.pedestalBase}>
-                    <LinearGradient
-                      colors={[revealConfig.primary + "60", revealConfig.primary + "20", "transparent"]}
-                      style={styles.pedestalBaseGradient}
-                    />
-                    <View style={[styles.pedestalRing, { borderColor: revealConfig.primary }]} />
-                    <View style={[styles.pedestalRingInner, { borderColor: revealConfig.accent }]} />
-                  </View>
-                </View>
-
-                <Animated.View style={[styles.resultEggContainer, resultEggStyle]}>
-                  <View style={[styles.eggGlowHalo, { backgroundColor: revealConfig.glow }]} />
-                  <Image 
-                    source={isSuccess ? EGG_IMAGES[outputRarity] : EGG_IMAGES[inputRarity]} 
-                    style={styles.heroEggImage} 
-                    resizeMode="contain" 
-                  />
-                </Animated.View>
-              </>
+              </Animated.View>
             )}
           </View>
 
@@ -830,7 +504,7 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT * 0.5,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: -SCREEN_HEIGHT * 0.08,
+    marginTop: -SCREEN_HEIGHT * 0.12,
   },
   inputEgg: {
     position: "absolute",
@@ -876,119 +550,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     opacity: 0.6,
   },
-  holographicRing: {
-    position: "absolute",
-    borderStyle: "solid",
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
-  },
-  neonOrbitRing: {
-    position: "absolute",
-    borderWidth: 3,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  floatingSparkle: {
-    position: "absolute",
-  },
-  sparkleCore: {
-    borderRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  pedestalContainer: {
-    position: "absolute",
-    bottom: -20,
-    alignItems: "center",
-    justifyContent: "center",
-    width: PEDESTAL_WIDTH,
-    height: 120,
-  },
-  lightRaysContainer: {
-    position: "absolute",
-    bottom: 40,
-    width: 10,
-    height: 100,
-    alignItems: "center",
-  },
-  lightRay: {
-    position: "absolute",
-    width: 4,
-    bottom: 0,
-    transformOrigin: "bottom",
-  },
-  lightRayGradient: {
-    flex: 1,
-    width: "100%",
-    borderRadius: 2,
-  },
-  pedestalGlow: {
-    position: "absolute",
-    bottom: 20,
-    width: PEDESTAL_WIDTH * 0.8,
-    height: 80,
-  },
-  pedestalGradient: {
-    flex: 1,
-    borderRadius: 100,
-  },
-  pedestalBase: {
-    position: "absolute",
-    bottom: 0,
-    width: PEDESTAL_WIDTH,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pedestalBaseGradient: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 100,
-    transform: [{ scaleY: 0.3 }],
-  },
-  pedestalRing: {
-    position: "absolute",
-    width: PEDESTAL_WIDTH * 0.9,
-    height: 40,
-    borderRadius: 100,
-    borderWidth: 2,
-    transform: [{ scaleY: 0.25 }],
-  },
-  pedestalRingInner: {
-    position: "absolute",
-    width: PEDESTAL_WIDTH * 0.7,
-    height: 30,
-    borderRadius: 100,
-    borderWidth: 1,
-    transform: [{ scaleY: 0.3 }],
-  },
   resultEggContainer: {
     position: "absolute",
     justifyContent: "center",
     alignItems: "center",
   },
-  eggGlowHalo: {
-    position: "absolute",
-    width: EGG_SIZE * 1.5,
-    height: EGG_SIZE * 1.5,
-    borderRadius: EGG_SIZE * 0.75,
-    opacity: 0.4,
-  },
   heroEggImage: {
     width: EGG_SIZE,
     height: EGG_SIZE * 1.27,
-  },
-  energyRing: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
   },
   pulseRing: {
     position: "absolute",
