@@ -1280,6 +1280,34 @@ export function registerAdminRoutes(app: Express) {
         await db.insert(huntEggs).values(eggsToInsert);
       }
 
+      // Also update economy stats egg counts (this is what the UI displays)
+      const [existingEconomy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, userId))
+        .limit(1);
+
+      if (existingEconomy) {
+        await db.update(huntEconomyStats)
+          .set({
+            eggCommon: sql`${huntEconomyStats.eggCommon} + ${common}`,
+            eggRare: sql`${huntEconomyStats.eggRare} + ${rare}`,
+            eggEpic: sql`${huntEconomyStats.eggEpic} + ${epic}`,
+            eggLegendary: sql`${huntEconomyStats.eggLegendary} + ${legendary}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(huntEconomyStats.walletAddress, userId));
+      } else {
+        // Create economy stats if doesn't exist
+        await db.insert(huntEconomyStats).values({
+          walletAddress: userId,
+          energy: 30,
+          maxEnergy: 30,
+          eggCommon: common,
+          eggRare: rare,
+          eggEpic: epic,
+          eggLegendary: legendary,
+        });
+      }
+
       await safeAudit(req, "admin_grant_eggs", "info", {
         userId,
         common,
@@ -1302,6 +1330,78 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("[Admin] Grant eggs error:", error);
       res.status(500).json({ error: "Failed to grant eggs" });
+    }
+  });
+
+  // Admin endpoint to sync eggs from hunt_eggs table to economy stats
+  app.post("/api/admin/hunt/sync-eggs", adminAuth, async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+
+      // Count eggs in hunt_eggs table (not hatched)
+      const eggCounts = await db.select({
+        rarity: huntEggs.rarity,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(huntEggs)
+        .where(and(
+          eq(huntEggs.userId, userId),
+          sql`${huntEggs.hatchedAt} IS NULL`
+        ))
+        .groupBy(huntEggs.rarity);
+
+      const counts = {
+        common: 0,
+        rare: 0,
+        epic: 0,
+        legendary: 0,
+      };
+
+      for (const row of eggCounts) {
+        if (row.rarity in counts) {
+          counts[row.rarity as keyof typeof counts] = row.count;
+        }
+      }
+
+      // Update economy stats
+      const [existingEconomy] = await db.select().from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, userId))
+        .limit(1);
+
+      if (existingEconomy) {
+        await db.update(huntEconomyStats)
+          .set({
+            eggCommon: counts.common,
+            eggRare: counts.rare,
+            eggEpic: counts.epic,
+            eggLegendary: counts.legendary,
+            updatedAt: new Date(),
+          })
+          .where(eq(huntEconomyStats.walletAddress, userId));
+      } else {
+        await db.insert(huntEconomyStats).values({
+          walletAddress: userId,
+          energy: 30,
+          maxEnergy: 30,
+          eggCommon: counts.common,
+          eggRare: counts.rare,
+          eggEpic: counts.epic,
+          eggLegendary: counts.legendary,
+        });
+      }
+
+      res.json({
+        success: true,
+        synced: counts,
+        total: counts.common + counts.rare + counts.epic + counts.legendary,
+      });
+    } catch (error) {
+      console.error("[Admin] Sync eggs error:", error);
+      res.status(500).json({ error: "Failed to sync eggs" });
     }
   });
 
