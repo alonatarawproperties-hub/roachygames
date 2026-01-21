@@ -21,6 +21,8 @@ interface ApiDebugInfo {
   fullUrl?: string;
   baseUrl?: string;
   hasAuthToken?: boolean;
+  authHeaderSet?: boolean;
+  authHeaderPreview?: string | null;
   status?: number | null;
   durationMs?: number | null;
   error?: string | null;
@@ -60,7 +62,8 @@ export function HuntDebugOverlay({
 
         <Text style={styles.sectionHeader}>Last API Call</Text>
         <Text style={styles.text}>Base: {last.baseUrl || "?"}</Text>
-        <Text style={styles.text}>Auth Token: {last.hasAuthToken ? "YES" : "NO"}</Text>
+        <Text style={styles.text}>Token Exists: {last.hasAuthToken ? "YES" : "NO"} | Header Set: {last.authHeaderSet ? "YES" : "NO"}</Text>
+        <Text style={styles.textSmall}>Preview: {last.authHeaderPreview || "-"}</Text>
         <Text style={styles.text}>Method: {last.method || "-"} {last.path || "-"}</Text>
         <Text style={styles.textSmall} numberOfLines={2}>URL: {last.fullUrl || "-"}</Text>
         <Text style={styles.text}>Status: {last.status ?? "-"} | {last.durationMs ?? "-"}ms</Text>

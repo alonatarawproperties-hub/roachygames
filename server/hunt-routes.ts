@@ -450,6 +450,14 @@ export function registerHuntRoutes(app: Express) {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       const walletAddress = getPlayerId(req);
       
+      // Log auth status for debugging
+      console.log("[SPAWNS] auth", { hasAuth: !!req.headers.authorization, playerId: walletAddress ?? null });
+      
+      // Enforce authentication - must have valid playerId
+      if (!walletAddress) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+      }
+      
       if (!latitude || !longitude) {
         return res.status(400).json({ error: "Missing coordinates" });
       }

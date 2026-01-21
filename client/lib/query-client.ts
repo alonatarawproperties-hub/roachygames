@@ -129,6 +129,8 @@ export async function apiRequest(
     fullUrl,
     baseUrl,
     hasAuthToken,
+    authHeaderSet: hasAuthToken,
+    authHeaderPreview: authToken ? authToken.slice(0, 8) + "..." : null,
     status: null,
     durationMs: null,
     error: null,

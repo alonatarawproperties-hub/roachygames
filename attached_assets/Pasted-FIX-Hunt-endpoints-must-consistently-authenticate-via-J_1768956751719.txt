@@ -1,0 +1,62 @@
+FIX: Hunt endpoints must consistently authenticate via JWT.
+Bug proof: Debug overlay shows GET /api/hunt/spawns returns Err: "Wallet address required".
+This means server is not receiving/using JWT for /spawns.
+
+GOAL:
+1) Ensure apiRequest ALWAYS attaches Authorization header when a token exists (including GET).
+2) Ensure server /api/hunt/spawns REQUIRES auth and returns 401 if missing (not 200 with error).
+3) Add server log line for /spawns showing whether playerId was detected.
+4) Update debug overlay to show whether Authorization header was actually set (not just token existence).
+
+CHANGES:
+
+A) CLIENT: locate apiRequest() (client/lib/api.ts or similar)
+- Build headers like this for ALL methods:
+
+const headers: Record<string,string> = { Accept: "application/json" };
+if (body != null) headers["Content-Type"] = "application/json";
+
+const token = await getAuthTokenSomehow(); // use existing token retrieval
+const authHeaderSet = !!token;
+if (token) headers["Authorization"] = `Bearer ${token}`;
+
+IMPORTANT: do NOT gate Authorization by method. It must be added for GET too.
+
+- When calling fetch(url, opts), pass headers in opts ALWAYS:
+const res = await fetch(fullUrl, { method, headers, body: body ? JSON.stringify(body) : undefined });
+
+- In the global debug object (__lastApiDebug), record:
+hasAuthToken: !!token
+authHeaderSet: authHeaderSet
+authHeaderPreview: token ? token.slice(0,8) + "..." : null  (optional)
+
+B) SERVER: in server/hunt-routes.ts for GET /api/hunt/spawns
+- At the top of the handler, enforce auth:
+
+const playerId = getPlayerId(req);
+if (!playerId) return res.status(401).json({ error: "UNAUTHORIZED" });
+
+(If getPlayerId currently throws, wrap it and return 401.)
+- Add log:
+console.log("[SPAWNS] auth", { hasAuth: !!req.headers.authorization, playerId: playerId ?? null });
+
+- Make sure middleware that parses JWT runs for GET routes too.
+If your auth middleware is only applied to POST, move it to app.use("/api", authMiddleware) so it applies to GET /api/hunt/spawns as well.
+
+C) DEBUG OVERLAY:
+- Show:
+Auth Token Exists: YES/NO
+Authorization Header Set: YES/NO
+Auth Header Preview: abcdef12...
+So we can confirm header is actually sent.
+
+TEST:
+1) Force close TestFlight app
+2) Open Hunt, show debug overlay
+3) Trigger spawns refresh
+Expected:
+- Status 200
+- Err should be "-" (no wallet required error)
+- Server logs should show [SPAWNS] auth ... playerId=...
+
+Deliver: provide exact diffs for apiRequest, hunt-routes.ts, and HuntDebugOverlay.
