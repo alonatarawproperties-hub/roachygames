@@ -673,31 +673,27 @@ export function registerHuntRoutes(app: Express) {
                 .where(eq(huntHotspotPlayerState.id, playerState.id));
             }
             
-            // Build offers based on cooldowns (only when area is clear)
-            const areaCleared = homeSpawns.length <= 1;
+            // Build offers based on cooldowns - ALWAYS return offers so buttons are visible
+            // Micro cooldown check
+            const microAvailable = !playerState.microCooldownUntil || playerState.microCooldownUntil <= now;
+            const microCooldownRemaining = playerState.microCooldownUntil && playerState.microCooldownUntil > now
+              ? Math.ceil((playerState.microCooldownUntil.getTime() - nowMs) / 1000)
+              : undefined;
             
-            if (areaCleared) {
-              // Micro cooldown check
-              const microAvailable = !playerState.microCooldownUntil || playerState.microCooldownUntil <= now;
-              const microCooldownRemaining = playerState.microCooldownUntil && playerState.microCooldownUntil > now
-                ? Math.ceil((playerState.microCooldownUntil.getTime() - nowMs) / 1000)
-                : undefined;
-              
-              // Hotdrop cooldown check
-              const hotdropAvailable = !playerState.hotdropCooldownUntil || playerState.hotdropCooldownUntil <= now;
-              const hotdropCooldownRemaining = playerState.hotdropCooldownUntil && playerState.hotdropCooldownUntil > now
-                ? Math.ceil((playerState.hotdropCooldownUntil.getTime() - nowMs) / 1000)
-                : undefined;
-              
-              // Beacon availability (1/day)
-              const beaconAvailable = playerState.beaconAvailable && !playerState.beaconCompleted;
-              
-              offers = {
-                micro: { available: microAvailable, cooldownEndsInSec: microCooldownRemaining },
-                hotdrop: { available: hotdropAvailable, cooldownEndsInSec: hotdropCooldownRemaining },
-                beacon: { available: beaconAvailable, claimed: playerState.beaconCompleted },
-              };
-            }
+            // Hotdrop cooldown check
+            const hotdropAvailable = !playerState.hotdropCooldownUntil || playerState.hotdropCooldownUntil <= now;
+            const hotdropCooldownRemaining = playerState.hotdropCooldownUntil && playerState.hotdropCooldownUntil > now
+              ? Math.ceil((playerState.hotdropCooldownUntil.getTime() - nowMs) / 1000)
+              : undefined;
+            
+            // Beacon availability (1/day)
+            const beaconAvailable = playerState.beaconAvailable && !playerState.beaconCompleted;
+            
+            offers = {
+              micro: { available: microAvailable, cooldownEndsInSec: microCooldownRemaining },
+              hotdrop: { available: hotdropAvailable, cooldownEndsInSec: hotdropCooldownRemaining },
+              beacon: { available: beaconAvailable, claimed: playerState.beaconCompleted },
+            };
           }
         } catch (err) {
           console.error('[HOTSPOT] Error fetching player state:', err);
