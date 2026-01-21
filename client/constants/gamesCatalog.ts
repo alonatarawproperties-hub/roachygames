@@ -1,8 +1,6 @@
 import { ImageSourcePropType, Platform } from "react-native";
 
-const RoachyMateLogo = require("@/assets/roachy-mate-logo.png");
 const RoachyHuntLogo = require("@/assets/roachy-hunt-logo.png");
-const FlappyRoachLogo = require("@/assets/flappy-roach-logo.png");
 const RoachyBattlesLogo = require("@/assets/roachy-battles-logo.png");
 
 export interface GameEntry {
@@ -30,35 +28,6 @@ export const ADMIN_ACCOUNTS = [
 ];
 
 export const GAMES_CATALOG: GameEntry[] = [
-  {
-    id: "flappy-roach",
-    title: "Flappy Roachy",
-    tagline: "Tap to Survive!",
-    description: "Guide your Roachy through endless obstacles in this addictive tap-to-fly game. Collect coins, grab power-ups, and beat your high score!",
-    coverImage: FlappyRoachLogo,
-    iconName: "wind",
-    routeName: "FlappyRoachStack",
-    isLocked: false,
-    isComingSoon: false,
-    isLockedOnAndroid: false,
-    category: "arcade",
-    playerCount: "Solo",
-    rewards: ["Coins", "High Scores", "Power-ups"],
-  },
-  {
-    id: "roachy-mate",
-    title: "Roachy Mate",
-    tagline: "Chess with Roachies!",
-    description: "Play chess against AI or friends with your Roachies as chess pieces. Master strategy and outsmart your opponents!",
-    coverImage: RoachyMateLogo,
-    iconName: "grid",
-    routeName: "RoachyMateStack",
-    isLocked: true,
-    isComingSoon: true,
-    category: "strategy",
-    playerCount: "Solo & 1v1",
-    rewards: ["Chess Rankings", "Strategy Badges", "Daily Challenges"],
-  },
   {
     id: "roachy-hunt",
     title: "Roachy Hunt",

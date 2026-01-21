@@ -5,16 +5,7 @@ import HuntStackNavigator from "@/navigation/HuntStackNavigator";
 import BattlesStackNavigator from "@/navigation/BattlesStackNavigator";
 import CatchScreen from "@/screens/CatchScreen";
 import { ArcadeHomeScreen } from "@/screens/Arcade";
-import { FlappyRoachScreen } from "@/screens/FlappyRoachScreen";
-import { RoachyMateScreen } from "@/screens/RoachyMateScreen";
-import { RoachyBattlesScreen } from "@/screens/RoachyBattlesScreen";
-import { ChessLobbyScreen } from "@/screens/ChessLobbyScreen";
-import { ChessMatchmakingScreen } from "@/screens/ChessMatchmakingScreen";
-import { ChessGameScreen } from "@/screens/ChessGameScreen";
-import { TournamentListScreen } from "@/screens/TournamentListScreen";
-import { TournamentDetailScreen } from "@/screens/TournamentDetailScreen";
 import { AuthScreen } from "@/screens/AuthScreen";
-import ChessSkinSelectorScreen from "@/screens/ChessSkinSelectorScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/context/AuthContext";
 import { WildCreature } from "@/constants/gameState";
@@ -24,16 +15,8 @@ export type RootStackParamList = {
   Auth: undefined;
   ArcadeHome: undefined;
   RoachyHuntStack: undefined;
-  FlappyRoachStack: { competitionId?: string; competitionName?: string } | undefined;
-  RoachyMateStack: undefined;
   RoachyBattlesStack: undefined;
   Catch: { creature: WildCreature };
-  ChessLobby: undefined;
-  ChessMatchmaking: { walletAddress: string; gameMode: string; timeControl: string };
-  ChessGame: { matchId: string; walletAddress: string };
-  TournamentList: undefined;
-  TournamentDetail: { tournamentId: string };
-  ChessSkinSelector: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -80,22 +63,6 @@ export default function RootStackNavigator() {
         }}
       />
       <Stack.Screen
-        name="FlappyRoachStack"
-        component={FlappyRoachScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="RoachyMateStack"
-        component={RoachyMateScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
         name="RoachyBattlesStack"
         component={BattlesStackNavigator}
         options={{
@@ -103,54 +70,6 @@ export default function RootStackNavigator() {
           animation: "slide_from_right",
         }}
       />
-      <Stack.Screen
-        name="ChessLobby"
-        component={ChessLobbyScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="ChessMatchmaking"
-        component={ChessMatchmakingScreen}
-        options={{
-          headerShown: false,
-          animation: "fade",
-        }}
-      />
-      <Stack.Screen
-        name="ChessGame"
-        component={ChessGameScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_bottom",
-        }}
-      />
-      <Stack.Screen
-        name="TournamentList"
-        component={TournamentListScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-          <Stack.Screen
-            name="TournamentDetail"
-            component={TournamentDetailScreen}
-            options={{
-              headerShown: false,
-              animation: "slide_from_right",
-            }}
-          />
-          <Stack.Screen
-            name="ChessSkinSelector"
-            component={ChessSkinSelectorScreen}
-            options={{
-              headerTitle: "Loadout",
-              animation: "slide_from_right",
-            }}
-          />
         </>
       )}
     </Stack.Navigator>
