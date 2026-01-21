@@ -1,0 +1,78 @@
+Fix the “catch stuck / no result / can’t tap” bug by fixing apiRequest AbortSignal handling, fixing claimNode attempt tracking (stale cancel bug), and making CameraEncounter auto-close on Cancelled/Timeout. Keep everything else unchanged.
+
+FILES:
+1) client/lib/query-client.ts
+2) client/context/HuntContext.tsx
+3) client/screens/HuntScreen.tsx
+
+========================================
+1) client/lib/query-client.ts
+BUGFIX: externalSignal is used but never defined
+========================================
+
+Inside apiRequest(), right before:
+  // Set up abort controller: merge external signal + timeout
+
+Add:
+  const externalSignal = options?.signal;
+
+So this block becomes valid:
+  if (externalSignal) { ... }
+
+Also ensure the timeout abort logic remains the same.
+
+========================================
+2) client/context/HuntContext.tsx
+FIX claimNode() attempt tracking so it doesn’t self-cancel
+========================================
+
+In claimNode useCallback, find:
+  const thisAttempt = attemptId ?? ++claimAttemptRef.current;
+
+Replace with:
+  const thisAttempt = attemptId ?? (claimAttemptRef.current + 1);
+  claimAttemptRef.current = thisAttempt;
+
+Then find the stale response guard that currently depends on attemptId, something like:
+  if (attemptId !== undefined && claimAttemptRef.current !== thisAttempt) { ... }
+
+Replace with this unconditional guard:
+  if (claimAttemptRef.current !== thisAttempt) {
+    console.log("[ClaimNode] v18 Ignoring stale response, attempt:", thisAttempt, "current:", claimAttemptRef.current);
+    return { success: false, error: "Cancelled", stale: true };
+  }
+
+Do NOT change route, request payload, invalidations, or abort controller behavior.
+
+WHY: handleStartCatch passes attemptId, but claimNode never updates claimAttemptRef.current when attemptId is provided, causing it to think the request is stale and return Cancelled → UI hangs.
+
+========================================
+3) client/screens/HuntScreen.tsx
+UI SAFETY: Close encounter on Cancelled/Timeout so it never “sticks”
+========================================
+
+In handleStartCatch(), in the branch:
+  } else if (result && result.error) {
+
+Modify to:
+  setIsCollecting(false);
+
+  if (result.error === "Cancelled" || result.error === "Timeout") {
+    setShowCameraEncounter(false);
+    setSelectedSpawn(null);
+    activeSpawnRef.current = null;
+    return;
+  }
+
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+
+Also in the generic catch(error) block, if it’s AbortError/ABORTED, do the same close behavior (no alert), so aborts don’t trap the UI.
+
+========================================
+TEST CHECKLIST
+========================================
+1) Tap egg once → success shows egg reveal (not stuck)
+2) Rapid double tap → first aborts, second proceeds, no freeze
+3) Slow network (>15s) → encounter closes (no infinite spinner)
+4) Miss path still calls /api/hunt/miss and spawn disappears from map

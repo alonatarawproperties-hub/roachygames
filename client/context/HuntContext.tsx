@@ -835,8 +835,9 @@ export function HuntProvider({ children }: HuntProviderProps) {
     const abortController = new AbortController();
     claimAbortRef.current = abortController;
     
-    // Track this attempt
-    const thisAttempt = attemptId ?? ++claimAttemptRef.current;
+    // Track this attempt - always update ref to avoid stale self-cancel
+    const thisAttempt = attemptId ?? (claimAttemptRef.current + 1);
+    claimAttemptRef.current = thisAttempt;
     
     try {
       const response = await apiRequest("POST", "/api/hunt/phase1/claim-spawn", {
@@ -850,8 +851,8 @@ export function HuntProvider({ children }: HuntProviderProps) {
       });
       
       // Check if this response is stale (a newer attempt was started)
-      if (attemptId !== undefined && claimAttemptRef.current !== thisAttempt) {
-        console.log("[ClaimNode] v17 Ignoring stale response, attempt:", thisAttempt, "current:", claimAttemptRef.current);
+      if (claimAttemptRef.current !== thisAttempt) {
+        console.log("[ClaimNode] v18 Ignoring stale response, attempt:", thisAttempt, "current:", claimAttemptRef.current);
         return { success: false, error: "Cancelled", stale: true };
       }
       

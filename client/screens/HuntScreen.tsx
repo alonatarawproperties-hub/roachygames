@@ -1097,11 +1097,17 @@ export default function HuntScreen() {
         // Actual error from server
         console.log("[Phase1] Server error:", result.error);
         setIsCollecting(false);
-        // Anti-freeze: Don't show alert for cancelled requests
-        if (result.error !== "Cancelled") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+        
+        // Anti-freeze: Close encounter on Cancelled/Timeout so it never sticks
+        if (result.error === "Cancelled" || result.error === "Timeout") {
+          setShowCameraEncounter(false);
+          setSelectedSpawn(null);
+          activeSpawnRef.current = null;
+          return;
         }
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
       } else {
         // Unknown response
         console.log("[Phase1] Unknown response:", JSON.stringify(result));
@@ -1115,11 +1121,15 @@ export default function HuntScreen() {
       // Only update UI if this is still the current attempt
       if (thisAttempt === catchSeqRef.current) {
         setIsCollecting(false);
-        // Anti-freeze: Don't show alert for aborted requests
-        if (error?.name !== "AbortError" && (error as any)?.code !== "ABORTED") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
+        // Anti-freeze: Close encounter on abort so it doesn't trap UI
+        if (error?.name === "AbortError" || (error as any)?.code === "ABORTED") {
+          setShowCameraEncounter(false);
+          setSelectedSpawn(null);
+          activeSpawnRef.current = null;
+          return;
         }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
       }
     } finally {
       // Always release the lock

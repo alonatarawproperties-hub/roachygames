@@ -155,12 +155,12 @@ export async function apiRequest(
   const headerSet = !!headers["Authorization"];
 
   // Set up abort controller: merge external signal + timeout
+  const externalSignal = options?.signal;
   const timeoutMs = options?.timeoutMs ?? 15000;
   const timeoutController = new AbortController();
   const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
   
   // If external signal provided, listen for abort
-  const externalSignal = options?.signal;
   if (externalSignal) {
     if (externalSignal.aborted) {
       clearTimeout(timeoutId);
