@@ -1,0 +1,84 @@
+Fix two remaining bugs:
+(A) Map tap freeze caused by tapLockRef never releasing when onSpawnTap throws
+(B) Catch screen stuck caused by apiCalledRef not resetting between encounters
+
+FILES:
+1) client/components/MapViewWrapper.tsx
+2) client/components/CameraEncounter.tsx
+
+========================================
+A) MapViewWrapper.tsx — make tap lock impossible to deadlock
+========================================
+
+Find safeOnSpawnTap and replace it with this robust version:
+
+const tapUnlockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+const safeOnSpawnTap = useCallback((spawn: Spawn, source: string) => {
+  console.log(`[safeOnSpawnTap] v3 source=${source} spawn=${spawn?.id} locked=${tapLockRef.current}`);
+  if (tapLockRef.current) {
+    console.log("[safeOnSpawnTap] BLOCKED: tap lock active");
+    return;
+  }
+
+  tapLockRef.current = true;
+  lastMarkerEventTsRef.current = Date.now();
+
+  // Always schedule unlock FIRST so even if onSpawnTap throws, lock will release
+  if (tapUnlockTimeoutRef.current) clearTimeout(tapUnlockTimeoutRef.current);
+  tapUnlockTimeoutRef.current = setTimeout(() => {
+    tapLockRef.current = false;
+    console.log("[safeOnSpawnTap] Lock released after debounce");
+  }, TAP_DEBOUNCE_MS);
+
+  try {
+    console.log("[safeOnSpawnTap] Lock acquired, calling onSpawnTap");
+    onSpawnTap?.(spawn);
+  } catch (err) {
+    console.log("[safeOnSpawnTap] ERROR in onSpawnTap:", err);
+    // Fail-safe: release immediately if something blew up
+    tapLockRef.current = false;
+    if (tapUnlockTimeoutRef.current) clearTimeout(tapUnlockTimeoutRef.current);
+    tapUnlockTimeoutRef.current = null;
+  }
+}, [onSpawnTap]);
+
+Also add cleanup:
+useEffect(() => {
+  return () => {
+    if (tapUnlockTimeoutRef.current) clearTimeout(tapUnlockTimeoutRef.current);
+  };
+}, []);
+
+Do NOT change marker JSX or map onPress logic otherwise.
+
+========================================
+B) CameraEncounter.tsx — reset apiCalledRef between encounters
+========================================
+
+1) Add this effect near the top (after refs are declared):
+
+useEffect(() => {
+  // New spawn/encounter → allow API call again
+  apiCalledRef.current = false;
+  console.log("[CameraEncounter] Reset apiCalledRef for spawn:", spawn?.id);
+}, [spawn?.id]);
+
+2) In the MISS branch (where you setShowMissed(true)), add:
+apiCalledRef.current = false;
+
+3) In onDismiss() call site (where you call onDismiss after 1500ms), before calling onDismiss add:
+apiCalledRef.current = false;
+
+4) In the close button handler (onCancel), ensure:
+apiCalledRef.current = false;
+(then call onCancel normally)
+
+Goal: every time a new encounter starts OR exits, apiCalledRef is reset so future catches are not blocked.
+
+========================================
+TEST
+========================================
+1) Tap a spawn marker repeatedly → it should never “freeze” even if something errors
+2) Catch one egg, close, catch another → API should fire again (no stuck screen)
+3) Miss an egg → spawn disappears + next encounter catch still works

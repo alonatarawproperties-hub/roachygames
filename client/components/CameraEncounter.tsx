@@ -324,12 +324,16 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `tap_miss spawn=${spawn.id}` });
       // Missed - tapped outside egg
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      apiCalledRef.current = false; // Reset for next encounter
       setShowMissed(true);
       
       // Prevent double-sending miss for same spawn
       if (sentMissRef.current.has(spawn.id)) {
         pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `miss_already_sent spawn=${spawn.id}` });
-        setTimeout(() => onCancel(), 1200);
+        setTimeout(() => {
+          apiCalledRef.current = false;
+          onCancel();
+        }, 1200);
         return;
       }
       sentMissRef.current.add(spawn.id);
@@ -352,9 +356,16 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       } catch {}
       
       setTimeout(() => {
+        apiCalledRef.current = false;
         onCancel();
       }, 1200);
     }
+  };
+
+  // Wrapper to reset apiCalledRef before cancel
+  const handleCancel = () => {
+    apiCalledRef.current = false;
+    onCancel();
   };
 
   const tapGesture = Gesture.Tap()
@@ -479,7 +490,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
               <ThemedText style={styles.permissionButtonText}>Enable Camera</ThemedText>
             </Pressable>
           )}
-          <Pressable style={styles.cancelButton} onPress={onCancel}>
+          <Pressable style={styles.cancelButton} onPress={handleCancel}>
             <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
           </Pressable>
         </View>
@@ -518,7 +529,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
         entering={FadeInDown.duration(300).springify()}
         style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}
       >
-        <Pressable style={styles.closeButton} onPress={onCancel}>
+        <Pressable style={styles.closeButton} onPress={handleCancel}>
           <BlurView intensity={40} tint="dark" style={styles.blurButton}>
             <Feather name="x" size={20} color="#fff" />
           </BlurView>
