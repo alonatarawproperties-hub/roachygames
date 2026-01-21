@@ -59,17 +59,42 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   const apiCalledRef = useRef(false);
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   const sentMissRef = useRef(new Set<string>());
+  
+  // A) Refs for egg bounds measurement (screen coordinates)
+  const eggRef = useRef<View>(null);
+  const eggRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  
+  const measureEgg = () => {
+    requestAnimationFrame(() => {
+      eggRef.current?.measureInWindow((x, y, w, h) => {
+        eggRectRef.current = { x, y, w, h };
+        console.log("[EggRect]", eggRectRef.current);
+      });
+    });
+  };
 
-  // Reset state when spawn changes
+  // Reset state when spawn changes + measure egg
   useEffect(() => {
     apiCalledRef.current = false;
     setIsCatching(false);
     setShowParticles(false);
+    measureEgg();
     return () => {
       timeoutsRef.current.forEach(clearTimeout);
       timeoutsRef.current = [];
     };
   }, [spawn.id]);
+  
+  // E) Safety: prevent "CATCHING..." stuck - force exit after 18s
+  useEffect(() => {
+    if (!isCatching) return;
+    const t = setTimeout(() => {
+      console.log("[CameraEncounter] catch timeout 18s - force exit");
+      pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `catch_timeout_18s spawn=${spawn.id}` });
+      onCancel?.();
+    }, 18000);
+    return () => clearTimeout(t);
+  }, [isCatching, spawn.id]);
 
   // Egg position and idle animations
   const creatureX = useSharedValue(SCREEN_WIDTH / 2 - 60);
@@ -167,7 +192,14 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     
     // Then continue with rapid interval movements
     const moveInterval = setInterval(() => randomMove(false), 1500 + Math.random() * 800);
-    return () => clearInterval(moveInterval);
+    
+    // Re-measure egg bounds every 200ms while it moves
+    const measureInterval = setInterval(measureEgg, 200);
+    
+    return () => {
+      clearInterval(moveInterval);
+      clearInterval(measureInterval);
+    };
   }, [isCatching]);
 
   const callApiOnce = () => {
@@ -294,25 +326,29 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     }, 600);
   };
 
-  // Hit detection constants - egg is 240x300, positioned at creatureX/Y
-  const EGG_WIDTH = 240;
-  const EGG_HEIGHT = 300;
+  // Hit detection constants
   const HIT_PADDING = 30; // Extra padding for easier tapping
 
-  // Handle tap with coordinate-based hit detection
+  // C) Handle tap with coordinate-based hit detection using measured egg bounds
   const handleTapAtPosition = async (tapX: number, tapY: number) => {
     if (isCollecting || isCatching || showMissed) return;
     
-    // Get current egg position
-    const hitboxLeft = creatureX.value - HIT_PADDING;
-    const hitboxRight = creatureX.value + EGG_WIDTH + HIT_PADDING;
-    const hitboxTop = creatureY.value - HIT_PADDING;
-    const hitboxBottom = creatureY.value + EGG_HEIGHT + HIT_PADDING;
+    // Use measured egg rect for accurate hit detection (screen coordinates)
+    const r = eggRectRef.current;
+    if (!r) {
+      console.log("[TapDetect] egg rect not ready, measuring...");
+      measureEgg();
+      return;
+    }
     
-    const isHit = tapX >= hitboxLeft && tapX <= hitboxRight && 
-                  tapY >= hitboxTop && tapY <= hitboxBottom;
+    const pad = HIT_PADDING;
+    const isHit =
+      tapX >= r.x - pad &&
+      tapX <= r.x + r.w + pad &&
+      tapY >= r.y - pad &&
+      tapY <= r.y + r.h + pad;
     
-    console.log("[TapDetect] tap at:", tapX, tapY, "hitbox:", hitboxLeft, hitboxRight, hitboxTop, hitboxBottom, "isHit:", isHit);
+    console.log("[TapDetect] tap:", tapX.toFixed(0), tapY.toFixed(0), "eggRect:", JSON.stringify(r), "isHit:", isHit);
     
     if (isHit) {
       // Debug event: tap hit
@@ -573,7 +609,12 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <View style={styles.eggTapArea}>
+              <View 
+                ref={eggRef}
+                collapsable={false}
+                style={styles.eggTapArea}
+                onLayout={measureEgg}
+              >
                 <Image
                   source={require("@/assets/hunt/mystery-egg.png")}
                   style={styles.mysteryEggImage}

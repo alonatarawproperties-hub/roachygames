@@ -1,0 +1,134 @@
+You are working on Roachy Hunt (Expo / React Native). There is a BUG in CameraEncounter hit detection + aim ring alignment causing:
+1) “Perfect hit” visually but it does NOT register as hit (ring looks offset)
+2) Catch flow gets stuck on “CATCHING…” because hit/miss detection is wrong or inconsistent.
+
+Root cause: We compare tapGesture’s event.absoluteX/Y (SCREEN coordinates) against creatureX/creatureY animated values (NOT the same coordinate space). Also the aim ring is likely positioned using top-left instead of centered.
+
+GOAL: Make hit detection use REAL on-screen egg bounds via measureInWindow, and center the aim ring. This will make taps accurate and stop false misses / stuck catching.
+
+=== CHANGES (DO EXACTLY) ===
+
+FILE: client/screens/CameraEncounter.tsx (or wherever CameraEncounter component lives)
+
+A) Add refs + measurement for egg bounds (screen coords)
+
+1) At top of component, add:
+- const eggRef = useRef<View>(null);
+- const eggRectRef = useRef<{ x:number; y:number; w:number; h:number } | null>(null);
+
+2) Add a helper function inside component:
+const measureEgg = () => {
+  requestAnimationFrame(() => {
+    eggRef.current?.measureInWindow((x, y, w, h) => {
+      eggRectRef.current = { x, y, w, h };
+      console.log("[EggRect]", eggRectRef.current);
+    });
+  });
+};
+
+3) When encounter opens / spawn changes, measure once:
+useEffect(() => {
+  measureEgg();
+}, [spawn?.id]);
+
+B) Attach ref to the ACTUAL egg tap area container
+
+Find the egg container (you mentioned <View style={styles.eggTapArea}> wrapping the Image).
+Change it to:
+
+<View
+  ref={eggRef}
+  collapsable={false}
+  style={styles.eggTapArea}
+  onLayout={measureEgg}
+>
+  <Image ... />
+</View>
+
+IMPORTANT:
+- Keep the Image inside
+- Keep the Animated creature wrappers if any
+- Only ensure the ref is on the tap area View that visually matches the egg
+
+C) Replace hit detection logic to use eggRectRef instead of creatureX/creatureY
+
+Find handleTapAtPosition(tapX, tapY). Replace the current hitbox math:
+
+// REMOVE these old hitbox calcs:
+// hitboxLeft = creatureX.value - HIT_PADDING ... etc
+
+// REPLACE with:
+const r = eggRectRef.current;
+if (!r) {
+  console.log("[TapDetect] egg rect not ready, measuring...");
+  measureEgg();
+  return;
+}
+
+const pad = HIT_PADDING; // keep same padding const
+const isHit =
+  tapX >= r.x - pad &&
+  tapX <= r.x + r.w + pad &&
+  tapY >= r.y - pad &&
+  tapY <= r.y + r.h + pad;
+
+console.log("[TapDetect] tap:", tapX, tapY, "eggRect:", r, "isHit:", isHit);
+
+Keep the rest of your hit/miss behavior the same:
+- If isHit => pushApiDebug tap_hit + startCatchAnimation()
+- Else => pushApiDebug tap_miss + haptics + showMissed + miss HTTP call
+
+D) Fix aim ring offset: CENTER it
+
+Wherever you position the yellow aim ring using tapX/tapY, it must be centered.
+
+If you currently do something like:
+ringX.value = tapX;
+ringY.value = tapY;
+
+Change to:
+ringX.value = tapX - RING_SIZE / 2;
+ringY.value = tapY - RING_SIZE / 2;
+
+If you don’t have RING_SIZE constant, define it based on the ring view width/height (example 120).
+Use the same number as the ring’s rendered size.
+
+Optional nicer behavior (recommended):
+When isHit === true, snap ring to egg center instead of tap:
+const cx = r.x + r.w/2;
+const cy = r.y + r.h/2;
+ringX.value = cx - RING_SIZE/2;
+ringY.value = cy - RING_SIZE/2;
+
+E) Safety: prevent “CATCHING…” stuck even if API is slow
+
+In startCatchAnimation() right before calling onStartCatch(spawn), ensure it can’t remain stuck forever.
+Add a hard timeout fallback in CameraEncounter (NOT server):
+- If isCatching stays true for > 18s, call onCancel() or a new prop onForceClose() if exists.
+
+Example:
+useEffect(() => {
+  if (!isCatching) return;
+  const t = setTimeout(() => {
+    console.log("[CameraEncounter] catch timeout - force exit");
+    onCancel?.();
+  }, 18000);
+  return () => clearTimeout(t);
+}, [isCatching]);
+
+(If onCancel is not correct, then call a provided close handler that sets showCameraEncounter(false).)
+
+=== VALIDATION ===
+1) Add console logs:
+- [EggRect] prints with x,y,w,h
+- [TapDetect] prints tap coords + eggRect + isHit
+2) Test: Tap center of egg. isHit MUST be true.
+3) Yellow ring should visually center on tap / egg, not offset.
+4) After hit, claim-spawn returns 200, and the UI must exit encounter and show egg reveal modal.
+
+DO NOT change backend routes. Fix is purely client hit detection + ring centering + timeout safety.
+
+After implementing, run the app and report:
+- One log sample for EggRect
+- One log sample for TapDetect hit=true
+- Whether “CATCHING…” still stuck.
