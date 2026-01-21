@@ -19,6 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { GameColors, Spacing, BorderRadius } from "@/constants/theme";
 import type { Spawn } from "@/context/HuntContext";
+import { CATCH_RADIUS_M } from "@/lib/hunt-constants";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_HEIGHT = 300;
@@ -110,9 +111,8 @@ export function SpawnReserveSheet({
     : "Unknown distance";
 
   const isReserved = !!reservedUntil && new Date(reservedUntil).getTime() > Date.now();
-  // HOME DROP: visible == catchable (500m radius)
-  const CATCH_RADIUS = 500;
-  const canCatch = playerDistance !== null && playerDistance <= CATCH_RADIUS;
+  // HOME DROP: visible == catchable (50m radius from shared constants)
+  const canCatch = playerDistance !== null && playerDistance <= CATCH_RADIUS_M;
 
   return (
     <Modal

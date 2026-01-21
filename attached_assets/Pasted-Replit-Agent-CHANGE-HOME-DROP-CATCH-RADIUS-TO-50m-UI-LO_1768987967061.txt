@@ -1,0 +1,71 @@
+Replit Agent: CHANGE HOME DROP / CATCH RADIUS TO 50m (UI + LOGIC)
+
+Goal:
+- The visible circle radius must be 50 meters (not 500m).
+- The “in range / move closer” logic must match the same 50m.
+- Use ONE constant so UI and logic never drift again.
+
+Step 1) Add shared constants
+Create or edit file: client/lib/hunt-constants.ts
+
+Add:
+export const HOME_DROP_RADIUS_M = 50;      // visible home circle
+export const CATCH_RADIUS_M = 50;          // spawn catchable distance
+export const UI_NEARBY_RADIUS_M = 50;      // “egg nearby” messaging threshold
+
+Step 2) Update the Map circle to use the constant
+File: client/components/MapViewWrapper.tsx
+
+- Import:
+import { HOME_DROP_RADIUS_M } from "@/lib/hunt-constants";
+
+- Change Circle radius:
+radius={HOME_DROP_RADIUS_M}
+(Replace any hardcoded 500.)
+
+Step 3) Update any “move within 100m” / distance gating to match 50m
+File: client/screens/HuntScreen.tsx
+
+- Import:
+import { CATCH_RADIUS_M, UI_NEARBY_RADIUS_M } from "@/lib/hunt-constants";
+
+- Find any hardcoded values like:
+  100
+  110
+  50
+  500
+  "within 100m"
+  "closest:"
+  "move closer"
+  "egg visible"
+  "egg nearby"
+
+- Replace logic thresholds:
+  - Any check like: if (distanceM <= 100) => if (distanceM <= CATCH_RADIUS_M)
+  - Any check like: if (distanceM <= 100) for UI => if (distanceM <= UI_NEARBY_RADIUS_M)
+
+- Update the UI text to reflect 50m:
+  Change "move within 100m" to `move within ${CATCH_RADIUS_M}m`
+  Ensure “closest: Xm” remains computed.
+
+Step 4) Ensure server/client filtering uses the same 50m (if present)
+Search in client + server for:
+  radius=500
+  radius=100
+  radius=50
+  CATCH_RADIUS
+  HOME_DROP
+  getDistance
+  haversine
+
+If there is a client filter that decides which spawns are catchable/visible,
+it must use CATCH_RADIUS_M (50m), not 100m or 500m.
+
+Step 5) Quick safety
+- Do NOT change spawn generation yet.
+- Only change radius constants + checks + copy text.
+
+Expected outcome:
+- The map circle becomes small (50m).
+- Any “egg visible/nearby” messages and catch gating match 50m exactly.
+- No more mismatch where circle says one thing and UI says another.

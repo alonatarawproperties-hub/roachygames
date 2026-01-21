@@ -549,12 +549,12 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             longitudeDelta: 0.005,
           }}
         >
-          {/* HOME DROP: 500m radius circle - visible == catchable */}
+          {/* HOME DROP: 50m radius circle - visible == catchable */}
           {hasLocation && (
             <MapCircle
               key={`home-circle-${mapCenter!.latitude.toFixed(5)}-${mapCenter!.longitude.toFixed(5)}`}
               center={{ latitude: mapCenter!.latitude, longitude: mapCenter!.longitude }}
-              radius={500}
+              radius={50}
               strokeColor="rgba(255, 149, 0, 0.5)"
               fillColor="rgba(255, 149, 0, 0.08)"
               strokeWidth={2}

@@ -182,8 +182,8 @@ export default function HuntScreen() {
     claimBeacon,
   } = useHunt();
   
-  // Hunt radius constant - must match server radius for spawns query
-  const HUNT_RADIUS_M = 500;
+  // Import shared constants for Home Drop radius
+  const { CATCH_RADIUS_M } = require("@/lib/hunt-constants");
   
   useGamePresence("roachy-hunt");
   const { nearbyPlayers, isVisible, setVisibility, setLocation: setPresenceLocation } = usePresenceContext();
@@ -268,7 +268,7 @@ export default function HuntScreen() {
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
   
-  // HOME DROP: Single radius - visible == catchable (HUNT_RADIUS_M = 500m)
+  // HOME DROP: Single radius - visible == catchable (CATCH_RADIUS_M = 50m)
   const spawnRangeCounts = useMemo(() => {
     const homeSpawns = (spawns || []).filter((s: Spawn) => {
       // Only count home-type spawns (home, drip, or null/undefined for backwards compat)
@@ -279,7 +279,7 @@ export default function HuntScreen() {
     
     for (const s of homeSpawns) {
       const dist = typeof s.distance === "number" ? s.distance : null;
-      if (dist !== null && dist <= HUNT_RADIUS_M) {
+      if (dist !== null && dist <= CATCH_RADIUS_M) {
         inRangeCount++;
       }
     }
@@ -291,7 +291,7 @@ export default function HuntScreen() {
       closestOutOfRange: null,
       visibleCount: inRangeCount 
     };
-  }, [spawns, HUNT_RADIUS_M]);
+  }, [spawns, CATCH_RADIUS_M]);
   
   const { inRangeCount, outOfRangeCount, closestOutOfRange } = spawnRangeCounts;
   
@@ -797,10 +797,10 @@ export default function HuntScreen() {
     dbg({ lastTap: "SPAWN_TAP", nodeId: spawn.id });
     console.log("[handleSpawnTap] Spawn tapped:", spawn.id, spawn.name, "distance:", spawn.distance);
     
-    // HOME DROP: visible == catchable (same radius HUNT_RADIUS_M)
+    // HOME DROP: visible == catchable (same radius CATCH_RADIUS_M = 50m)
     const dist = spawn.distance || 0;
     
-    if (dist > HUNT_RADIUS_M) {
+    if (dist > CATCH_RADIUS_M) {
       dbg({ reserve: "TOO_FAR" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
