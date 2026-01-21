@@ -1116,6 +1116,33 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // Admin endpoint to check user eggs
+  app.get("/api/admin/hunt/user-eggs", adminAuth, async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId required" });
+      }
+
+      const eggs = await db.select({
+        rarity: huntEggs.rarity,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(huntEggs)
+        .where(and(
+          eq(huntEggs.userId, userId as string),
+          sql`${huntEggs.hatchedAt} IS NULL`
+        ))
+        .groupBy(huntEggs.rarity);
+
+      res.json({ userId, eggs });
+    } catch (error) {
+      console.error("[Admin] User eggs check error:", error);
+      res.status(500).json({ error: "Failed to check user eggs" });
+    }
+  });
+
   // Admin endpoint to lookup user by Google ID
   app.get("/api/admin/user/lookup", adminAuth, async (req: Request, res: Response) => {
     try {
