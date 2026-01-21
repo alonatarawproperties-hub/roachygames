@@ -1,0 +1,79 @@
+You are working in this Replit repo. Goal: fix remaining Hunt API 500 errors (esp. “Failed to get nodes”), harden endpoints so “empty data” never returns 500, and add server logs that correlate with the mobile debug overlay. Make minimal, production-safe changes. Do NOT refactor unrelated code. Do NOT change request/response shapes unless necessary; if you must, keep backward compatibility.
+
+CONTEXT:
+- Mobile debug overlay now shows /api/hunt/miss returning 200 OK (works).
+- Remaining issue: some endpoint returns HTTP 500 with JSON: {"error":"Failed to get nodes"} and another: {"error":"Failed to fetch economy stats"}.
+- We previously fixed /api/hunt/spawns to use requireAuth and return 401 UNAUTHORIZED (not “Wallet address required”).
+- We need to locate where “Failed to get nodes” and “Failed to fetch economy stats” are thrown and fix root cause or downgrade to safe empty responses when appropriate.
+
+TASKS (DO ALL):
+
+1) FIND the failing routes
+- Search the server code for these exact strings:
+  a) "Failed to get nodes"
+  b) "Failed to fetch economy stats"
+  c) any remaining "Wallet address required"
+- Identify which express routes they belong to (likely /api/hunt/nodes, /api/hunt/economy/me, etc.)
+- For each, inspect the try/catch and what dependencies it calls (DB queries, external APIs, in-memory sessions, etc.)
+
+2) ADD robust error logging (server-side)
+For each route that can return 500 in Hunt:
+- In the catch block (or around the failing call), add:
+  console.error(`[HUNT][<ROUTE_KEY>] ERROR`, { requestId, playerId, err: String(err), stack: err?.stack, ...context });
+- Include:
+  - requestId: generate a short id per request (e.g., Date.now().toString(36)+Math.random().toString(36).slice(2,6))
+  - playerId: from getPlayerId(req) if available; do not throw if missing (use null)
+  - route path and method
+  - any key params (lat/lng/radius, etc.) but do NOT log JWT or secrets
+- Also add an “OK” log at info level for those endpoints:
+  console.log(`[HUNT][<ROUTE_KEY>] OK`, { requestId, playerId, ms: duration, ...small summary });
+
+3) FIX: “Failed to get nodes” should not be 500 for normal empty state
+- Determine what “nodes” means in this codebase (map nodes? spawn nodes? hotspot nodes? etc.)
+- If the underlying data source returns empty (no rows / no nodes), respond 200 with a valid empty payload (e.g., { nodes: [] } or whatever existing success schema is), NOT 500.
+- Only return 500 if:
+  - DB query truly fails (exception) OR
+  - required server config missing (misconfiguration)
+- If it’s a DB query: ensure it filters by owner where appropriate and handles null results.
+- Keep response backward compatible:
+  - If current success response is { success:true, nodes:[...] }, keep that.
+  - If current response is { nodes:[...] }, keep that.
+  - If unknown, inspect client call site for expected shape and keep it.
+
+4) FIX: “Failed to fetch economy stats” should also be resilient
+- Locate /api/hunt/economy/me (or equivalent).
+- If economy stats depend on optional tables/rows, handle “not found” by returning defaults (zeros) with 200 OK.
+- Example defaults (adjust to existing schema):
+  { energy: 0, energyMax: 0, coins: 0, streak: 0, huntsToday: 0, dailyCap: 25, warmth: 0, ... }
+- Do NOT 500 just because player row doesn’t exist yet. Auto-create missing rows or return defaults.
+- Keep auth requirements consistent: requireAuth should be applied to private endpoints.
+
+5) VERIFY auth + ownership patterns are consistent
+- Ensure /api/hunt/nodes and /api/hunt/economy/me (and any other “me” endpoints) use requireAuth middleware.
+- Ensure they derive playerId ONLY from JWT (req.userId), never require walletAddress in query/body.
+- If any endpoint still checks “walletAddress required”, replace with 401 { error:"UNAUTHORIZED" } consistently.
+- Add a tiny helper if useful:
+  function getOptionalPlayerId(req){ try { return getPlayerId(req);} catch { return null; } }
+  But do NOT reintroduce throwing for normal code paths.
+
+6) ADD a safe “requestId” header in responses for debugging (optional but recommended)
+- For the endpoints you touch, include:
+  res.setHeader("x-request-id", requestId);
+- This helps correlate client logs with server logs.
+- Do not break caching or CORS; just set the header.
+
+7) QUICK smoke checks (no new test framework)
+- After changes, run the server and:
+  - hit the nodes endpoint without data and confirm it returns 200 with empty list (not 500)
+  - hit economy/me for a brand-new account and confirm 200 with defaults (not 500)
+  - confirm there are no remaining occurrences of “Wallet address required” in Hunt routes
+
+OUTPUT REQUIREMENTS:
+- Make the changes directly in the repo.
+- Summarize exactly:
+  - files changed
+  - endpoints fixed
+  - what was causing the 500s (best-effort)
+  - what response behavior is now for empty states
+  - any logs added and their tag formats (e.g., [HUNT][NODES] ...)
+- Keep changes minimal and production safe.

@@ -1939,11 +1939,17 @@ export function registerHuntRoutes(app: Express) {
     }
   });
 
-  app.get("/api/hunt/economy/:walletAddress", async (req: Request, res: Response) => {
+  app.get("/api/hunt/economy/:walletAddress", requireAuth, async (req: Request, res: Response) => {
+    const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    res.setHeader("x-request-id", requestId);
+    const startMs = Date.now();
+    
     try {
-      // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      // URL param is ignored for security - identity comes from JWT only
-      const walletAddress = requirePlayerId(req);
+      const playerId = getPlayerId(req);
+      if (!playerId) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+      }
+      const walletAddress = playerId;
 
       let [economy] = await db.select().from(huntEconomyStats)
         .where(eq(huntEconomyStats.walletAddress, walletAddress))
@@ -1974,28 +1980,51 @@ export function registerHuntRoutes(app: Express) {
         economy.energy = economy.maxEnergy;
       }
 
-      console.log(`[Economy] wallet=${walletAddress} collectedEggs=${economy.collectedEggs}`);
+      const ms = Date.now() - startMs;
+      console.log(`[HUNT][ECONOMY] OK`, { requestId, playerId: walletAddress.slice(-8), collectedEggs: economy.collectedEggs, ms });
       res.json({ economy });
-    } catch (error) {
-      console.error("Economy fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch economy stats" });
+    } catch (error: any) {
+      const playerId = getPlayerId(req);
+      console.error(`[HUNT][ECONOMY] ERROR`, { requestId, playerId, err: String(error), stack: error?.stack });
+      // Return safe default economy instead of 500
+      res.json({
+        economy: {
+          energy: 30,
+          maxEnergy: 30,
+          collectedEggs: 0,
+          catchesToday: 0,
+          maxCatchesPerDay: 25,
+          catchesThisWeek: 0,
+          maxCatchesPerWeek: 120,
+        },
+        ok: false,
+        error: "ECONOMY_UNAVAILABLE",
+      });
     }
   });
 
-  app.get("/api/hunt/collection/:walletAddress", async (req: Request, res: Response) => {
+  app.get("/api/hunt/collection/:walletAddress", requireAuth, async (req: Request, res: Response) => {
+    const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    res.setHeader("x-request-id", requestId);
+    
     try {
-      // Derive walletAddress from authenticated userId (set by requireAuth middleware)
-      // URL param is ignored for security - identity comes from JWT only
-      const walletAddress = requirePlayerId(req);
+      const playerId = getPlayerId(req);
+      if (!playerId) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+      }
+      const walletAddress = playerId;
 
       const creatures = await db.select().from(huntCaughtCreatures)
         .where(eq(huntCaughtCreatures.walletAddress, walletAddress))
         .orderBy(desc(huntCaughtCreatures.caughtAt));
 
+      console.log(`[HUNT][COLLECTION] OK`, { requestId, playerId: walletAddress.slice(-8), count: creatures.length });
       res.json({ creatures });
-    } catch (error) {
-      console.error("Collection fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch collection" });
+    } catch (error: any) {
+      const playerId = getPlayerId(req);
+      console.error(`[HUNT][COLLECTION] ERROR`, { requestId, playerId, err: String(error), stack: error?.stack });
+      // Return safe empty collection instead of 500
+      res.json({ creatures: [], ok: false, error: "COLLECTION_UNAVAILABLE" });
     }
   });
 

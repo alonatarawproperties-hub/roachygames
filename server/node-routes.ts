@@ -19,6 +19,7 @@ import {
   detectTeleport,
   averageSpeed,
 } from "./geo";
+import { requireAuth } from "./security";
 
 function log(context: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -448,11 +449,19 @@ export function registerNodeRoutes(app: Express) {
     }
   });
 
-  app.get("/api/map/nodes", async (req: Request, res: Response) => {
+  app.get("/api/map/nodes", requireAuth, async (req: Request, res: Response) => {
+    const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    res.setHeader("x-request-id", requestId);
+    const startMs = Date.now();
+    
     try {
       const lat = parseFloat(req.query.lat as string);
       const lng = parseFloat(req.query.lng as string);
       const walletAddress = getPlayerId(req);
+      
+      if (!walletAddress) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+      }
 
       if (isNaN(lat) || isNaN(lng)) {
         return res.status(400).json({ error: "lat/lng required" });
@@ -505,7 +514,8 @@ export function registerNodeRoutes(app: Express) {
           reservedUntil: n.reservedUntil,
         }));
 
-      log("MAP", `Returning ${personalNodes.length} personal, ${hotspots.length} hotspots, ${events.length} events for ${walletAddress.slice(-8)}`);
+      const ms = Date.now() - startMs;
+      log("MAP", `[${requestId}] OK ${personalNodes.length} personal, ${hotspots.length} hotspots, ${events.length} events for ${walletAddress.slice(-8)} (${ms}ms)`);
 
       res.json({
         scenario: ACTIVE_SCENARIO,
@@ -514,8 +524,17 @@ export function registerNodeRoutes(app: Express) {
         events,
       });
     } catch (err: any) {
-      log("MAP", `Error: ${err.message}`);
-      res.status(500).json({ error: "Failed to get nodes" });
+      const playerId = getPlayerId(req);
+      console.error(`[HUNT][MAP_NODES] ERROR`, { requestId, playerId, err: String(err), stack: err?.stack });
+      // Return safe empty payload instead of 500
+      res.json({
+        scenario: ACTIVE_SCENARIO,
+        personalNodes: [],
+        hotspots: [],
+        events: [],
+        ok: false,
+        error: "NODES_UNAVAILABLE",
+      });
     }
   });
 
