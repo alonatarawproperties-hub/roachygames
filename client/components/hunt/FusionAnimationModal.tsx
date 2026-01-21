@@ -27,6 +27,13 @@ const EggRare = require("@/assets/hunt/egg-rare.png");
 const EggEpic = require("@/assets/hunt/egg-epic.png");
 const EggLegendary = require("@/assets/hunt/egg-legendary.png");
 const HolographicBackground = require("@/assets/fusion/holographic_portal_background.png");
+const FusionBgRare = require("@/assets/fusion-bg-rare.png");
+
+const FUSION_BACKGROUNDS: Record<string, any> = {
+  rare: FusionBgRare,
+  epic: HolographicBackground,
+  legendary: HolographicBackground,
+};
 
 const EGG_IMAGES: Record<string, any> = {
   common: EggCommon,
@@ -319,10 +326,12 @@ export function FusionAnimationModal({
     onComplete();
   };
 
+  const fusionBackground = FUSION_BACKGROUNDS[outputRarity] || HolographicBackground;
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <ImageBackground 
-        source={HolographicBackground} 
+        source={fusionBackground} 
         style={styles.backgroundImage}
         resizeMode="cover"
       >
