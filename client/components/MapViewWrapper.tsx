@@ -545,7 +545,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             longitudeDelta: 0.005,
           }}
         >
-          {/* 500m scan radius circle (faint) */}
+          {/* HOME DROP: Single 500m radius circle - visible == catchable */}
           {hasLocation && CircleComponent ? (
             <CircleComponent
               center={{
@@ -553,22 +553,8 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 longitude: playerLocation.longitude,
               }}
               radius={500}
-              strokeColor="rgba(255, 255, 255, 0.15)"
-              fillColor="rgba(255, 255, 255, 0.02)"
-              strokeWidth={1}
-            />
-          ) : null}
-          
-          {/* 100m catch radius circle (stronger) */}
-          {hasLocation && CircleComponent ? (
-            <CircleComponent
-              center={{
-                latitude: playerLocation.latitude,
-                longitude: playerLocation.longitude,
-              }}
-              radius={100}
               strokeColor="rgba(255, 149, 0, 0.5)"
-              fillColor="rgba(255, 149, 0, 0.1)"
+              fillColor="rgba(255, 149, 0, 0.08)"
               strokeWidth={2}
             />
           ) : null}

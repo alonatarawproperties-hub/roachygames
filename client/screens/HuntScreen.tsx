@@ -268,39 +268,28 @@ export default function HuntScreen() {
   const [bannerVisibleUntil, setBannerVisibleUntil] = useState(0);
   const MIN_VISIBLE_MS = 8000;
   
-  // Compute SCAN vs CATCH range spawns for banner logic
-  // SCAN_RADIUS = 500m (eggs you can see), CATCH_RADIUS = 100m (eggs you can interact with)
-  const CATCH_RADIUS_BANNER = 100;
-  
+  // HOME DROP: Single radius - visible == catchable (HUNT_RADIUS_M = 500m)
   const spawnRangeCounts = useMemo(() => {
     const homeSpawns = (spawns || []).filter((s: Spawn) => {
       // Only count home-type spawns (home, drip, or null/undefined for backwards compat)
       return !s.sourceType || s.sourceType === 'home' || s.sourceType === 'drip' || s.sourceType === 'HOME';
     });
     
-    let catchableCount = 0;  // Within CATCH radius (100m) - can interact
-    let visibleCount = 0;    // Within SCAN radius (500m) - visible on map
-    let closestVisible: { distance: number } | null = null;
+    let inRangeCount = 0;
     
     for (const s of homeSpawns) {
       const dist = typeof s.distance === "number" ? s.distance : null;
-      if (dist !== null && dist <= CATCH_RADIUS_BANNER) {
-        catchableCount++;
-        visibleCount++;
-      } else if (dist !== null && dist <= HUNT_RADIUS_M) {
-        visibleCount++;
-        if (!closestVisible || dist < closestVisible.distance) {
-          closestVisible = { distance: dist };
-        }
+      if (dist !== null && dist <= HUNT_RADIUS_M) {
+        inRangeCount++;
       }
     }
     
-    // For backwards compat: inRangeCount = catchable, outOfRangeCount = visible but not catchable
+    // HOME DROP: visible == catchable, no separate "out of range" eggs
     return { 
-      inRangeCount: catchableCount, 
-      outOfRangeCount: visibleCount - catchableCount,
-      closestOutOfRange: closestVisible,
-      visibleCount 
+      inRangeCount, 
+      outOfRangeCount: 0,
+      closestOutOfRange: null,
+      visibleCount: inRangeCount 
     };
   }, [spawns, HUNT_RADIUS_M]);
   
@@ -479,20 +468,8 @@ export default function HuntScreen() {
     }
   }, [phaseIStats?.pity?.epicIn, showTip]);
 
-  // Contextual tip: Spawns outside catch radius
-  useEffect(() => {
-    if (!spawnsLoaded || !playerLocation || spawns.length === 0) return;
-    const CATCH_RADIUS_M = 100;
-    const hasNearbySpawn = spawns.some((s) => {
-      const lat = typeof s.latitude === "string" ? parseFloat(s.latitude) : s.latitude;
-      const lng = typeof s.longitude === "string" ? parseFloat(s.longitude) : s.longitude;
-      const dist = haversineMeters(playerLocation.latitude, playerLocation.longitude, lat, lng);
-      return dist <= CATCH_RADIUS_M;
-    });
-    if (!hasNearbySpawn && spawns.length > 0) {
-      showTip("tip_spawns_distant", "Eggs are outside catch radius (100m). Walk closer!");
-    }
-  }, [spawnsLoaded, playerLocation?.latitude, playerLocation?.longitude, spawns, showTip]);
+  // HOME DROP: visible == catchable, so no "walk closer" tip needed
+  // (Tip removed - all visible eggs are now catchable)
 
   // Cleanup tip timeout
   useEffect(() => {
@@ -820,12 +797,11 @@ export default function HuntScreen() {
     dbg({ lastTap: "SPAWN_TAP", nodeId: spawn.id });
     console.log("[handleSpawnTap] Spawn tapped:", spawn.id, spawn.name, "distance:", spawn.distance);
     
-    const CATCH_RADIUS_M = 100;
-    const RESERVE_RANGE_M = 5000;
+    // HOME DROP: visible == catchable (same radius HUNT_RADIUS_M)
     const dist = spawn.distance || 0;
     
-    if (dist > RESERVE_RANGE_M) {
-      dbg({ reserve: "TOO_FAR (>5km)" });
+    if (dist > HUNT_RADIUS_M) {
+      dbg({ reserve: "TOO_FAR" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
@@ -840,20 +816,9 @@ export default function HuntScreen() {
     setSelectedSpawn(spawn);
     activeSpawnRef.current = spawn;
     
-    const hasReservation = spawnReservations[spawn.id] && new Date(spawnReservations[spawn.id]).getTime() > Date.now();
-    
-    if (dist <= CATCH_RADIUS_M || hasReservation) {
-      if (dist <= CATCH_RADIUS_M) {
-        dbg({ reserve: "IN_RANGE" });
-        setShowCameraEncounter(true);
-      } else {
-        dbg({ reserve: "RESERVED_FAR" });
-        setShowSpawnReserveSheet(true);
-      }
-    } else {
-      dbg({ reserve: "SHOW_SHEET" });
-      setShowSpawnReserveSheet(true);
-    }
+    // HOME DROP: All visible eggs are catchable - go straight to encounter
+    dbg({ reserve: "IN_RANGE" });
+    setShowCameraEncounter(true);
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
@@ -894,15 +859,9 @@ export default function HuntScreen() {
   const handleSpawnNavigate = () => {
     if (!selectedSpawn) return;
     
-    const dist = selectedSpawn.distance || 0;
-    const CATCH_RADIUS_M = 100;
-    
-    if (dist <= CATCH_RADIUS_M) {
-      setShowSpawnReserveSheet(false);
-      setShowCameraEncounter(true);
-    } else {
-      setShowSpawnReserveSheet(false);
-    }
+    // HOME DROP: visible == catchable - always go to encounter
+    setShowSpawnReserveSheet(false);
+    setShowCameraEncounter(true);
   };
 
   const handleNodeTap = useCallback((node: MapNode) => {
@@ -1397,20 +1356,14 @@ export default function HuntScreen() {
     let bannerIcon: keyof typeof Feather.glyphMap = "info";
     let bannerIconColor = GameColors.primary;
     
-    if (isNewPlayer && outOfRangeCount === 0) {
+    if (isNewPlayer) {
       // New player with no eggs - show welcome message
       bannerTitle = "Welcome! Eggs will spawn nearby soon.";
       bannerIcon = "gift";
       bannerIconColor = GameColors.gold;
-    } else if (outOfRangeCount > 0 && closestOutOfRange) {
-      // Eggs visible on map (within 500m) but outside catch range (100m)
-      const distM = Math.round(closestOutOfRange.distance);
-      bannerTitle = `${outOfRangeCount} egg${outOfRangeCount > 1 ? 's' : ''} visible — move within 100m (closest: ${distM}m)`;
-      bannerIcon = "navigation";
-      bannerIconColor = GameColors.gold;
     } else {
-      // No eggs visible within scan radius (500m)
-      bannerTitle = "No eggs nearby (scan: 500m)";
+      // HOME DROP: No eggs in range
+      bannerTitle = "No eggs in range";
       bannerIcon = "map-pin";
     }
     

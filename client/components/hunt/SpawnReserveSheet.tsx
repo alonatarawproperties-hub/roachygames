@@ -110,7 +110,8 @@ export function SpawnReserveSheet({
     : "Unknown distance";
 
   const isReserved = !!reservedUntil && new Date(reservedUntil).getTime() > Date.now();
-  const CATCH_RADIUS = 100;
+  // HOME DROP: visible == catchable (500m radius)
+  const CATCH_RADIUS = 500;
   const canCatch = playerDistance !== null && playerDistance <= CATCH_RADIUS;
 
   return (
