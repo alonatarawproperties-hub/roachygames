@@ -150,6 +150,9 @@ export async function apiRequest(
 
     const durationMs = Date.now() - startedAt;
     
+    // Capture x-request-id from server for correlation
+    const requestId = res.headers.get("x-request-id") ?? null;
+    
     // Capture response preview (first 200 chars) for debugging
     let responsePreview: string | null = null;
     try {
@@ -177,6 +180,7 @@ export async function apiRequest(
       headerSet,
       error: errorVal,
       responsePreview,
+      requestId,
     });
 
     // Also update legacy single-entry debug

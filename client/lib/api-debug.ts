@@ -13,6 +13,7 @@ export type ApiDebugEntry = {
   error?: string | null;
   responsePreview?: string | null;
   extra?: string | null;
+  requestId?: string | null;
 };
 
 let entries: ApiDebugEntry[] = [];

@@ -83,6 +83,7 @@ export function HuntDebugOverlay({
                 <Text style={styles.entryToken}>
                   T:{e.tokenExists ? "Y" : "N"} H:{e.headerSet ? "Y" : "N"}
                 </Text>
+                {e.requestId && <Text style={styles.entryReqId}>rid:{e.requestId}</Text>}
                 {e.error && <Text style={styles.entryError} numberOfLines={1}>Err: {e.error}</Text>}
                 {e.responsePreview && (
                   <Text style={styles.entryPreview} numberOfLines={2}>
@@ -196,6 +197,11 @@ const styles = StyleSheet.create({
   },
   entryToken: {
     color: "#888",
+    fontSize: 7,
+    fontFamily: "monospace",
+  },
+  entryReqId: {
+    color: "#a0a",
     fontSize: 7,
     fontFamily: "monospace",
   },

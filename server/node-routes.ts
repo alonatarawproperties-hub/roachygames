@@ -460,20 +460,25 @@ export function registerNodeRoutes(app: Express) {
       const lngRaw = (req.query.lng ?? req.query.longitude) as string | undefined;
       
       if (!latRaw || !lngRaw) {
-        return res.status(400).json({ ok: false, error: "MISSING_COORDS", nodes: [], requestId });
+        return res.status(400).json({ ok: false, error: "MISSING_COORDS", personalNodes: [], hotspots: [], events: [], requestId });
       }
       
       const lat = parseFloat(latRaw);
       const lng = parseFloat(lngRaw);
       
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return res.status(400).json({ ok: false, error: "INVALID_COORDS", nodes: [], requestId });
+        return res.status(400).json({ ok: false, error: "INVALID_COORDS", personalNodes: [], hotspots: [], events: [], requestId });
+      }
+      
+      // Validate coordinate bounds
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({ ok: false, error: "COORDS_OUT_OF_RANGE", personalNodes: [], hotspots: [], events: [], requestId });
       }
       
       const walletAddress = getPlayerId(req);
       
       if (!walletAddress) {
-        return res.status(401).json({ ok: false, error: "UNAUTHORIZED", nodes: [], requestId });
+        return res.status(401).json({ ok: false, error: "UNAUTHORIZED", personalNodes: [], hotspots: [], events: [], requestId });
       }
 
       const samples = await getRecentSamples(walletAddress);

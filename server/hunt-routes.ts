@@ -2386,6 +2386,11 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ ok: false, error: "INVALID_COORDS", nodes: [], requestId });
       }
       
+      // Validate coordinate bounds
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        return res.status(400).json({ ok: false, error: "COORDS_OUT_OF_RANGE", nodes: [], requestId });
+      }
+      
       const dayKey = getManilaDate();
       
       const nodes = generateDeterministicNodes(lat, lon, dayKey);

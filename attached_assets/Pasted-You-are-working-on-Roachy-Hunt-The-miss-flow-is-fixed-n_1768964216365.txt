@@ -1,0 +1,117 @@
+You are working on Roachy Hunt. The “miss” flow is fixed now, but we still see repeated GET nodes calls returning HTTP 500 with body {"error":"Failed to get nodes"} and the client overlay shows “Err: Failed to get nodes”. This means the app is still hitting an OLD backend behavior (or a different nodes route) that still returns 500. Fix it end-to-end so NODES endpoints NEVER return 500, always return a safe JSON shape with ok/requestId, and the client overlay clearly shows the FULL PATH + query so we can confirm which endpoint is being called.
+
+DO THIS CAREFULLY. Do not break spawns/catch/miss. Make minimal changes, no refactors outside what’s needed.
+
+========================================
+A) SERVER: make nodes endpoints “never-500” + consistent responses
+========================================
+1) Find ALL node endpoints and any “Failed to get nodes” 500 responses.
+   Search for:
+   - "/api/map/nodes"
+   - "/api/hunt/nodes"
+   - "Failed to get nodes"
+   - "get nodes"
+   - "nodes" routes
+   - any res.status(500) in node routes
+
+2) Implement a shared helper in server (new file ok) to parse coords and validate:
+   - Accept BOTH styles:
+     a) lat/lng
+     b) latitude/longitude
+   - Parse as numbers.
+   - Validate:
+     - lat in [-90, 90]
+     - lng in [-180, 180]
+   - If missing: return { ok:false, error:"MISSING_COORDS", requestId, personalNodes:[], hotspots:[], events:[] } with HTTP 400
+   - If invalid: return { ok:false, error:"INVALID_COORDS", requestId, personalNodes:[], hotspots:[], events:[] } with HTTP 400
+
+3) Ensure BOTH endpoints below are protected by requireAuth:
+   - GET /api/map/nodes
+   - GET /api/hunt/nodes   (if one of these doesn’t exist, create it as an alias that calls the same handler)
+
+4) Ensure node routes NEVER respond with 500.
+   - On any DB/provider/service failure, respond with HTTP 200 and:
+     {
+       ok:false,
+       error:"NODES_UNAVAILABLE",
+       requestId,
+       personalNodes:[],
+       hotspots:[],
+       events:[]
+     }
+   - Keep the route stable even if playerId is missing (but it shouldn’t be missing due to requireAuth).
+
+5) Add requestId correlation:
+   - If you already have requestId generation middleware, reuse it.
+   - Otherwise:
+     - Generate requestId per request (simple random string ok).
+     - Set header: x-request-id
+     - Include requestId in JSON body for all node responses (success + error).
+
+6) Add logs that will help debug deployment mismatch:
+   - Log base route name + requestId + playerId + coords + ms
+   - On error log stack.
+   Example tags:
+     [HUNT][NODES][MAP] OK / ERROR
+     [HUNT][NODES][HUNT] OK / ERROR
+
+7) IMPORTANT: Express async safety
+   - If any handler is async and can throw, wrap it in try/catch.
+   - If you have an async wrapper utility (like wrapAsync), use it.
+   - Goal: no unhandled promise rejection causing express to send 500.
+
+========================================
+B) CLIENT: make overlay show FULL route + confirm which endpoint is called
+========================================
+Right now the overlay row seems to show only the query (“...&lng=...”) and not the path, so we can’t confirm if it’s /api/map/nodes or /api/hunt/nodes.
+
+1) In client/lib/query-client.ts (apiRequest) debug push:
+   - Ensure you store BOTH:
+     - path (route param you pass in, like "/api/map/nodes")
+     - url (fullUrl)
+   - For the debug overlay row, display:
+     - method
+     - path (e.g. /api/map/nodes)
+     - ALSO show “?lat=..&lng=..” shortened (optional)
+   - If path is empty, parse path from fullUrl safely.
+
+2) Also capture and show x-request-id:
+   - After fetch, read:
+     const reqId = res.headers.get("x-request-id") ?? null
+   - Save it into ApiDebugEntry (add field requestId?: string | null)
+   - Display it in the overlay (small text), so we can correlate with server logs.
+
+3) Improve the error messaging:
+   - If the nodes response is ok:false with error:"NODES_UNAVAILABLE", do NOT treat as a scary error.
+     Show it as warning: “Nodes temporarily unavailable” and keep map/spawns working.
+   - Only mark red error if:
+     - non-nodes endpoints fail, or
+     - nodes endpoint returns unexpected shape AND no ok/error fields.
+
+4) In useMapNodes.ts (or wherever nodes are fetched):
+   - Ensure you call ONLY ONE canonical endpoint (choose /api/map/nodes as canonical).
+   - If there are multiple code paths calling /api/hunt/nodes vs /api/map/nodes, unify them.
+   - Ensure it passes coords consistently:
+     - Use lat/lng OR latitude/longitude, but be consistent (recommend lat/lng).
+   - Handle 400 MISSING_COORDS / INVALID_COORDS by returning empty arrays without throwing.
+
+========================================
+C) DEPLOYMENT / BASE URL sanity check (very important)
+========================================
+Because the client is still receiving {"error":"Failed to get nodes"} with 500, you may be hitting an old backend instance.
+Add ONE more debug field in ApiDebugEntry and overlay:
+- baseUrl (already tracked) + fullUrl
+So we can confirm the domain being called.
+
+========================================
+D) Output requirements
+========================================
+1) After changes, run typecheck/lint/tests if available.
+2) Show me exactly which files changed and the key diffs.
+3) Confirm with a short checklist:
+   - nodes endpoints never return 500
+   - overlay shows method + path + requestId + baseUrl
+   - ok:false nodes does not break spawns
+   - only one canonical nodes endpoint is used
+
+Do NOT change unrelated UI styling. Do NOT remove existing debug overlay. Keep changes tight and production-safe.
