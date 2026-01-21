@@ -1,0 +1,63 @@
+Add explicit rarity-specific VFX rules to the Egg Rarity Reveal screen so the output doesn’t look generic and Replit doesn’t improvise. Keep the Obsidian Bronze base constant (no galaxy backgrounds) and apply rarity accents only (80/20 rule).
+
+RARITY-SPECIFIC VFX RULES (POST-CATCH REVEAL)
+Use `rarity4 = normalizeRarity(rarity)` where normalize maps unknown/uncommon -> 'common'.
+
+BASE (always on, all rarities)
+- Background: obsidian gradient + vignette + faint haze bands
+- Designed dust motes: 10–18 particles max, slow drift, low opacity
+- Center stage behind egg: halo platform ellipse + thin bronze ring
+- Concentric rings: 2–3 rings (SVG) with thin strokes + micro ticks (subtle)
+- Idle loop: slow ring rotation 10–12s + gentle pulse every ~1.2s
+- One faint scan sweep every ~3s (very subtle bronze band)
+
+COMMON (bronze ritual tech)
+- Accent: warm bronze/amber only
+- Halo: bronze ring glow low intensity
+- Particles: bronze dust motes only (no spark burst shower)
+- Shockwave: single thin bronze shockwave ring on reveal
+- Idle: calm, slow, minimal
+
+RARE (violet arc infusion)
+- Accent: violet overlay (do NOT recolor whole scene)
+- Halo rim: bronze base + violet edge highlight
+- Shockwave: two-layer shockwave (bronze + faint violet) on reveal
+- Particles: add a small violet sparkle burst (6–10 sparks) + bronze dust
+- Extra detail: add a subtle “arc flicker” (2–3 tiny violet arcs) around outer ring during reveal only (200ms)
+- Idle: slightly stronger ring pulse than common
+
+EPIC (teal tech surge)
+- Accent: teal/cyan controlled
+- Halo rim: bronze base with teal highlight
+- Shockwave: one stronger shockwave + a second faint echo ring 120ms later
+- Particles: teal micro-sparks (10–14) + bronze embers; slight upward acceleration for 300ms
+- Extra detail: add VERY faint teal “circuit shimmer” inside the dome/rings (thin lines, low opacity) that sweeps once at reveal
+- Idle: add a gentle “breathing” glow on the halo (opacity wave)
+
+LEGENDARY (solar ember chamber)
+- Accent: solar gold/ember (not neon yellow)
+- Halo: brighter amber core flare + bronze rim; add a thin outer halo ring
+- Shockwave: strongest shockwave + soft bloom flash (short, tasteful)
+- Particles: ember sparks + gold dust (14–22 max) with a short burst then settle
+- Extra detail: add 2–3 subtle “ember streaks” upward from platform during reveal (200–300ms), then stop
+- Idle: keep a dignified warm glow + occasional tiny ember drift (very subtle)
+
+REVEAL ANIMATION TIMELINE (apply to all, with rarity differences above)
+t=0.00: background dims -> center light rises (fade in 200ms)
+t=0.10: shockwave ring expands (scale 1.0->1.8, opacity fades 350ms) [rarity varies]
+t=0.15: particle burst (200–300ms) [rarity varies]
+t=0.20: rarity pill pops in (scale 0.96->1.00 + fade)
+t=0.30: “PERFECT CATCH!” snaps in with subtle shimmer
+t=0.40: XP/Points card fades up
+t=0.55: Next Guaranteed Drop card fades up
+t=0.70+: settle into idle loop (slow ring rotation + gentle pulse)
+
+IMPLEMENTATION NOTES (ensure AAA not generic)
+- Use SVG for rings, ticks, shockwaves, arcs.
+- Use controlled particle counts; no random glitter field.
+- Glow must be restrained; avoid big blur blobs.
+- Use easing (easeOutCubic / easeOutExpo) for pops.
+- Keep text/cards premium smoked-glass with thin borders tinted by accentMain.
+- Keep buttons brand-consistent (bronze/amber primary, smoked-glass secondary).
+
+Add these rules directly into the main rarity reveal task prompt and implement them in code so each rarity feels distinct while staying Obsidian Bronze overall.
