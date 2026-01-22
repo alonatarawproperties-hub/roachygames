@@ -1769,7 +1769,7 @@ export default function HuntScreen() {
                 ]}
               >
                 <View style={styles.eggCardInner}>
-                  <EggIcon rarity={rarity} size={36} />
+                  <EggIcon rarity={rarity} size={48} />
                   <View style={styles.eggCardInfo}>
                     <ThemedText style={[styles.eggCardCount, { color: RARITY_COLORS[rarity] }]}>
                       {count}
@@ -1802,7 +1802,7 @@ export default function HuntScreen() {
                 ]}
               >
                 <View style={styles.eggCardInner}>
-                  <EggIcon rarity={rarity} size={36} />
+                  <EggIcon rarity={rarity} size={48} />
                   <View style={styles.eggCardInfo}>
                     <ThemedText style={[styles.eggCardCount, { color: RARITY_COLORS[rarity] }]}>
                       {count}
