@@ -94,29 +94,29 @@ export function normalizeRarity(r: string): FusionRarity {
 
 export const FusionRarityTheme = {
   common: {
-    accentMain: '#B07A3A',
-    accentGlow: 'rgba(176,122,58,0.30)',
+    accentMain: '#9CA3AF',
+    accentGlow: 'rgba(156,163,175,0.30)',
     intensity: 0.85,
     particleCount: 14,
     pulseSpeedSec: 1.25,
   },
   rare: {
-    accentMain: '#8A5CFF',
-    accentGlow: 'rgba(138,92,255,0.26)',
+    accentMain: '#00D9FF',
+    accentGlow: 'rgba(0,217,255,0.26)',
     intensity: 1.05,
     particleCount: 19,
     pulseSpeedSec: 1.15,
   },
   epic: {
-    accentMain: '#21D4C2',
-    accentGlow: 'rgba(33,212,194,0.22)',
+    accentMain: '#9B59B6',
+    accentGlow: 'rgba(155,89,182,0.22)',
     intensity: 1.18,
     particleCount: 22,
     pulseSpeedSec: 1.08,
   },
   legendary: {
-    accentMain: '#F2B94B',
-    accentGlow: 'rgba(242,185,75,0.34)',
+    accentMain: '#FFD700',
+    accentGlow: 'rgba(255,215,0,0.34)',
     intensity: 1.35,
     particleCount: 26,
     pulseSpeedSec: 0.98,

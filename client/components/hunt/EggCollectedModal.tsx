@@ -33,7 +33,7 @@ const EGG_IMAGES: Record<string, any> = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const STAGE_SIZE = Math.min(SCREEN_WIDTH * 0.75, 280);
+const STAGE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 
 interface EggCollectedModalProps {
   visible: boolean;
@@ -274,7 +274,7 @@ export function EggCollectedModal({
   };
 
   const isSmallScreen = SCREEN_HEIGHT < 700;
-  const eggSize = isSmallScreen ? { width: 120, height: 150 } : { width: 150, height: 185 };
+  const eggSize = isSmallScreen ? { width: 200, height: 260 } : { width: 260, height: 340 };
 
   return (
     <Modal visible={visible} transparent={false} animationType="fade">
