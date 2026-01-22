@@ -633,19 +633,13 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
               </Animated.View>
             </Animated.View>
 
-            {/* Relic Energy Lasso */}
+            {/* Golden Catcher Disc */}
             <Animated.View style={lassoAnimatedStyle}>
-              <View style={styles.lasso}>
-                <LinearGradient
-                  colors={[RELIC.bronzeDeep, RELIC.bronze, "rgba(255,255,255,0.20)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.lassoInner}
-                >
-                  <View style={styles.lassoRing} />
-                  <View style={styles.lassoGlow} />
-                </LinearGradient>
-              </View>
+              <Image
+                source={require("@/assets/ui/relic_catcher_disc.png")}
+                style={styles.catcherDisc}
+                resizeMode="contain"
+              />
             </Animated.View>
 
             {/* Capture Ring */}
@@ -1029,6 +1023,10 @@ const styles = StyleSheet.create({
   relicDisc: {
     width: 100,
     height: 100,
+  },
+  catcherDisc: {
+    width: 90,
+    height: 90,
   },
   footer: {
     position: "absolute",
