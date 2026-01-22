@@ -37,7 +37,7 @@ const EGG_IMAGES: Record<string, any> = {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const PLATFORM_SIZE = Math.min(SCREEN_WIDTH * 0.7, 280);
 const DOME_SIZE = PLATFORM_SIZE * 1.1;
-const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.35, 140);
+const EGG_SIZE = Math.min(SCREEN_WIDTH * 0.70, 280);
 
 interface FusionAnimationModalProps {
   visible: boolean;
