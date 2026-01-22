@@ -1411,33 +1411,9 @@ export default function HuntScreen() {
           <ThemedText style={styles.areaClearedTitle}>{bannerTitle}</ThemedText>
         </View>
         
-        {/* Quest Offers - show Hot Drop/Micro/Beacon buttons when no quest active */}
+        {/* Quest Offers - Micro > Hot Drop > Beacon */}
         {!huntMeta?.quest?.active && huntMeta?.offers && (
           <View style={styles.questOffersRowInline}>
-            {huntMeta.offers.hotdrop && (
-              <Pressable 
-                style={[
-                  styles.questOfferButtonSmall, 
-                  !huntMeta.offers.hotdrop.available && styles.questOfferButtonDisabled
-                ]}
-                onPress={async () => {
-                  if (!huntMeta.offers?.hotdrop?.available) return;
-                  setActivatingQuest('HOT_DROP');
-                  const result = await activateHotspot('HOT_DROP');
-                  setActivatingQuest(null);
-                  if (result.success) {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    refreshSpawns();
-                  }
-                }}
-                disabled={!huntMeta.offers.hotdrop.available || !!activatingQuest}
-              >
-                <Feather name="zap" size={14} color={huntMeta.offers.hotdrop.available ? '#FF6B35' : GameColors.textTertiary} />
-                <ThemedText style={[styles.questOfferTextSmall, !huntMeta.offers.hotdrop.available && styles.questOfferTextDisabled]}>
-                  {huntMeta.offers.hotdrop.available ? 'Hot Drop' : `${Math.ceil((huntMeta.offers.hotdrop.cooldownEndsInSec || 0) / 60)}m`}
-                </ThemedText>
-              </Pressable>
-            )}
             {huntMeta.offers.micro && (
               <Pressable 
                 style={[
@@ -1459,6 +1435,30 @@ export default function HuntScreen() {
                 <Feather name="map-pin" size={14} color={huntMeta.offers.micro.available ? GameColors.primary : GameColors.textTertiary} />
                 <ThemedText style={[styles.questOfferTextSmall, !huntMeta.offers.micro.available && styles.questOfferTextDisabled]}>
                   {huntMeta.offers.micro.available ? 'Micro' : `${Math.ceil((huntMeta.offers.micro.cooldownEndsInSec || 0) / 60)}m`}
+                </ThemedText>
+              </Pressable>
+            )}
+            {huntMeta.offers.hotdrop && (
+              <Pressable 
+                style={[
+                  styles.questOfferButtonSmall, 
+                  !huntMeta.offers.hotdrop.available && styles.questOfferButtonDisabled
+                ]}
+                onPress={async () => {
+                  if (!huntMeta.offers?.hotdrop?.available) return;
+                  setActivatingQuest('HOT_DROP');
+                  const result = await activateHotspot('HOT_DROP');
+                  setActivatingQuest(null);
+                  if (result.success) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    refreshSpawns();
+                  }
+                }}
+                disabled={!huntMeta.offers.hotdrop.available || !!activatingQuest}
+              >
+                <Feather name="zap" size={14} color={huntMeta.offers.hotdrop.available ? '#FF6B35' : GameColors.textTertiary} />
+                <ThemedText style={[styles.questOfferTextSmall, !huntMeta.offers.hotdrop.available && styles.questOfferTextDisabled]}>
+                  {huntMeta.offers.hotdrop.available ? 'Hot Drop' : `${Math.ceil((huntMeta.offers.hotdrop.cooldownEndsInSec || 0) / 60)}m`}
                 </ThemedText>
               </Pressable>
             )}
@@ -3769,11 +3769,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   questOfferButtonSmall: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.xs,
     backgroundColor: GameColors.surface,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
