@@ -84,16 +84,16 @@ import { useGamePresence, usePresenceContext } from "@/context/PresenceContext";
 import { useMapNodes, useReserveNode, MapNode } from "@/hooks/useMapNodes";
 
 const RARITY_COLORS: Record<string, string> = {
-  common: "#A0A0A0",
-  rare: "#3A86FF",
-  epic: "#9D4EDD",
+  common: "#9CA3AF",
+  rare: "#00D9FF",
+  epic: "#9B59B6",
   legendary: "#FFD700",
 };
 
 const RARITY_GLOWS: Record<string, { color: string; opacity: number; radius: number }> = {
-  common: { color: "#A0A0A0", opacity: 0.3, radius: 8 },
-  rare: { color: "#3A86FF", opacity: 0.5, radius: 12 },
-  epic: { color: "#9D4EDD", opacity: 0.6, radius: 16 },
+  common: { color: "#9CA3AF", opacity: 0.3, radius: 8 },
+  rare: { color: "#00D9FF", opacity: 0.5, radius: 12 },
+  epic: { color: "#9B59B6", opacity: 0.6, radius: 16 },
   legendary: { color: "#FFD700", opacity: 0.8, radius: 20 },
 };
 

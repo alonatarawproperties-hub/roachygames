@@ -139,9 +139,9 @@ export function getRoachyDefinition(id: string): RoachyDefinition | undefined {
 export function getRarityColor(rarity: CreatureRarity): string {
   const colors: Record<CreatureRarity, string> = {
     common: '#9CA3AF',
-    rare: '#3B82F6',
-    epic: '#A855F7',
-    legendary: '#F59E0B',
+    rare: '#00D9FF',
+    epic: '#9B59B6',
+    legendary: '#FFD700',
   };
   return colors[rarity];
 }

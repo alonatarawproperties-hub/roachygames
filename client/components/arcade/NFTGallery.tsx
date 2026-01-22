@@ -34,9 +34,9 @@ const PLACEHOLDER_ITEMS: CollectionItem[] = [
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#9CA3AF",
-  rare: "#3B82F6",
-  epic: "#8B5CF6",
-  legendary: "#F59E0B",
+  rare: "#00D9FF",
+  epic: "#9B59B6",
+  legendary: "#FFD700",
 };
 
 const CLASS_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
