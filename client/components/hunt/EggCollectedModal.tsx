@@ -69,7 +69,6 @@ export function EggCollectedModal({
   const haloOpacity = useSharedValue(0);
   const ringRotation = useSharedValue(0);
   const ringPulse = useSharedValue(1);
-  const scanSweepX = useSharedValue(-SCREEN_WIDTH);
   const shockwaveScale = useSharedValue(1);
   const shockwaveOpacity = useSharedValue(0);
   const shockwave2Scale = useSharedValue(1);
@@ -78,8 +77,6 @@ export function EggCollectedModal({
   const arcFlickerOpacity = useSharedValue(0);
   const circuitShimmerX = useSharedValue(-100);
   const emberStreakOpacity = useSharedValue(0);
-
-  const particleCount = rarity4 === 'legendary' ? 16 : rarity4 === 'epic' ? 14 : rarity4 === 'rare' ? 12 : 10;
 
   useEffect(() => {
     if (visible) {
@@ -102,29 +99,19 @@ export function EggCollectedModal({
       emberStreakOpacity.value = 0;
 
       ringRotation.value = withRepeat(
-        withTiming(360, { duration: 11000, easing: Easing.linear }),
+        withTiming(360, { duration: 20000, easing: Easing.linear }),
         -1,
         false
       );
 
-      const pulseSpeed = rarity4 === 'legendary' ? 980 : rarity4 === 'epic' ? 1050 : rarity4 === 'rare' ? 1100 : 1200;
+      const pulseSpeed = 2000;
       ringPulse.value = withRepeat(
         withSequence(
-          withTiming(1.05, { duration: pulseSpeed, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.03, { duration: pulseSpeed, easing: Easing.inOut(Easing.ease) }),
           withTiming(1, { duration: pulseSpeed, easing: Easing.inOut(Easing.ease) })
         ),
         -1,
         true
-      );
-
-      scanSweepX.value = withRepeat(
-        withSequence(
-          withTiming(-SCREEN_WIDTH, { duration: 0 }),
-          withTiming(SCREEN_WIDTH * 2, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(SCREEN_WIDTH * 2, { duration: 500 })
-        ),
-        -1,
-        false
       );
 
       eggScale.value = withSpring(1, { damping: 12, stiffness: 100 });
@@ -214,7 +201,7 @@ export function EggCollectedModal({
       setTimeout(() => {
         setShowContent(true);
         setPhase("complete");
-      }, 1400);
+      }, 900);
     } else {
       eggScale.value = 0;
       haloOpacity.value = 0;
@@ -239,9 +226,6 @@ export function EggCollectedModal({
     transform: [{ rotate: `${ringRotation.value}deg` }, { scale: ringPulse.value }],
   }));
 
-  const scanSweepStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: scanSweepX.value }],
-  }));
 
   const shockwaveStyle = useAnimatedStyle(() => ({
     transform: [{ scale: shockwaveScale.value }],
@@ -269,20 +253,8 @@ export function EggCollectedModal({
     opacity: emberStreakOpacity.value,
   }));
 
-  const dustMotes = useMemo(() =>
-    Array.from({ length: particleCount }, (_, i) => ({
-      id: i,
-      x: Math.random() * SCREEN_WIDTH,
-      y: SCREEN_HEIGHT * 0.2 + Math.random() * SCREEN_HEIGHT * 0.3,
-      size: 2 + Math.random() * 2,
-      speed: 5000 + Math.random() * 4000,
-      delay: Math.random() * 2000,
-    })),
-    [particleCount]
-  );
-
   const sparkPositions = useMemo(() => {
-    const count = rarity4 === 'legendary' ? 18 : rarity4 === 'epic' ? 12 : rarity4 === 'rare' ? 8 : 0;
+    const count = rarity4 === 'legendary' ? 10 : rarity4 === 'epic' ? 8 : rarity4 === 'rare' ? 6 : 0;
     return Array.from({ length: count }, (_, i) => ({
       angle: (i / count) * 360,
       distance: 35 + Math.random() * 25,
@@ -327,18 +299,7 @@ export function EggCollectedModal({
           style={StyleSheet.absoluteFill}
         />
 
-        <Animated.View style={[styles.scanSweep, scanSweepStyle]}>
-          <LinearGradient
-            colors={['transparent', 'rgba(176,122,58,0.06)', 'rgba(176,122,58,0.1)', 'rgba(176,122,58,0.06)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.scanSweepGradient}
-          />
-        </Animated.View>
 
-        {dustMotes.map((mote) => (
-          <DustMote key={mote.id} mote={mote} color={ObsidianBronzeAR.amber} />
-        ))}
 
         <ScrollView
           style={styles.scrollView}
@@ -650,69 +611,11 @@ export function EggCollectedModal({
   );
 }
 
-function DustMote({ mote, color }: { mote: { x: number; y: number; size: number; speed: number; delay: number }; color: string }) {
-  const translateY = useSharedValue(0);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = withDelay(mote.delay, withRepeat(
-      withTiming(-40, { duration: mote.speed, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      false
-    ));
-
-    opacity.value = withDelay(mote.delay, withRepeat(
-      withSequence(
-        withTiming(0.4, { duration: mote.speed * 0.2 }),
-        withTiming(0.3, { duration: mote.speed * 0.6 }),
-        withTiming(0, { duration: mote.speed * 0.2 })
-      ),
-      -1,
-      false
-    ));
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        styles.dustMote,
-        {
-          left: mote.x,
-          top: mote.y,
-          width: mote.size,
-          height: mote.size,
-          borderRadius: mote.size / 2,
-          backgroundColor: color,
-        },
-        style,
-      ]}
-    />
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: ObsidianBronzeAR.obsidian,
-  },
-  scanSweep: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 100,
-    zIndex: 1,
-  },
-  scanSweepGradient: {
-    flex: 1,
-  },
-  dustMote: {
-    position: 'absolute',
-    zIndex: 1,
   },
   scrollView: {
     flex: 1,
