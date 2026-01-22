@@ -36,7 +36,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { CatchingHUDOverlay } from "@/components/CatchingHUDOverlay";
 import { ARVFXLayer } from "@/components/ARVFXLayer";
-import { GameColors, Spacing, BorderRadius, ObsidianBronzeAR } from "@/constants/theme";
+import { GameColors, Spacing, BorderRadius, ObsidianBronzeAR, RELIC } from "@/constants/theme";
 import { getRarityColor, getClassIcon, getClassColor } from "@/constants/creatures";
 import { Spawn } from "@/context/HuntContext";
 import { pushApiDebug, genDebugId } from "@/lib/api-debug";
@@ -133,6 +133,10 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   const netOpacity = useSharedValue(0);
   const netY = useSharedValue(SCREEN_HEIGHT);
 
+  // Relic disc pulse animation
+  const discOpacity = useSharedValue(0.65);
+  const discScale = useSharedValue(1);
+
   const rarityColor = getRarityColor(spawn.rarity as any) || GameColors.primary;
   const classIcon = getClassIcon(spawn.creatureClass as any) || "target";
   const classColor = getClassColor(spawn.creatureClass as any) || GameColors.primary;
@@ -174,6 +178,24 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       withSequence(
         withTiming(1.1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
         withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+
+    // Relic disc idle pulse
+    discOpacity.value = withRepeat(
+      withSequence(
+        withTiming(1.0, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.65, { duration: 1100, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+    discScale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1.0, { duration: 1100, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
@@ -481,6 +503,11 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     opacity: netOpacity.value,
   }));
 
+  const discAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: discScale.value }],
+    opacity: discOpacity.value,
+  }));
+
   const pulseAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
   }));
@@ -595,17 +622,22 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
               </View>
             </Animated.View>
 
+            {/* Relic Catcher Disc */}
             <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
-              <View style={styles.net}>
-                <Feather name="target" size={60} color={GameColors.primary} />
-              </View>
+              <Animated.View style={[styles.relicDiscContainer, discAnimatedStyle]}>
+                <Image
+                  source={require("@/assets/ui/relic_catcher_disc.png")}
+                  style={styles.relicDisc}
+                  resizeMode="contain"
+                />
+              </Animated.View>
             </Animated.View>
 
-            {/* Energy Lasso */}
+            {/* Relic Energy Lasso */}
             <Animated.View style={lassoAnimatedStyle}>
               <View style={styles.lasso}>
                 <LinearGradient
-                  colors={["#FFD700", "#FF8C00", "#FF6B00"]}
+                  colors={[RELIC.bronzeDeep, RELIC.bronze, "rgba(255,255,255,0.20)"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.lassoInner}
@@ -990,6 +1022,14 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: GameColors.primary,
   },
+  relicDiscContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  relicDisc: {
+    width: 100,
+    height: 100,
+  },
   footer: {
     position: "absolute",
     bottom: 0,
@@ -1062,15 +1102,15 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    borderWidth: 4,
-    borderColor: "rgba(255,255,255,0.8)",
+    borderWidth: 2,
+    borderColor: "rgba(200,137,58,0.6)",
     borderStyle: "dashed",
   },
   lassoGlow: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "rgba(255,255,255,0.6)",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(200,137,58,0.35)",
   },
   particle: {
     position: "absolute",

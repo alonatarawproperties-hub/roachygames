@@ -1,0 +1,92 @@
+We are NOT adding a Pokéball. The “placeholder ball” the UI shows is the catch indicator/reticle: it currently comes from Feather target + generic lasso gradient. Replace those with our AAA “Relic Catcher Disc” (bronze ring + obsidian glass lens) and a themed lasso.
+
+FILE: client/components/CameraEncounter.tsx
+
+CURRENT (from our file):
+- Mystery Egg image stays the same (player taps the egg).
+- Net/Target uses Feather target icon (lines ~598-602).
+- Lasso uses LinearGradient with ["#FFD700", "#FF8C00", "#FF6B00"] (lines ~604-617).
+
+GOAL:
+- Remove the generic/placeholder feel.
+- Replace Feather target icon with a premium catcher disc PNG (transparent).
+- Theme the lasso to “ResinGlass Relic” (bronze + obsidian), no neon/game-jam look.
+- Keep egg locked in place (no tracking movement). Only FX/opacity/scale pulses.
+
+ASSETS (add these manually to the repo):
+Create folder: client/assets/ui/
+Add:
+1) relic_catcher_disc.png  (transparent PNG, 1024 or 2048)
+Optional (for better layering):
+2) relic_disc_glow.png (soft warm glow blob, transparent)
+
+THEME CONSTANTS:
+In client/constants/theme.ts export:
+export const RELIC = {
+  bronze: "#C8893A",
+  bronzeDeep: "#7A4B1C",
+  obsidian: "rgba(10,10,12,0.72)",
+  obsidianDeep: "rgba(0,0,0,0.85)",
+  warmGlow: "rgba(200,137,58,0.40)",
+  glassEdge: "rgba(255,255,255,0.12)",
+} as const;
+
+1) REPLACE NET/TARGET ICON WITH DISC IMAGE
+In the Net/Target block, remove:
+<Feather name="target" size={60} color={GameColors.primary} />
+
+Replace with:
+<Image
+  source={require("@/assets/ui/relic_catcher_disc.png")}
+  style={styles.relicDisc}
+  resizeMode="contain"
+/>
+
+If we add relic_disc_glow.png, render it behind as an absolutely-positioned Image with low opacity.
+
+2) ADD AAA IDLE MOTION (LIGHTWEIGHT)
+Use Animated.loop with useNativeDriver for opacity/scale only:
+- Disc pulse: opacity 0.65 <-> 1.0 over 2200ms
+- Disc micro scale: scale 1.0 <-> 1.04 over 2200ms
+- Optional glow pulse slightly offset timing
+
+No random movement, no drifting, no rotation required.
+
+3) THEME THE LASSO (NO GENERIC GOLD/ORANGE)
+Keep the lasso structure but change gradient colors to bronze/obsidian premium:
+Replace:
+colors={["#FFD700", "#FF8C00", "#FF6B00"]}
+
+With something like:
+colors={[RELIC.bronzeDeep, RELIC.bronze, "rgba(255,255,255,0.20)"]}
+
+Also reduce “cartoony” glow intensity:
+- lassoGlow should be softer (lower opacity)
+- lassoRing border should be thinner and cleaner
+- overall lasso should read as “relic energy” not “generic fire”
+
+4) STYLING (ADD/UPDATE STYLES)
+Add:
+relicDisc: {
+  width: 78,
+  height: 78,
+}
+Optionally wrap it in a subtle glass pad:
+backgroundColor: RELIC.obsidian,
+borderColor: RELIC.glassEdge,
+borderWidth: 1,
+borderRadius: 999,
+padding: 10,
+with soft shadow/elevation.
+
+5) PERFORMANCE
+- Use Image PNGs (no SVG).
+- Animated transforms + opacity only (native driver).
+- Don’t add blur filters.
+
+DELIVERABLE
+- Updated CameraEncounter.tsx with Feather target removed and replaced by relic_catcher_disc.png
+- Lasso gradient updated to bronze/obsidian
+- Idle pulse animation added to disc (and optional glow)
+- Add the new RELIC theme constants in theme.ts
+- Leave the Mystery Egg tap behavior unchanged

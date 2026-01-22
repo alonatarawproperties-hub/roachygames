@@ -12,6 +12,15 @@ function scale(size: number, factor: number = 0.5): number {
   return Math.round(PixelRatio.roundToNearestPixel(clampedSize));
 }
 
+export const RELIC = {
+  bronze: "#C8893A",
+  bronzeDeep: "#7A4B1C",
+  obsidian: "rgba(10,10,12,0.72)",
+  obsidianDeep: "rgba(0,0,0,0.85)",
+  warmGlow: "rgba(200,137,58,0.40)",
+  glassEdge: "rgba(255,255,255,0.12)",
+} as const;
+
 export const GameColors = {
   primary: "#FF9500",
   primaryBright: "#FFB340",
