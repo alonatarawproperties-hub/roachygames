@@ -244,30 +244,20 @@ Your maximum Warmth storage depends on your level:
 | 6–8 | 20 |
 | 9–10 | 30 |
 
+## Phase II Potential Uses
 
----
+Warmth is designed to extend beyond egg hunting. Future uses may include:
 
-# WEEKLY LEADERBOARD
+| Use | Description |
+|-----|-------------|
+| **Egg Incubation** | Speed up hatch timers when eggs evolve into Roachies |
+| **Stat Boosting** | Increase IV rolls during hatching |
+| **Breeding Fuel** | Power the Roachy Mate breeding system |
+| **Battle Energy** | Activate special moves in Roachy Battles |
+| **Raid Entry** | Pay to join Raid encounters |
+| **Stat Rerolls** | Reroll IVs on existing Roachies |
 
-Compete with other Seekers on the weekly leaderboard.
-
-## Scoring
-
-| Action | Points |
-|--------|--------|
-| Perfect Catch | 150 |
-| Great Catch | 75 |
-| Good Catch | 30 |
-
-## Leaderboard Reset
-
-Leaderboards reset weekly (Manila timezone). Your rank is determined by total points accumulated during the week.
-
-## What's Tracked
-
-- Total points
-- Perfect catches
-- Total eggs collected
+*Stock up now—your Warmth will carry forward.*
 
 ---
 
@@ -319,25 +309,6 @@ Roachy Hunt requires location access to function.
 
 ---
 
-# DAILY BONUS (DIAMOND)
-
-Separate from hunting, you can claim a daily Diamond bonus through the main app.
-
-## Streak Rewards
-
-| Day | Diamond Reward |
-|-----|----------------|
-| 1 | 0.10 |
-| 2 | 0.15 |
-| 3 | 0.20 |
-| 4 | 0.25 |
-| 5 | 0.30 |
-| 6 | 0.40 |
-| 7 | 0.60 |
-
-The cycle repeats after Day 7. Maintain your streak for maximum Diamond accumulation.
-
----
 
 # QUICK REFERENCE
 
@@ -377,7 +348,7 @@ The cycle repeats after Day 7. Maintain your streak for maximum Diamond accumula
 | Term | Definition |
 |------|------------|
 | **Seeker** | A Roachy Hunt player |
-| **Home Zone** | 500m radius personal spawn area |
+| **Home Zone** | 50m radius personal spawn area |
 | **Drip System** | Spawns appear gradually over time |
 | **Mystery Egg** | Pre-reveal egg appearance |
 | **Catcher Disc** | AR capture tool |
@@ -385,7 +356,6 @@ The cycle repeats after Day 7. Maintain your streak for maximum Diamond accumula
 | **Warmth** | Spendable resource for abilities |
 | **Pity Timer** | Guaranteed rare+ after X catches |
 | **Streak** | Consecutive active days |
-| **Heat Mode** | 20-minute boosted spawn period |
 | **Hotspot** | Enhanced spawn zone (Micro/Hot Drop/Beacon) |
 | **Daily Cap** | Maximum eggs collectible per day |
 
