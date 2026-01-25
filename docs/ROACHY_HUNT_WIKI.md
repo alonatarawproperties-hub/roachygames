@@ -15,13 +15,13 @@ Roachy Hunt is a location-based egg-hunting experience where you discover, captu
 
 ## Your Home Zone
 
-When you open Roachy Hunt, the game establishes your **Home Zone**—a 500-meter radius centered on your starting location. This is your primary hunting ground.
+When you open Roachy Hunt, the game establishes your **Home Zone**—a 50-meter radius centered on your starting location. This is your primary hunting ground.
 
 | Parameter | Value |
 |-----------|-------|
-| Home Zone Radius | 500 meters |
-| Spawn Cluster Radius | 100 meters from your position |
-| Active Spawns (max) | 6 eggs at once |
+| Home Zone Radius | 50 meters |
+| Spawn Cluster Radius | 500 meters from your position |
+| Active Spawns (max) | 5 eggs at once |
 | Spawn Refresh | Every 4 minutes (drip system) |
 
 Eggs appear as glowing markers on your map. Walk within range, tap to engage, and capture them through the AR camera interface.
@@ -108,19 +108,6 @@ Eggs don't stay still. They drift and dodge based on rarity:
 | Epic | Fast | Erratic movement |
 | Legendary | Variable | Unpredictable |
 
-## Catch Quality
-
-Your timing and accuracy determine catch quality:
-
-| Quality | XP Reward | Warmth Bonus |
-|---------|-----------|--------------|
-| Perfect | 150 XP | +1 Warmth |
-| Great | 75 XP | None |
-| Good | 30 XP | None |
-
-Perfect catches require precise timing and alignment. They reward you with bonus Warmth for spending on abilities.
-
----
 
 # FUSION
 
@@ -176,7 +163,7 @@ Micro Hotspots appear close by and contain guaranteed Rare/Epic eggs. Perfect fo
 
 | Parameter | Value |
 |-----------|-------|
-| Distance | 450–1,200 meters from you |
+| Distance | 300–1,200 meters from you |
 | Duration | 12–22 minutes (dynamic) |
 | Cooldown | 25 minutes |
 | Cluster Size | 3–5 eggs |
@@ -198,28 +185,6 @@ Hot Drops are your best hunting opportunity. They require a real walk but reward
 
 The Beacon is your daily quest. Travel to a distant location, collect 5 eggs within the zone, then claim your reward. The claim has a 30% chance of granting a Legendary egg directly.
 
----
-
-# PROGRESSION
-
-## Hunter Level
-
-Your level reflects your hunting dedication. XP accumulates from every catch.
-
-| Level | Title | XP Required | Daily Cap |
-|-------|-------|-------------|-----------|
-| 1 | Initiate | 0 | 25 |
-| 2 | Scout | 500 | 25 |
-| 3 | Tracker | 700 | 30 |
-| 4 | Hunter | 1,000 | 30 |
-| 5 | Stalker | 1,400 | 35 |
-| 6 | Ranger | 1,800 | 35 |
-| 7 | Warden | 2,200 | 40 |
-| 8 | Sentinel | 2,600 | 40 |
-| 9 | Guardian | 3,000 | 40 |
-| 10 | Elder Seeker | 3,400 | 50 |
-
-Higher levels unlock increased daily caps and special abilities.
 
 ## Daily Cap
 
@@ -253,7 +218,6 @@ Consecutive hunting days multiply your rewards:
 | Days 7–13 | 1.2x |
 | Days 14+ | 1.3x |
 
-**Streak Chests**: Every 3 days of streak, receive a bonus chest containing +3 Warmth and +250 XP.
 
 ---
 
@@ -280,16 +244,6 @@ Your maximum Warmth storage depends on your level:
 | 6–8 | 20 |
 | 9–10 | 30 |
 
-## Spending Warmth
-
-| Ability | Cost | Effect | Unlock Level |
-|---------|------|--------|--------------|
-| Tracker Ping | 2 | Reveals spawn locations briefly | Level 3 |
-| Second Attempt | 1 | Retry a failed catch | Level 4 |
-| Heat Mode | 10 | 20 minutes of boosted spawns | Level 5 |
-
-### Heat Mode
-When activated, Heat Mode dramatically increases spawn rates and rarity chances for 20 minutes. Use it when you're ready to actively hunt.
 
 ---
 
