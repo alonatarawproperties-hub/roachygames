@@ -26,6 +26,8 @@ import {
   getManilaDate,
   getManilaYesterday,
   getManilaWeekKey,
+  getUtcDate,
+  getUtcYesterday,
   calculateDistance,
   generateDeterministicNodes,
   selectEggRarity,
@@ -609,7 +611,7 @@ export function registerHuntRoutes(app: Express) {
       }
 
       // ===== HOTSPOT QUEST SYSTEM (No spawn creation in GET - offers only) =====
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       let questMeta: {
         active: boolean;
         type?: string;
@@ -915,7 +917,7 @@ export function registerHuntRoutes(app: Express) {
       
       const lat = parseFloat(latitude);
       const lng = parseFloat(longitude);
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       const now = new Date();
       const nowMs = now.getTime();
       
@@ -1053,7 +1055,7 @@ export function registerHuntRoutes(app: Express) {
       // Derive walletAddress from authenticated userId (set by requireAuth middleware)
       const walletAddress = requirePlayerId(req);
       
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       const now = new Date();
       
       // Get player state
@@ -1531,7 +1533,7 @@ export function registerHuntRoutes(app: Express) {
       
       if (spawn.sourceType && spawn.sourceKey) {
         questType = spawn.sourceType;
-        const dayKey = getManilaDate();
+        const dayKey = getUtcDate();
         const now = new Date();
         const nowMs = now.getTime();
         
@@ -1680,13 +1682,13 @@ export function registerHuntRoutes(app: Express) {
         catchLongitude: (longitude || spawn.longitude).toString(),
       }).returning();
 
-      const manilaToday = getManilaDate();
-      const manilaYest = getManilaYesterday();
-      const isNewDay = economy.lastCatchDate !== manilaToday;
+      const utcToday = getUtcDate();
+      const utcYest = getUtcYesterday();
+      const isNewDay = economy.lastCatchDate !== utcToday;
       let newStreak = economy.currentStreak;
 
       if (isNewDay) {
-        newStreak = economy.lastCatchDate === manilaYest ? economy.currentStreak + 1 : 1;
+        newStreak = economy.lastCatchDate === utcYest ? economy.currentStreak + 1 : 1;
       }
 
       let newCatchesSinceRare = spawn.rarity === 'rare' || spawn.rarity === 'epic' || spawn.rarity === 'legendary' 
@@ -1703,7 +1705,7 @@ export function registerHuntRoutes(app: Express) {
           catchesSinceEpic: newCatchesSinceEpic,
           currentStreak: newStreak,
           longestStreak: Math.max(newStreak, economy.longestStreak),
-          lastCatchDate: manilaToday,
+          lastCatchDate: utcToday,
           lastDailyReset: isNewDay ? new Date() : economy.lastDailyReset,
           updatedAt: new Date(),
         })
@@ -2391,7 +2393,7 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ ok: false, error: "COORDS_OUT_OF_RANGE", nodes: [], requestId });
       }
       
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       
       const nodes = generateDeterministicNodes(lat, lon, dayKey);
       
@@ -2419,7 +2421,7 @@ export function registerHuntRoutes(app: Express) {
     } catch (error) {
       console.warn("[HUNT_NODES] failed", { requestId, err: String(error) });
       // Return safe empty payload instead of 500
-      res.json({ ok: false, error: "NODES_UNAVAILABLE", nodes: [], dayKey: getManilaDate(), totalNodes: 0, claimedCount: 0, requestId });
+      res.json({ ok: false, error: "NODES_UNAVAILABLE", nodes: [], dayKey: getUtcDate(), totalNodes: 0, claimedCount: 0, requestId });
     }
   });
 
@@ -2437,7 +2439,7 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid quality" });
       }
 
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       const weekKey = getManilaWeekKey();
       
       const existingClaim = await db.select()
@@ -2468,9 +2470,9 @@ export function registerHuntRoutes(app: Express) {
       const isNewDay = economy.lastCatchDate !== dayKey;
       const huntsToday = isNewDay ? 0 : economy.catchesToday;
       
-      const manilaYesterday = getManilaYesterday();
+      const utcYesterday = getUtcYesterday();
       const currentStreak = isNewDay 
-        ? (economy.lastCatchDate === manilaYesterday ? economy.currentStreak + 1 : 1)
+        ? (economy.lastCatchDate === utcYesterday ? economy.currentStreak + 1 : 1)
         : economy.currentStreak;
       
       const currentLevel = computeLevelFromXp(economy.hunterXp || 0).level;
@@ -2548,7 +2550,7 @@ export function registerHuntRoutes(app: Express) {
 
       let newStreak = economy.currentStreak;
       if (isNewDay) {
-        newStreak = economy.lastCatchDate === manilaYesterday ? economy.currentStreak + 1 : 1;
+        newStreak = economy.lastCatchDate === utcYesterday ? economy.currentStreak + 1 : 1;
       }
 
       const streakXpMult = getStreakXpMult(newStreak);
@@ -2712,7 +2714,7 @@ export function registerHuntRoutes(app: Express) {
         return res.status(400).json({ error: "Spawn not found or already caught" });
       }
 
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       const weekKey = getManilaWeekKey();
 
       let [economy] = await db.select().from(huntEconomyStats)
@@ -2730,10 +2732,10 @@ export function registerHuntRoutes(app: Express) {
       const isNewDay = economy.lastCatchDate !== dayKey;
       const huntsToday = isNewDay ? 0 : economy.catchesToday;
       
-      const manilaYest = getManilaYesterday();
+      const utcYest = getUtcYesterday();
       let newStreak = economy.currentStreak;
       if (isNewDay) {
-        newStreak = economy.lastCatchDate === manilaYest ? economy.currentStreak + 1 : 1;
+        newStreak = economy.lastCatchDate === utcYest ? economy.currentStreak + 1 : 1;
       }
       
       const currentLevel = computeLevelFromXp(economy.hunterXp || 0).level;
@@ -3187,7 +3189,7 @@ export function registerHuntRoutes(app: Express) {
         }).returning();
       }
 
-      const dayKey = getManilaDate();
+      const dayKey = getUtcDate();
       const weekKey = getManilaWeekKey();
       const isNewDay = economy.lastCatchDate !== dayKey;
       

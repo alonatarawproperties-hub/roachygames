@@ -149,6 +149,16 @@ export function getManilaYesterday(): string {
   return manilaTime.toISOString().split('T')[0];
 }
 
+export function getUtcDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export function getUtcYesterday(): string {
+  const now = new Date();
+  now.setUTCDate(now.getUTCDate() - 1);
+  return now.toISOString().split('T')[0];
+}
+
 export function getManilaWeekKey(): string {
   const now = new Date();
   const manilaOffset = 8 * 60;
