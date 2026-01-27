@@ -66,6 +66,9 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
