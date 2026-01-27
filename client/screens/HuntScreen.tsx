@@ -1093,13 +1093,13 @@ export default function HuntScreen() {
         
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Catch Failed", result.error, [{ text: "OK" }]);
+        Alert.alert("Catch Failed", result.error, [{ text: "OK", onPress: cleanupEncounter }]);
       } else {
         // Unknown response
         console.log("[Phase1] Unknown response:", JSON.stringify(result));
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Catch Failed", "Something went wrong", [{ text: "OK" }]);
+        Alert.alert("Catch Failed", "Something went wrong", [{ text: "OK", onPress: cleanupEncounter }]);
       }
     } catch (error: any) {
       const errorMsg = error?.message || String(error) || "Network error";
@@ -1115,7 +1115,7 @@ export default function HuntScreen() {
       if (thisAttempt === catchSeqRef.current) {
         setIsCollecting(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Connection Error", errorMsg, [{ text: "OK" }]);
+        Alert.alert("Connection Error", errorMsg, [{ text: "OK", onPress: cleanupEncounter }]);
       }
     } finally {
       // Always release the lock
