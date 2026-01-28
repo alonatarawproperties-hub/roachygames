@@ -54,7 +54,6 @@
     "expo-location": "~18.1.6",
     "expo-screen-orientation": "~8.1.7",
     "expo-secure-store": "^14.2.4",
-    "expo-sensors": "^15.0.8",
     "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~2.2.3",
     "expo-symbols": "~0.4.5",
