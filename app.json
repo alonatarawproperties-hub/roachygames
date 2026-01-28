@@ -58,6 +58,9 @@
         "foregroundImage": "./assets/images/icon.png"
       },
       "package": "com.cryptocreatures.app",
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ],
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
