@@ -296,6 +296,36 @@ export default function HuntScreen() {
       visibleCount: inRangeCount 
     };
   }, [spawns, CATCH_RADIUS_M]);
+
+  const MAX_ANDROID_MARKERS = 25;
+
+  // MAP-ONLY: keep native map lightweight on Android
+  const spawnsForMap = useMemo(() => {
+    if (!spawns || spawns.length === 0) return [];
+
+    const cleaned = spawns
+      .map((s: any) => {
+        const lat = Number(s.latitude);
+        const lng = Number(s.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+        const dist = typeof s.distance === "number" ? s.distance : null;
+
+        // MAP RULE: visible == catchable (prevents Android overload)
+        if (dist === null) return null;
+        if (dist > CATCH_RADIUS_M) return null;
+
+        return { ...s, latitude: lat, longitude: lng, distance: dist };
+      })
+      .filter(Boolean) as any[];
+
+    // closest first
+    cleaned.sort((a, b) => (a.distance ?? 999999) - (b.distance ?? 999999));
+
+    // Android safety cap
+    if (Platform.OS === "android") return cleaned.slice(0, MAX_ANDROID_MARKERS);
+    return cleaned;
+  }, [spawns, CATCH_RADIUS_M]);
   
   const { inRangeCount, outOfRangeCount, closestOutOfRange } = spawnRangeCounts;
   
@@ -1569,7 +1599,7 @@ export default function HuntScreen() {
         <MapViewWrapper
           ref={mapRef}
           playerLocation={playerLocation}
-          spawns={spawns}
+          spawns={spawnsForMap}
           questSpawns={questSpawns}
           raids={raids}
           mapNodes={allMapNodes}

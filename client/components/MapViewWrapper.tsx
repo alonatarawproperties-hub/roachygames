@@ -577,46 +577,27 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
             </MarkerComponent>
           ) : null}
 
-          {/* Spawn markers - Golden mystery eggs */}
-          {spawns && spawns.length > 0 && MarkerComponent ? (() => {
-            console.log(`[MapViewWrapper] Rendering ${spawns.length} spawn markers`);
-            return spawns.map((spawn) => {
-              const spawnLat = parseFloat(String(spawn.latitude));
-              const spawnLng = parseFloat(String(spawn.longitude));
-              if (isNaN(spawnLat) || isNaN(spawnLng)) {
-                console.log(`[MapViewWrapper] Invalid spawn coordinates: ${spawn.latitude}, ${spawn.longitude}`);
-                return null;
-              }
-              
+          {/* Spawn markers - Golden mystery eggs (Android-safe) */}
+          {spawns && spawns.length > 0 && MarkerComponent ? (
+            spawns.map((spawn: any) => {
+              const spawnLat = Number(spawn.latitude);
+              const spawnLng = Number(spawn.longitude);
+              if (!Number.isFinite(spawnLat) || !Number.isFinite(spawnLng)) return null;
+
               return (
                 <MarkerComponent
                   key={spawn.id}
                   identifier={spawn.id}
-                  coordinate={{
-                    latitude: spawnLat,
-                    longitude: spawnLng,
-                  }}
-                  onPress={() => {
-                    console.log(`[MapViewWrapper] Spawn onPress: ${spawn.id}`);
-                    safeOnSpawnTap(spawn, "marker");
-                  }}
-                  onSelect={() => {
-                    console.log(`[MapViewWrapper] Spawn onSelect (iOS): ${spawn.id}`);
-                    safeOnSpawnTap(spawn, "marker");
-                  }}
+                  coordinate={{ latitude: spawnLat, longitude: spawnLng }}
+                  onPress={() => safeOnSpawnTap(spawn, "marker")}
                   anchor={{ x: 0.5, y: 0.5 }}
                   tracksViewChanges={false}
-                  tappable={true}
-                >
-                  <Image 
-                    source={spawnMarkerImage} 
-                    style={styles.spawnMarkerImage} 
-                    resizeMode="contain"
-                  />
-                </MarkerComponent>
+                  tappable
+                  image={spawnMarkerImage}
+                />
               );
-            });
-          })() : null}
+            })
+          ) : null}
 
           {/* Quest Spawn markers (HOT_DROP / MICRO_HOTSPOT / LEGENDARY_BEACON) - use same egg marker */}
           {questSpawns && questSpawns.length > 0 && MarkerComponent ? (() => {

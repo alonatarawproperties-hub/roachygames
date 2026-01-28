@@ -1,0 +1,129 @@
+REPLIT / DEV PROMPT (ONE-CLICK COPY) — ANDROID HUNT CRASH ONLY (iOS MUST STAY PERFECT)
+
+CONTEXT (READ CAREFULLY)
+- iOS is PERFECTLY WORKING (build 202). DO NOT CHANGE iOS BEHAVIOR/LOGIC except where noted below.
+- Android builds 70–76 CRASH when opening Roachy Hunt during loading after “Loading hunt data” while “Acquiring GPS signal / Preparing hunting grounds”.
+- Last working Android: build 68.
+- Replit: DO NOT TOUCH anything unrelated. DO NOT “refactor”. DO NOT change quests/hotdrop/beacon/rewards/fusion/etc. ONLY touch map marker rendering + map-only spawn filtering + circle radius constant usage.
+
+PRIMARY HYPOTHESIS
+- Android native crash is caused by react-native-maps rendering too many custom Marker views (<Marker><Image/></Marker>) + rendering ALL spawns (including out-of-range) → native OOM / crash during map init.
+- Fix by making Android map marker rendering lightweight and limiting how many markers are created.
+
+STRICT SCOPE (DO NOT VIOLATE)
+✅ Allowed edits (ONLY):
+1) HuntScreen.tsx: create a derived list `spawnsForMap` used ONLY for the MapViewWrapper prop
+2) MapViewWrapper.tsx: change marker rendering to use `image={spawnMarkerImage}` (native marker) and remove child <Image/>
+3) Circle radius: use `CATCH_RADIUS_M` as single source of truth (only if currently incorrect)
+❌ Forbidden edits:
+- Do NOT touch spawn generation, server calls, quest logic, hot drop / micro / beacon logic, distance calculation logic, “spawnRangeCounts” display logic, fusion, inventory, UI layout, sensors, permissions, location flow, or loading screens.
+- Do NOT modify enableNetworkProviderAsync block.
+- Do NOT change allReady gating logic (gpsReady/dataReady/mapReady) except if absolutely required (should not be).
+
+GOAL BEHAVIOR
+- Android: no crash when entering Hunt. Map loads and markers are tappable.
+- “Visible == catchable” for MAP markers: show only spawns with distance <= CATCH_RADIUS_M (map-only), to prevent marker overload.
+- iOS: keep working as-is. It can also benefit from map-only filtering but must not break anything.
+
+IMPLEMENTATION STEPS
+
+STEP 1 — HuntScreen.tsx: Create MAP-ONLY filtered + capped spawn list
+- Locate where HuntScreen renders <MapViewWrapper ... spawns={spawns} />
+- Replace ONLY that prop to use `spawnsForMap` (do not rename existing `spawns` or reuse for other logic).
+
+ADD THIS near other useMemo hooks in HuntScreen.tsx:
+----------------------------------------------------------------
+import { Platform } from "react-native";
+
+const MAX_ANDROID_MARKERS = 25;
+
+// MAP-ONLY: keep native map lightweight on Android
+const spawnsForMap = useMemo(() => {
+  if (!spawns || spawns.length === 0) return [];
+
+  const cleaned = spawns
+    .map((s: any) => {
+      const lat = Number(s.latitude);
+      const lng = Number(s.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+      const dist = typeof s.distance === "number" ? s.distance : null;
+
+      // MAP RULE: visible == catchable (prevents Android overload)
+      if (dist === null) return null;
+      if (dist > CATCH_RADIUS_M) return null;
+
+      return { ...s, latitude: lat, longitude: lng, distance: dist };
+    })
+    .filter(Boolean) as any[];
+
+  // closest first
+  cleaned.sort((a, b) => (a.distance ?? 999999) - (b.distance ?? 999999));
+
+  // Android safety cap
+  if (Platform.OS === "android") return cleaned.slice(0, MAX_ANDROID_MARKERS);
+  return cleaned;
+}, [spawns, CATCH_RADIUS_M]);
+----------------------------------------------------------------
+
+THEN change ONLY the MapViewWrapper prop:
+- BEFORE: spawns={spawns}
+- AFTER:  spawns={spawnsForMap}
+
+IMPORTANT: Do not use spawnsForMap anywhere else. Only for map markers.
+
+STEP 2 — MapViewWrapper.tsx: Render markers using native `image` prop (Android-safe)
+- Find the spawn marker map loop around lines ~581-619.
+- Replace the marker JSX to remove the child <Image/> and use `image={spawnMarkerImage}`.
+
+REPLACE the spawn marker block with:
+----------------------------------------------------------------
+{/* Spawn markers - Golden mystery eggs (Android-safe) */}
+{spawns && spawns.length > 0 && MarkerComponent ? (
+  spawns.map((spawn: any) => {
+    const spawnLat = Number(spawn.latitude);
+    const spawnLng = Number(spawn.longitude);
+    if (!Number.isFinite(spawnLat) || !Number.isFinite(spawnLng)) return null;
+
+    return (
+      <MarkerComponent
+        key={spawn.id}
+        identifier={spawn.id}
+        coordinate={{ latitude: spawnLat, longitude: spawnLng }}
+        onPress={() => safeOnSpawnTap(spawn, "marker")}
+        anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={false}
+        tappable
+        image={spawnMarkerImage}   // ✅ native marker bitmap (much lighter on Android)
+      />
+    );
+  })
+) : null}
+----------------------------------------------------------------
+
+Also remove console.log inside render loop (keep logs minimal).
+Do NOT change safeOnSpawnTap.
+
+STEP 3 — Circle radius must match CATCH_RADIUS_M (single source of truth)
+- If Circle currently uses radius={500} (or anything not equal to CATCH_RADIUS_M), replace only that number.
+- Do NOT change styling.
+
+CHANGE ONLY this:
+----------------------------------------------------------------
+radius={CATCH_RADIUS_M}
+----------------------------------------------------------------
+
+NOTES / GUARANTEES
+- This DOES NOT change your spawn logic, quests, hotdrops, beacon, or any server behavior.
+- It only affects what the MAP draws (and how many markers Android tries to create).
+- iOS stays working; Android stops crashing.
+
+BUILD & TEST
+- Create a new Android build.
+- Verify entering Hunt no longer crashes.
+- Verify tapping a marker still triggers safeOnSpawnTap.
+- Verify only in-range markers show (distance <= CATCH_RADIUS_M) and circle matches that radius.
+
+ONLY IF IT STILL CRASHES (optional, do not do unless needed)
+- Add Sentry/Crashlytics OR use a dev build with logcat.
+- If map is blank with provider errors, then consider GOOGLE_MAPS_API_KEY config. But do not touch unless confirmed by logs.
