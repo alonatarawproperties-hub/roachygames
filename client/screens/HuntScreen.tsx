@@ -577,9 +577,9 @@ export default function HuntScreen() {
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // === ANDROID-ONLY: Heading difference (wraparound aware) ===
-  function headingDiffDegrees(h1: number | undefined, h2: number | undefined): number {
-    if (h1 === undefined || h2 === undefined) return 0;
+  // === ANDROID-ONLY: Heading difference (wraparound aware, null-safe) ===
+  function headingDiffDegrees(h1?: number, h2?: number): number | null {
+    if (h1 === undefined || h2 === undefined) return null;
     let diff = Math.abs(h1 - h2) % 360;
     if (diff > 180) diff = 360 - diff;
     return diff;
@@ -593,20 +593,28 @@ export default function HuntScreen() {
     heading: number | undefined,
     now: number
   ): boolean {
-    if (Platform.OS !== "android") return true; // iOS: always update
+    if (Platform.OS !== "android") return true; // iOS unchanged
 
     const prev = androidLastStateUpdateRef.current;
-    if (!prev) return true; // First update
+    if (!prev) return true; // first update always
 
     const distM = haversineMeters(prev.lat, prev.lng, lat, lng);
-    const headingDiff = headingDiffDegrees(prev.heading, heading);
     const timeSinceMs = now - prev.ts;
 
-    // Thresholds: 5m distance OR 10 degrees heading OR 900ms elapsed
-    const shouldUpdate = distM >= 5 || headingDiff >= 10 || timeSinceMs >= 900;
+    const headingDelta = headingDiffDegrees(prev.heading, heading);
+    const headingOk = headingDelta !== null && headingDelta >= 10;
 
-    if (shouldUpdate && __DEV__ && Platform.OS === "android") {
-      console.log(`[Android-Throttle] UPDATE: dist=${distM.toFixed(1)}m heading=${headingDiff.toFixed(0)}° elapsed=${timeSinceMs}ms`);
+    // Thresholds: 5m distance OR 10° heading (only if valid) OR 900ms elapsed
+    const shouldUpdate = distM >= 5 || headingOk || timeSinceMs >= 900;
+
+    if (shouldUpdate) {
+      androidLastStateUpdateRef.current = { lat, lng, heading, ts: now };
+    }
+
+    if (__DEV__) {
+      console.log(
+        `[Android-Throttle] dist=${distM.toFixed(1)}m headingDelta=${headingDelta ?? "n/a"} elapsed=${timeSinceMs}ms => ${shouldUpdate ? "UPDATE" : "SKIP"}`
+      );
     }
 
     return shouldUpdate;
@@ -844,26 +852,24 @@ export default function HuntScreen() {
           const heading = coords.heading;
           const parsedHeading = heading !== null && heading >= 0 ? heading : undefined;
 
+          // === ANDROID-ONLY: Accuracy gate - ignore noisy GPS fixes ===
+          if (Platform.OS === "android") {
+            const acc = typeof coords.accuracy === "number" ? coords.accuracy : null;
+            if (acc !== null && acc > 25) {
+              if (__DEV__) console.log(`[Android-GPS] Ignoring noisy fix accuracy=${acc}m`);
+              return;
+            }
+          }
+
           // === ANDROID-ONLY: Throttle React state updates ===
           if (Platform.OS === "android") {
             // Always store raw location in ref (for gameplay logic that needs latest)
             androidRawLocationRef.current = { lat: smoothedLat, lng: smoothedLng, heading: parsedHeading };
             
-            // Only update React state if thresholds met
+            // Only update React state if thresholds met (ref updated inside shouldUpdateAndroidState)
             if (!shouldUpdateAndroidState(smoothedLat, smoothedLng, parsedHeading, now)) {
-              // Skip React state update but still POST to server if needed
-              if (shouldPost) {
-                // Server POST uses raw ref, not React state
-                // updateLocation handles both state + server, so we need forcePost=false here
-                // Actually, we should still post to server even if UI doesn't update
-                // The context's updateLocation does both - but we want to skip state only
-                // For now, skip entirely on Android when throttled (server POST is separate concern)
-              }
               return; // Skip UI update
             }
-            
-            // Update tracking ref
-            androidLastStateUpdateRef.current = { lat: smoothedLat, lng: smoothedLng, heading: parsedHeading, ts: now };
           }
 
           updateLocation(

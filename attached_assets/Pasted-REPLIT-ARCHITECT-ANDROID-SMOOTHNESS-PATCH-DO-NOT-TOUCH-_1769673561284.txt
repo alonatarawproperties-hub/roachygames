@@ -1,0 +1,106 @@
+REPLIT ARCHITECT — ANDROID SMOOTHNESS PATCH (DO NOT TOUCH iOS / DO NOT TOUCH OTHER FEATURES)
+
+Context / Non-negotiables:
+- iOS Hunt screen is PERFECTLY WORKING and SMOOTH. Do NOT change iOS behavior at all.
+- Only adjust Android behavior where explicitly stated.
+- Do NOT refactor unrelated code. Do NOT change UI/UX flows. Do NOT change spawn logic. Do NOT touch quest logic. Do NOT touch networking.
+- Goal: fix Android “feels buggy / stuttery / not same as iOS” by fixing two throttle gotchas + (optional) accuracy gate.
+- Files to touch ONLY if needed: client/screens/HuntScreen.tsx (Android throttle section). MapViewWrapper stays as already changed.
+
+Problem:
+Android throttle currently has 2 gotchas:
+1) headingDiffDegrees() returns 0 when heading is undefined, which can block updates or create fake stability.
+2) shouldUpdateAndroidState() must safely compute dist/time/heading and handle null heading without crashes or bad gating.
+Optional: ignore very inaccurate GPS fixes (Android often emits noisy accuracy) to reduce jitter.
+
+DO THIS (STEP BY STEP):
+
+A) Replace headingDiffDegrees helper with a null-safe version
+Find the helper added recently (Android throttle area) and replace with this EXACT code:
+
+function headingDiffDegrees(h1?: number, h2?: number): number | null {
+  if (h1 === undefined || h2 === undefined) return null;
+  let diff = Math.abs(h1 - h2) % 360;
+  if (diff > 180) diff = 360 - diff;
+  return diff;
+}
+
+B) Ensure you have a correct distance function (haversine)
+If there is already a distance function used for distM, reuse it. If not present in this Android throttle area, add this minimal helper near the throttle functions (DO NOT refactor other distance logic elsewhere):
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+C) Fix shouldUpdateAndroidState() to be safe and correct
+Locate the recently added shouldUpdateAndroidState(lat, lng, heading, now) and replace ONLY ITS BODY with this logic (keep signature same):
+
+function shouldUpdateAndroidState(lat: number, lng: number, heading: number | undefined, now: number): boolean {
+  if (Platform.OS !== "android") return true; // iOS unchanged
+
+  const prev = androidLastStateUpdateRef.current;
+  if (!prev) return true; // first update always
+
+  const distM = haversineMeters(prev.lat, prev.lng, lat, lng);
+  const timeSinceMs = now - prev.ts;
+
+  const headingDelta = headingDiffDegrees(prev.heading, heading);
+  const headingOk = headingDelta !== null && headingDelta >= 10;
+
+  // Thresholds: 5m distance OR 10° heading (only if valid) OR 900ms elapsed
+  const shouldUpdate = distM >= 5 || headingOk || timeSinceMs >= 900;
+
+  if (shouldUpdate) {
+    androidLastStateUpdateRef.current = { lat, lng, heading, ts: now };
+  }
+
+  if (__DEV__) {
+    console.log(
+      `[Android-Throttle] dist=${distM.toFixed(1)}m headingDelta=${headingDelta ?? "n/a"} elapsed=${timeSinceMs}ms => ${shouldUpdate ? "UPDATE" : "SKIP"}`
+    );
+  }
+
+  return shouldUpdate;
+}
+
+IMPORTANT:
+- This updates androidLastStateUpdateRef ONLY when we actually UPDATE state (keeps ref consistent).
+- headingDelta null means “ignore heading gate” (do not treat as 0).
+
+D) OPTIONAL but recommended: ignore noisy GPS fixes on Android (accuracy gate)
+Inside your Location.watchPositionAsync callback BEFORE calling updateLocation(...), add:
+
+if (Platform.OS === "android") {
+  const acc = typeof coords.accuracy === "number" ? coords.accuracy : null;
+  // ignore very noisy fixes to avoid jitter spikes
+  if (acc !== null && acc > 25) {
+    if (__DEV__) console.log(`[Android-GPS] Ignoring noisy fix accuracy=${acc}m`);
+    return;
+  }
+}
+
+Do NOT add this on iOS. Android only.
+
+E) Ensure updateLocation uses the throttle decision correctly (Android only)
+Where updateLocation(...) is called, confirm:
+- Android path stores raw in androidRawLocationRef (keep as-is)
+- Android path only calls setState / context updates when shouldUpdateAndroidState(...) returns true
+- iOS path is untouched (no throttling)
+
+DO NOT:
+- Do NOT change watchPositionAsync options (accuracy/timeInterval/distanceInterval) unless explicitly asked later.
+- Do NOT change MapView props beyond what was already changed.
+- Do NOT change marker rendering in this task.
+
+Deliverable:
+- Only the minimal code edits above.
+- Confirm in output: “iOS unchanged” and list exactly what changed in HuntScreen.tsx.
