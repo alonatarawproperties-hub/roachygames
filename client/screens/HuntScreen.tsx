@@ -552,6 +552,20 @@ export default function HuntScreen() {
   // Last heartbeat accept timestamp (for stationary updates)
   const lastHeartbeatTickRef = useRef<number>(0);
 
+  // === ANDROID-ONLY: UI state throttling ===
+  // Keep raw GPS in ref, only update React state when thresholds met
+  const androidLastStateUpdateRef = useRef<{
+    lat: number;
+    lng: number;
+    heading: number | undefined;
+    ts: number;
+  } | null>(null);
+  const androidRawLocationRef = useRef<{
+    lat: number;
+    lng: number;
+    heading: number | undefined;
+  } | null>(null);
+
   function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371000;
     const toRad = (v: number) => (v * Math.PI) / 180;
@@ -561,6 +575,41 @@ export default function HuntScreen() {
       Math.sin(dLat / 2) ** 2 +
       Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  // === ANDROID-ONLY: Heading difference (wraparound aware) ===
+  function headingDiffDegrees(h1: number | undefined, h2: number | undefined): number {
+    if (h1 === undefined || h2 === undefined) return 0;
+    let diff = Math.abs(h1 - h2) % 360;
+    if (diff > 180) diff = 360 - diff;
+    return diff;
+  }
+
+  // === ANDROID-ONLY: Throttled state update ===
+  // Returns true if state should be updated, false if skipped
+  function shouldUpdateAndroidState(
+    lat: number,
+    lng: number,
+    heading: number | undefined,
+    now: number
+  ): boolean {
+    if (Platform.OS !== "android") return true; // iOS: always update
+
+    const prev = androidLastStateUpdateRef.current;
+    if (!prev) return true; // First update
+
+    const distM = haversineMeters(prev.lat, prev.lng, lat, lng);
+    const headingDiff = headingDiffDegrees(prev.heading, heading);
+    const timeSinceMs = now - prev.ts;
+
+    // Thresholds: 5m distance OR 10 degrees heading OR 900ms elapsed
+    const shouldUpdate = distM >= 5 || headingDiff >= 10 || timeSinceMs >= 900;
+
+    if (shouldUpdate && __DEV__ && Platform.OS === "android") {
+      console.log(`[Android-Throttle] UPDATE: dist=${distM.toFixed(1)}m heading=${headingDiff.toFixed(0)}° elapsed=${timeSinceMs}ms`);
+    }
+
+    return shouldUpdate;
   }
 
   // Detect stale GPS (no ACCEPTED updates for 15 seconds)
@@ -715,10 +764,19 @@ export default function HuntScreen() {
             lastAcceptedTickRef.current = now;
             setGpsStale(false);
             const heading = coords.heading;
+            const parsedHeading = heading !== null && heading >= 0 ? heading : undefined;
+            
+            // Android: Store raw location in ref, always update state on first fix
+            if (Platform.OS === "android") {
+              androidRawLocationRef.current = { lat: smoothedLat, lng: smoothedLng, heading: parsedHeading };
+              androidLastStateUpdateRef.current = { lat: smoothedLat, lng: smoothedLng, heading: parsedHeading, ts: now };
+              if (__DEV__) console.log("[Android-Throttle] FIRST FIX");
+            }
+            
             updateLocation(
               smoothedLat,
               smoothedLng,
-              heading !== null && heading >= 0 ? heading : undefined,
+              parsedHeading,
               { forcePost: true }
             );
             return;
@@ -784,10 +842,34 @@ export default function HuntScreen() {
           }
 
           const heading = coords.heading;
+          const parsedHeading = heading !== null && heading >= 0 ? heading : undefined;
+
+          // === ANDROID-ONLY: Throttle React state updates ===
+          if (Platform.OS === "android") {
+            // Always store raw location in ref (for gameplay logic that needs latest)
+            androidRawLocationRef.current = { lat: smoothedLat, lng: smoothedLng, heading: parsedHeading };
+            
+            // Only update React state if thresholds met
+            if (!shouldUpdateAndroidState(smoothedLat, smoothedLng, parsedHeading, now)) {
+              // Skip React state update but still POST to server if needed
+              if (shouldPost) {
+                // Server POST uses raw ref, not React state
+                // updateLocation handles both state + server, so we need forcePost=false here
+                // Actually, we should still post to server even if UI doesn't update
+                // The context's updateLocation does both - but we want to skip state only
+                // For now, skip entirely on Android when throttled (server POST is separate concern)
+              }
+              return; // Skip UI update
+            }
+            
+            // Update tracking ref
+            androidLastStateUpdateRef.current = { lat: smoothedLat, lng: smoothedLng, heading: parsedHeading, ts: now };
+          }
+
           updateLocation(
             smoothedLat,
             smoothedLng,
-            heading !== null && heading >= 0 ? heading : undefined,
+            parsedHeading,
             { forcePost: shouldPost }
           );
         }

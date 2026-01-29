@@ -479,7 +479,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           ref={nativeMapRef}
           style={styles.map}
           provider={PROVIDER_DEFAULT_VALUE}
-          showsUserLocation={IS_ANDROID}
+          showsUserLocation={false}
           showsMyLocationButton={false}
           followsUserLocation={false}
           showsCompass={true}
@@ -557,7 +557,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
           {/* HOME DROP: 50m radius circle - visible == catchable */}
           {hasLocation && (
             <MapCircle
-              key={`home-circle-${mapCenter!.latitude.toFixed(5)}-${mapCenter!.longitude.toFixed(5)}`}
+              key="home-circle-stable"
               center={{ latitude: mapCenter!.latitude, longitude: mapCenter!.longitude }}
               radius={50}
               strokeColor="rgba(255, 149, 0, 0.5)"

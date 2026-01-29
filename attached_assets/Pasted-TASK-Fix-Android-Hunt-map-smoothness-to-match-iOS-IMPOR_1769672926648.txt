@@ -1,0 +1,48 @@
+TASK: Fix Android Hunt map smoothness to match iOS. IMPORTANT: iOS is already perfect and must remain unchanged. Make Android-only changes. Do NOT refactor unrelated UI or gameplay. Keep behavior/logic the same on iOS.
+
+CONTEXT:
+- iOS Hunt screen is smooth.
+- Android Google Maps now loads tiles but gameplay/map feels buggy/stuttery.
+- We use expo-location watchPositionAsync with:
+  accuracy: BestForNavigation, timeInterval: 1000, distanceInterval: 1
+  heading comes from coords.heading (GPS heading).
+- MapViewWrapper uses initialRegion only (no controlled region). On Android showsUserLocation=true.
+- Marker count is only ~10–20 max, tracksViewChanges=false on most markers.
+- Suspected cause: Android Google Maps + frequent playerLocation state updates forcing re-render of Circle/overlays + native blue dot layer.
+
+GOAL:
+Reduce Android stutter by decoupling raw GPS updates from React render updates, and avoid the Android native "showsUserLocation" layer stuttering. Keep all logic the same. Only smooth rendering / update frequency on Android.
+
+REQUIRED CHANGES (Android-only):
+1) In MapViewWrapper.tsx:
+   - Change showsUserLocation to false on Android (keep iOS unchanged).
+     Currently: showsUserLocation={IS_ANDROID}
+     Make it: showsUserLocation={false} (Android only), iOS stays as before.
+   - Do NOT change initialRegion behavior.
+   - Do NOT add new libraries.
+
+2) In HuntScreen.tsx (where watchPositionAsync calls updateLocation):
+   Implement Android-only throttling + thresholds BEFORE calling updateLocation/setPlayerLocation:
+   - Keep raw incoming coords in a ref (latestLocationRef).
+   - Only call updateLocation / set state when any is true:
+     a) Distance moved >= 5 meters (haversine)
+     b) OR heading changed >= 10 degrees (wraparound aware)
+     c) OR last state update was > 900ms ago (throttle)
+   - If coords.heading is null/invalid (<0), treat as undefined.
+   - Keep iOS behavior unchanged (no throttling on iOS).
+
+3) Circle overlay stability:
+   - Ensure the home Circle does not "remount" every GPS tick.
+   - If Circle uses playerLocation center, ensure center only updates when the throttled state updates (from #2).
+   - Do NOT add a changing key. If there is any key, make it constant.
+
+4) Debug verification (Android only):
+   - Add minimal logs (guarded so not spammy) to confirm:
+     - raw GPS updates arriving
+     - throttled state updates frequency (e.g. once per second or when moved >= 5m)
+   - Do not add Sentry or crash SDKs.
+
+DELIVERABLE:
+- Provide the exact code edits in HuntScreen.tsx and MapViewWrapper.tsx.
+- Do NOT modify other files or UI.
+- Ensure the Android map remains functional and iOS remains identical.
