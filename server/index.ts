@@ -268,6 +268,12 @@ function configureExpoAndLanding(app: express.Application) {
     app.use(express.static(path.resolve(process.cwd(), "static-build")));
   }
 
+  // Serve admin panel at /admin
+  app.use("/admin", express.static(path.resolve(process.cwd(), "server/admin-panel")));
+  app.get("/admin", (req, res) => {
+    res.sendFile(path.resolve(process.cwd(), "server/admin-panel/index.html"));
+  });
+
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
 
