@@ -56,6 +56,21 @@ Allows remote blocking of outdated native builds via the webapp's `/api/mobile/c
 ### Presence System
 Tracks "players online" and "X playing" counts via `server/presence-routes.ts` (in-memory store with 60s timeout cleanup) and `client/context/PresenceContext.tsx` (global provider with single session management). Heartbeats are sent every 30 seconds, tracking the user's current game.
 
+### Hunt Admin Panel
+Server-side admin endpoints at `/api/admin/hunt/*` with `x-admin-api-key` header authentication (uses `ADMIN_API_KEY` env var):
+- `GET /api/admin/hunt/dashboard` - Live stats (total players, active today, catches), top catchers, flagged players with suspicious activity
+- `GET /api/admin/hunt/players` - List all hunt players with economy stats, sortable by catches/streak/level/eggs
+- `GET /api/admin/hunt/players/:userId` - Full player detail: economy, eggs, recent catches, catch locations (for map), activity log, suspicious flags
+- `POST /api/admin/hunt/players/:userId/eggs` - Edit player eggs (action: set/add/remove, with common/rare/epic/legendary counts)
+- `POST /api/admin/hunt/players/:userId/clear-streak` - Clear player's current streak
+- `POST /api/admin/hunt/players/:userId/reset-economy` - Reset player economy to defaults (requires confirm: "reset")
+- `POST /api/admin/hunt/players/:userId/ban` - Ban/unban/suspend player (logged to audit, enforcement requires isBanned column)
+
+**Suspicious Activity Flags:**
+- `CAP_BYPASSER`: Player's catches exceed their daily cap
+- `SPEED_CATCHER`: More than 10 catches in 5 minutes
+- `TELEPORTER`: Catches more than 5km apart in less than 5 minutes
+
 ## External Dependencies
 
 ### Blockchain Integration
