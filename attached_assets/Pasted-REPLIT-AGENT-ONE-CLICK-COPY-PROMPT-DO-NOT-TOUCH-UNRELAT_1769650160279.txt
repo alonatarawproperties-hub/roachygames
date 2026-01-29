@@ -1,0 +1,221 @@
+REPLIT AGENT — ONE-CLICK COPY PROMPT (DO NOT TOUCH UNRELATED CODE)
+
+Context:
+- iOS works perfectly (build 202). DO NOT change iOS behavior.
+- Android builds 70–79 crash when opening Roachy Hunt during “Acquiring GPS signal… / Preparing hunting grounds”.
+- We strongly suspect Android native Google Maps init + Marker child views (<View>/<Image>/<PlayerMarkerView>) causing native crash.
+Goal:
+1) Keep iOS UI/behavior EXACTLY the same.
+2) Make Android markers “native-safe” by rendering NO child components inside <Marker> on Android (use pinColor/title/description only).
+3) Do the smallest possible change set, only inside:
+   - client/components/MapViewWrapper.tsx
+   - app.json (add googleMaps apiKey)
+
+PART A — app.json (Android Google Maps API Key)
+- Add ONLY this block under android:
+  "config": { "googleMaps": { "apiKey": "PASTE_ANDROID_GOOGLE_MAPS_API_KEY_HERE" } }
+- Do NOT change any other android settings.
+
+PART B — MapViewWrapper.tsx (Android-safe markers)
+Rules:
+- iOS: keep existing marker children (Image/View/PlayerMarkerView) unchanged.
+- Android: Marker must be self-closing (no children). Use pinColor + title/description where helpful.
+- Do NOT refactor structure. Do NOT touch spawns logic, gps logic, loading logic, Leaflet fallback, or anything else.
+
+Steps:
+1) In client/components/MapViewWrapper.tsx:
+   - Ensure Platform is imported from react-native.
+   - Add: const IS_ANDROID = Platform.OS === "android";
+
+2) PLAYER MARKER (currently uses <PlayerMarkerView/> child):
+   - iOS: keep as-is.
+   - Android: DO NOT render this custom marker at all (return null) to avoid native child view crash.
+   - If MapView already shows user location, leave it. If it does NOT, add ONLY on Android:
+     showsUserLocation={true}
+     (Add this prop ONLY to the <MapViewComponent ...> JSX, guarded by Platform.OS === "android". Do not change iOS.)
+
+Replace Player Marker block with:
+
+{hasLocation && MarkerComponent ? (
+  IS_ANDROID ? null : (
+    <MarkerComponent
+      coordinate={{
+        latitude: playerLocation.latitude,
+        longitude: playerLocation.longitude,
+      }}
+      anchor={{ x: 0.5, y: 0.5 }}
+      flat={true}
+      tracksViewChanges={true}
+    >
+      <PlayerMarkerView heading={playerLocation.heading} />
+    </MarkerComponent>
+  )
+) : null}
+
+3) QUEST SPAWN MARKERS (currently Marker has <Image> child):
+   - iOS: keep current Image child.
+   - Android: render marker with NO children, use pinColor that matches quest type if available, otherwise orange.
+
+Inside questSpawns.map(...) return:
+
+return IS_ANDROID ? (
+  <MarkerComponent
+    key={`quest-${spawn.id}`}
+    identifier={`quest-${spawn.id}`}
+    coordinate={{ latitude: spawnLat, longitude: spawnLng }}
+    onPress={() => { console.log(`[MapViewWrapper] Quest spawn onPress: ${spawn.id}`); safeOnSpawnTap(spawn, "marker"); }}
+    onSelect={() => { console.log(`[MapViewWrapper] Quest spawn onSelect (iOS): ${spawn.id}`); safeOnSpawnTap(spawn, "marker"); }}
+    anchor={{ x: 0.5, y: 0.5 }}
+    tracksViewChanges={false}
+    tappable={true}
+    pinColor="#FF9500"
+    title="Quest Egg"
+  />
+) : (
+  <MarkerComponent
+    key={`quest-${spawn.id}`}
+    identifier={`quest-${spawn.id}`}
+    coordinate={{ latitude: spawnLat, longitude: spawnLng }}
+    onPress={() => { console.log(`[MapViewWrapper] Quest spawn onPress: ${spawn.id}`); safeOnSpawnTap(spawn, "marker"); }}
+    onSelect={() => { console.log(`[MapViewWrapper] Quest spawn onSelect (iOS): ${spawn.id}`); safeOnSpawnTap(spawn, "marker"); }}
+    anchor={{ x: 0.5, y: 0.5 }}
+    tracksViewChanges={false}
+    tappable={true}
+  >
+    <Image source={spawnMarkerImage} style={styles.spawnMarkerImage} resizeMode="contain" />
+  </MarkerComponent>
+);
+
+4) RAID MARKERS (currently Marker has complex <View> child):
+   - iOS: keep as-is.
+   - Android: no children; use pinColor based on rarity and set title to bossName so user still sees something.
+
+Wrap the current return with:
+
+return IS_ANDROID ? (
+  <MarkerComponent
+    key={raid.id}
+    coordinate={{ latitude: raidLat, longitude: raidLng }}
+    onPress={() => onRaidTap(raid)}
+    anchor={{ x: 0.5, y: 0.5 }}
+    tracksViewChanges={false}
+    pinColor={(RARITY_COLORS[raid.rarity] || RARITY_COLORS.rare)}
+    title={raid.bossName}
+    description={`Raid • ${raid.rarity}`}
+  />
+) : (
+  <MarkerComponent
+    key={raid.id}
+    coordinate={{ latitude: raidLat, longitude: raidLng }}
+    onPress={() => onRaidTap(raid)}
+    anchor={{ x: 0.5, y: 0.5 }}
+  >
+    <View style={styles.raidMapMarker}>
+      <View style={[styles.raidMapIcon, { backgroundColor: RARITY_COLORS[raid.rarity] || RARITY_COLORS.rare }]}>
+        <Feather name="alert-triangle" size={18} color="#fff" />
+      </View>
+      <ThemedText style={styles.raidMapName}>{raid.bossName}</ThemedText>
+    </View>
+  </MarkerComponent>
+);
+
+5) NEARBY PLAYERS (currently Marker has <View> child):
+   - iOS: keep dot view.
+   - Android: no children; render a small default marker using pinColor; keep tappable={false}.
+
+Replace body with:
+
+{nearbyPlayers && nearbyPlayers.length > 0 && MarkerComponent ? nearbyPlayers.map((player, idx) => (
+  IS_ANDROID ? (
+    <MarkerComponent
+      key={`player-${idx}-${player.lat}-${player.lng}`}
+      coordinate={{ latitude: player.lat, longitude: player.lng }}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+      tappable={false}
+      pinColor="#35C6FF"
+      title=""
+    />
+  ) : (
+    <MarkerComponent
+      key={`player-${idx}-${player.lat}-${player.lng}`}
+      coordinate={{ latitude: player.lat, longitude: player.lng }}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+      tappable={false}
+    >
+      <View style={styles.nearbyPlayerDot} />
+    </MarkerComponent>
+  )
+)) : null}
+
+6) QUEST DESTINATION MARKER (currently complex <View> child):
+   - iOS: keep as-is.
+   - Android: no children; pinColor based on quest type + title.
+
+Replace with:
+
+{questMarker && MarkerComponent && (
+  IS_ANDROID ? (
+    <MarkerComponent
+      key={`quest-marker-${questMarker.lat}-${questMarker.lng}`}
+      coordinate={{ latitude: questMarker.lat, longitude: questMarker.lng }}
+      onPress={onQuestMarkerTap}
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={false}
+      tappable={true}
+      pinColor={
+        questMarker.type === "LEGENDARY_BEACON" ? "#FFD700" :
+        questMarker.type === "HOT_DROP" ? "#FF6B35" :
+        GameColors.accent
+      }
+      title={
+        questMarker.type === "LEGENDARY_BEACON" ? "Beacon Quest" :
+        questMarker.type === "HOT_DROP" ? "Hot Drop" :
+        "Micro Hotspot"
+      }
+    />
+  ) : (
+    <MarkerComponent
+      key={`quest-marker-${questMarker.lat}-${questMarker.lng}`}
+      coordinate={{ latitude: questMarker.lat, longitude: questMarker.lng }}
+      onPress={onQuestMarkerTap}
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={false}
+      tappable={true}
+    >
+      <View style={styles.questMarkerContainer}>
+        <View style={[
+          styles.questMarkerBubble,
+          { backgroundColor: questMarker.type === 'LEGENDARY_BEACON' ? '#FFD700' : questMarker.type === 'HOT_DROP' ? '#FF6B35' : GameColors.accent }
+        ]}>
+          <Feather
+            name={questMarker.type === 'LEGENDARY_BEACON' ? 'star' : questMarker.type === 'HOT_DROP' ? 'zap' : 'map-pin'}
+            size={16}
+            color="#fff"
+          />
+        </View>
+        <View style={styles.questMarkerTail} />
+      </View>
+    </MarkerComponent>
+  )
+)}
+
+7) MapViewComponent props (ONLY if needed):
+- Find the <MapViewComponent ...> JSX.
+- If it does not already show user location, add ONLY this Android-guarded prop:
+  showsUserLocation={Platform.OS === "android" ? true : undefined}
+- Do not change iOS behavior.
+
+Validation requirements:
+- iOS must remain pixel-identical and functional.
+- Android must stop crashing and reach the map screen.
+- Do not change any other markers (spawns markers already fixed elsewhere) unless they still contain children on Android.
+
+After changes:
+- Because app.json changed, trigger a NEW EAS ANDROID BUILD (OTA won’t apply native map key changes).
+- For the marker changes, OTA is fine, but we’re rebuilding anyway due to the API key.
+
+Deliverables:
+- Paste the exact code diffs for MapViewWrapper.tsx sections edited.
+- Confirm app.json android.config.googleMaps.apiKey is added and nothing else changed.
