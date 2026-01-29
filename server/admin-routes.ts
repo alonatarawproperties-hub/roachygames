@@ -1405,5 +1405,561 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  console.log("[Admin] Admin routes registered (including security monitoring)");
+  // ===============================
+  // HUNT ADMIN PANEL ENDPOINTS
+  // ===============================
+
+  // Hunt Dashboard - Overview with live stats and flagged players
+  app.get("/api/admin/hunt/dashboard", adminAuth, async (req, res) => {
+    try {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+
+      // Live stats
+      const [totalPlayers] = await db.select({ count: count() }).from(huntEconomyStats);
+      const [activeTodayResult] = await db.select({ count: count() })
+        .from(huntEconomyStats)
+        .where(eq(huntEconomyStats.lastCatchDate, todayStr));
+      
+      const [totalCatchesToday] = await db.select({ 
+        sum: sql<number>`COALESCE(SUM(catches_today), 0)::int` 
+      }).from(huntEconomyStats);
+
+      const [totalEggs] = await db.select({ count: count() })
+        .from(huntEggs)
+        .where(sql`${huntEggs.hatchedAt} IS NULL`);
+
+      // Top catchers today
+      const topCatchers = await db.select({
+        walletAddress: huntEconomyStats.walletAddress,
+        catchesToday: huntEconomyStats.catchesToday,
+        currentStreak: huntEconomyStats.currentStreak,
+        hunterLevel: huntEconomyStats.hunterLevel,
+      })
+        .from(huntEconomyStats)
+        .where(sql`${huntEconomyStats.catchesToday} > 0`)
+        .orderBy(desc(huntEconomyStats.catchesToday))
+        .limit(20);
+
+      // Flagged players - suspicious activity detection
+      const flaggedPlayers: Array<{
+        walletAddress: string;
+        flags: string[];
+        catchesToday: number;
+        currentStreak: number;
+      }> = [];
+
+      // Check for cap bypassers (catches > daily cap)
+      const capBypassers = await db.select({
+        walletAddress: huntEconomyStats.walletAddress,
+        catchesToday: huntEconomyStats.catchesToday,
+        maxCatchesPerDay: huntEconomyStats.maxCatchesPerDay,
+        currentStreak: huntEconomyStats.currentStreak,
+      })
+        .from(huntEconomyStats)
+        .where(sql`${huntEconomyStats.catchesToday} > ${huntEconomyStats.maxCatchesPerDay}`);
+
+      for (const p of capBypassers) {
+        flaggedPlayers.push({
+          walletAddress: p.walletAddress,
+          flags: ["CAP_BYPASSER"],
+          catchesToday: p.catchesToday,
+          currentStreak: p.currentStreak,
+        });
+      }
+
+      // Check for speed catchers (too many catches in short time - via activity log)
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const speedCatchers = await db.select({
+        walletAddress: huntActivityLog.walletAddress,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(huntActivityLog)
+        .where(and(
+          eq(huntActivityLog.activityType, "catch"),
+          gte(huntActivityLog.createdAt, fiveMinAgo)
+        ))
+        .groupBy(huntActivityLog.walletAddress)
+        .having(sql`count(*) > 10`);
+
+      for (const p of speedCatchers) {
+        const existing = flaggedPlayers.find(f => f.walletAddress === p.walletAddress);
+        if (existing) {
+          existing.flags.push("SPEED_CATCHER");
+        } else {
+          flaggedPlayers.push({
+            walletAddress: p.walletAddress,
+            flags: ["SPEED_CATCHER"],
+            catchesToday: p.count,
+            currentStreak: 0,
+          });
+        }
+      }
+
+      // Recent activity feed
+      const recentActivity = await db.select()
+        .from(huntActivityLog)
+        .orderBy(desc(huntActivityLog.createdAt))
+        .limit(50);
+
+      res.json({
+        stats: {
+          totalPlayers: totalPlayers?.count || 0,
+          activeToday: activeTodayResult?.count || 0,
+          catchesToday: totalCatchesToday?.sum || 0,
+          totalEggsInInventory: totalEggs?.count || 0,
+        },
+        topCatchers,
+        flaggedPlayers,
+        recentActivity,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[Admin] Hunt dashboard error:", error);
+      res.status(500).json({ error: "Failed to fetch hunt dashboard" });
+    }
+  });
+
+  // Hunt Player Detail - Full player info with catches, eggs, economy
+  app.get("/api/admin/hunt/players/:userId", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Get user info
+      const [user] = await db.select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        walletAddress: users.walletAddress,
+        createdAt: users.createdAt,
+      })
+        .from(users)
+        .where(sql`${users.id} = ${userId} OR ${users.walletAddress} = ${userId}`);
+
+      if (!user) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const walletAddress = user.walletAddress || user.id;
+
+      // Get economy stats
+      const [economy] = await db.select()
+        .from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      // Get eggs in inventory
+      const eggs = await db.select()
+        .from(huntEggs)
+        .where(and(
+          eq(huntEggs.userId, user.id),
+          sql`${huntEggs.hatchedAt} IS NULL`
+        ))
+        .orderBy(desc(huntEggs.foundAt))
+        .limit(100);
+
+      // Get recent catches
+      const recentCatches = await db.select()
+        .from(huntCaughtCreatures)
+        .where(eq(huntCaughtCreatures.walletAddress, walletAddress))
+        .orderBy(desc(huntCaughtCreatures.caughtAt))
+        .limit(50);
+
+      // Get catch locations for map visualization (last 24 hours)
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const catchLocations = await db.select({
+        latitude: huntCaughtCreatures.caughtLatitude,
+        longitude: huntCaughtCreatures.caughtLongitude,
+        caughtAt: huntCaughtCreatures.caughtAt,
+        rarity: huntCaughtCreatures.rarity,
+      })
+        .from(huntCaughtCreatures)
+        .where(and(
+          eq(huntCaughtCreatures.walletAddress, walletAddress),
+          gte(huntCaughtCreatures.caughtAt, oneDayAgo)
+        ))
+        .orderBy(desc(huntCaughtCreatures.caughtAt));
+
+      // Get activity log
+      const activityLog = await db.select()
+        .from(huntActivityLog)
+        .where(eq(huntActivityLog.walletAddress, walletAddress))
+        .orderBy(desc(huntActivityLog.createdAt))
+        .limit(100);
+
+      // Detect suspicious patterns
+      const suspiciousFlags: string[] = [];
+      
+      // Check for teleporting (catches >5km apart in <5 min)
+      if (catchLocations.length >= 2) {
+        for (let i = 0; i < catchLocations.length - 1; i++) {
+          const loc1 = catchLocations[i];
+          const loc2 = catchLocations[i + 1];
+          if (loc1.latitude && loc2.latitude && loc1.caughtAt && loc2.caughtAt) {
+            const lat1 = parseFloat(loc1.latitude);
+            const lng1 = parseFloat(loc1.longitude || "0");
+            const lat2 = parseFloat(loc2.latitude);
+            const lng2 = parseFloat(loc2.longitude || "0");
+            const timeDiff = new Date(loc1.caughtAt).getTime() - new Date(loc2.caughtAt).getTime();
+            
+            // Haversine distance approximation
+            const R = 6371e3;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            
+            if (distance > 5000 && timeDiff < 5 * 60 * 1000) {
+              suspiciousFlags.push(`TELEPORTER: ${Math.round(distance/1000)}km in ${Math.round(timeDiff/1000)}s`);
+              break;
+            }
+          }
+        }
+      }
+
+      // Check for cap bypass
+      if (economy && economy.catchesToday > economy.maxCatchesPerDay) {
+        suspiciousFlags.push("CAP_BYPASSER");
+      }
+
+      res.json({
+        user,
+        economy: economy || null,
+        eggs: {
+          list: eggs,
+          counts: {
+            common: eggs.filter(e => e.rarity === "common").length,
+            rare: eggs.filter(e => e.rarity === "rare").length,
+            epic: eggs.filter(e => e.rarity === "epic").length,
+            legendary: eggs.filter(e => e.rarity === "legendary").length,
+          },
+        },
+        recentCatches,
+        catchLocations,
+        activityLog,
+        suspiciousFlags,
+      });
+    } catch (error) {
+      console.error("[Admin] Hunt player detail error:", error);
+      res.status(500).json({ error: "Failed to fetch player details" });
+    }
+  });
+
+  // Edit Player Eggs - Add or remove eggs from inventory
+  app.post("/api/admin/hunt/players/:userId/eggs", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { action, common, rare, epic, legendary, reason } = req.body;
+
+      if (!action || !["set", "add", "remove"].includes(action)) {
+        return res.status(400).json({ error: "action must be 'set', 'add', or 'remove'" });
+      }
+
+      // Get user
+      const [user] = await db.select()
+        .from(users)
+        .where(sql`${users.id} = ${userId} OR ${users.walletAddress} = ${userId}`);
+
+      if (!user) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const walletAddress = user.walletAddress || user.id;
+
+      // Get current economy
+      let [economy] = await db.select()
+        .from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      if (!economy) {
+        // Create economy record
+        await db.insert(huntEconomyStats).values({
+          walletAddress,
+          energy: 30,
+          maxEnergy: 30,
+        });
+        [economy] = await db.select()
+          .from(huntEconomyStats)
+          .where(eq(huntEconomyStats.walletAddress, walletAddress));
+      }
+
+      let newCommon = economy.eggCommon;
+      let newRare = economy.eggRare;
+      let newEpic = economy.eggEpic;
+      let newLegendary = economy.eggLegendary;
+
+      if (action === "set") {
+        newCommon = common ?? economy.eggCommon;
+        newRare = rare ?? economy.eggRare;
+        newEpic = epic ?? economy.eggEpic;
+        newLegendary = legendary ?? economy.eggLegendary;
+      } else if (action === "add") {
+        newCommon = economy.eggCommon + (common || 0);
+        newRare = economy.eggRare + (rare || 0);
+        newEpic = economy.eggEpic + (epic || 0);
+        newLegendary = economy.eggLegendary + (legendary || 0);
+      } else if (action === "remove") {
+        newCommon = Math.max(0, economy.eggCommon - (common || 0));
+        newRare = Math.max(0, economy.eggRare - (rare || 0));
+        newEpic = Math.max(0, economy.eggEpic - (epic || 0));
+        newLegendary = Math.max(0, economy.eggLegendary - (legendary || 0));
+      }
+
+      await db.update(huntEconomyStats)
+        .set({
+          eggCommon: newCommon,
+          eggRare: newRare,
+          eggEpic: newEpic,
+          eggLegendary: newLegendary,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await safeAudit(req, "admin_edit_eggs", "info", {
+        userId,
+        walletAddress,
+        action,
+        before: {
+          common: economy.eggCommon,
+          rare: economy.eggRare,
+          epic: economy.eggEpic,
+          legendary: economy.eggLegendary,
+        },
+        after: {
+          common: newCommon,
+          rare: newRare,
+          epic: newEpic,
+          legendary: newLegendary,
+        },
+        reason: reason || "Admin action",
+      });
+
+      res.json({
+        success: true,
+        before: {
+          common: economy.eggCommon,
+          rare: economy.eggRare,
+          epic: economy.eggEpic,
+          legendary: economy.eggLegendary,
+        },
+        after: {
+          common: newCommon,
+          rare: newRare,
+          epic: newEpic,
+          legendary: newLegendary,
+        },
+      });
+    } catch (error) {
+      console.error("[Admin] Edit eggs error:", error);
+      res.status(500).json({ error: "Failed to edit eggs" });
+    }
+  });
+
+  // Clear Player Streak
+  app.post("/api/admin/hunt/players/:userId/clear-streak", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { reason } = req.body;
+
+      const [user] = await db.select()
+        .from(users)
+        .where(sql`${users.id} = ${userId} OR ${users.walletAddress} = ${userId}`);
+
+      if (!user) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const walletAddress = user.walletAddress || user.id;
+
+      const [economy] = await db.select()
+        .from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      const previousStreak = economy?.currentStreak || 0;
+
+      await db.update(huntEconomyStats)
+        .set({
+          currentStreak: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await safeAudit(req, "admin_clear_streak", "warning", {
+        userId,
+        walletAddress,
+        previousStreak,
+        reason: reason || "Admin action",
+      });
+
+      res.json({
+        success: true,
+        previousStreak,
+        newStreak: 0,
+      });
+    } catch (error) {
+      console.error("[Admin] Clear streak error:", error);
+      res.status(500).json({ error: "Failed to clear streak" });
+    }
+  });
+
+  // Reset Player Economy
+  app.post("/api/admin/hunt/players/:userId/reset-economy", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { confirm, reason } = req.body;
+
+      if (confirm !== "reset") {
+        return res.status(400).json({ error: "Send { confirm: 'reset' } to proceed" });
+      }
+
+      const [user] = await db.select()
+        .from(users)
+        .where(sql`${users.id} = ${userId} OR ${users.walletAddress} = ${userId}`);
+
+      if (!user) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      const walletAddress = user.walletAddress || user.id;
+
+      // Save previous state for audit
+      const [previousEconomy] = await db.select()
+        .from(huntEconomyStats)
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await db.update(huntEconomyStats)
+        .set({
+          energy: 30,
+          maxEnergy: 30,
+          catchesToday: 0,
+          catchesThisWeek: 0,
+          currentStreak: 0,
+          eggCommon: 0,
+          eggRare: 0,
+          eggEpic: 0,
+          eggLegendary: 0,
+          warmth: 0,
+          boostTokens: 0,
+          hunterLevel: 1,
+          hunterXp: 0,
+          pointsThisWeek: 0,
+          perfectsThisWeek: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(huntEconomyStats.walletAddress, walletAddress));
+
+      await safeAudit(req, "admin_reset_economy", "critical", {
+        userId,
+        walletAddress,
+        previousEconomy,
+        reason: reason || "Admin action",
+      });
+
+      res.json({
+        success: true,
+        message: "Player economy reset to defaults",
+        previousEconomy,
+      });
+    } catch (error) {
+      console.error("[Admin] Reset economy error:", error);
+      res.status(500).json({ error: "Failed to reset economy" });
+    }
+  });
+
+  // Ban/Suspend Player (sets a flag - you may need to check this in game logic)
+  app.post("/api/admin/hunt/players/:userId/ban", adminAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { action, reason, duration } = req.body;
+
+      if (!action || !["ban", "unban", "suspend"].includes(action)) {
+        return res.status(400).json({ error: "action must be 'ban', 'unban', or 'suspend'" });
+      }
+
+      const [user] = await db.select()
+        .from(users)
+        .where(sql`${users.id} = ${userId} OR ${users.walletAddress} = ${userId}`);
+
+      if (!user) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      // For now, log the ban action - you can add a banned column to users table later
+      await safeAudit(req, `admin_${action}_player`, action === "unban" ? "info" : "critical", {
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        action,
+        reason: reason || "No reason provided",
+        duration: duration || "permanent",
+      });
+
+      res.json({
+        success: true,
+        action,
+        userId: user.id,
+        message: `Player ${action === "unban" ? "unbanned" : action === "ban" ? "banned" : "suspended"}`,
+        note: "Ban status recorded in audit log. Add 'isBanned' column to users table for enforcement.",
+      });
+    } catch (error) {
+      console.error("[Admin] Ban player error:", error);
+      res.status(500).json({ error: "Failed to ban player" });
+    }
+  });
+
+  // List all hunt players with stats
+  app.get("/api/admin/hunt/players", adminAuth, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const search = req.query.search as string;
+      const sortBy = req.query.sortBy as string || "catchesToday";
+
+      let orderByClause;
+      switch (sortBy) {
+        case "streak": orderByClause = desc(huntEconomyStats.currentStreak); break;
+        case "level": orderByClause = desc(huntEconomyStats.hunterLevel); break;
+        case "eggs": orderByClause = desc(sql`${huntEconomyStats.eggCommon} + ${huntEconomyStats.eggRare} + ${huntEconomyStats.eggEpic} + ${huntEconomyStats.eggLegendary}`); break;
+        default: orderByClause = desc(huntEconomyStats.catchesToday);
+      }
+
+      const players = await db.select({
+        walletAddress: huntEconomyStats.walletAddress,
+        catchesToday: huntEconomyStats.catchesToday,
+        maxCatchesPerDay: huntEconomyStats.maxCatchesPerDay,
+        currentStreak: huntEconomyStats.currentStreak,
+        longestStreak: huntEconomyStats.longestStreak,
+        hunterLevel: huntEconomyStats.hunterLevel,
+        eggCommon: huntEconomyStats.eggCommon,
+        eggRare: huntEconomyStats.eggRare,
+        eggEpic: huntEconomyStats.eggEpic,
+        eggLegendary: huntEconomyStats.eggLegendary,
+        lastCatchDate: huntEconomyStats.lastCatchDate,
+        updatedAt: huntEconomyStats.updatedAt,
+      })
+        .from(huntEconomyStats)
+        .orderBy(orderByClause)
+        .limit(limit)
+        .offset(offset);
+
+      const [totalCount] = await db.select({ count: count() }).from(huntEconomyStats);
+
+      res.json({
+        players,
+        pagination: {
+          total: totalCount?.count || 0,
+          limit,
+          offset,
+          hasMore: offset + players.length < (totalCount?.count || 0),
+        },
+      });
+    } catch (error) {
+      console.error("[Admin] Hunt players list error:", error);
+      res.status(500).json({ error: "Failed to fetch hunt players" });
+    }
+  });
+
+  console.log("[Admin] Admin routes registered (including security monitoring and hunt admin panel)");
 }
