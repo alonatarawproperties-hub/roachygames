@@ -431,6 +431,9 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
     }
 
     const handleNativeMapReady = () => {
+      if (IS_ANDROID) {
+        console.log("[Android Maps] provider default, apiKey configured in app.json, expecting tiles");
+      }
       if (!mapReadyCalledRef.current && onMapReady) {
         mapReadyCalledRef.current = true;
         onMapReady();
