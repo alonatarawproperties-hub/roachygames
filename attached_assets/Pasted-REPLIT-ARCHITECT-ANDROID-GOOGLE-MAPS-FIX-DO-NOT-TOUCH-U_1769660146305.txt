@@ -1,0 +1,73 @@
+REPLIT ARCHITECT — ANDROID GOOGLE MAPS FIX (DO NOT TOUCH UNRELATED CODE)
+
+Context:
+- iOS works perfectly (build 202). Do NOT change iOS behavior.
+- Android no longer crashes, but Google Maps tiles are BLANK/GRAY (screenshot). This is almost always Google Maps API key / Google Cloud config.
+- Project uses ONLY app.json (no app.config.js/ts). So the key must be set via app.json config (or tiles will not load).
+- Keep all other hunt logic untouched (spawns, radius, quests, UI, sensors, location flow, etc). Only address Android Maps tiles.
+
+GOAL:
+Make Google Maps tiles load on Android (react-native-maps provider default = Google Maps on Android).
+
+PART A — CODE / CONFIG (app.json ONLY)
+1) In app.json, add googleMaps apiKey under expo.android.config.googleMaps.apiKey.
+   - Put it INSIDE the existing "android" object you showed.
+   - Example (merge, don’t overwrite other android fields):
+
+{
+  "expo": {
+    ...
+    "android": {
+      "adaptiveIcon": { ... },
+      "package": "com.cryptocreatures.app",
+      "blockedPermissions": [...],
+      "permissions": [...],
+      "intentFilters": [...],
+
+      "config": {
+        "googleMaps": {
+          "apiKey": "PASTE_YOUR_ANDROID_MAPS_API_KEY_HERE"
+        }
+      }
+    }
+  }
+}
+
+2) Run a NEW EAS build after changing app.json (OTA update will NOT inject the native API key).
+   - This requires a rebuild because Google Maps API key is baked into native config.
+
+PART B — GOOGLE CLOUD CONSOLE (THIS IS REQUIRED)
+3) Enable “Maps SDK for Android” in Google Cloud Console:
+   APIs & Services → Library → “Maps SDK for Android” → Enable
+
+4) Configure the API key restrictions:
+   APIs & Services → Credentials → select your API key
+   - Application restrictions: Android apps
+     - Package name: com.cryptocreatures.app
+     - SHA-1: from the EAS PRODUCTION keystore
+       Command:
+         eas credentials -p android
+       Select production keystore → copy SHA-1 fingerprint
+   - API restrictions: Restrict key
+     - Allow: “Maps SDK for Android” (add it)
+
+5) Double-check billing is enabled on the Google Cloud project (Maps often requires billing even for low usage).
+
+PART C — VERIFICATION (MINIMAL, ANDROID ONLY)
+6) Add a single Android-only console log on Hunt map mount to confirm provider + maps load, but DO NOT add new packages:
+   - In MapViewWrapper render path (Android only), log:
+     “[Android Maps] provider default, apiKey configured in app.json, expecting tiles”
+
+7) If tiles still blank after rebuild:
+   - 99%: wrong SHA-1 (using debug instead of production) OR key restricted incorrectly OR Maps SDK for Android not enabled/billing off.
+   - Re-check Part B.
+
+ABSOLUTE RULES:
+- Do NOT refactor HuntScreen.tsx or touch spawn logic, radius, quest logic, sensors, or UI.
+- Do NOT change iOS behavior.
+- Only add the Android googleMaps apiKey config in app.json and provide the rebuild requirement + cloud console steps.
+
+Deliverable:
+- Commit app.json change only (adding android.config.googleMaps.apiKey).
+- Trigger EAS build.
+- Confirm Android map tiles load.
