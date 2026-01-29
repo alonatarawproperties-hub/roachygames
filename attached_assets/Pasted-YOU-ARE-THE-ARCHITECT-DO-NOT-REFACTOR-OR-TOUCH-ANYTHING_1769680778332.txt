@@ -1,0 +1,132 @@
+YOU ARE THE ARCHITECT. DO NOT REFACTOR OR TOUCH ANYTHING NOT MENTIONED. iOS IS PERFECTLY WORKING AND MUST REMAIN 100% UNCHANGED. ONLY FIX ANDROID MARKER VISUALS + ANDROID PERFORMANCE ISSUES CAUSED BY MARKER RENDERING.
+
+CONTEXT:
+- iOS map looks correct: small golden egg markers + cohesive assets.
+- Android shows: (1) MASSIVE chrome “?” player egg marker taking half screen, (2) orange default pins for spawns.
+- Root cause: Android react-native-maps Marker renders bitmap markers at native pixel size; our marker assets are huge (mystery-egg.png ~2.2MB, egg assets 1–2.3MB). Also several markers still render children (<Image>/<View>) which is fragile on Android and can fallback to default pins.
+
+GOAL:
+- Android: Use Marker “image” prop with PRE-SIZED marker bitmaps (64px or 72px) for ALL markers that currently render children. Do NOT render Marker children on Android.
+- iOS: Keep current behavior exactly the same (children-based markers and PlayerMarkerView heading wedge etc).
+- Fix: Spawn markers must show our egg pin art (not orange pins). Player marker must be proportional (not huge).
+
+STEP 1 — ADD NEW SMALL MARKER ASSETS (NO DESIGN CHANGE, JUST RESIZE):
+Create new files (same art, resized):
+- client/assets/hunt/spawn-marker-72.png
+- client/assets/hunt/mystery-egg-72.png
+Optional (if you want crisp on high DPI): also add -96 versions, but default to 72.
+
+IMPORTANT:
+- Do not use the 2.2MB mystery-egg.png directly on Android marker image prop.
+- We keep existing large assets for other screens. These new small files are only for map markers.
+
+STEP 2 — MapViewWrapper.tsx: ADD ANDROID MARKER IMAGE CONSTANTS
+Near top where spawnMarkerImage is defined, add:
+
+const IS_ANDROID = Platform.OS === "android";
+
+// Existing (keep):
+const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
+
+// New Android-sized bitmaps:
+const spawnMarkerImageAndroid = require("@/assets/hunt/spawn-marker-72.png");
+const playerMarkerImageAndroid = require("@/assets/hunt/mystery-egg-72.png");
+
+STEP 3 — FIX PLAYER MARKER BLOCK (lines ~566-577)
+Current Android is rendering a massive child view (PlayerMarkerView). We keep it on iOS only.
+Replace block with:
+
+{hasLocation && MarkerComponent ? (
+  <MarkerComponent
+    coordinate={{
+      latitude: playerLocation.latitude,
+      longitude: playerLocation.longitude,
+    }}
+    anchor={{ x: 0.5, y: 0.5 }}
+    flat={true}
+    tracksViewChanges={false}
+    tappable={false}
+    {...(IS_ANDROID ? { image: playerMarkerImageAndroid } : {})}
+  >
+    {/* iOS unchanged: keep existing custom wedge + heading view */}
+    {!IS_ANDROID ? <PlayerMarkerView heading={playerLocation.heading} /> : null}
+  </MarkerComponent>
+) : null}
+
+DO NOT change PlayerMarkerView implementation. Just gate it off for Android.
+
+STEP 4 — FIX SPAWN MARKERS (Golden mystery eggs) BLOCK
+For Android, do NOT render <Image> child. Use image prop.
+Update the marker return to:
+
+return (
+  <MarkerComponent
+    key={spawn.id}
+    identifier={spawn.id}
+    coordinate={{ latitude: spawnLat, longitude: spawnLng }}
+    onPress={() => safeOnSpawnTap(spawn, "marker")}
+    onSelect={() => safeOnSpawnTap(spawn, "marker")}
+    anchor={{ x: 0.5, y: 0.5 }}
+    tracksViewChanges={false}
+    tappable={true}
+    {...(IS_ANDROID ? { image: spawnMarkerImageAndroid } : {})}
+  >
+    {!IS_ANDROID ? (
+      <Image
+        source={spawnMarkerImage}
+        style={styles.spawnMarkerImage}
+        resizeMode="contain"
+      />
+    ) : null}
+  </MarkerComponent>
+);
+
+This stops Android from using default pins and ensures our egg marker shows.
+
+STEP 5 — FIX QUEST SPAWN MARKERS (lines ~604-641)
+Apply the exact same pattern as spawns:
+- Android uses image: spawnMarkerImageAndroid
+- iOS keeps <Image> child
+
+STEP 6 — FIX RAID MARKERS / NEARBY PLAYERS / QUEST MARKER (children <View> markers)
+On Android: Marker children with <View> often cause performance + weird sizing. Convert to image markers.
+Minimal safe approach (no redesign):
+A) Create tiny static png icons for:
+- raid-marker-72.png
+- quest-marker-72.png
+- nearby-dot-24.png (or 32)
+OR if you want faster: for Android temporarily DISABLE these markers entirely until icons are ready.
+
+Implement either:
+
+Option 1 (Best): Add image prop for each on Android:
+{...(IS_ANDROID ? { image: raidMarkerAndroid } : {})}
+and gate children:
+{!IS_ANDROID ? <View ...>...</View> : null}
+
+Option 2 (Fast): Android: return null for those marker types (raids/nearby/questMarker) until assets exist, iOS unchanged.
+
+STEP 7 — ENSURE NO DEFAULT PIN FALLBACK ON ANDROID
+Default orange pins appear when Marker has no image/icon and no valid child render.
+After changes, verify every Android Marker either:
+- has image prop, OR
+- is not rendered.
+
+STEP 8 — DO NOT TOUCH THESE (hard constraints)
+- Do NOT change HuntScreen logic, throttling, GPS logic, loading logic, spawn computation.
+- Do NOT add region prop / controlled map.
+- Do NOT refactor MapViewWrapper beyond marker rendering and new asset requires.
+- Do NOT change iOS marker visuals (it already looks correct).
+- Do NOT modify other files unless strictly needed for these assets.
+
+STEP 9 — QUICK VALIDATION CHECKLIST
+Android:
+- Player marker is small, proportional, not huge.
+- Spawn markers show egg art, not orange pins.
+- Map interaction is smooth (no stutter from marker children).
+iOS:
+- No visual changes at all.
+
+DELIVERABLE:
+- Commit MapViewWrapper.tsx marker gating changes (Android image prop, iOS children).
+- Add new resized assets in client/assets/hunt/.

@@ -2,6 +2,9 @@ import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect, us
 import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
 
 const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
+// Android-sized bitmaps (72px) for native Marker image prop
+const spawnMarkerImageAndroid = require("@/assets/hunt/spawn-marker-72.png");
+const playerMarkerImageAndroid = require("@/assets/hunt/mystery-egg-72.png");
 import { SPAWN_RESERVED_BY_YOU, SPAWN_RESERVED_BY_OTHER } from "@/assets/spawns";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -594,19 +597,20 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
 
           {/* Custom player marker with heading wedge */}
           {hasLocation && MarkerComponent ? (
-            IS_ANDROID ? null : (
-              <MarkerComponent
-                coordinate={{
-                  latitude: playerLocation.latitude,
-                  longitude: playerLocation.longitude,
-                }}
-                anchor={{ x: 0.5, y: 0.5 }}
-                flat={true}
-                tracksViewChanges={true}
-              >
-                <PlayerMarkerView heading={playerLocation.heading} />
-              </MarkerComponent>
-            )
+            <MarkerComponent
+              coordinate={{
+                latitude: playerLocation.latitude,
+                longitude: playerLocation.longitude,
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat={true}
+              tracksViewChanges={!IS_ANDROID}
+              tappable={false}
+              {...(IS_ANDROID ? { image: playerMarkerImageAndroid } : {})}
+            >
+              {/* iOS unchanged: keep existing custom wedge + heading view */}
+              {!IS_ANDROID ? <PlayerMarkerView heading={playerLocation.heading} /> : null}
+            </MarkerComponent>
           ) : null}
 
           {/* Spawn markers - Golden mystery eggs (Android-safe) */}
@@ -625,8 +629,12 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                   anchor={{ x: 0.5, y: 0.5 }}
                   tracksViewChanges={false}
                   tappable
-                  image={spawnMarkerImage}
-                />
+                  {...(IS_ANDROID ? { image: spawnMarkerImageAndroid } : {})}
+                >
+                  {!IS_ANDROID ? (
+                    <Image source={spawnMarkerImage} style={styles.spawnMarkerImage} resizeMode="contain" />
+                  ) : null}
+                </MarkerComponent>
               );
             })
           ) : null}
@@ -638,19 +646,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               const spawnLng = parseFloat(String(spawn.longitude));
               if (isNaN(spawnLat) || isNaN(spawnLng)) return null;
 
-              return IS_ANDROID ? (
-                <MarkerComponent
-                  key={`quest-${spawn.id}`}
-                  identifier={`quest-${spawn.id}`}
-                  coordinate={{ latitude: spawnLat, longitude: spawnLng }}
-                  onPress={() => safeOnSpawnTap(spawn, "marker")}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                  tracksViewChanges={false}
-                  tappable={true}
-                  pinColor="#FF9500"
-                  title="Quest Egg"
-                />
-              ) : (
+              return (
                 <MarkerComponent
                   key={`quest-${spawn.id}`}
                   identifier={`quest-${spawn.id}`}
@@ -660,31 +656,23 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                   anchor={{ x: 0.5, y: 0.5 }}
                   tracksViewChanges={false}
                   tappable={true}
+                  {...(IS_ANDROID ? { image: spawnMarkerImageAndroid } : {})}
                 >
-                  <Image source={spawnMarkerImage} style={styles.spawnMarkerImage} resizeMode="contain" />
+                  {!IS_ANDROID ? (
+                    <Image source={spawnMarkerImage} style={styles.spawnMarkerImage} resizeMode="contain" />
+                  ) : null}
                 </MarkerComponent>
               );
             });
           })() : null}
 
-          {/* Raid markers */}
-          {raids.map((raid) => {
+          {/* Raid markers - Android: temporarily disabled until raid-marker-72 asset exists */}
+          {!IS_ANDROID && raids.map((raid) => {
             const raidLat = parseFloat(String(raid.latitude));
             const raidLng = parseFloat(String(raid.longitude));
             if (isNaN(raidLat) || isNaN(raidLng) || !MarkerComponent) return null;
             
-            return IS_ANDROID ? (
-              <MarkerComponent
-                key={raid.id}
-                coordinate={{ latitude: raidLat, longitude: raidLng }}
-                onPress={() => onRaidTap(raid)}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={false}
-                pinColor={RARITY_COLORS[raid.rarity] || RARITY_COLORS.rare}
-                title={raid.bossName}
-                description={`Raid • ${raid.rarity}`}
-              />
-            ) : (
+            return (
               <MarkerComponent
                 key={raid.id}
                 coordinate={{ latitude: raidLat, longitude: raidLng }}
@@ -718,19 +706,7 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               ? (isMine ? SPAWN_RESERVED_BY_YOU : SPAWN_RESERVED_BY_OTHER)
               : spawnMarkerImage;
             
-            return IS_ANDROID ? (
-              <MarkerComponent
-                key={node.nodeId}
-                identifier={node.nodeId}
-                coordinate={{ latitude: nodeLat, longitude: nodeLng }}
-                onPress={() => onNodeTap(node)}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={false}
-                tappable={true}
-                pinColor={nodeIsActiveReserved ? (isMine ? "#4CAF50" : "#FF5722") : "#FF9500"}
-                title={getTypeLabel(node.type)}
-              />
-            ) : (
+            return (
               <MarkerComponent
                 key={node.nodeId}
                 identifier={node.nodeId}
@@ -740,90 +716,60 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
                 anchor={{ x: 0.5, y: 0.5 }}
                 tracksViewChanges={false}
                 tappable={true}
+                {...(IS_ANDROID ? { image: spawnMarkerImageAndroid } : {})}
               >
-                <Image 
-                  source={nodeMarkerIcon} 
-                  style={styles.spawnMarkerImage} 
-                  resizeMode="contain"
-                />
+                {!IS_ANDROID ? (
+                  <Image 
+                    source={nodeMarkerIcon} 
+                    style={styles.spawnMarkerImage} 
+                    resizeMode="contain"
+                  />
+                ) : null}
               </MarkerComponent>
             );
           }) : null}
 
-          {/* Quest Marker (HOT_DROP, MICRO_HOTSPOT, LEGENDARY_BEACON) */}
-          {questMarker && MarkerComponent && (
-            IS_ANDROID ? (
-              <MarkerComponent
-                key={`quest-${questMarker.id}`}
-                identifier={`quest-${questMarker.id}`}
-                coordinate={{ latitude: questMarker.lat, longitude: questMarker.lng }}
-                onPress={() => onQuestMarkerTap?.(questMarker)}
-                anchor={{ x: 0.5, y: 1 }}
-                tracksViewChanges={false}
-                tappable={true}
-                pinColor={
-                  questMarker.type === "LEGENDARY_BEACON" ? "#FFD700" :
-                  questMarker.type === "HOT_DROP" ? "#FF6B35" :
-                  GameColors.accent
-                }
-                title={
-                  questMarker.type === "LEGENDARY_BEACON" ? "Beacon Quest" :
-                  questMarker.type === "HOT_DROP" ? "Hot Drop" :
-                  "Micro Hotspot"
-                }
-              />
-            ) : (
-              <MarkerComponent
-                key={`quest-${questMarker.id}`}
-                identifier={`quest-${questMarker.id}`}
-                coordinate={{ latitude: questMarker.lat, longitude: questMarker.lng }}
-                onPress={() => onQuestMarkerTap?.(questMarker)}
-                onSelect={() => onQuestMarkerTap?.(questMarker)}
-                anchor={{ x: 0.5, y: 1 }}
-                tracksViewChanges={false}
-                tappable={true}
-              >
-                <View style={styles.questMarkerContainer}>
-                  <View style={[
-                    styles.questMarkerPin,
-                    questMarker.type === 'LEGENDARY_BEACON' ? styles.questMarkerBeacon :
-                    questMarker.type === 'HOT_DROP' ? styles.questMarkerHotdrop :
-                    styles.questMarkerMicro
-                  ]}>
-                    <Feather 
-                      name={questMarker.type === 'LEGENDARY_BEACON' ? 'star' : questMarker.type === 'HOT_DROP' ? 'zap' : 'map-pin'}
-                      size={16} 
-                      color="#fff" 
-                    />
-                  </View>
-                  <View style={styles.questMarkerTail} />
+          {/* Quest Marker (HOT_DROP, MICRO_HOTSPOT, LEGENDARY_BEACON) - Android: disabled until quest-marker-72 asset exists */}
+          {questMarker && MarkerComponent && !IS_ANDROID && (
+            <MarkerComponent
+              key={`quest-${questMarker.id}`}
+              identifier={`quest-${questMarker.id}`}
+              coordinate={{ latitude: questMarker.lat, longitude: questMarker.lng }}
+              onPress={() => onQuestMarkerTap?.(questMarker)}
+              onSelect={() => onQuestMarkerTap?.(questMarker)}
+              anchor={{ x: 0.5, y: 1 }}
+              tracksViewChanges={false}
+              tappable={true}
+            >
+              <View style={styles.questMarkerContainer}>
+                <View style={[
+                  styles.questMarkerPin,
+                  questMarker.type === 'LEGENDARY_BEACON' ? styles.questMarkerBeacon :
+                  questMarker.type === 'HOT_DROP' ? styles.questMarkerHotdrop :
+                  styles.questMarkerMicro
+                ]}>
+                  <Feather 
+                    name={questMarker.type === 'LEGENDARY_BEACON' ? 'star' : questMarker.type === 'HOT_DROP' ? 'zap' : 'map-pin'}
+                    size={16} 
+                    color="#fff" 
+                  />
                 </View>
-              </MarkerComponent>
-            )
+                <View style={styles.questMarkerTail} />
+              </View>
+            </MarkerComponent>
           )}
 
-          {/* Nearby Players - Anonymous dots */}
-          {nearbyPlayers && nearbyPlayers.length > 0 && MarkerComponent ? nearbyPlayers.map((player, idx) => (
-            IS_ANDROID ? (
-              <MarkerComponent
-                key={`player-${idx}-${player.lat}-${player.lng}`}
-                coordinate={{ latitude: player.lat, longitude: player.lng }}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={false}
-                tappable={false}
-                pinColor="#35C6FF"
-              />
-            ) : (
-              <MarkerComponent
-                key={`player-${idx}-${player.lat}-${player.lng}`}
-                coordinate={{ latitude: player.lat, longitude: player.lng }}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={false}
-                tappable={false}
-              >
-                <View style={styles.nearbyPlayerDot} />
-              </MarkerComponent>
-            )
+          {/* Nearby Players - Anonymous dots (Android: disabled until nearby-dot-24 asset exists) */}
+          {!IS_ANDROID && nearbyPlayers && nearbyPlayers.length > 0 && MarkerComponent ? nearbyPlayers.map((player, idx) => (
+            <MarkerComponent
+              key={`player-${idx}-${player.lat}-${player.lng}`}
+              coordinate={{ latitude: player.lat, longitude: player.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              tappable={false}
+            >
+              <View style={styles.nearbyPlayerDot} />
+            </MarkerComponent>
           )) : null}
         </MapViewComponent>
 
