@@ -65,6 +65,7 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   // A) Refs for egg bounds measurement (screen coordinates)
   const eggRef = useRef<View>(null);
   const eggRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const pendingTapRef = useRef<{ x: number; y: number; ts: number } | null>(null);
   
   const measureEgg = () => {
     requestAnimationFrame(() => {
@@ -354,13 +355,26 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   const HIT_PADDING = 30; // Extra padding for easier tapping
 
   // C) Handle tap with coordinate-based hit detection using measured egg bounds
-  const handleTapAtPosition = async (tapX: number, tapY: number) => {
+  const handleTapAtPosition = async (tapX: number, tapY: number, allowRetry = true) => {
     if (isCollecting || isCatching || showMissed) return;
     
     // Use measured egg rect for accurate hit detection (screen coordinates)
     const r = eggRectRef.current;
     if (!r) {
       console.log("[TapDetect] egg rect not ready, measuring...");
+      if (allowRetry && !pendingTapRef.current) {
+        pendingTapRef.current = { x: tapX, y: tapY, ts: Date.now() };
+        setTimeout(() => {
+          const pending = pendingTapRef.current;
+          const rect = eggRectRef.current;
+          if (pending && rect && Date.now() - pending.ts < 500) {
+            pendingTapRef.current = null;
+            handleTapAtPosition(pending.x, pending.y, false);
+          } else if (pending && Date.now() - pending.ts >= 500) {
+            pendingTapRef.current = null;
+          }
+        }, 60);
+      }
       measureEgg();
       return;
     }
@@ -436,11 +450,6 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   const handleAndroidPressIn = (event: { nativeEvent: { pageX: number; pageY: number } }) => {
     if (isCollecting || isCatching || showMissed) return;
     handleTapAtPosition(event.nativeEvent.pageX, event.nativeEvent.pageY);
-  };
-
-  const handleAndroidEggPress = () => {
-    if (isCollecting || isCatching || showMissed) return;
-    startCatchAnimation();
   };
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
@@ -603,25 +612,15 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       {/* AAA VFX Layer - particles, scan sweep, catch zone */}
       <ARVFXLayer />
 
-      {/* Gamey Bronze HUD Overlay */}
-      <CatchingHUDOverlay
-        title={isMysteryEgg ? "Mystery Egg" : spawn.name}
-        distanceText={spawn.distance ? `${spawn.distance}m` : "Near"}
-        statusText={isCatching ? "CATCHING..." : "COLLECTING..."}
-        onClose={handleCancel}
-        visible={true}
-        isCatching={isCatching || isCollecting}
-      />
-
       {isAndroid ? (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}>
+        <View style={StyleSheet.absoluteFill}>
           <Pressable
-            style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
+            style={StyleSheet.absoluteFill}
             onPressIn={handleAndroidPressIn}
             disabled={isCollecting || isCatching || showMissed}
             android_disableSound
           />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
               <View
@@ -846,12 +845,22 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
                     </View>
                     <ThemedText style={styles.ctaText}>Tap the egg to catch!</ThemedText>
                   </BlurView>
-                </View>
-              </Animated.View>
-            )}
+              </View>
+            </Animated.View>
+          )}
           </View>
         </GestureDetector>
       )}
+
+      {/* Gamey Bronze HUD Overlay */}
+      <CatchingHUDOverlay
+        title={isMysteryEgg ? "Mystery Egg" : spawn.name}
+        distanceText={spawn.distance ? `${spawn.distance}m` : "Near"}
+        statusText={isCatching ? "CATCHING..." : "COLLECTING..."}
+        onClose={handleCancel}
+        visible={true}
+        isCatching={isCatching || isCollecting}
+      />
     </View>
   );
 }
