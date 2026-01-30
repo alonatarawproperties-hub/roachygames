@@ -429,11 +429,14 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
   };
 
   const isAndroid = Platform.OS === "android";
-  const tapGesture = Gesture.Tap()
-    .enabled(!isAndroid)
-    .onEnd((event) => {
-      runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
-    });
+  const tapGesture = Gesture.Tap().onEnd((event) => {
+    runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
+  });
+
+  const handleAndroidPressIn = (event: { nativeEvent: { pageX: number; pageY: number } }) => {
+    if (isCollecting || isCatching || showMissed) return;
+    handleTapAtPosition(event.nativeEvent.pageX, event.nativeEvent.pageY);
+  };
 
   const handleAndroidEggPress = () => {
     if (isCollecting || isCatching || showMissed) return;
@@ -610,40 +613,30 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
         isCatching={isCatching || isCollecting}
       />
 
-      <GestureDetector gesture={tapGesture}>
+      {isAndroid ? (
         <View style={StyleSheet.absoluteFill}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPressIn={handleAndroidPressIn}
+            disabled={isCollecting || isCatching || showMissed}
+            android_disableSound
+          />
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              {isAndroid ? (
-                <Pressable
-                  ref={eggRef}
-                  collapsable={false}
-                  style={styles.eggTapArea}
-                  onLayout={measureEgg}
-                  onPress={handleAndroidEggPress}
-                  accessibilityRole="button"
-                >
-                  <Image
-                    source={require("@/assets/hunt/mystery-egg.png")}
-                    style={styles.mysteryEggImage}
-                    resizeMode="contain"
-                  />
-                </Pressable>
-              ) : (
-                <View 
-                  ref={eggRef}
-                  collapsable={false}
-                  style={styles.eggTapArea}
-                  onLayout={measureEgg}
-                >
-                  <Image
-                    source={require("@/assets/hunt/mystery-egg.png")}
-                    style={styles.mysteryEggImage}
-                    resizeMode="contain"
-                  />
-                </View>
-              )}
+              <View
+                ref={eggRef}
+                collapsable={false}
+                style={styles.eggTapArea}
+                onLayout={measureEgg}
+                pointerEvents="none"
+              >
+                <Image
+                  source={require("@/assets/hunt/mystery-egg.png")}
+                  style={styles.mysteryEggImage}
+                  resizeMode="contain"
+                />
+              </View>
             </Animated.View>
 
             {/* Relic Catcher Disc */}
@@ -741,7 +734,124 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
             </Animated.View>
           )}
         </View>
-      </GestureDetector>
+      ) : (
+        <GestureDetector gesture={tapGesture}>
+          <View style={StyleSheet.absoluteFill}>
+            <View style={StyleSheet.absoluteFill}>
+              <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
+                <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
+                <View
+                  ref={eggRef}
+                  collapsable={false}
+                  style={styles.eggTapArea}
+                  onLayout={measureEgg}
+                  pointerEvents="none"
+                >
+                  <Image
+                    source={require("@/assets/hunt/mystery-egg.png")}
+                    style={styles.mysteryEggImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              </Animated.View>
+
+              {/* Relic Catcher Disc */}
+              <Animated.View style={[styles.netContainer, netAnimatedStyle]}>
+                <Animated.View style={[styles.relicDiscContainer, discAnimatedStyle]}>
+                  <Image
+                    source={require("@/assets/ui/relic_catcher_disc.png")}
+                    style={styles.relicDisc}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
+              </Animated.View>
+
+              {/* Golden Catcher Disc */}
+              <Animated.View style={lassoAnimatedStyle}>
+                <Image
+                  source={require("@/assets/ui/relic_catcher_disc.png")}
+                  style={styles.catcherDisc}
+                  resizeMode="contain"
+                />
+              </Animated.View>
+
+              {/* Capture Ring */}
+              <Animated.View style={captureRingAnimatedStyle} pointerEvents="none" />
+
+              {/* Particle Burst */}
+              {showParticles && (
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  {[...Array(12)].map((_, i) => {
+                    const angle = (i / 12) * 360;
+                    const rad = (angle * Math.PI) / 180;
+                    const distance = 60 + Math.random() * 40;
+                    return (
+                      <Animated.View
+                        key={i}
+                        entering={FadeIn.duration(100)}
+                        exiting={FadeOut.duration(400)}
+                        style={[
+                          styles.particle,
+                          {
+                            left: SCREEN_WIDTH / 2 - 4 + Math.cos(rad) * distance,
+                            top: SCREEN_HEIGHT / 2.5 + Math.sin(rad) * distance,
+                            backgroundColor: i % 3 === 0 ? '#FFD700' : i % 3 === 1 ? '#FF8C00' : '#FFA500',
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Portal */}
+              <Animated.View style={portalAnimatedStyle} pointerEvents="none">
+                <LinearGradient
+                  colors={["#FFD70080", "#FF8C0080", "#00000000"]}
+                  style={styles.portalGradient}
+                >
+                  <View style={styles.portalInner} />
+                </LinearGradient>
+              </Animated.View>
+
+              {/* Shockwave */}
+              <Animated.View style={shockwaveAnimatedStyle} pointerEvents="none" />
+            </View>
+
+
+            {/* Missed banner */}
+            {showMissed && (
+              <Animated.View 
+                entering={FadeIn.duration(200)}
+                style={styles.missedBanner}
+              >
+                <BlurView intensity={80} tint="dark" style={styles.missedBlur}>
+                  <Feather name="x-circle" size={32} color="#FF6B6B" />
+                  <ThemedText style={styles.missedText}>MISSED!</ThemedText>
+                  <ThemedText style={styles.missedSubtext}>Tap the egg to catch it</ThemedText>
+                </BlurView>
+              </Animated.View>
+            )}
+
+            {/* Tap hint - only show when idle */}
+            {!isCollecting && !isCatching && !showMissed && (
+              <Animated.View 
+                entering={FadeInUp.duration(400).springify()}
+                style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}
+              >
+                <View style={styles.ctaPanel}>
+                  <BlurView intensity={60} tint="dark" style={styles.ctaBlur}>
+                    <View style={styles.ctaIconContainer}>
+                      <Feather name="target" size={18} color={ObsidianBronzeAR.amber} />
+                    </View>
+                    <ThemedText style={styles.ctaText}>Tap the egg to catch!</ThemedText>
+                  </BlurView>
+                </View>
+              </Animated.View>
+            )}
+          </View>
+        </GestureDetector>
+      )}
     </View>
   );
 }
