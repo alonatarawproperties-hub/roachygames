@@ -852,10 +852,11 @@ export default function HuntScreen() {
           const heading = coords.heading;
           const parsedHeading = heading !== null && heading >= 0 ? heading : undefined;
 
-          // === ANDROID-ONLY: Accuracy gate - ignore noisy GPS fixes ===
+          // === ANDROID-ONLY: Accuracy gate - ignore extremely noisy GPS fixes ===
+          // Android accuracy is often 30-50m even when usable; avoid over-filtering.
           if (Platform.OS === "android") {
             const acc = typeof coords.accuracy === "number" ? coords.accuracy : null;
-            if (acc !== null && acc > 25) {
+            if (acc !== null && acc > 60) {
               if (__DEV__) console.log(`[Android-GPS] Ignoring noisy fix accuracy=${acc}m`);
               return;
             }

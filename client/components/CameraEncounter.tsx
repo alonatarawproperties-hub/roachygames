@@ -428,10 +428,17 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     onCancel();
   };
 
+  const isAndroid = Platform.OS === "android";
   const tapGesture = Gesture.Tap()
+    .enabled(!isAndroid)
     .onEnd((event) => {
       runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
     });
+
+  const handleAndroidEggPress = () => {
+    if (isCollecting || isCatching || showMissed) return;
+    startCatchAnimation();
+  };
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -608,18 +615,35 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <View 
-                ref={eggRef}
-                collapsable={false}
-                style={styles.eggTapArea}
-                onLayout={measureEgg}
-              >
-                <Image
-                  source={require("@/assets/hunt/mystery-egg.png")}
-                  style={styles.mysteryEggImage}
-                  resizeMode="contain"
-                />
-              </View>
+              {isAndroid ? (
+                <Pressable
+                  ref={eggRef}
+                  collapsable={false}
+                  style={styles.eggTapArea}
+                  onLayout={measureEgg}
+                  onPress={handleAndroidEggPress}
+                  accessibilityRole="button"
+                >
+                  <Image
+                    source={require("@/assets/hunt/mystery-egg.png")}
+                    style={styles.mysteryEggImage}
+                    resizeMode="contain"
+                  />
+                </Pressable>
+              ) : (
+                <View 
+                  ref={eggRef}
+                  collapsable={false}
+                  style={styles.eggTapArea}
+                  onLayout={measureEgg}
+                >
+                  <Image
+                    source={require("@/assets/hunt/mystery-egg.png")}
+                    style={styles.mysteryEggImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
             </Animated.View>
 
             {/* Relic Catcher Disc */}
