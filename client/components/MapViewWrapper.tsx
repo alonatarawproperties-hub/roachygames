@@ -4,7 +4,6 @@ import { View, StyleSheet, Pressable, Platform, Image } from "react-native";
 const spawnMarkerImage = require("@/assets/hunt/spawn-marker.png");
 // Android-sized bitmaps (72px) for native Marker image prop
 const spawnMarkerImageAndroid = require("@/assets/hunt/spawn-marker-72.png");
-const playerMarkerImageAndroid = require("@/assets/hunt/mystery-egg-72.png");
 import { SPAWN_RESERVED_BY_YOU, SPAWN_RESERVED_BY_OTHER } from "@/assets/spawns";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -604,12 +603,10 @@ export const MapViewWrapper = forwardRef<MapViewWrapperRef, MapViewWrapperProps>
               }}
               anchor={{ x: 0.5, y: 0.5 }}
               flat={true}
-              tracksViewChanges={!IS_ANDROID}
+              tracksViewChanges={true}
               tappable={false}
-              {...(IS_ANDROID ? { image: playerMarkerImageAndroid } : {})}
             >
-              {/* iOS unchanged: keep existing custom wedge + heading view */}
-              {!IS_ANDROID ? <PlayerMarkerView heading={playerLocation.heading} /> : null}
+              <PlayerMarkerView heading={playerLocation.heading} />
             </MarkerComponent>
           ) : null}
 
