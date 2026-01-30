@@ -438,6 +438,11 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     handleTapAtPosition(event.nativeEvent.pageX, event.nativeEvent.pageY);
   };
 
+  const handleAndroidEggPress = () => {
+    if (isCollecting || isCatching || showMissed) return;
+    startCatchAnimation();
+  };
+
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: creatureX.value },
