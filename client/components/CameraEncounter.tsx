@@ -428,10 +428,9 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     onCancel();
   };
 
-  const tapGesture = Gesture.Tap()
-    .onEnd((event) => {
-      runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
-    });
+  const tapGesture = Gesture.Tap().onEnd((event) => {
+    runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
+  });
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -608,11 +607,12 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <View 
+              <View
                 ref={eggRef}
                 collapsable={false}
                 style={styles.eggTapArea}
                 onLayout={measureEgg}
+                pointerEvents="none"
               >
                 <Image
                   source={require("@/assets/hunt/mystery-egg.png")}
