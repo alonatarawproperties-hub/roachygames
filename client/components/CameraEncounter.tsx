@@ -614,14 +614,14 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       />
 
       {isAndroid ? (
-        <View style={StyleSheet.absoluteFill}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}>
           <Pressable
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
             onPressIn={handleAndroidPressIn}
             disabled={isCollecting || isCatching || showMissed}
             android_disableSound
           />
-          <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} pointerEvents="box-none">
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
               <View
