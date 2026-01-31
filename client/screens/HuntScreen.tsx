@@ -2259,21 +2259,35 @@ export default function HuntScreen() {
       {/* Dev spawn button removed - POST /api/hunt/spawn now requires admin key */}
       {/* Spawns are created automatically via drip system in GET /api/hunt/spawns */}
 
-      <Modal
-        visible={showCameraEncounter && selectedSpawn !== null}
-        animationType="slide"
-        presentationStyle="fullScreen"
-      >
-        {selectedSpawn ? (
-          <CameraEncounter
-            spawn={selectedSpawn}
-            onStartCatch={handleStartCatch}
-            onCancel={handleCancelEncounter}
-            onMiss={handleMissEncounter}
-            isCollecting={isCollecting}
-          />
-        ) : null}
-      </Modal>
+      {Platform.OS === "android" ? (
+        showCameraEncounter && selectedSpawn !== null && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}>
+            <CameraEncounter
+              spawn={selectedSpawn}
+              onStartCatch={handleStartCatch}
+              onCancel={handleCancelEncounter}
+              onMiss={handleMissEncounter}
+              isCollecting={isCollecting}
+            />
+          </View>
+        )
+      ) : (
+        <Modal
+          visible={showCameraEncounter && selectedSpawn !== null}
+          animationType="slide"
+          presentationStyle="fullScreen"
+        >
+          {selectedSpawn ? (
+            <CameraEncounter
+              spawn={selectedSpawn}
+              onStartCatch={handleStartCatch}
+              onCancel={handleCancelEncounter}
+              onMiss={handleMissEncounter}
+              isCollecting={isCollecting}
+            />
+          ) : null}
+        </Modal>
+      )}
 
       <Modal
         visible={showCatchGame && selectedSpawn !== null}
