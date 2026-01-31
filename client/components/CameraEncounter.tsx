@@ -394,6 +394,10 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
       // Successful tap on egg!
       startCatchAnimation();
     } else {
+      if (Platform.OS === "android") {
+        pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `tap_ignore_android spawn=${spawn.id}` });
+        return;
+      }
       // Debug event: tap miss
       pushApiDebug({ id: genDebugId(), ts: Date.now(), kind: "event", extra: `tap_miss spawn=${spawn.id}` });
       // Missed - tapped outside egg
@@ -447,9 +451,9 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
     runOnJS(handleTapAtPosition)(event.absoluteX, event.absoluteY);
   });
 
-  const handleAndroidPressIn = (event: { nativeEvent: { pageX: number; pageY: number } }) => {
+  const handleAndroidPressIn = () => {
     if (isCollecting || isCatching || showMissed) return;
-    handleTapAtPosition(event.nativeEvent.pageX, event.nativeEvent.pageY);
+    startCatchAnimation();
   };
 
   const creatureAnimatedStyle = useAnimatedStyle(() => ({
@@ -614,28 +618,26 @@ export function CameraEncounter({ spawn, onStartCatch, onCancel, onMiss, isColle
 
       {isAndroid ? (
         <View style={StyleSheet.absoluteFill}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPressIn={handleAndroidPressIn}
-            disabled={isCollecting || isCatching || showMissed}
-            android_disableSound
-          />
           <View style={StyleSheet.absoluteFill}>
             <Animated.View style={[styles.creature, creatureAnimatedStyle]}>
               <Animated.View style={[styles.creatureGlow, glowAnimatedStyle, { shadowColor: GameColors.primary }]} />
-              <View
+              <Pressable
                 ref={eggRef}
                 collapsable={false}
                 style={styles.eggTapArea}
                 onLayout={measureEgg}
-                pointerEvents="none"
+                onPressIn={handleAndroidPressIn}
+                disabled={isCollecting || isCatching || showMissed}
+                hitSlop={30}
+                android_disableSound
+                accessibilityRole="button"
               >
                 <Image
                   source={require("@/assets/hunt/mystery-egg.png")}
                   style={styles.mysteryEggImage}
                   resizeMode="contain"
                 />
-              </View>
+              </Pressable>
             </Animated.View>
 
             {/* Relic Catcher Disc */}
