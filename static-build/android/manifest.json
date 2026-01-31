@@ -1,11 +1,11 @@
 {
-  "id": "273bee10-2515-46e1-ab50-758aa6b3265f",
-  "createdAt": "2026-01-27T03:46:11.453Z",
+  "id": "7421b068-ac13-4756-85d8-39d741bff9cc",
+  "createdAt": "2026-01-30T13:27:08.304Z",
   "runtimeVersion": "1.0.0",
   "launchAsset": {
-    "key": "bundle-1769485571453-2862",
+    "key": "bundle-1769779628304-10161",
     "contentType": "application/javascript",
-    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1769485571453-2862/_expo/static/js/android/bundle.js"
+    "url": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/1769779628304-10161/_expo/static/js/android/bundle.js"
   },
   "assets": [],
   "metadata": {},
@@ -41,7 +41,7 @@
       "ios": {
         "supportsTablet": true,
         "bundleIdentifier": "com.cryptocreatures.app",
-        "buildNumber": "156",
+        "buildNumber": "157",
         "backgroundColor": "#120a05",
         "infoPlist": {
           "NSLocationWhenInUseUsageDescription": "Roachy Hunt needs your location to find Roachies near you.",
@@ -74,6 +74,9 @@
           "foregroundImageUrl": "https://893a214d-13d5-457f-a16f-e8d4d71fa780-00-29rvr6be6kd78.riker.replit.dev/assets/./assets/images/icon.png"
         },
         "package": "com.cryptocreatures.app",
+        "blockedPermissions": [
+          "android.permission.ACTIVITY_RECOGNITION"
+        ],
         "permissions": [
           "ACCESS_COARSE_LOCATION",
           "ACCESS_FINE_LOCATION",
@@ -124,7 +127,12 @@
               "DEFAULT"
             ]
           }
-        ]
+        ],
+        "config": {
+          "googleMaps": {
+            "apiKey": "AIzaSyD4w_Ajfh8Rpyv2bH52oIzO94rNeqlFVmY"
+          }
+        }
       },
       "web": {
         "output": "single",
@@ -168,7 +176,7 @@
       "_internal": {
         "isDebug": false,
         "projectRoot": "/home/runner/workspace",
-        "dynamicConfigPath": {},
+        "dynamicConfigPath": "/home/runner/workspace/app.config.js",
         "staticConfigPath": "/home/runner/workspace/app.json",
         "packageJsonPath": "/home/runner/workspace/package.json",
         "pluginHistory": {
@@ -217,6 +225,6 @@
     "expoGo": {
       "__flipperHack": "React Native packager is running"
     },
-    "scopeKey": "@anonymous/roachy-games-65a2b04a-cec4-4440-a3fb-b6ae0574a7bc"
+    "scopeKey": "@anonymous/roachy-games-dee04a76-7716-48be-9829-aef4bc11f779"
   }
 }
